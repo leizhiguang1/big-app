@@ -1,12 +1,8 @@
-import { NewOutletButton } from '@/components/outlets/OutletForm'
-import { OutletsTable } from '@/components/outlets/OutletsTable'
-import { getServerContext } from '@/lib/context/server'
-import { listOutlets } from '@/lib/services/outlets'
+import { Suspense } from 'react'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
+import { OutletsContent } from './outlets-content'
 
-export default async function OutletsPage() {
-  const ctx = await getServerContext()
-  const outlets = await listOutlets(ctx)
-
+export default function OutletsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -15,13 +11,9 @@ export default async function OutletsPage() {
           Branches and treatment rooms. Used by appointments, customers, and sales.
         </p>
       </div>
-      <div className="flex items-center justify-between">
-        <p className="text-muted-foreground text-sm">
-          {outlets.length} outlet{outlets.length === 1 ? '' : 's'}
-        </p>
-        <NewOutletButton />
-      </div>
-      <OutletsTable outlets={outlets} />
+      <Suspense fallback={<TableSkeleton columns={5} rows={6} showHeader={false} />}>
+        <OutletsContent />
+      </Suspense>
     </div>
   )
 }

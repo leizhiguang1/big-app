@@ -14,6 +14,120 @@ export type Database = {
   }
   public: {
     Tables: {
+      customers: {
+        Row: {
+          address1: string | null
+          address2: string | null
+          allergies: string | null
+          city: string | null
+          code: string
+          consultant_id: string
+          country_of_origin: string | null
+          created_at: string
+          date_of_birth: string | null
+          email: string | null
+          external_code: string | null
+          first_name: string
+          gender: string | null
+          home_outlet_id: string
+          id: string
+          id_number: string | null
+          id_type: string
+          is_vip: boolean
+          join_date: string
+          last_name: string | null
+          opt_in_marketing: boolean
+          opt_in_notifications: boolean
+          phone: string
+          phone2: string | null
+          postcode: string | null
+          profile_image_url: string | null
+          salutation: string
+          source: string | null
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          address1?: string | null
+          address2?: string | null
+          allergies?: string | null
+          city?: string | null
+          code?: string
+          consultant_id: string
+          country_of_origin?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          external_code?: string | null
+          first_name: string
+          gender?: string | null
+          home_outlet_id: string
+          id?: string
+          id_number?: string | null
+          id_type?: string
+          is_vip?: boolean
+          join_date?: string
+          last_name?: string | null
+          opt_in_marketing?: boolean
+          opt_in_notifications?: boolean
+          phone: string
+          phone2?: string | null
+          postcode?: string | null
+          profile_image_url?: string | null
+          salutation: string
+          source?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address1?: string | null
+          address2?: string | null
+          allergies?: string | null
+          city?: string | null
+          code?: string
+          consultant_id?: string
+          country_of_origin?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          external_code?: string | null
+          first_name?: string
+          gender?: string | null
+          home_outlet_id?: string
+          id?: string
+          id_number?: string | null
+          id_type?: string
+          is_vip?: boolean
+          join_date?: string
+          last_name?: string | null
+          opt_in_marketing?: boolean
+          opt_in_notifications?: boolean
+          phone?: string
+          phone2?: string | null
+          postcode?: string | null
+          profile_image_url?: string | null
+          salutation?: string
+          source?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_consultant_id_fkey"
+            columns: ["consultant_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customers_home_outlet_id_fkey"
+            columns: ["home_outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_outlets: {
         Row: {
           created_at: string
@@ -315,6 +429,92 @@ export type Database = {
             columns: ["outlet_id"]
             isOneToOne: false
             referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_categories: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      services: {
+        Row: {
+          category_id: string | null
+          consumables: string | null
+          created_at: string
+          discount_cap: number | null
+          duration_min: number
+          full_payment: boolean
+          id: string
+          incentive_type: string | null
+          is_active: boolean
+          name: string
+          price: number
+          sku: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          consumables?: string | null
+          created_at?: string
+          discount_cap?: number | null
+          duration_min?: number
+          full_payment?: boolean
+          id?: string
+          incentive_type?: string | null
+          is_active?: boolean
+          name: string
+          price?: number
+          sku: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          consumables?: string | null
+          created_at?: string
+          discount_cap?: number | null
+          duration_min?: number
+          full_payment?: boolean
+          id?: string
+          incentive_type?: string | null
+          is_active?: boolean
+          name?: string
+          price?: number
+          sku?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "service_categories"
             referencedColumns: ["id"]
           },
         ]

@@ -74,8 +74,15 @@ How it actually works:
 3. **Timestamps**: `created_at timestamptz not null default now()` and
    `updated_at timestamptz not null default now()`, with a shared
    `set_updated_at()` `BEFORE UPDATE` trigger.
-4. **Soft deletion via `is_active bool`** where the entity is referenced by
-   historical records. Hard delete only for orphan-safe lookup tables.
+4. **Soft deletion via `is_active bool` is OPT-IN, not default.** Add the
+   column only when a concrete use case forces it (usually: the entity is
+   already referenced by historical rows and a hard delete would break
+   foreign keys or lose audit trail). Default to hard delete with
+   `ON DELETE RESTRICT` on FKs — it keeps the schema smaller and avoids
+   the "deleted but still showing up" class of bugs. Same bias as rule 2:
+   easy to add later, hard to remove. Existing tables that already carry
+   `is_active` (employees, outlets, roles, positions, services) keep it —
+   this rule applies going forward only.
 5. **No denormalized text columns** — always JOIN. (Same rule as before.)
 6. **RLS is on for every table from the moment it's created, with temp
    permissive policies for BOTH `anon` AND `authenticated`.** Until per-role

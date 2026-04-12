@@ -23,7 +23,10 @@
 3. `created_at timestamptz not null default now()`
 4. `updated_at timestamptz not null default now()` + shared `set_updated_at`
    `BEFORE UPDATE` trigger
-5. `is_active bool default true` where soft-delete is needed
+5. `is_active bool default true` **only** when a concrete use case forces
+   soft-delete (FK breakage, audit history). Default is hard delete with
+   `ON DELETE RESTRICT`. Bias toward skipping — easy to add later. Existing
+   tables that already carry it keep it; this rule applies forward only.
 6. RLS enabled the moment the table is created. Pre-auth: permissive
    `anon` policy marked `-- TEMP: pre-auth, replace when login lands`.
    Post-auth: tightened per module.
@@ -48,7 +51,7 @@ Status column: ✅ = built (v1 minimal), ○ = target (not yet built).
 | 6 | Foundation | `employee_outlets` | ○ | Many-to-many employee ↔ outlet assignments |
 | 7 | Services | `service_categories` | Service groupings (Diagnostic, Preventive, etc.) |
 | 8 | Services | `services` | Treatment catalog with SKU, price, duration |
-| 9 | Customers | `customers` | Patient / customer records |
+| 9 | Customers | `customers` | ✅ | Customer records — v1: profile + contact + address + home outlet + consultant. Hard-delete model (no `is_active`). See [modules/03-customers.md](./modules/03-customers.md). |
 | 10 | Roster | `employee_shifts` | Per-date shift assignments |
 | 11 | Appointments | `appointments` | Calendar bookings + time blocks |
 | 12 | Appointments | `billing_entries` | Session bundles of work done during appointment. `items` is a JSONB array of line objects. One row per "Save Billing" click. Matches current prototype. |

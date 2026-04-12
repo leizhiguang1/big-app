@@ -1,10 +1,19 @@
-import { PlaceholderPage } from "@/components/shell/placeholder-page";
+import { Suspense } from 'react'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
+import { ServicesContent } from './services-content'
 
 export default function ServicesPage() {
-	return (
-		<PlaceholderPage
-			title="Services"
-			description="Service catalog with categories, pricing, and duration."
-		/>
-	);
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="font-semibold text-2xl tracking-tight">Services</h1>
+        <p className="mt-1 text-muted-foreground text-sm">
+          Treatment catalog. Used as billing line items after a visit.
+        </p>
+      </div>
+      <Suspense fallback={<TableSkeleton columns={8} rows={8} showHeader={false} />}>
+        <ServicesContent />
+      </Suspense>
+    </div>
+  )
 }

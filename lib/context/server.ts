@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { cache } from "react";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Context, CurrentUser } from "./types";
 
-export async function getServerContext(): Promise<Context> {
+export const getServerContext = cache(async (): Promise<Context> => {
 	const db = await createClient();
 	const dbAdmin = createSupabaseAdminClient();
 
@@ -32,4 +33,4 @@ export async function getServerContext(): Promise<Context> {
 		outletIds: [],
 		requestId: randomUUID(),
 	};
-}
+});

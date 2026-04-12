@@ -9,6 +9,27 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getServerContext } from "@/lib/context/server";
+
+export async function UserMenuSlot() {
+	const ctx = await getServerContext();
+	return <UserMenu email={ctx.currentUser?.email ?? null} />;
+}
+
+export function UserMenuFallback() {
+	return (
+		<Button
+			variant="ghost"
+			size="icon"
+			className="size-9 rounded-full p-0"
+			disabled
+		>
+			<Avatar className="size-8">
+				<AvatarFallback className="bg-muted text-xs">··</AvatarFallback>
+			</Avatar>
+		</Button>
+	);
+}
 
 export function UserMenu({ email }: { email: string | null }) {
 	const initials = (email ?? "??").split("@")[0].slice(0, 2).toUpperCase();

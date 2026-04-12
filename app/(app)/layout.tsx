@@ -1,13 +1,14 @@
 import { Bell, HelpCircle, Plus, Search, Settings } from "lucide-react";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { AppSidebar } from "@/components/shell/app-sidebar";
-import { UserMenu } from "@/components/shell/user-menu";
+import {
+	UserMenuFallback,
+	UserMenuSlot,
+} from "@/components/shell/user-menu";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { getServerContext } from "@/lib/context/server";
 
-export default async function AppLayout({ children }: { children: ReactNode }) {
-	const ctx = await getServerContext();
+export default function AppLayout({ children }: { children: ReactNode }) {
 	return (
 		<SidebarProvider>
 			<AppSidebar />
@@ -60,7 +61,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 							<Settings className="size-4" />
 						</Button>
 						<div className="mx-1 h-6 w-px bg-border" />
-						<UserMenu email={ctx.currentUser?.email ?? null} />
+						<Suspense fallback={<UserMenuFallback />}>
+							<UserMenuSlot />
+						</Suspense>
 					</div>
 				</header>
 				<main className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">

@@ -1,12 +1,23 @@
 # Module: Customers
 
-> Status: Surface done — pending deep dive into sub-modules
+> Status: v1 build in progress (2026-04-12). Listing + create/edit modal only; detail page deferred until downstream modules (appointments, sales, clinical) land.
 
 ## Overview
 
-Central entity for the entire system. Every appointment, sale, case note, and clinical record belongs to a customer. In KumoDent (dental context) these are patients; we use "customer" as the generic term to support cross-industry use (salon, beauty, etc.).
+Central entity for the entire system. Every appointment, sale, case note, and clinical record belongs to a customer. In the reference prototype (dental context) these are patients; we use "customer" as the generic term to support cross-industry use (salon, beauty, etc.).
 
-The customer module handles: registration, profile management, and serves as the shell for all customer-related sub-modules (case notes, prescriptions, etc.).
+The customer module handles: registration, profile management, and serves as the shell for all customer-related sub-modules (case notes, prescriptions, etc.) once those modules exist.
+
+## v1 scope (what we're actually building now)
+
+- **`/customers` list page only** — table with search, paginated, modal for create/edit. No dedicated detail route.
+- **Hard delete** — no `is_active` flag. `ON DELETE RESTRICT` on `home_outlet_id` and `consultant_id` prevents accidental destruction of referenced rows. Soft-delete can be added in a follow-up migration if/when appointments/sales start referencing customers and we need to preserve history.
+- **Create/edit in a modal**, not a new route — matches the Employees UX. One scrollable form grouped into visual sections (Identity / Contact / Address / Clinic / Notifications).
+- **Search**: name, phone, IC/passport number. Plain `ilike` on the server, no debounce, form submit pushes `?q=` to the URL. Simple index on `phone` + `id_number`; name is matched with `ilike` against a computed `first_name || ' ' || last_name` pattern — good enough for current scale, upgrade to a trigram/GIN index later if needed.
+- **Photo column exists, no upload UI** — `profile_image_url` is in the schema but the form doesn't expose it until Supabase Storage is configured.
+- **Consultant is required.** Form defaults to the current user if they are an employee.
+- **IC vs passport** — single `id_type` (`'ic' | 'passport'`) + `id_number` pair. Form has a radio/toggle that swaps the label ("IC Number" ↔ "Passport Number") and the validation rule. Malaysian IC format (`YYMMDD-PB-###G`, 12 digits, optional dashes) validated in Zod when `id_type = 'ic'`.
+- **Deferred to later phases:** detail page (profile sidebar + any tab), timeline, case notes, clinical sub-modules, wallet, follow-up, lead management, QR registration, customer merging, VIP workflow beyond the flag itself, address autocomplete.
 
 ## Screenshots
 
@@ -18,82 +29,73 @@ The customer module handles: registration, profile management, and serves as the
 
 ## Screens & Views
 
-### Screen: Customer List
+### Screen: Customer List  (v1)
 
 **URL pattern:** `/customers`
-**Purpose:** Browse, search, and manage all customers
+**Purpose:** Browse, search, create, and edit customers
 
 **Key elements:**
-- Search bar (prominent, full-width at top)
-- Table columns: photo, name, phone, outlet (with method), consultant
-- Action buttons (top-right area):
-  - "View Follow Up" — opens follow-up panel (Phase 2)
-  - "Lead Management" — opens lead panel (Phase 2)
-  - "Add" button with sub-options:
-    - Generate New Customer (v1 — main flow)
-    - Automated Registration via QR / Link (future)
-    - Customer Merging (future)
-    - Send Notification (future)
-- Pagination at bottom
+- Search input (full-width at top) — matches name, phone, IC/passport; form submit pushes `?q=` into the URL
+- Table columns: Code, Name, Phone, IC/Passport, Home Outlet, Consultant, Joined
+- Row click → opens edit modal
+- Top-right: single "Add Customer" button → opens create modal
+- Pagination at the bottom (server-side via `?page=`)
 
-### Screen: Customer Creation Form
+Deferred from the reference prototype: "View Follow Up", "Lead Management", and the Add dropdown's QR/Merging/Notification sub-options.
 
-**URL pattern:** `/customers/new` (or modal)
-**Purpose:** Register a new customer
+### Screen: Customer Create / Edit Modal  (v1)
 
-**Tabs in KumoDent (8 total):**
-1. **Personal Information** ← v1 scope
-2. E-Invoice — future
-3. Address — v1 (simple, within personal info)
-4. Medical Information — future (except allergies, which we put in personal info)
-5. Employment / Payment — future
-6. Miscellaneous — future
-7. Notification & Marketing — v1 (opt-in flags)
-8. E-Forms — future
+**Open from:** "Add Customer" button (create) or row click (edit). Both use the same `<CustomerForm>` component, parameterised by an optional `customer` prop.
 
-**v1 form fields — see Data Fields section below.**
+**Layout:** scrollable modal body, sections rendered as stacked cards:
 
-**Special features:**
-- "Add via IC Scanner" button — future (hardware IC reader or image scan)
-- "Customer has a Passport" toggle — switches ID field from IC to passport
-- Membership number auto-generated on save: `{outlet_code}{sequence}` (e.g., BDK260790)
-- VIP flag toggle
+1. **Identity** — salutation, first name, last name, gender, date of birth
+2. **Identification** — IC / Passport toggle → id_number field (label + validation swap based on toggle)
+3. **Contact** — phone, phone2, email, country of origin
+4. **Address** — address1, address2, city, state, postcode
+5. **Clinic** — home outlet (required), consultant (required, defaults to current user), source, external code, VIP flag
+6. **Medical** — allergies (free text, highlighted as "Alert")
+7. **Notifications** — opt-in notifications, opt-in marketing
 
-### Screen: Customer Detail Page
+The `code` (`CUS-00000001`) is generated by the DB trigger on insert, not set in the form.
 
-**URL pattern:** `/customers/:id`
-**Purpose:** Full customer record — profile + tabbed sub-modules
+### Screen: Customer Detail Page  (deferred)
+
+Not built in v1. Full sidebar + tabs spec from the reference prototype is preserved below for future reference — none of these land until appointments/sales/clinical modules exist.
+
+<details>
+<summary>Reference prototype detail page (not v1)</summary>
 
 **Left sidebar:**
 - Profile photo, name, salutation
 - Alert / Known Allergies (highlighted)
-- Customer details summary (membership no, phone, outlet)
+- Customer details summary (code, phone, outlet)
 - Financial summary (wallet balances — Phase 2)
 - Appointments summary
 - Quick links
 
-**Tabs across top (16 in KumoDent):**
+**Tabs across top (16 in the reference prototype):**
 
-| Tab | v1? | Notes |
-|-----|-----|-------|
-| Timeline | Yes | Auto-generated activity log |
-| Case Notes | Phase 2 | Own sub-module |
-| Dental Assessment | Phase 2 | Clinical sub-module |
-| Periodontal Charting | Phase 2 | Clinical sub-module |
-| Follow Up | Phase 2 | Task/reminder list |
-| Documents | Phase 2 | File uploads |
-| Visuals | Phase 2 | Before/after photos, X-rays |
-| Medical Certificate | Phase 2 | Generated documents |
-| Prescriptions | Phase 2 | Own sub-module |
-| Laboratory | Phase 2 | Lab orders |
-| Vaccinations | Phase 2 | Vaccination records |
-| Sales | Phase 2 | Linked from sales module |
-| Payments | Phase 2 | Payment history |
-| Services | Phase 2 | Service history |
-| Products | Phase 2 | Product purchase history |
-| Cash Wallet | Phase 2 | Wallet transactions |
+| Tab | Notes |
+|-----|-------|
+| Timeline | Auto-generated activity log |
+| Case Notes | Own sub-module — Phase 2 |
+| Dental Assessment | Clinical sub-module — Phase 2 |
+| Periodontal Charting | Clinical sub-module — Phase 2 |
+| Follow Up | Task/reminder list — Phase 2 |
+| Documents | File uploads — Phase 2 |
+| Visuals | Before/after photos, X-rays — Phase 2 |
+| Medical Certificate | Generated documents — Phase 2 |
+| Prescriptions | Own sub-module — Phase 2 |
+| Laboratory | Lab orders — Phase 2 |
+| Vaccinations | Vaccination records — Phase 2 |
+| Sales | Linked from sales module — Phase 2 |
+| Payments | Payment history — Phase 2 |
+| Services | Service history — Phase 2 |
+| Products | Product purchase history — Phase 2 |
+| Cash Wallet | Wallet transactions — Phase 2 |
 
-**v1 detail page:** Profile sidebar + Timeline tab only. Other tabs shown as disabled/coming soon.
+</details>
 
 ## Data Fields
 
@@ -101,14 +103,14 @@ _v1 customer creation form fields:_
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
-| profile_image_url | text | No | Photo upload URL |
+| profile_image_url | text | No | Column present; no upload UI in v1 (Storage deferred) |
 | first_name | text | Yes | |
 | last_name | text | No | |
 | salutation | text | Yes | Mr, Ms, Mrs, Dr |
 | gender | text | No | male, female |
 | date_of_birth | date | No | |
-| id_type | text | Yes | 'ic' (default) or 'passport' |
-| id_number | text | No | IC number or passport number |
+| id_type | text | Yes | `'ic'` (default) or `'passport'` — toggle in the form |
+| id_number | text | No | IC (Malaysian format) or passport number — label + validation swap with `id_type` |
 | country_of_origin | text | No | Default: Malaysia |
 | phone | text | Yes | Primary, with country code (+60) |
 | phone2 | text | No | Secondary contact |
@@ -118,9 +120,9 @@ _v1 customer creation form fields:_
 | city | text | No | |
 | state | text | No | |
 | postcode | text | No | |
-| home_outlet_id | uuid (FK) | Yes | Branch where registered |
-| consultant_id | uuid (FK) | Yes | Assigned staff member |
-| source | text | No | walk_in, referral, ads, online_booking |
+| home_outlet_id | uuid (FK) | Yes | Branch where registered — `ON DELETE RESTRICT` |
+| consultant_id | uuid (FK) | Yes | Assigned staff member — `ON DELETE RESTRICT`, form defaults to current user |
+| source | text | No | walk_in, referral, ads, online_booking (free text in DB, constrained in Zod) |
 | external_code | text | No | Max 15 chars, external system reference |
 | is_vip | boolean | No | Default: false |
 | allergies | text | No | Free text, shown prominently on detail page |
@@ -132,10 +134,12 @@ _Auto-generated on save:_
 | Field | Type | Notes |
 |-------|------|-------|
 | id | uuid | Primary key |
-| membership_no | text | Unique, format: {outlet_code}{sequence} |
-| join_date | date | Date of registration |
+| code | text | Unique, format: `CUS-00000001` (8-digit sequence), set by `gen_code` trigger |
+| join_date | date | Date of registration (defaults to `current_date`, overridable) |
 | created_at | timestamptz | |
 | updated_at | timestamptz | |
+
+**No `is_active` column in v1.** Hard delete only. If/when appointments or sales start referencing customers and we need to preserve history, soft delete can be added as a follow-up migration — see [CLAUDE.md](../../CLAUDE.md) schema conventions rule 4.
 
 ## Workflows & Status Transitions
 
@@ -149,12 +153,13 @@ _For v1, all created customers are considered "active"._
 
 ## Business Rules
 
-- Membership number is auto-generated and immutable after creation
-- Phone number should be stored with country code (e.g., +60123456789)
-- If id_type = 'passport', id_number holds passport number; if 'ic', holds IC number
+- `code` (`CUS-00000001`) is auto-generated by the DB trigger and immutable after creation
+- Phone number should be stored with country code (e.g., +60123456789) — normalized in the form before save
+- `id_type = 'passport'` → `id_number` holds the passport number; `id_type = 'ic'` → `id_number` holds the Malaysian IC (validated to `YYMMDD-PB-###G`, 12 digits, dashes optional)
 - A customer belongs to one home outlet but can visit any outlet
-- Consultant is the default assigned staff, not a hard restriction
+- Consultant is the default assigned staff; appointments can override the attending employee
 - VIP flag is manual, set by staff
+- Customers are hard-deleted in v1. Any FK pointing at `customers` (future: `appointments`, `sales_orders`) must decide its own `ON DELETE` behaviour when introduced; typically `RESTRICT` so the delete is blocked once history exists.
 
 ## Relationships to Other Modules
 
@@ -177,60 +182,87 @@ _For v1, all created customers are considered "active"._
 
 ## Schema Notes
 
+Applied as migration `0019_customers`. Depends on `outlets` and `employees` (both already live).
+
 ```sql
-CREATE TABLE customers (
-  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  membership_no        TEXT UNIQUE NOT NULL,
+create sequence if not exists public.customers_code_seq;
+
+create table public.customers (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null
+    default gen_code('CUS', 'public.customers_code_seq', 8),  -- CUS-00000001
 
   -- Identity
-  first_name           TEXT NOT NULL,
-  last_name            TEXT,
-  salutation           TEXT NOT NULL,
-  gender               TEXT,
-  date_of_birth        DATE,
-  profile_image_url    TEXT,
+  first_name text not null,
+  last_name text,
+  salutation text not null,
+  gender text,
+  date_of_birth date,
+  profile_image_url text,
 
-  -- Identification
-  id_type              TEXT NOT NULL DEFAULT 'ic',  -- 'ic' or 'passport'
-  id_number            TEXT,
+  -- Identification (IC or passport — one field, toggled in the UI)
+  id_type text not null default 'ic',  -- 'ic' | 'passport'
+  id_number text,
 
   -- Contact
-  phone                TEXT NOT NULL,
-  phone2               TEXT,
-  email                TEXT,
-  country_of_origin    TEXT DEFAULT 'Malaysia',
+  phone text not null,
+  phone2 text,
+  email text,
+  country_of_origin text default 'Malaysia',
 
   -- Address
-  address1             TEXT,
-  address2             TEXT,
-  city                 TEXT,
-  state                TEXT,
-  postcode             TEXT,
+  address1 text,
+  address2 text,
+  city text,
+  state text,
+  postcode text,
 
   -- Clinic relationship
-  home_outlet_id       UUID NOT NULL REFERENCES outlets(id),
-  consultant_id        UUID REFERENCES employees(id),
-  source               TEXT,
-  external_code        TEXT,
+  home_outlet_id uuid not null references public.outlets(id)   on delete restrict,
+  consultant_id  uuid not null references public.employees(id) on delete restrict,
+  source text,
+  external_code text,
 
   -- Flags
-  is_vip               BOOLEAN DEFAULT false,
+  is_vip boolean not null default false,
 
-  -- Medical (simple)
-  allergies            TEXT,
+  -- Medical
+  allergies text,
 
   -- Notification preferences
-  opt_in_notifications BOOLEAN DEFAULT true,
-  opt_in_marketing     BOOLEAN DEFAULT true,
+  opt_in_notifications boolean not null default true,
+  opt_in_marketing     boolean not null default true,
 
-  -- Timestamps
-  join_date            DATE DEFAULT CURRENT_DATE,
-  created_at           TIMESTAMPTZ DEFAULT now(),
-  updated_at           TIMESTAMPTZ DEFAULT now()
+  -- Lifecycle
+  join_date  date        not null default current_date,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
--- Index for phone lookup (messaging integration)
-CREATE INDEX idx_customers_phone ON customers(phone);
+create trigger trg_customers_set_updated_at
+  before update on public.customers
+  for each row execute function public.set_updated_at();
+
+create index customers_phone_idx       on public.customers (phone);
+create index customers_id_number_idx   on public.customers (id_number);
+create index customers_home_outlet_idx on public.customers (home_outlet_id);
+create index customers_consultant_idx  on public.customers (consultant_id);
+
+alter table public.customers enable row level security;
+
+-- TEMP: pre-auth tightening
+create policy "customers anon all"
+  on public.customers for all to anon
+  using (true) with check (true);
+
+-- TEMP: pre-auth tightening
+create policy "customers authn all"
+  on public.customers for all to authenticated
+  using (true) with check (true);
 ```
 
-_Depends on: `outlets` and `employees` tables being created first._
+**Design notes:**
+- No `is_active` column — hard delete only in v1 (per [CLAUDE.md](../../CLAUDE.md) rule 4).
+- No `membership_no` — collapsed into the standard `code` convention.
+- No GIN/trigram index on names — plain `ilike '%q%'` is good enough at current scale. Add a trigram index in a follow-up if search starts feeling slow.
+- Both FKs are `NOT NULL` + `ON DELETE RESTRICT`: a customer always has a home outlet and a consultant, and you can't delete either of those while they're referenced.
