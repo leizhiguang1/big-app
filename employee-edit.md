@@ -1,0 +1,229 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e5]:
+      - list [ref=e6]:
+        - listitem [ref=e7]:
+          - link "Dashboard" [ref=e8] [cursor=pointer]:
+            - /url: https://bigdental.aoikumo.com/dashboard
+            - generic [ref=e9]:
+              - img [ref=e11]
+              - generic [ref=e12]: Dashboard
+        - listitem [ref=e13]:
+          - link "Appointments" [ref=e14] [cursor=pointer]:
+            - /url: /appointment
+            - generic [ref=e15]:
+              - img [ref=e17]
+              - generic [ref=e18]: Appointments
+        - listitem [ref=e19]:
+          - link "Customers" [ref=e20] [cursor=pointer]:
+            - /url: /customer
+            - generic [ref=e21]:
+              - img [ref=e23]
+              - generic [ref=e24]: Customers
+        - listitem [ref=e25]:
+          - link "Sales" [ref=e26] [cursor=pointer]:
+            - /url: /sales
+            - generic [ref=e27]:
+              - img [ref=e29]
+              - generic [ref=e30]: Sales
+        - listitem [ref=e31]:
+          - link "Roster" [ref=e32] [cursor=pointer]:
+            - /url: /roster
+            - generic [ref=e33]:
+              - img [ref=e35]
+              - generic [ref=e36]: Roster
+        - listitem [ref=e37]:
+          - link "Services" [ref=e38] [cursor=pointer]:
+            - /url: /services
+            - generic [ref=e39]:
+              - img [ref=e41]
+              - generic [ref=e42]: Services
+        - listitem [ref=e43]:
+          - link "Inventory" [ref=e44] [cursor=pointer]:
+            - /url: /inventory
+            - generic [ref=e45]:
+              - img [ref=e47]
+              - generic [ref=e48]: Inventory
+        - listitem [ref=e49]:
+          - link "Employees" [ref=e50] [cursor=pointer]:
+            - /url: https://bigdental.aoikumo.com/employee
+            - generic [ref=e51]:
+              - img [ref=e53]
+              - generic [ref=e54]: Employees
+        - listitem [ref=e55]:
+          - link "Passcode" [ref=e56] [cursor=pointer]:
+            - /url: /passcode
+            - generic [ref=e57]:
+              - img [ref=e59]
+              - generic [ref=e60]: Passcode
+        - listitem [ref=e61]:
+          - link "Reports" [ref=e62] [cursor=pointer]:
+            - /url: /reports
+            - generic [ref=e63]:
+              - img [ref=e65]
+              - generic [ref=e66]: Reports
+        - listitem [ref=e67]:
+          - link "Webstore" [ref=e68] [cursor=pointer]:
+            - /url: /webstoreconfig
+            - generic [ref=e69]:
+              - img [ref=e71]
+              - generic [ref=e72]:
+                - text: Webstore
+                - img [ref=e73]
+        - listitem [ref=e74]:
+          - link "Config" [ref=e75] [cursor=pointer]:
+            - /url: /config
+            - generic [ref=e76]:
+              - img [ref=e78]
+              - generic [ref=e79]: Config
+    - generic [ref=e80]:
+      - banner [ref=e81]:
+        - generic [ref=e82]:
+          - img "Kumo" [ref=e84] [cursor=pointer]
+          - link [ref=e85] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e86]
+        - generic [ref=e87]:
+          - text:  * * * *   
+          - list [ref=e88]:
+            - listitem: 
+            - listitem [ref=e89]:
+              - generic [ref=e90]:
+                - img "queue" [ref=e91]
+                - generic [ref=e92]:
+                  - text: Active License
+                  - text: Expires on 08/09/2026
+                - generic [ref=e93]:
+                  - button "Pay Now" [ref=e94] [cursor=pointer]
+                  - text:  
+                - img "queue" [ref=e95] [cursor=pointer]
+              - text:      
+            - listitem [ref=e96]:
+              - generic [ref=e99] [cursor=pointer]: 
+            - listitem [ref=e100]:
+              - img [ref=e102] [cursor=pointer]
+            - listitem [ref=e103]:
+              - img [ref=e105] [cursor=pointer]
+            - text:  
+            - listitem [ref=e106]:
+              - img [ref=e108] [cursor=pointer]
+            - text:         
+            - listitem [ref=e109]:
+              - img [ref=e111] [cursor=pointer]
+            - listitem [ref=e112]:
+              - link [ref=e113] [cursor=pointer]:
+                - /url: /sales/createnewsales
+                - img [ref=e114]
+            - listitem [ref=e115]:
+              - link "" [ref=e116] [cursor=pointer]:
+                - /url: ""
+                - img [ref=e117]
+                - generic [ref=e119]: 
+          - text:                       
+      - generic [ref=e123]:
+        - heading "My Profile (41 - aleesya.mohd2540)" [level=2] [ref=e125]:
+          - text: My Profile (41 - aleesya.mohd2540)
+          - button "Generate QR for this employee to use kumoSan" [ref=e126] [cursor=pointer]:
+            - img [ref=e127]
+        - generic [ref=e128]:
+          - generic [ref=e130]:
+            - generic [ref=e131]:
+              - button "" [ref=e135] [cursor=pointer]:
+                - generic [ref=e136]: 
+              - generic [ref=e137]: DENTAL ASSISTANT
+              - heading "ALEESYA NAYLA MOHD NASHRUL AZRIN" [level=3] [ref=e138]
+              - generic [ref=e139]: Joined on 2026
+              - generic [ref=e140]:
+                - heading "0.0" [level=3] [ref=e141]
+                - generic [ref=e143]:
+                  - text: 
+                  - generic: 
+              - button "Commission" [ref=e145] [cursor=pointer]
+            - heading "About" [level=2] [ref=e146]
+            - generic [ref=e147]:
+              - generic [ref=e148]: Main outlet in BIG DENTAL SETIAWALK
+              - generic [ref=e149]: DENTAL ASSISTANT Position
+              - separator [ref=e150]
+              - button "whatsapp +60194941228" [ref=e152] [cursor=pointer]:
+                - img "whatsapp" [ref=e153]
+                - link "+60194941228" [ref=e154]:
+                  - /url: https://wa.me/+60194941228
+              - generic [ref=e155]:
+                - text: Lives in
+                - generic [ref=e156]: ", MALAYSIA"
+              - generic [ref=e157]: Birthday on 20/08/2008
+          - generic [ref=e158]:
+            - generic [ref=e159]:
+              - heading "Employee Sales Achievement Data" [level=2] [ref=e160]
+              - generic [ref=e161]:
+                - generic [ref=e163] [cursor=pointer]:
+                  - img [ref=e164]
+                  - heading "Daily Sales" [level=4] [ref=e165]
+                  - generic [ref=e166]: 0 Transaction(s)
+                  - heading "MYR 0.00" [level=3] [ref=e167]
+                - generic [ref=e169] [cursor=pointer]:
+                  - img [ref=e170]
+                  - heading "Monthly Sales" [level=4] [ref=e171]
+                  - generic [ref=e172]: 0 Transaction(s)
+                  - heading "MYR 0.00" [level=3] [ref=e173]
+                - generic [ref=e175] [cursor=pointer]:
+                  - img [ref=e176]
+                  - heading "Overall Sales" [level=4] [ref=e177]
+                  - generic [ref=e178]: 0 Transaction(s)
+                  - heading "MYR 0.00" [level=3] [ref=e179]
+            - generic [ref=e180]:
+              - generic [ref=e182]:
+                - heading "Sales Category Breakdown" [level=4] [ref=e184]
+                - img [ref=e193]:
+                  - generic [ref=e195]: No data to display.
+              - generic [ref=e197]:
+                - heading "Outlet Sales Contribution Breakdown" [level=4] [ref=e198]
+                - img [ref=e207]:
+                  - generic [ref=e208]:
+                    - generic [ref=e214]:
+                      - generic [ref=e216]:
+                        - generic [ref=e217]: "0"
+                        - generic [ref=e218]: "0.2"
+                        - generic [ref=e219]: "0.4"
+                        - generic [ref=e220]: "0.6"
+                        - generic [ref=e221]: "0.8"
+                        - generic [ref=e222]: "1"
+                      - generic [ref=e224]:
+                        - generic [ref=e225]: BDK
+                        - generic [ref=e226]: BDJ
+                        - generic [ref=e227]: BDS
+                    - generic [ref=e232]:
+                      - generic [ref=e233] [cursor=pointer]: Sales
+                      - generic [ref=e236] [cursor=pointer]: Collections
+          - generic [ref=e239]:
+            - button "Apr 2026 " [ref=e240] [cursor=pointer]:
+              - text: Apr 2026 
+              - generic [ref=e241]: 
+            - generic [ref=e243]:
+              - generic [ref=e244]:
+                - heading "Apr 2026's Commission" [level=4] [ref=e246]
+                - button "Hands-On " [ref=e248] [cursor=pointer]:
+                  - text: Hands-On
+                  - generic [ref=e249]: 
+              - generic [ref=e253]:
+                - img [ref=e255]
+                - text: (Cash) / (Points Incentives)
+                - heading "Hands-On Total" [level=2] [ref=e256]
+                - heading "MYR 0.00" [level=4] [ref=e257]
+                - button "" [ref=e258] [cursor=pointer]:
+                  - generic [ref=e259]: 
+            - heading "MYR 0.00" [level=2] [ref=e260]
+            - generic [ref=e261]:
+              - generic [ref=e262]: Total Commission
+              - separator [ref=e263]
+              - generic [ref=e264]:
+                - text: "Percentage towards sales target:"
+                - generic [ref=e265]: "%"
+        - text:              * *  * * * *    * * * * *  * ✔   *  *  *  *  *   *     
+    - contentinfo [ref=e266]
+  - text:  
+  - iframe [ref=e281]:
+    - generic [active]:
+      - generic:
+        - text: 
+        - button "Open chat" [ref=f29e1] [cursor=pointer]

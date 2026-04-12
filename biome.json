@@ -30,5 +30,30 @@
 				"organizeImports": "on"
 			}
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": ["lib/services/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"paths": {
+									"react": "Service layer must stay framework-free — no React imports in lib/services.",
+									"next/cache": "Service layer must stay framework-free — no next/* imports in lib/services.",
+									"next/headers": "Service layer must stay framework-free — no next/* imports in lib/services.",
+									"next/navigation": "Service layer must stay framework-free — no next/* imports in lib/services.",
+									"next/server": "Service layer must stay framework-free — no next/* imports in lib/services.",
+									"@/lib/supabase/server": "Service layer must not import the cookie-coupled server client. Receive a Context and use ctx.db.",
+									"@/lib/context/server": "Service layer must not import the Next-coupled context builder. Receive a Context parameter."
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	]
 }

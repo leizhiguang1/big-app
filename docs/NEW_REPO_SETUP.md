@@ -375,27 +375,43 @@ This way every agent — Claude Code, Cursor, Antigravity, future tools — read
 
 Driven by the dependency graph in [PRD.md §6](./PRD.md) and the module docs. Each step should end with something running in the browser. The "Day 1 / Day 2 / ..." labels describe **sequence**, not calendar days — work through them in order and don't worry about how long each takes.
 
+> **Status note (2026-04):** the original ordering was Day 1 bootstrap → Day 2 auth + Outlets → Day 3 employees → … and assumed a single big-bang schema migration on Day 1. We replaced that with a per-module schema approach (see [CLAUDE.md](../CLAUDE.md) "Development strategy") and pulled the Employees module forward of Auth so we can validate the service-layer pattern against a real CRUD module before adding the auth wrinkle. The day numbers below are kept for reference but the actual sequence is in §5b.
+
 ### Day 1 — Bootstrap
 
 1. `pnpm create next-app@latest big-app --typescript --tailwind --app` (Next 16; say no to ESLint — Biome replaces it on step 10).
 2. Install shadcn: `pnpm dlx shadcn@latest init`
 3. **Install core deps:** `pnpm add zod react-hook-form @hookform/resolvers @supabase/ssr @supabase/supabase-js date-fns lucide-react`. This is the complete Phase 1 dependency list — no client-cache library, no TanStack anything.
-4. Set up Supabase locally: `pnpm dlx supabase init && pnpm dlx supabase start`
-5. Copy `docs/schema/initial_schema.sql` → `supabase/migrations/0001_initial_schema.sql`
-6. Copy `docs/schema/seed.sql` → `supabase/seed.sql`
-7. `pnpm dlx supabase db reset` — apply migration + seed
-8. `pnpm supabase gen types typescript --local > lib/supabase/types.ts`
-9. **Scaffold the service-layer skeleton:** create empty `lib/services/`, `lib/actions/`, `lib/schemas/`, `lib/context/types.ts`, `lib/context/server.ts`, `lib/errors/index.ts`. Write the `Context` type and the base `ServiceError` classes (NotFoundError, ValidationError, ConflictError, UnauthorizedError) on day 1 so the pattern exists before the first module touches it.
-10. Install and configure Biome: `pnpm add -D @biomejs/biome && pnpm dlx biome init`
-11. Create `CLAUDE.md`, `.cursorrules`, `AGENTS.md` (from §4)
-12. Move the `docs/` folder into the repo root
-13. Create `pnpm-workspace.yaml` (empty — single package for now; this sets the stage for Phase 2 without any behaviour change):
-    ```yaml
-    packages:
-      - '.'
-    ```
+4. ~~Set up Supabase locally~~ — **skipped.** We use the cloud project directly via the Supabase MCP.
+5. ~~Copy `initial_schema.sql` → migrations folder~~ — **skipped.** Schema grows per module.
+6. ~~Copy `seed.sql`~~ — **skipped.**
+7. ~~`supabase db reset`~~ — **skipped.**
+8. Generate types via `mcp__big-supabase__generate_typescript_types` (run after every migration).
+9. **Scaffold the service-layer skeleton:** create empty `lib/services/`, `lib/actions/`, `lib/schemas/`, `lib/context/types.ts`, `lib/context/server.ts`, `lib/errors/index.ts`. Write the `Context` type and the base `ServiceError` classes on day 1 so the pattern exists before the first module touches it.
+10. Install and configure Biome.
+11. Create `CLAUDE.md`, `AGENTS.md` (from §4).
+12. Move the `docs/` folder into the repo root.
+13. Create `pnpm-workspace.yaml` (single package).
+14. Create `.env.local` with the cloud project's URL + publishable key (gitignored). Commit `.env.example` with the same keys empty.
 
-**Day 1 done when:** `pnpm dev` serves a hello-world page, `lib/context/types.ts` exports a `Context` type, `lib/errors/index.ts` exports the ServiceError classes, and you can see the seeded tables in Supabase Studio.
+**Day 1 done when:** `pnpm dev` serves a hello-world page, the service-layer skeleton compiles, and `mcp__big-supabase__list_tables` confirms the cloud project is reachable.
+
+## 5b. Actual build sequence (current)
+
+This is the order we are following in practice. Each step ends with something visible in the browser and updates docs in the same PR.
+
+1. **Doc update** (this section + CLAUDE.md schema conventions). ← *done*
+2. **Service-layer skeleton + Supabase wiring** — `lib/context/`, `lib/errors/`, `lib/supabase/{server,client}.ts`, `.env.local`, empty `lib/{services,actions,schemas}/` folders.
+3. **Shared infrastructure migration** — `set_updated_at()` trigger function, `gen_code(prefix, seq_name)` helper. Applied via MCP.
+4. **Employees module — minimal v1** (see [docs/modules/08-employees.md](./modules/08-employees.md) v1 scope section). Includes:
+   - `roles` table (just id, code, name, description, is_active) — no permissions JSONB yet
+   - `positions` table (id, code, name, description, is_active)
+   - `employees` table (minimal columns — see module doc)
+   - All four tabs in the UI: Listing (real CRUD), Roles (real CRUD), Positions (real CRUD), Commission (placeholder card)
+   - **No login, no `auth_user_id`, no outlet assignment.** RLS on, anon-permissive policies marked TEMP.
+5. **Auth + login** — Supabase email+password, link `employees.auth_user_id`, replace anon RLS policies with authenticated ones. (After we feel good about the employee module shape.)
+6. **Outlets module** — comes after auth so we can immediately tighten RLS using `employee_outlets`.
+7. Then customers → services → roster → appointments → sales, per the original day-by-day ordering below.
 
 ### Day 2 — Auth + Outlets + Settings shell
 
@@ -485,29 +501,48 @@ What does **not** come across from the prototype:
 
 ## 7. Day-0 Checklist
 
-Everything that has to be true before the first `git commit` in the new repo.
+> **Status note (2026-04):** the original plan was to apply
+> `0001_initial_schema.sql` on Day 1 and seed everything upfront. We dropped
+> that approach. We now grow the schema **per module** via Supabase MCP
+> migrations against the cloud project — see [CLAUDE.md](../CLAUDE.md)
+> "Development strategy" and "Schema conventions" sections. There is no
+> local Docker Supabase. There is no `supabase/migrations/` folder in this
+> repo — migrations live in the cloud project's history and are applied via
+> `mcp__big-supabase__apply_migration`.
+>
+> The list below reflects the current approach.
 
-- [ ] `pnpm create next-app` — Next.js **16**, TypeScript strict, Tailwind, App Router, NO ESLint (Biome replaces it)
-- [ ] shadcn initialised
-- [ ] Core deps installed: Zod, react-hook-form, @hookform/resolvers, @supabase/ssr, @supabase/supabase-js, date-fns, lucide-react. **NO** TanStack Query, TanStack Table, SWR, or other data-fetching library — Phase 1 uses RSC + server actions + `useOptimistic` only.
-- [ ] `lib/context/types.ts` exports the `Context` type
-- [ ] `lib/context/server.ts` exports `getServerContext()` (can return a placeholder until auth is wired on Day 2)
-- [ ] `lib/errors/index.ts` exports `ServiceError`, `NotFoundError`, `ValidationError`, `ConflictError`, `UnauthorizedError`
-- [ ] `lib/services/`, `lib/actions/`, `lib/schemas/` folders exist (can be empty)
-- [ ] `supabase init` + `supabase start` running locally
-- [ ] `0001_initial_schema.sql` applied; seed loaded; `pnpm dlx supabase db reset` works end-to-end
-- [ ] Types generated: `lib/supabase/types.ts` is non-empty
-- [ ] `CLAUDE.md` in repo root (from §4); `.cursorrules` and `AGENTS.md` point at it
-- [ ] `docs/` folder copied from the prototype repo
-- [ ] `pnpm-workspace.yaml` present (even with a single package) — sets the stage for Phase 2
-- [ ] Supabase MCP server installed and connected in Claude Code
-- [ ] `.env.example` checked in; `.env.local` gitignored
-- [ ] Biome configured (`biome.json`)
-- [ ] `pnpm dev` renders a hello-world page
-- [ ] `pnpm build` succeeds
-- [ ] Git initialised, first commit: "chore: initial scaffold"
+Everything that has to be true before module work starts.
 
-When this list is green, start with Day 2 (Auth + Outlets).
+- [x] `pnpm create next-app` — Next.js **16**, TypeScript strict, Tailwind, App Router, NO ESLint (Biome replaces it)
+- [x] shadcn initialised
+- [x] Core deps installed: Zod, react-hook-form, @hookform/resolvers, @supabase/ssr, @supabase/supabase-js, date-fns, lucide-react. **NO** TanStack Query, TanStack Table, SWR, or other data-fetching library — Phase 1 uses RSC + server actions + `useOptimistic` only.
+- [x] `CLAUDE.md` in repo root; `AGENTS.md` points at it
+- [x] `docs/` folder copied from the prototype repo
+- [x] `pnpm-workspace.yaml` present (even with a single package) — sets the stage for Phase 2
+- [x] Supabase MCP server installed and connected in Claude Code (`big-supabase`)
+- [x] Biome configured (`biome.json`)
+- [x] `pnpm dev` renders a hello-world page
+- [x] Git initialised, first commit landed
+- [ ] Cloud Supabase project verified empty (or known state) via `mcp__big-supabase__list_tables`
+- [ ] `.env.local` populated with `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` (gitignored)
+- [ ] `.env.example` checked in with the same keys (empty values)
+- [ ] [lib/context/types.ts](../lib/context/types.ts) exports the `Context` type
+- [ ] [lib/context/server.ts](../lib/context/server.ts) exports `getServerContext()` (returns a placeholder Context with `currentUser: null` until auth is wired)
+- [ ] [lib/errors/index.ts](../lib/errors/index.ts) exports `ServiceError`, `NotFoundError`, `ValidationError`, `ConflictError`, `UnauthorizedError`
+- [ ] [lib/supabase/server.ts](../lib/supabase/server.ts) exports `createClient()` (Next-coupled, uses `@supabase/ssr` cookies)
+- [ ] [lib/supabase/client.ts](../lib/supabase/client.ts) exports the browser client (only used by client components that need realtime/auth-form interactions)
+- [ ] [lib/services/](../lib/services/), [lib/actions/](../lib/actions/), [lib/schemas/](../lib/schemas/) folders exist
+- [ ] First migration applied via MCP creates the **shared infrastructure**: the `set_updated_at()` trigger function and the `gen_code(prefix, sequence_name)` helper
+- [ ] Types generated into [lib/supabase/types.ts](../lib/supabase/types.ts) via `mcp__big-supabase__generate_typescript_types` (re-run after every migration)
+
+Per-module work then proceeds module by module — see §5. Each module
+contributes its own migration(s); there is no big-bang schema apply.
+
+**Auth is deferred until after the first read-only modules are working.**
+The pre-auth phase uses permissive RLS policies on the `anon` role,
+clearly marked as temporary. When login lands, those policies get replaced
+in a single migration per table.
 
 ---
 

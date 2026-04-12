@@ -1,5 +1,20 @@
 -- ============================================================
--- Aoikumo v2 — Seed Data
+-- !!! REFERENCE ONLY — do not apply. !!!
+--
+-- This file is paired with initial_schema.sql, which is also
+-- reference-only. Neither is applied to the live DB. BIG grows
+-- its schema module-by-module through MCP migrations instead
+-- (see CLAUDE.md "Development strategy").
+--
+-- The LIVE seed source of truth is docs/schema/seeds/ — one
+-- file per module, each applied as a dedicated
+-- 000N_<module>_seed migration. See docs/SCHEMA.md "Seed Data".
+--
+-- This file is kept for historical context only and is not
+-- maintained. Do not edit.
+-- ============================================================
+--
+-- Aoikumo v2 — Seed Data (historical)
 --
 -- Realistic dental clinic data:
 --   3 outlets, 7 rooms, 10 positions, 10 roles (JSONB permissions),
@@ -8,7 +23,6 @@
 --   4 sales orders, 5 payments
 --
 -- Uses deterministic UUIDs (a0..., b0..., etc.) for readability.
--- Run AFTER initial_schema.sql.
 -- ============================================================
 
 BEGIN;
