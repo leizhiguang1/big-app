@@ -77,10 +77,25 @@ How it actually works:
 4. **Soft deletion via `is_active bool`** where the entity is referenced by
    historical records. Hard delete only for orphan-safe lookup tables.
 5. **No denormalized text columns** — always JOIN. (Same rule as before.)
-6. **RLS is on for every table from the moment it's created.** During the
-   pre-auth phase, the policy is explicitly permissive for the `anon` role
-   and marked `-- TEMP: pre-auth, replace when login lands`. We tighten
-   per module once auth is wired.
+6. **RLS is on for every table from the moment it's created, with temp
+   permissive policies for BOTH `anon` AND `authenticated`.** Until per-role
+   tightening lands module-by-module, every new table needs the same pair:
+   ```sql
+   create policy "<table> anon all"
+     on public.<table> for all to anon using (true) with check (true);
+   create policy "<table> authn all"
+     on public.<table> for all to authenticated using (true) with check (true);
+   ```
+   Mark both with `-- TEMP: pre-auth tightening`. **Why two:** Supabase
+   sessions hit the DB as the role tied to their JWT. Pre-login the session
+   is `anon`; post-login it becomes `authenticated`. A policy targeting
+   only `anon` silently returns empty results to a logged-in user — the
+   query "succeeds" with zero rows and no error, which is the worst
+   possible failure mode. We learned this the hard way after the auth
+   module shipped: `employees`, `roles`, `positions`, `outlets`, `rooms`
+   were all anon-only and went blank the moment login worked.
+   When you tighten a table per-role, drop the temp pair and replace it
+   with the real policy in the same migration.
 7. **Code-column decision rule** (expanded form of rule 2): if a user
    could reasonably type the code into a search box, read it on a receipt,
    or quote it to support — the table needs one. Otherwise skip it. Bias

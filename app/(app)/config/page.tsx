@@ -1,10 +1,5 @@
-import { PlaceholderPage } from "@/components/shell/placeholder-page";
+import { redirect } from "next/navigation";
 
 export default function ConfigPage() {
-	return (
-		<PlaceholderPage
-			title="Config"
-			description="Outlets, positions, roles, and general settings."
-		/>
-	);
+	redirect("/config/outlets");
 }

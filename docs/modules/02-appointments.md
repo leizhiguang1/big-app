@@ -1,6 +1,8 @@
 # Module: Appointments
 
 > Status: Deep-dive done (behaviour mirrors the current prototype implementation)
+>
+> ⚠️ **Needs revision before this module is built.** Per the Services module decision (see [06-services.md](./06-services.md) §Overview), services are **post-filled after the visit** for billing only — they are NOT picked at appointment-creation time, do NOT auto-set the slot duration, and the appointments table has **no `service_id` column**. Any reference in this doc to a service being part of the booking flow is stale and must be removed when this module gets built.
 
 ## Overview
 

@@ -14,45 +14,150 @@ export type Database = {
   }
   public: {
     Tables: {
-      employees: {
+      employee_outlets: {
         Row: {
-          code: string
           created_at: string
-          email: string | null
-          first_name: string
-          id: string
-          is_active: boolean
-          last_name: string
-          phone: string | null
-          position_id: string | null
-          role_id: string | null
-          updated_at: string
+          employee_id: string
+          is_primary: boolean
+          outlet_id: string
         }
         Insert: {
-          code?: string
           created_at?: string
-          email?: string | null
-          first_name: string
-          id?: string
-          is_active?: boolean
-          last_name: string
-          phone?: string | null
-          position_id?: string | null
-          role_id?: string | null
-          updated_at?: string
+          employee_id: string
+          is_primary?: boolean
+          outlet_id: string
         }
         Update: {
-          code?: string
           created_at?: string
+          employee_id?: string
+          is_primary?: boolean
+          outlet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_outlets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_outlets_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employees: {
+        Row: {
+          address1: string | null
+          address2: string | null
+          address3: string | null
+          appointment_sequencing: number | null
+          auth_user_id: string | null
+          city: string | null
+          code: string
+          country: string | null
+          created_at: string
+          date_of_birth: string | null
+          email: string | null
+          first_name: string
+          gender: string | null
+          id: string
+          id_type: string
+          identification_no: string | null
+          is_active: boolean
+          is_bookable: boolean
+          is_online_bookable: boolean
+          language: string | null
+          last_name: string
+          mfa_enabled: boolean
+          mobile_app_enabled: boolean
+          monthly_sales_target: number
+          phone: string | null
+          phone2: string | null
+          position_id: string | null
+          postcode: string | null
+          role_id: string | null
+          salutation: string | null
+          start_date: string | null
+          state: string | null
+          updated_at: string
+          web_login_enabled: boolean
+        }
+        Insert: {
+          address1?: string | null
+          address2?: string | null
+          address3?: string | null
+          appointment_sequencing?: number | null
+          auth_user_id?: string | null
+          city?: string | null
+          code?: string
+          country?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          first_name: string
+          gender?: string | null
+          id?: string
+          id_type?: string
+          identification_no?: string | null
+          is_active?: boolean
+          is_bookable?: boolean
+          is_online_bookable?: boolean
+          language?: string | null
+          last_name: string
+          mfa_enabled?: boolean
+          mobile_app_enabled?: boolean
+          monthly_sales_target?: number
+          phone?: string | null
+          phone2?: string | null
+          position_id?: string | null
+          postcode?: string | null
+          role_id?: string | null
+          salutation?: string | null
+          start_date?: string | null
+          state?: string | null
+          updated_at?: string
+          web_login_enabled?: boolean
+        }
+        Update: {
+          address1?: string | null
+          address2?: string | null
+          address3?: string | null
+          appointment_sequencing?: number | null
+          auth_user_id?: string | null
+          city?: string | null
+          code?: string
+          country?: string | null
+          created_at?: string
+          date_of_birth?: string | null
           email?: string | null
           first_name?: string
+          gender?: string | null
           id?: string
+          id_type?: string
+          identification_no?: string | null
           is_active?: boolean
+          is_bookable?: boolean
+          is_online_bookable?: boolean
+          language?: string | null
           last_name?: string
+          mfa_enabled?: boolean
+          mobile_app_enabled?: boolean
+          monthly_sales_target?: number
           phone?: string | null
+          phone2?: string | null
           position_id?: string | null
+          postcode?: string | null
           role_id?: string | null
+          salutation?: string | null
+          start_date?: string | null
+          state?: string | null
           updated_at?: string
+          web_login_enabled?: boolean
         }
         Relationships: [
           {
@@ -70,6 +175,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      outlets: {
+        Row: {
+          address1: string | null
+          address2: string | null
+          city: string | null
+          code: string
+          country: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          phone: string | null
+          postcode: string | null
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          address1?: string | null
+          address2?: string | null
+          city?: string | null
+          code: string
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          phone?: string | null
+          postcode?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address1?: string | null
+          address2?: string | null
+          city?: string | null
+          code?: string
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          phone?: string | null
+          postcode?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       positions: {
         Row: {
@@ -124,6 +280,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      rooms: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          outlet_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          outlet_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          outlet_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rooms_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

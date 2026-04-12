@@ -1,10 +1,10 @@
 # Module: Employees
 
-> **Status: v1 minimal scope is SHIPPED (2026-04-12).** Listing, Roles, and Positions tabs are real CRUD; Commission is a static placeholder. The **roles permission matrix** landed 2026-04-12 (migrations `0008`/`0009`) and was restructured the same day into the 9-section KumoDent colour grouping (`0010`) — all **52 flags** across 9 sections are editable and persisted, but **not yet enforced**. See the "v1 minimal scope" section for what currently exists in the DB. The full deep-dive below is the *target*, not what ships on the first pass.
+> **Status: v1 + full profile fields SHIPPED (2026-04-12).** Listing, Roles, and Positions tabs are real CRUD; Commission is a static placeholder. The **roles permission matrix** is editable and persisted (52 flags / 9 sections) but **not yet enforced**. As of `0011_employees_add_profile_fields`, the employee record carries the full KumoDent-equivalent profile shape — identity, contact, employment, credentials flags, address — even though several flags (`web_login_enabled`, `mfa_enabled`, `mobile_app_enabled`) are stored without enforcement until their owning module ships. The deep-dive below is the *target*; the v1 section reflects what's actually in the DB.
 >
-> **Seed source of truth:** [docs/schema/seeds/08-employees.sql](../schema/seeds/08-employees.sql) — mirrors the cumulative state after `0005_employees_seed` + `0007_employees_reseed_lookups_v2` + `0010_roles_permissions_restructure`. 9 roles (with the 9-section permission matrix), 7 positions, 6 employees (adapted from `docs/schema/prototype_dump/data/employees.json`).
+> **Seed source of truth:** [docs/schema/seeds/08-employees.sql](../schema/seeds/08-employees.sql) — mirrors the cumulative state after `0005_employees_seed` + `0007_employees_reseed_lookups_v2` + `0010_roles_permissions_restructure`. 9 roles (with the 9-section permission matrix), 7 positions, 6 employees (adapted from `docs/schema/prototype_dump/data/employees.json`). The seed currently inserts only the v1 minimal columns; the new `0011` columns take their defaults / null on existing seeded rows.
 >
-> **Migrations shipped:** `0001_shared_infrastructure`, `0002_roles`, `0003_positions`, `0004_employees`, `0005_employees_seed`, `0006_roles_drop_description`, `0007_employees_reseed_lookups_v2`, `0008_roles_add_permissions`, `0009_roles_seed_permissions`, `0010_roles_permissions_restructure`.
+> **Migrations shipped:** `0001_shared_infrastructure`, `0002_roles`, `0003_positions`, `0004_employees`, `0005_employees_seed`, `0006_roles_drop_description`, `0007_employees_reseed_lookups_v2`, `0008_roles_add_permissions`, `0009_roles_seed_permissions`, `0010_roles_permissions_restructure`, `0011_employees_add_profile_fields`.
 
 ## v1 minimal scope (build this first)
 
@@ -38,46 +38,108 @@ or permissions.
 - `is_active bool default true`
 - `created_at`, `updated_at`
 
-`employees` — minimal, **with code column** (`EMP-0001`, 4-digit width — realistic upper bound for a single clinic chain is well under 9999 staff)
-- `id uuid pk`
-- `code text unique not null` — trigger-generated `EMP-0001`
-- `first_name text not null`
-- `last_name text not null`
-- `email text unique` *(nullable in v1 — we may not have emails for back-office staff)*
-- `phone text`
-- `role_id uuid references roles(id)` *(nullable — staff without an assigned role still appear)*
-- `position_id uuid references positions(id)`
-- `is_active bool default true`
-- `created_at`, `updated_at`
+`employees` — full profile, **with code column** (`EMP-0001`, 4-digit width — realistic upper bound for a single clinic chain is well under 9999 staff). Columns marked **(0011)** were added in `0011_employees_add_profile_fields` to capture the complete KumoDent profile shape so the create/edit form is feature-complete even before downstream modules consume the values.
 
-> **When you want to add a field later** (e.g., `gender`, `phone2`, `start_date`), do it in three places in this exact order:
+| Group | Column | Type | Notes |
+|---|---|---|---|
+| PK | `id` | uuid | `default gen_random_uuid()` |
+| Code | `code` | text unique | trigger-generated `EMP-0001` |
+| Identity | `salutation` (0011) | text | Mr / Ms / Dr / etc. — free text, no enum |
+| | `first_name` | text not null | |
+| | `last_name` | text not null | |
+| | `gender` (0011) | text | CHECK: `male` / `female` / `other` |
+| | `date_of_birth` (0011) | date | |
+| | `id_type` (0011) | text not null default `'ic'` | CHECK: `ic` / `passport`. Discriminator that stays separate from the number on purpose — see "Why two columns for ID" below. |
+| | `identification_no` (0011) | text | The number itself, regardless of type. IC and passport both fit in `text`; the discriminator above tells the app/UI/reports which validation rule and label to apply. |
+| Contact | `email` | text unique | nullable |
+| | `phone` | text | "Contact Number 1" |
+| | `phone2` (0011) | text | "Contact Number 2" |
+| Employment | `role_id` | uuid → roles | nullable |
+| | `position_id` | uuid → positions | nullable |
+| | `start_date` (0011) | date | |
+| | `appointment_sequencing` (0011) | int | CHECK: 1–999. Display order in appointment staff picker. |
+| | `monthly_sales_target` (0011) | numeric(12,2) not null default 0 | Stored now; consumed by Phase 2 commission module. |
+| | `is_bookable` (0011) | bool not null default true | Bookable in appointments staff picker. |
+| | `is_online_bookable` (0011) | bool not null default false | Bookable on customer-facing online booking. |
+| Credentials | `web_login_enabled` (0011) | bool not null default false | Enforced. When true on create/edit, the form requires a password and the service provisions a Supabase Auth user, linking it via `auth_user_id`. Toggling off bans the auth user (reversible). |
+| | `auth_user_id` (0012) | uuid → auth.users on delete set null | Set by `lib/services/employees.ts` when web login is enabled. Unique partial index. App code never sets it directly. |
+| | `mfa_enabled` (0011) | bool not null default false | **Stored — enforcement deferred until MFA is wired.** |
+| | `mobile_app_enabled` (0011) | bool not null default false | **Stored — consumed when the mobile companion app ships.** |
+| Address | `address1` / `address2` / `address3` (0011) | text | |
+| | `postcode` / `city` / `state` / `country` (0011) | text | Free-text country (no ISO lookup yet). |
+| | `language` (0011) | text | Preferred comms language. |
+| Status | `is_active` | bool not null default true | Soft-delete. |
+| Meta | `created_at` / `updated_at` | timestamptz | Shared `set_updated_at` trigger. |
+
+> **When you add another field later** (e.g., `photo_url`), do it in three places in this exact order:
 > 1. Apply a new MCP migration `NNNN_employees_add_<field>.sql` that ALTERs the table.
 > 2. Regenerate types into [lib/supabase/types.ts](../../lib/supabase/types.ts).
-> 3. Update the field list **in this section** of this doc, the Zod schema in `lib/schemas/employees.ts`, the form component, and the table component. Do not duplicate the field list anywhere else — this section is the source of truth for what's currently built.
+> 3. Update the table above + the Zod schema in [lib/schemas/employees.ts](../../lib/schemas/employees.ts), the form component, and the table component. Do not duplicate the field list anywhere else — this section is the source of truth for what's currently built.
 
-**Explicitly deferred from v1** (each gets its own follow-up migration):
-- `auth_user_id` + the whole login flow → comes with the auth module
-- `employee_outlets` junction table → comes with the outlets module
-- `gender`, `date_of_birth`, `identification_no`, `phone2`, address block → field-by-field as needed
-- `is_bookable`, `is_online_bookable`, `web_access` flags → added when the consuming module needs them (appointments, online booking, auth)
-- `sales_target`, commission tables → Phase 2
-- Permission **enforcement** → flags are stored but no guard/evaluator reads them yet. Added when we wire RBAC module-by-module.
-- Photo upload → later
-- "Active user count" badge → only meaningful after `web_access` exists
+**Why two columns for ID (`id_type` + `identification_no`):**
+We deliberately keep the type discriminator separate from the number rather than collapsing into a single `id` column. The number itself happily lives in one `text` column for both Malaysian IC and foreign passport — but the type matters for everything around it:
+- Validation: Malaysian IC has a fixed 12-digit format we can lint; passport is free-form alphanumeric with country variation. The form picks the rule based on `id_type`.
+- Reporting / filtering: "list all foreign workers" or "all locals" is a single `where id_type = ...` instead of regex-sniffing the number.
+- UI: the field label flips between "IC number" and "Passport number" with no mapping table.
+- Future expansion: adding driver's license, work permit, or another country's national ID is one new enum value, not a re-architecture of every report and form.
 
-**RLS in v1:** every v1 table has RLS enabled with a permissive policy on
-the `anon` role:
+If you find yourself writing code that infers the type by inspecting the number, that's a smell — read `id_type` instead.
+
+**Outlet linkage (`employee_outlets`):**
+Employees are rostered to outlets via the `employee_outlets` junction table (added in `0013_employee_outlets`). Each row has `(employee_id, outlet_id, is_primary)` with a unique partial index that enforces at most one primary outlet per employee. An employee can be active at multiple outlets (e.g. a doctor who covers two clinics), and the primary flag is what the appointments / sales modules will default to. The form picker for assigning outlets is **not yet wired** — seed data assigns the rosters directly. Wiring the form is the next slice of this module.
+
+**Auth integration (built in 0012):**
+- Email is required on every employee (Zod-enforced; DB column stays nullable to keep early seed rows valid). It's the login identity.
+- When `web_login_enabled = true`, the EmployeeForm shows admin-set password fields. `lib/services/employees.ts` calls `dbAdmin.auth.admin.createUser({ email, password, email_confirm: true })`, captures the auth user id, and writes it to `auth_user_id` in the same flow. If the employee row insert fails after the auth user was created, the service rolls back by calling `auth.admin.deleteUser`.
+- Updates: changing the email propagates to the auth user; toggling `web_login_enabled` off bans the auth user (`ban_duration: '876000h'`); toggling back on unbans (or creates fresh if `auth_user_id` is null); soft-deleting the employee bans the auth user.
+- Login lives at `/login` (`app/login/page.tsx` + `app/login/actions.ts`). The login action signs in via `signInWithPassword`, then verifies the linked employee row exists, is active, and has `web_login_enabled = true` — otherwise it signs back out and surfaces an error.
+- `middleware.ts` refreshes the session on every request and redirects unauthenticated traffic to `/login` (everything except `/login` and `/auth/*`).
+- `lib/context/server.ts` populates `Context.currentUser` from `supabase.auth.getUser()` + the linked employee row.
+- **RLS tightening is still TODO** — every table still has the temp permissive `anon` policy. Tighten per-module once `currentUser` is trusted everywhere.
+
+**Still deferred:**
+- Outlet picker in the EmployeeForm. The `employee_outlets` table exists and is populated by seed, but the form does not yet let you assign outlets — and the listing has no Outlet column. Next slice.
+- Photo upload → later (storage bucket + RLS).
+- "Active user count" badge ("2 of 5 user license used") → only meaningful after a license cap exists.
+- Permission **enforcement** → role flags are stored but no guard/evaluator reads them yet. Added when we wire RBAC module-by-module.
+- Commission tables → Phase 2. `monthly_sales_target` is the only Phase-2 input we're storing early so the form is feature-complete.
+- "Send credentials by Email / SMS" toggles on save → arrive with a future invite flow. Today's flow is admin-set passwords communicated out-of-band.
+- Password reset / "forgot password" flow.
+- MFA enforcement (column exists, no guard yet).
+
+**Listing columns currently shown** (in order): Name (with code beneath), Role, Position, Phone, Appointment Sequencing, Mobile App, Web Login, MFA, Bookable, Online Bookable, Status, Actions. **Outlet column is intentionally absent** until the outlets module ships — see the deferred list above.
+
+**RLS in v1:** every v1 table has RLS enabled with a temp permissive policy
+on both the `anon` and `authenticated` roles:
 ```sql
 create policy "TEMP anon all"
   on <table> for all to anon using (true) with check (true);
+create policy "TEMP authn all"
+  on <table> for all to authenticated using (true) with check (true);
 ```
-Each policy is commented `-- TEMP: pre-auth, replace when login lands` and
-gets removed in the auth migration.
+Each policy is commented `-- TEMP: pre-auth tightening` and gets replaced
+per-module once `currentUser` is trusted everywhere. **`auth_user_id` and
+the login flow exist now (built in 0012); permission/outlet enforcement is
+the next slice.**
 
-**No `auth_user_id`, no permission checks, no outlet filtering in v1.** The
-app behaves as if there is one global org with one global staff list. This
-is intentional — adding auth on top of a working CRUD module is much easier
-than building both at once.
+**Seeded data (v3):** the live DB now ships with 3 employees, all with
+web login enabled and linked auth users — see
+[docs/schema/seeds/08-employees.sql](../schema/seeds/08-employees.sql) and
+[docs/schema/seeds/09-outlets.sql](../schema/seeds/09-outlets.sql):
+
+| Code | Name | Role | Email | Password | Outlets (primary) |
+|---|---|---|---|---|---|
+| EMP-0001 | Admin User | SYSTEM ADMIN | `admin@gmail.com`   | `password` | BDK*, BDJ, BDS |
+| EMP-0002 | Doctor One | RESIDENT DOCTOR | `doctor1@gmail.com` | `password` | BDK*, BDJ |
+| EMP-0003 | Doctor Two | RESIDENT DOCTOR | `doctor2@gmail.com` | `password` | BDS* |
+
+The 3 outlets seeded are BDK (KLINIK PERGIGIAN BIG DENTAL — Kepong, 3 rooms),
+BDJ (BIG DENTAL JADEHILLS — Kajang, 1 room), and BDS (BIG DENTAL SETIAWALK
+— Puchong, 1 room). The auth users are inserted directly into `auth.users`
+with bcrypt-hashed passwords via `pgcrypto.crypt()` — this is a seed-only
+shortcut so a fresh DB has working logins without an out-of-band invite
+flow. Real user creation always goes through the service layer, which uses
+`supabase.auth.admin.createUser`.
 
 ---
 

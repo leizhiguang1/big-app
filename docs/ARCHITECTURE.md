@@ -375,6 +375,29 @@ If a third party *must* call the API in Phase 1 — webhook receivers, integrati
 
 **When NestJS arrives (Phase 2):** NestJS comes with Jest + `@nestjs/testing` out of the box. Use Jest for the API layer (controllers, guards, modules). The already-written Vitest tests for services keep working — Vitest and Jest read the same Zod/service code because services are framework-free. Playwright continues to run against the Next frontend regardless of whether the backend is a server action or a NestJS endpoint.
 
+## 10. Tables — in-house DataTable in Phase 1, TanStack Table later
+
+Every listing view in the app (Employees, Roles, Positions, Outlets, Customers, Appointments, Sales Orders, …) needs the same primitives: search, click-header sort, consistent styling, horizontal scroll on narrow viewports, empty state. Rather than re-implementing those per page, all tables go through a single component at [components/ui/data-table.tsx](../components/ui/data-table.tsx).
+
+**Phase 1 — hand-rolled, client-side only.**
+- Column-config API: `{ key, header, cell, sortable?, sortValue?, align? }`.
+- Built-in search box (client-side filter over `searchKeys`).
+- Click-header sort (tri-state: asc → desc → off), using `sortValue` when the cell is a React node.
+- Wrapper owns `overflow-x-auto` + `min-w-[…]` so the table scrolls horizontally, not the page. (Also requires `min-w-0` on the parent flex main — see [app/(app)/layout.tsx](../app/(app)/layout.tsx).)
+- Operates on data already fetched by the server component. No pagination, no virtualization, no server-side filtering.
+
+**Why not TanStack Table now.** TanStack Table is the industry standard and what shadcn's DataTable docs use. It was deliberately skipped for Phase 1 because (a) lists are small (employees, roles, positions, outlets — all under a few hundred rows), (b) it adds a ~14kb dep and a headless-table mental model we don't need yet, and (c) the hand-rolled version is ~200 lines and maps directly onto TanStack's column API, so the future migration is mechanical.
+
+**Phase 2 migration trigger — move to TanStack Table when ANY of these hits:**
+1. A listing exceeds ~1,000 rows in production and client-side filter feels sluggish → need virtualization.
+2. We need server-side pagination + filtering (customers, appointments history, audit log).
+3. We need column resizing, pinning, grouping, or multi-column sort.
+4. We need row selection with bulk actions across pages.
+
+**Migration plan when triggered:** keep the `<DataTable>` public API, swap the internals to TanStack Table + `@tanstack/react-virtual`. Columns already look like TanStack column defs, so consumers (EmployeesTable, RolesTable, etc.) should not need to change. Add a `mode: "client" | "server"` prop and a `pagination` prop at the same time.
+
+**Non-goals for Phase 1 DataTable.** Do not add: column visibility toggles, saved views, CSV export, inline editing, drag-to-reorder, row expansion. Each of these is easy to add when a real user need appears; none of them are speculative-add material.
+
 ## Decisions Pending
 
 - [x] Product name — **BIG** (our brand). Repo name: `big-app`.

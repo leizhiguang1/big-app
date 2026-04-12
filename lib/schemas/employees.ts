@@ -1,18 +1,102 @@
-import { z } from 'zod'
+import { z } from "zod";
+
+const optionalText = (max: number) =>
+	z
+		.string()
+		.trim()
+		.max(max)
+		.optional()
+		.or(z.literal("").transform(() => undefined));
+
+const optionalDate = z
+	.string()
+	.trim()
+	.regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+	.optional()
+	.or(z.literal("").transform(() => undefined));
+
+export const ID_TYPES = ["ic", "passport"] as const;
+export const GENDERS = ["male", "female", "other"] as const;
 
 export const employeeInputSchema = z.object({
-  first_name: z.string().trim().min(1, 'First name is required').max(80),
-  last_name: z.string().trim().min(1, 'Last name is required').max(80),
-  email: z
-    .string()
-    .trim()
-    .email('Invalid email')
-    .optional()
-    .or(z.literal('').transform(() => undefined)),
-  phone: z.string().trim().max(40).optional().or(z.literal('')),
-  role_id: z.string().uuid().nullable().optional(),
-  position_id: z.string().uuid().nullable().optional(),
-  is_active: z.boolean(),
-})
+	// Identity
+	salutation: optionalText(20),
+	first_name: z.string().trim().min(1, "First name is required").max(80),
+	last_name: z.string().trim().min(1, "Last name is required").max(80),
+	gender: z.enum(GENDERS).nullable().optional(),
+	date_of_birth: optionalDate,
+	id_type: z.enum(ID_TYPES),
+	identification_no: optionalText(60),
 
-export type EmployeeInput = z.infer<typeof employeeInputSchema>
+	// Contact — email is required (used as login identity)
+	email: z.string().trim().email("Invalid email").min(1, "Email is required"),
+	phone: optionalText(40),
+	phone2: optionalText(40),
+
+	// Employment
+	role_id: z.string().uuid().nullable().optional(),
+	position_id: z.string().uuid().nullable().optional(),
+	start_date: optionalDate,
+	appointment_sequencing: z
+		.number({ invalid_type_error: "Must be a number" })
+		.int()
+		.min(1)
+		.max(999)
+		.nullable()
+		.optional(),
+	monthly_sales_target: z.number().min(0),
+	is_bookable: z.boolean(),
+	is_online_bookable: z.boolean(),
+
+	// Credentials
+	web_login_enabled: z.boolean(),
+	mfa_enabled: z.boolean(),
+	mobile_app_enabled: z.boolean(),
+
+	// Address
+	address1: optionalText(120),
+	address2: optionalText(120),
+	address3: optionalText(120),
+	postcode: optionalText(20),
+	city: optionalText(80),
+	state: optionalText(80),
+	country: optionalText(80),
+	language: optionalText(40),
+
+	is_active: z.boolean(),
+});
+
+export type EmployeeInput = z.infer<typeof employeeInputSchema>;
+
+const passwordField = z
+	.string()
+	.min(8, "At least 8 characters")
+	.max(128)
+	.optional()
+	.or(z.literal("").transform(() => undefined));
+
+export const employeeFormSchema = employeeInputSchema
+	.extend({
+		password: passwordField,
+		password_confirm: passwordField,
+	})
+	.superRefine((data, ctx) => {
+		if (data.web_login_enabled) {
+			if (!data.password) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["password"],
+					message: "Password is required when web login is enabled",
+				});
+			}
+			if (data.password && data.password !== data.password_confirm) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["password_confirm"],
+					message: "Passwords do not match",
+				});
+			}
+		}
+	});
+
+export type EmployeeFormInput = z.infer<typeof employeeFormSchema>;

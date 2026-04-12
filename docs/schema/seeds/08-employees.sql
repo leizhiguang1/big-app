@@ -1,5 +1,5 @@
 -- ============================================================
--- BIG — Employees module seed (v2)
+-- BIG — Employees module seed (v3)
 --
 -- This file is the SOURCE OF TRUTH for seeded data in the
 -- employees module. The live DB has been built up by:
@@ -13,24 +13,32 @@
 --       superseded by 0010)
 --   - 0010_roles_permissions_restructure  (reshapes roles.permissions
 --       from 4 sections / 50 flags → 9 sections / 52 flags matching
---       the KumoDent colour groupings; current state below)
+--       the KumoDent colour groupings)
+--   - 0012_employees_auth_user_id         (adds employees.auth_user_id
+--       FK + unique partial index — auth integration lands here)
+--   - 0013_employee_outlets               (creates the junction table)
+--   - 0014_seed_outlets_employees_v3      (wipes the v2 employees,
+--       seeds outlets + rooms + 3 employees with linked auth.users
+--       and bcrypted passwords; current state below)
 -- This file mirrors the *resulting* state, so applying it against
--- a fresh DB after migrations 0001-0004 + 0008 + 0010 produces the
--- same data the live DB currently has.
+-- a fresh DB after migrations 0001-0004 + 0008 + 0010 + 0012-0014
+-- produces the same data the live DB currently has.
 --
 -- Contents:
 --   - 9 roles      (name + permissions JSONB — 52 flags across 9
---                   sections: clinical, appointments, customers,
---                   sales, roster, services, inventory, staff,
---                   system. `all: true` on SYSTEM ADMIN short-circuits
---                   the grid.)
+--                   sections. `all: true` on SYSTEM ADMIN short-
+--                   circuits the grid.)
 --   - 7 positions  (name + description)
---   - 6 employees  (adapted from docs/schema/prototype_dump/data/employees.json)
+--   - 3 employees  (admin + 2 doctors, all with web login enabled
+--                   and a linked auth.users row — see seed file
+--                   09-outlets.sql for the auth.users / outlet rows
+--                   they depend on)
 --
 -- Idempotent: deterministic UUIDs + ON CONFLICT (id) DO NOTHING.
 -- Safe to re-run against the live DB.
 --
 -- Related: docs/SCHEMA.md "Seed Data", docs/modules/08-employees.md,
+--          docs/schema/seeds/09-outlets.sql,
 --          lib/schemas/role-permissions.ts (canonical flag catalogue)
 -- ============================================================
 
@@ -362,58 +370,68 @@ insert into public.positions (id, name, description) values
 on conflict (id) do nothing;
 
 -- ────────────────────────────────────────────────────────────
--- Employees (6)
--- Adapted from docs/schema/prototype_dump/data/employees.json.
--- Name split: last word → last_name, the rest (incl. salutation)
--- → first_name. Role / position resolved by NAME lookup against
--- the rows seeded above — no hardcoded cross-table UUIDs.
--- `code` is omitted so the gen_code trigger assigns EMP-0001…EMP-0006.
+-- Employees (3) — v3 seed
+--
+-- Each row is linked to a Supabase Auth user via auth_user_id.
+-- The auth.users + auth.identities rows for these UUIDs are
+-- inserted by docs/schema/seeds/09-outlets.sql (or migration
+-- 0014_seed_outlets_employees_v3) — apply that file BEFORE this
+-- one on a fresh DB so the FK targets exist.
+--
+-- Logins (all passwords are the literal string "password"):
+--   admin@gmail.com    System Admin       (BDK + BDJ + BDS, BDK primary)
+--   doctor1@gmail.com  Resident Doctor    (BDK + BDJ, BDK primary)
+--   doctor2@gmail.com  Resident Doctor    (BDS only,  primary)
+--
+-- `code` is set explicitly so a fresh seed produces EMP-0001..0003
+-- regardless of the sequence's prior position.
 -- ────────────────────────────────────────────────────────────
 
-insert into public.employees (id, first_name, last_name, email, phone, role_id, position_id) values
+insert into public.employees (
+  id, code, first_name, last_name, email, phone,
+  role_id, position_id,
+  id_type, identification_no,
+  web_login_enabled, auth_user_id, is_active
+) values
   (
     'e0000000-0000-0000-0000-000000000001',
-    'Dr. Amy', 'Chen',
-    null, '+60138846827',
-    (select id from public.roles     where name = 'SYSTEM ADMIN'),
-    (select id from public.positions where name = 'LOCUM DOCTOR')
+    'EMP-0001',
+    'Admin', 'User',
+    'admin@gmail.com', '+60100000001',
+    (select id from public.roles where name = 'SYSTEM ADMIN'),
+    null,
+    'ic', '900101015551',
+    true,
+    'a1000000-0000-0000-0000-000000000001',
+    true
   ),
   (
     'e0000000-0000-0000-0000-000000000002',
-    'Dr. Sarah', 'Lim',
-    null, '+60102088041',
-    (select id from public.roles     where name = 'SYSTEM ADMIN'),
-    (select id from public.positions where name = 'RESIDENT DOCTOR')
+    'EMP-0002',
+    'Doctor', 'One',
+    'doctor1@gmail.com', '+60100000002',
+    (select id from public.roles     where name = 'RESIDENT DOCTOR'),
+    (select id from public.positions where name = 'RESIDENT DOCTOR'),
+    'ic', '900202025552',
+    true,
+    'a1000000-0000-0000-0000-000000000002',
+    true
   ),
   (
     'e0000000-0000-0000-0000-000000000003',
-    'Dr. James', 'Wong',
-    null, '+60149612787',
-    null,
-    (select id from public.positions where name = 'RESIDENT DOCTOR')
-  ),
-  (
-    'e0000000-0000-0000-0000-000000000004',
-    'Dr. apple', 'c',
-    null, '+60123456789',
-    null,
-    (select id from public.positions where name = 'OPERATION')
-  ),
-  (
-    'e0000000-0000-0000-0000-000000000005',
-    'Ms. Watson', 'John',
-    'theadmin@gmail.com', '+60123434334',
-    (select id from public.roles     where name = 'LOCUM DOCTOR'),
-    (select id from public.positions where name = 'MARKETING')
-  ),
-  (
-    'e0000000-0000-0000-0000-000000000006',
-    'Ms. Magnus', 'Carlsen',
-    'magnus@gmail.com', '+60167372833',
-    (select id from public.roles     where name = 'SYSTEM ADMIN'),
-    (select id from public.positions where name = 'STANDARD')
+    'EMP-0003',
+    'Doctor', 'Two',
+    'doctor2@gmail.com', '+60100000003',
+    (select id from public.roles     where name = 'RESIDENT DOCTOR'),
+    (select id from public.positions where name = 'RESIDENT DOCTOR'),
+    'ic', '900303035553',
+    true,
+    'a1000000-0000-0000-0000-000000000003',
+    true
   )
 on conflict (id) do nothing;
+
+select setval('public.employees_code_seq', 3, true);
 
 commit;
 
