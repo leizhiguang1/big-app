@@ -9,7 +9,7 @@ import type {
 	ServiceCategory,
 	ServiceWithCategory,
 } from "@/lib/services/services";
-import { ServiceFormSheet } from "./ServiceForm";
+import { ServiceFormDialog } from "./ServiceForm";
 
 const priceFormatter = new Intl.NumberFormat("en-MY", {
 	style: "currency",
@@ -160,7 +160,7 @@ export function ServicesTable({
 				emptyMessage="No services yet. Click “New service” to create one."
 				minWidth={1300}
 			/>
-			<ServiceFormSheet
+			<ServiceFormDialog
 				open={!!editing}
 				service={editing}
 				categories={categories}

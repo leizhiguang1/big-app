@@ -156,7 +156,9 @@ CREATE TABLE employees (
   name               TEXT NOT NULL,
   gender             TEXT,
   date_of_birth      DATE,
-  identification_no  TEXT,
+  id_type            TEXT NOT NULL DEFAULT 'ic'
+                     CHECK (id_type IN ('ic', 'passport')),
+  id_number          TEXT,
 
   -- Contact
   phone              TEXT,

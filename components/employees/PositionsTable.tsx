@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { deactivatePositionAction } from "@/lib/actions/positions";
 import type { Position } from "@/lib/services/positions";
-import { PositionFormSheet } from "./PositionForm";
+import { PositionFormDialog } from "./PositionForm";
 
 export function PositionsTable({ positions }: { positions: Position[] }) {
 	const [editing, setEditing] = useState<Position | null>(null);
@@ -93,7 +93,7 @@ export function PositionsTable({ positions }: { positions: Position[] }) {
 				emptyMessage="No positions yet. Click “New position” to create one."
 				minWidth={640}
 			/>
-			<PositionFormSheet
+			<PositionFormDialog
 				open={!!editing}
 				position={editing}
 				onClose={() => setEditing(null)}

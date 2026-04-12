@@ -18,7 +18,10 @@ const optionalDate = z
 export const ID_TYPES = ["ic", "passport"] as const;
 export const GENDERS = ["male", "female", "other"] as const;
 
-export const employeeInputSchema = z.object({
+// Malaysian IC: 12 digits, optional dashes YYMMDD-PB-###G
+const IC_REGEX = /^\d{6}-?\d{2}-?\d{4}$/;
+
+const employeeInputBase = z.object({
 	// Identity
 	salutation: optionalText(20),
 	first_name: z.string().trim().min(1, "First name is required").max(80),
@@ -26,7 +29,7 @@ export const employeeInputSchema = z.object({
 	gender: z.enum(GENDERS).nullable().optional(),
 	date_of_birth: optionalDate,
 	id_type: z.enum(ID_TYPES),
-	identification_no: optionalText(60),
+	id_number: optionalText(60),
 
 	// Contact — email is required (used as login identity)
 	email: z.string().trim().email("Invalid email").min(1, "Email is required"),
@@ -66,6 +69,21 @@ export const employeeInputSchema = z.object({
 	is_active: z.boolean(),
 });
 
+const validateIc = (
+	data: { id_type: (typeof ID_TYPES)[number]; id_number?: string },
+	ctx: z.RefinementCtx,
+) => {
+	if (data.id_type === "ic" && data.id_number && !IC_REGEX.test(data.id_number)) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ["id_number"],
+			message: "Malaysian IC must be 12 digits (YYMMDD-PB-###G)",
+		});
+	}
+};
+
+export const employeeInputSchema = employeeInputBase.superRefine(validateIc);
+
 export type EmployeeInput = z.infer<typeof employeeInputSchema>;
 
 const passwordField = z
@@ -75,12 +93,13 @@ const passwordField = z
 	.optional()
 	.or(z.literal("").transform(() => undefined));
 
-export const employeeFormSchema = employeeInputSchema
+export const employeeFormSchema = employeeInputBase
 	.extend({
 		password: passwordField,
 		password_confirm: passwordField,
 	})
 	.superRefine((data, ctx) => {
+		validateIc(data, ctx);
 		if (data.web_login_enabled) {
 			if (!data.password) {
 				ctx.addIssue({

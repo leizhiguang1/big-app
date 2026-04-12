@@ -4,15 +4,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetFooter,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
 	createServiceAction,
 	updateServiceAction,
@@ -49,7 +49,7 @@ const EMPTY: ServiceCreateInput = {
 	is_active: true,
 };
 
-export function ServiceFormSheet({ open, service, categories, onClose }: Props) {
+export function ServiceFormDialog({ open, service, categories, onClose }: Props) {
 	const [pending, startTransition] = useTransition();
 	const [serverError, setServerError] = useState<string | null>(null);
 
@@ -97,18 +97,19 @@ export function ServiceFormSheet({ open, service, categories, onClose }: Props) 
 	});
 
 	return (
-		<Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-			<SheetContent className="flex w-full flex-col sm:max-w-xl">
-				<SheetHeader>
-					<SheetTitle>{service ? "Edit service" : "New service"}</SheetTitle>
-					<SheetDescription>
+		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-xl">
+				<DialogHeader>
+					<DialogTitle>{service ? "Edit service" : "New service"}</DialogTitle>
+					<DialogDescription>
 						Catalog entry used as a billing line item after a visit.
-					</SheetDescription>
-				</SheetHeader>
+					</DialogDescription>
+				</DialogHeader>
 				<form
 					onSubmit={onSubmit}
-					className="flex flex-1 flex-col gap-4 overflow-y-auto p-4"
+					className="flex min-h-0 flex-1 flex-col"
 				>
+					<div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
 					<div className="grid grid-cols-2 gap-3">
 						<div className="flex flex-col gap-1.5">
 							<label htmlFor="service-sku" className="font-medium text-sm">
@@ -297,18 +298,18 @@ export function ServiceFormSheet({ open, service, categories, onClose }: Props) 
 					{serverError && (
 						<p className="text-destructive text-sm">{serverError}</p>
 					)}
-
-					<SheetFooter className="mt-auto">
+					</div>
+					<DialogFooter className="border-t">
 						<Button type="button" variant="outline" onClick={onClose}>
 							Cancel
 						</Button>
 						<Button type="submit" disabled={pending}>
 							{pending ? "Saving…" : "Save"}
 						</Button>
-					</SheetFooter>
+					</DialogFooter>
 				</form>
-			</SheetContent>
-		</Sheet>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -321,7 +322,7 @@ export function NewServiceButton({
 	return (
 		<>
 			<Button onClick={() => setOpen(true)}>New service</Button>
-			<ServiceFormSheet
+			<ServiceFormDialog
 				open={open}
 				service={null}
 				categories={categories}

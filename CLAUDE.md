@@ -115,7 +115,15 @@ How it actually works:
 - **Phase 2+ (later):** Next.js 16 frontend + NestJS backend, pnpm workspace.
   Every Phase 1 file is written so the migration is mechanical — see below.
 - Supabase (Postgres + Auth + RLS) in both phases
-- Tailwind + shadcn/ui (includes a DataTable pattern — no TanStack Table)
+- Tailwind + shadcn/ui (includes a DataTable pattern — no TanStack Table).
+  **Forms/editors use `components/ui/dialog.tsx` (centered modal), not
+  `sheet.tsx`.** Sheet is reserved for cases where the side-panel shape
+  actually matters (e.g. the mobile sidebar drawer). Default to Dialog
+  for every new create/edit form — follow the pattern in
+  `components/customers/CustomerForm.tsx`: `DialogContent` with
+  `flex max-h-[90vh] flex-col gap-0 p-0`, header, a scrollable
+  `div` wrapping the fields, then `DialogFooter` with `border-t` pinned
+  below.
 - Zod everywhere (forms, services, future NestJS DTOs via `nestjs-zod`)
 - react-hook-form for forms
 - **No TanStack Query in Phase 1.** Reads use server components that call

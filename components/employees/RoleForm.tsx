@@ -4,15 +4,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState, useTransition } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetFooter,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { createRoleAction, updateRoleAction } from "@/lib/actions/roles";
 import {
 	emptyPermissions,
@@ -52,7 +52,7 @@ function countSection(bucket: Record<string, boolean> | undefined): number {
 	return Object.values(bucket).filter(Boolean).length;
 }
 
-export function RoleFormSheet({ open, value: role, onClose }: Props) {
+export function RoleFormDialog({ open, value: role, onClose }: Props) {
 	const [pending, startTransition] = useTransition();
 	const [serverError, setServerError] = useState<string | null>(null);
 
@@ -119,18 +119,18 @@ export function RoleFormSheet({ open, value: role, onClose }: Props) {
 			);
 
 	return (
-		<Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-			<SheetContent className="flex w-full flex-col sm:max-w-3xl">
-				<SheetHeader>
-					<SheetTitle>{role ? "Edit role" : "New role"}</SheetTitle>
-					<SheetDescription>
+		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-3xl">
+				<DialogHeader>
+					<DialogTitle>{role ? "Edit role" : "New role"}</DialogTitle>
+					<DialogDescription>
 						Permission flags are stored but not yet enforced. Turn them on now
 						so the data is ready when the gate lands.
-					</SheetDescription>
-				</SheetHeader>
+					</DialogDescription>
+				</DialogHeader>
 				<form
 					onSubmit={onSubmit}
-					className="flex flex-1 flex-col overflow-hidden"
+					className="flex min-h-0 flex-1 flex-col overflow-hidden"
 				>
 					<div className="flex-1 space-y-5 overflow-y-auto p-4">
 						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -257,17 +257,17 @@ export function RoleFormSheet({ open, value: role, onClose }: Props) {
 					{serverError && (
 						<p className="px-4 pb-2 text-destructive text-sm">{serverError}</p>
 					)}
-					<SheetFooter className="border-t p-4">
+					<DialogFooter className="border-t">
 						<Button type="button" variant="outline" onClick={onClose}>
 							Cancel
 						</Button>
 						<Button type="submit" disabled={pending}>
 							{pending ? "Saving…" : "Save"}
 						</Button>
-					</SheetFooter>
+					</DialogFooter>
 				</form>
-			</SheetContent>
-		</Sheet>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -276,7 +276,7 @@ export function NewRoleButton() {
 	return (
 		<>
 			<Button onClick={() => setOpen(true)}>New role</Button>
-			<RoleFormSheet open={open} value={null} onClose={() => setOpen(false)} />
+			<RoleFormDialog open={open} value={null} onClose={() => setOpen(false)} />
 		</>
 	);
 }

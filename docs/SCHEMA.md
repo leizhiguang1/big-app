@@ -113,9 +113,9 @@ Generated (computed) columns that stay in sync automatically:
 
 Removed `cash_wallet_balance`, `beauti_points_balance`, `credit_voucher_balance`, `loyalty_points_balance` from customers table. These will be computed from transaction tables when loyalty features are built in Phase 2.
 
-### 7. Customer ID type
+### 7. Customer & employee ID type
 
-Added `id_type` field (`'ic'` or `'passport'`) alongside `id_number`. Replaces the ambiguous single `identification_no` field from v1.
+Both `customers` and `employees` use the same `(id_type, id_number)` pair, where `id_type` is `'ic'` or `'passport'`. Replaces the ambiguous single `identification_no` field from v1. Phase 1 only validates Malaysian IC format (`YYMMDD-PB-###G`); foreign nationals use `id_type = 'passport'` with free-form numbers. A partial unique index on `(id_number) where id_type = 'ic'` is applied to both tables to block duplicate ICs; passport numbers are intentionally not uniqued because they can collide across issuing countries. The employees column was originally named `identification_no` and was renamed in the `unify_id_number_columns` migration to match customers.
 
 ### 8. Date-based shifts (no recurrence)
 

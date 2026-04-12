@@ -4,15 +4,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetFooter,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
 	createCustomerAction,
 	updateCustomerAction,
@@ -139,7 +139,7 @@ function Field({
 	);
 }
 
-export function CustomerFormSheet({
+export function CustomerFormDialog({
 	open,
 	customer,
 	outlets,
@@ -196,20 +196,21 @@ export function CustomerFormSheet({
 	);
 
 	return (
-		<Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-			<SheetContent className="flex w-full flex-col sm:max-w-2xl">
-				<SheetHeader>
-					<SheetTitle>{customer ? "Edit customer" : "New customer"}</SheetTitle>
-					<SheetDescription>
+		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-3xl">
+				<DialogHeader>
+					<DialogTitle>{customer ? "Edit customer" : "New customer"}</DialogTitle>
+					<DialogDescription>
 						{customer
 							? `Editing ${customer.code}.`
 							: "The customer code is auto-generated (CUS-00000001) on save."}
-					</SheetDescription>
-				</SheetHeader>
+					</DialogDescription>
+				</DialogHeader>
 				<form
 					onSubmit={onSubmit}
-					className="flex flex-1 flex-col gap-4 overflow-y-auto p-4"
+					className="flex min-h-0 flex-1 flex-col"
 				>
+					<div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
 					<Section title="Identity">
 						<Field
 							label="Salutation"
@@ -481,17 +482,18 @@ export function CustomerFormSheet({
 					{serverError && (
 						<p className="text-destructive text-sm">{serverError}</p>
 					)}
-					<SheetFooter className="mt-auto">
+					</div>
+					<DialogFooter className="border-t">
 						<Button type="button" variant="outline" onClick={onClose}>
 							Cancel
 						</Button>
 						<Button type="submit" disabled={pending}>
 							{pending ? "Saving…" : "Save"}
 						</Button>
-					</SheetFooter>
+					</DialogFooter>
 				</form>
-			</SheetContent>
-		</Sheet>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -508,7 +510,7 @@ export function NewCustomerButton({
 	return (
 		<>
 			<Button onClick={() => setOpen(true)}>New customer</Button>
-			<CustomerFormSheet
+			<CustomerFormDialog
 				open={open}
 				customer={null}
 				outlets={outlets}

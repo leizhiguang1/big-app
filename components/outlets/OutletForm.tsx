@@ -5,15 +5,15 @@ import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetFooter,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
 	createOutletAction,
 	createRoomAction,
@@ -48,7 +48,7 @@ const EMPTY: OutletCreateInput = {
 	is_active: true,
 };
 
-export function OutletFormSheet({ open, outlet, onClose }: Props) {
+export function OutletFormDialog({ open, outlet, onClose }: Props) {
 	const [pending, startTransition] = useTransition();
 	const [serverError, setServerError] = useState<string | null>(null);
 
@@ -95,18 +95,19 @@ export function OutletFormSheet({ open, outlet, onClose }: Props) {
 	});
 
 	return (
-		<Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-			<SheetContent className="flex w-full flex-col sm:max-w-xl">
-				<SheetHeader>
-					<SheetTitle>{outlet ? "Edit outlet" : "New outlet"}</SheetTitle>
-					<SheetDescription>
+		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-xl">
+				<DialogHeader>
+					<DialogTitle>{outlet ? "Edit outlet" : "New outlet"}</DialogTitle>
+					<DialogDescription>
 						Branches are referenced by appointments, customers, and sales.
-					</SheetDescription>
-				</SheetHeader>
+					</DialogDescription>
+				</DialogHeader>
 				<form
 					onSubmit={onSubmit}
-					className="flex flex-1 flex-col gap-4 overflow-y-auto p-4"
+					className="flex min-h-0 flex-1 flex-col"
 				>
+					<div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
 					<div className="grid grid-cols-2 gap-3">
 						<div className="flex flex-col gap-1.5">
 							<label htmlFor="outlet-code" className="font-medium text-sm">
@@ -213,18 +214,18 @@ export function OutletFormSheet({ open, outlet, onClose }: Props) {
 					)}
 
 					{outlet && <RoomsEditor outletId={outlet.id} />}
-
-					<SheetFooter className="mt-auto">
+					</div>
+					<DialogFooter className="border-t">
 						<Button type="button" variant="outline" onClick={onClose}>
 							Cancel
 						</Button>
 						<Button type="submit" disabled={pending}>
 							{pending ? "Saving…" : "Save"}
 						</Button>
-					</SheetFooter>
+					</DialogFooter>
 				</form>
-			</SheetContent>
-		</Sheet>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -233,7 +234,7 @@ export function NewOutletButton() {
 	return (
 		<>
 			<Button onClick={() => setOpen(true)}>New outlet</Button>
-			<OutletFormSheet
+			<OutletFormDialog
 				open={open}
 				outlet={null}
 				onClose={() => setOpen(false)}

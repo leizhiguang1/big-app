@@ -16,7 +16,7 @@ The customer module handles: registration, profile management, and serves as the
 - **Search**: name, phone, IC/passport number. Plain `ilike` on the server, no debounce, form submit pushes `?q=` to the URL. Simple index on `phone` + `id_number`; name is matched with `ilike` against a computed `first_name || ' ' || last_name` pattern — good enough for current scale, upgrade to a trigram/GIN index later if needed.
 - **Photo column exists, no upload UI** — `profile_image_url` is in the schema but the form doesn't expose it until Supabase Storage is configured.
 - **Consultant is required.** Form defaults to the current user if they are an employee.
-- **IC vs passport** — single `id_type` (`'ic' | 'passport'`) + `id_number` pair. Form has a radio/toggle that swaps the label ("IC Number" ↔ "Passport Number") and the validation rule. Malaysian IC format (`YYMMDD-PB-###G`, 12 digits, optional dashes) validated in Zod when `id_type = 'ic'`.
+- **IC vs passport** — single `id_type` (`'ic' | 'passport'`) + `id_number` pair, identical shape on `employees`. Form has a radio/toggle that swaps the label ("IC Number" ↔ "Passport Number") and the validation rule. Phase 1 only validates Malaysian IC (`YYMMDD-PB-###G`, 12 digits, optional dashes) in Zod when `id_type = 'ic'`; passport is treated as free-form text for any other nationality. A partial unique index on `(id_number) where id_type='ic'` enforces no duplicate Malaysian ICs at the DB level — passport numbers are deliberately not uniqued because they can legitimately collide across issuing countries. If BIG ever onboards a Singapore clinic, NRIC needs its own validator (different format).
 - **Deferred to later phases:** detail page (profile sidebar + any tab), timeline, case notes, clinical sub-modules, wallet, follow-up, lead management, QR registration, customer merging, VIP workflow beyond the flag itself, address autocomplete.
 
 ## Screenshots
@@ -110,7 +110,7 @@ _v1 customer creation form fields:_
 | gender | text | No | male, female |
 | date_of_birth | date | No | |
 | id_type | text | Yes | `'ic'` (default) or `'passport'` — toggle in the form |
-| id_number | text | No | IC (Malaysian format) or passport number — label + validation swap with `id_type` |
+| id_number | text | No | IC (Malaysian format) or passport number — label + validation swap with `id_type`. Partial unique index on `(id_number) where id_type='ic'` blocks duplicate Malaysian ICs; passports are intentionally not uniqued (different countries can issue the same number). Same shape on `employees`. |
 | country_of_origin | text | No | Default: Malaysia |
 | phone | text | Yes | Primary, with country code (+60) |
 | phone2 | text | No | Secondary contact |

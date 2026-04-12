@@ -8,7 +8,7 @@ import { deleteCustomerAction } from "@/lib/actions/customers";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { OutletWithRoomCount } from "@/lib/services/outlets";
-import { CustomerFormSheet } from "./CustomerForm";
+import { CustomerFormDialog } from "./CustomerForm";
 
 type Props = {
 	customers: CustomerWithRelations[];
@@ -163,7 +163,7 @@ export function CustomersTable({
 				emptyMessage="No customers yet. Click “New customer” to create one."
 				minWidth={1000}
 			/>
-			<CustomerFormSheet
+			<CustomerFormDialog
 				open={!!editing}
 				customer={editing}
 				outlets={outlets}

@@ -4,15 +4,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetFooter,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
 	createPositionAction,
 	updatePositionAction,
@@ -29,7 +29,7 @@ type Props = {
 	onClose: () => void;
 };
 
-export function PositionFormSheet({ open, position, onClose }: Props) {
+export function PositionFormDialog({ open, position, onClose }: Props) {
 	const [pending, startTransition] = useTransition();
 	const [serverError, setServerError] = useState<string | null>(null);
 
@@ -67,16 +67,17 @@ export function PositionFormSheet({ open, position, onClose }: Props) {
 	});
 
 	return (
-		<Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-			<SheetContent className="flex flex-col">
-				<SheetHeader>
-					<SheetTitle>{position ? "Edit position" : "New position"}</SheetTitle>
-					<SheetDescription>
+		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-lg">
+				<DialogHeader>
+					<DialogTitle>{position ? "Edit position" : "New position"}</DialogTitle>
+					<DialogDescription>
 						Positions are job title labels shown on the employee card and
 						roster.
-					</SheetDescription>
-				</SheetHeader>
-				<form onSubmit={onSubmit} className="flex flex-1 flex-col gap-4 p-4">
+					</DialogDescription>
+				</DialogHeader>
+				<form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+					<div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
 					<div className="flex flex-col gap-1.5">
 						<label htmlFor="position-name" className="text-sm font-medium">
 							Name
@@ -113,17 +114,18 @@ export function PositionFormSheet({ open, position, onClose }: Props) {
 					{serverError && (
 						<p className="text-destructive text-sm">{serverError}</p>
 					)}
-					<SheetFooter className="mt-auto">
+					</div>
+					<DialogFooter className="border-t">
 						<Button type="button" variant="outline" onClick={onClose}>
 							Cancel
 						</Button>
 						<Button type="submit" disabled={pending}>
 							{pending ? "Saving…" : "Save"}
 						</Button>
-					</SheetFooter>
+					</DialogFooter>
 				</form>
-			</SheetContent>
-		</Sheet>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -132,7 +134,7 @@ export function NewPositionButton() {
 	return (
 		<>
 			<Button onClick={() => setOpen(true)}>New position</Button>
-			<PositionFormSheet
+			<PositionFormDialog
 				open={open}
 				position={null}
 				onClose={() => setOpen(false)}

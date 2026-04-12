@@ -390,7 +390,7 @@ on conflict (id) do nothing;
 insert into public.employees (
   id, code, first_name, last_name, email, phone,
   role_id, position_id,
-  id_type, identification_no,
+  id_type, id_number,
   web_login_enabled, auth_user_id, is_active
 ) values
   (

@@ -4,15 +4,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetFooter,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
 	createEmployeeAction,
 	updateEmployeeAction,
@@ -43,7 +43,7 @@ const EMPTY: EmployeeFormInput = {
 	gender: null,
 	date_of_birth: undefined,
 	id_type: "ic",
-	identification_no: undefined,
+	id_number: undefined,
 	email: "",
 	phone: undefined,
 	phone2: undefined,
@@ -79,7 +79,7 @@ function fromEmployee(e: EmployeeWithRelations | null): EmployeeFormInput {
 		gender: (e.gender as EmployeeFormInput["gender"]) ?? null,
 		date_of_birth: e.date_of_birth ?? undefined,
 		id_type: (e.id_type as EmployeeFormInput["id_type"]) ?? "ic",
-		identification_no: e.identification_no ?? undefined,
+		id_number: e.id_number ?? undefined,
 		email: e.email ?? "",
 		phone: e.phone ?? undefined,
 		phone2: e.phone2 ?? undefined,
@@ -146,7 +146,7 @@ function Field({
 	);
 }
 
-export function EmployeeFormSheet({
+export function EmployeeFormDialog({
 	open,
 	employee,
 	roles,
@@ -191,20 +191,21 @@ export function EmployeeFormSheet({
 	const errors = form.formState.errors;
 
 	return (
-		<Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-			<SheetContent className="flex w-full flex-col sm:max-w-2xl">
-				<SheetHeader>
-					<SheetTitle>{employee ? "Edit employee" : "New employee"}</SheetTitle>
-					<SheetDescription>
+		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-3xl">
+				<DialogHeader>
+					<DialogTitle>{employee ? "Edit employee" : "New employee"}</DialogTitle>
+					<DialogDescription>
 						{employee
 							? `Editing ${employee.code}.`
 							: "The employee code is auto-generated (EMP-0001) on save."}
-					</SheetDescription>
-				</SheetHeader>
+					</DialogDescription>
+				</DialogHeader>
 				<form
 					onSubmit={onSubmit}
-					className="flex flex-1 flex-col gap-4 overflow-y-auto p-4"
+					className="flex min-h-0 flex-1 flex-col"
 				>
+					<div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
 					<Section title="Identity">
 						<Field label="Salutation" htmlFor="emp-salutation">
 							<Input
@@ -261,12 +262,12 @@ export function EmployeeFormSheet({
 							</select>
 						</Field>
 						<Field
-							label="Identification number"
+							label="ID number"
 							htmlFor="emp-idno"
 							full
-							error={errors.identification_no?.message}
+							error={errors.id_number?.message}
 						>
-							<Input id="emp-idno" {...form.register("identification_no")} />
+							<Input id="emp-idno" {...form.register("id_number")} />
 						</Field>
 					</Section>
 
@@ -500,17 +501,18 @@ export function EmployeeFormSheet({
 					{serverError && (
 						<p className="text-destructive text-sm">{serverError}</p>
 					)}
-					<SheetFooter className="mt-auto">
+					</div>
+					<DialogFooter className="border-t">
 						<Button type="button" variant="outline" onClick={onClose}>
 							Cancel
 						</Button>
 						<Button type="submit" disabled={pending}>
 							{pending ? "Saving…" : "Save"}
 						</Button>
-					</SheetFooter>
+					</DialogFooter>
 				</form>
-			</SheetContent>
-		</Sheet>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -525,7 +527,7 @@ export function NewEmployeeButton({
 	return (
 		<>
 			<Button onClick={() => setOpen(true)}>New employee</Button>
-			<EmployeeFormSheet
+			<EmployeeFormDialog
 				open={open}
 				employee={null}
 				roles={roles}

@@ -8,7 +8,7 @@ import { deactivateEmployeeAction } from "@/lib/actions/employees";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { Position } from "@/lib/services/positions";
 import type { Role } from "@/lib/services/roles";
-import { EmployeeFormSheet } from "./EmployeeForm";
+import { EmployeeFormDialog } from "./EmployeeForm";
 
 type Props = {
 	employees: EmployeeWithRelations[];
@@ -184,7 +184,7 @@ export function EmployeesTable({ employees, roles, positions }: Props) {
 				emptyMessage="No employees yet. Click “New employee” to create one."
 				minWidth={1100}
 			/>
-			<EmployeeFormSheet
+			<EmployeeFormDialog
 				open={!!editing}
 				employee={editing}
 				roles={roles}

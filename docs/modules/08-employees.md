@@ -50,7 +50,7 @@ or permissions.
 | | `gender` (0011) | text | CHECK: `male` / `female` / `other` |
 | | `date_of_birth` (0011) | date | |
 | | `id_type` (0011) | text not null default `'ic'` | CHECK: `ic` / `passport`. Discriminator that stays separate from the number on purpose — see "Why two columns for ID" below. |
-| | `identification_no` (0011) | text | The number itself, regardless of type. IC and passport both fit in `text`; the discriminator above tells the app/UI/reports which validation rule and label to apply. |
+| | `id_number` (0011, renamed from `identification_no` in `unify_id_number_columns`) | text | The number itself, regardless of type. IC and passport both fit in `text`; the discriminator above tells the app/UI/reports which validation rule and label to apply. Partial unique index `(id_number) where id_type='ic' and id_number is not null` enforces no duplicate Malaysian ICs; passport numbers are intentionally not unique because they can collide across issuing countries. |
 | Contact | `email` | text unique | nullable |
 | | `phone` | text | "Contact Number 1" |
 | | `phone2` (0011) | text | "Contact Number 2" |
@@ -76,9 +76,10 @@ or permissions.
 > 2. Regenerate types into [lib/supabase/types.ts](../../lib/supabase/types.ts).
 > 3. Update the table above + the Zod schema in [lib/schemas/employees.ts](../../lib/schemas/employees.ts), the form component, and the table component. Do not duplicate the field list anywhere else — this section is the source of truth for what's currently built.
 
-**Why two columns for ID (`id_type` + `identification_no`):**
+**Why two columns for ID (`id_type` + `id_number`):**
 We deliberately keep the type discriminator separate from the number rather than collapsing into a single `id` column. The number itself happily lives in one `text` column for both Malaysian IC and foreign passport — but the type matters for everything around it:
-- Validation: Malaysian IC has a fixed 12-digit format we can lint; passport is free-form alphanumeric with country variation. The form picks the rule based on `id_type`.
+- Validation: Malaysian IC has a fixed 12-digit format we can lint (`YYMMDD-PB-###G`, dashes optional, enforced in [lib/schemas/employees.ts](../../lib/schemas/employees.ts) and the matching customers schema); passport is free-form alphanumeric with country variation. The form picks the rule based on `id_type`.
+- Uniqueness: a partial unique index on `(id_number) where id_type='ic'` blocks duplicate Malaysian ICs across both `customers` and `employees`. Passports are deliberately *not* uniqued — different issuing countries can legitimately mint the same number, and we don't store country-of-issue as a structured field.
 - Reporting / filtering: "list all foreign workers" or "all locals" is a single `where id_type = ...` instead of regex-sniffing the number.
 - UI: the field label flips between "IC number" and "Passport number" with no mapping table.
 - Future expansion: adding driver's license, work permit, or another country's national ID is one new enum value, not a re-architecture of every report and form.
@@ -247,7 +248,8 @@ This module is **build order #2** — everything downstream (appointments, sales
 | name | text | Yes | Full display name |
 | gender | text | No | male / female |
 | date_of_birth | date | No | |
-| identification_no | text | No | IC or passport |
+| id_type | text | Yes | `'ic'` (default) or `'passport'` |
+| id_number | text | No | Malaysian IC (validated `YYMMDD-PB-###G`) or passport number — partial unique index on IC values |
 | phone | text | No | |
 | phone2 | text | No | |
 | email | text | No | Also used for Supabase Auth login |

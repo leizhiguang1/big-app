@@ -49,7 +49,7 @@ function normalize(input: unknown) {
 		gender: p.gender ?? null,
 		date_of_birth: nz(p.date_of_birth),
 		id_type: p.id_type,
-		identification_no: nz(p.identification_no),
+		id_number: nz(p.id_number),
 		email: p.email,
 		phone: nz(p.phone),
 		phone2: nz(p.phone2),

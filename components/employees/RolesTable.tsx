@@ -10,7 +10,7 @@ import {
 	TOTAL_PERMISSION_FLAGS,
 } from "@/lib/schemas/role-permissions";
 import type { Role } from "@/lib/services/roles";
-import { RoleFormSheet } from "./RoleForm";
+import { RoleFormDialog } from "./RoleForm";
 
 export function RolesTable({ roles }: { roles: Role[] }) {
 	const [editing, setEditing] = useState<Role | null>(null);
@@ -111,7 +111,7 @@ export function RolesTable({ roles }: { roles: Role[] }) {
 				emptyMessage="No roles yet. Click “New role” to create one."
 				minWidth={640}
 			/>
-			<RoleFormSheet
+			<RoleFormDialog
 				open={!!editing}
 				value={editing}
 				onClose={() => setEditing(null)}

@@ -180,8 +180,8 @@ export type Database = {
           first_name: string
           gender: string | null
           id: string
+          id_number: string | null
           id_type: string
-          identification_no: string | null
           is_active: boolean
           is_bookable: boolean
           is_online_bookable: boolean
@@ -216,8 +216,8 @@ export type Database = {
           first_name: string
           gender?: string | null
           id?: string
+          id_number?: string | null
           id_type?: string
-          identification_no?: string | null
           is_active?: boolean
           is_bookable?: boolean
           is_online_bookable?: boolean
@@ -252,8 +252,8 @@ export type Database = {
           first_name?: string
           gender?: string | null
           id?: string
+          id_number?: string | null
           id_type?: string
-          identification_no?: string | null
           is_active?: boolean
           is_bookable?: boolean
           is_online_bookable?: boolean

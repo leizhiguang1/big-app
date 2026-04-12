@@ -10,7 +10,7 @@ export default function OutletsPage() {
         <p className="mt-1 text-muted-foreground text-sm">
           Branches and treatment rooms. Used by appointments, customers, and sales.
         </p>
-      </div>
+      </div> 
       <Suspense fallback={<TableSkeleton columns={5} rows={6} showHeader={false} />}>
         <OutletsContent />
       </Suspense>

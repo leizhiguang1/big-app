@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { deactivateOutletAction } from "@/lib/actions/outlets";
 import type { OutletWithRoomCount } from "@/lib/services/outlets";
-import { OutletFormSheet } from "./OutletForm";
+import { OutletFormDialog } from "./OutletForm";
 
 export function OutletsTable({ outlets }: { outlets: OutletWithRoomCount[] }) {
 	const [editing, setEditing] = useState<OutletWithRoomCount | null>(null);
@@ -96,7 +96,7 @@ export function OutletsTable({ outlets }: { outlets: OutletWithRoomCount[] }) {
 					</tbody>
 				</table>
 			</div>
-			<OutletFormSheet
+			<OutletFormDialog
 				open={!!editing}
 				outlet={editing}
 				onClose={() => setEditing(null)}
