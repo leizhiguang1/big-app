@@ -25,25 +25,16 @@ creates a Sales Order + Payment → data flows into Reports/Dashboard.
 
 ## Reference prototype (read-only)
 
-The previous prototype lives at:
+The v1 prototype lives **outside this repo** at
+`/Users/leizhiguang/Documents/Programming/1-FunnelDuo/aoikumo/`. It is
+reference material, not a port target. Never copy files from it, never run
+its migrations, never treat its schema as canonical.
 
-    /Users/leizhiguang/Documents/Programming/1-FunnelDuo/aoikumo/
-
-It is a **reference**, not a port target. Read it when:
-- You need to see how a screen actually behaves before rebuilding it
-  (e.g., the BillingSection drag/draft logic)
-- A module doc is ambiguous and you want to check how the prototype solved it
-- You want to see real data shapes (`docs/schema/prototype_dump/samples/*.json`)
-
-Never copy files from the prototype into this repo. Never run its migrations.
-Never trust its schema as canonical — `docs/schema/initial_schema.sql` is the
-truth. The prototype schema is intentionally being left behind because it had
-denormalized text columns, mixed PK types, and a brand_id concept we're not
-adopting in v2. See `docs/schema/prototype_dump/README.md` for the discovered
-discrepancies and what to do about them.
-
-If you find yourself wanting to grep the prototype, use absolute paths:
-`/Users/leizhiguang/Documents/Programming/1-FunnelDuo/aoikumo/src/...`
+**Before consulting the prototype, read [docs/REFERENCE_PROTOTYPE.md](docs/REFERENCE_PROTOTYPE.md).**
+That doc covers when to use it, the high-value entry points, what's wrong
+with it, and the translation rules (e.g. `patient` → `customer`, drop
+`brand_id`, no denormalized text columns). The schema-level discrepancy list
+is in [docs/schema/prototype_dump/README.md](docs/schema/prototype_dump/README.md).
 
 ## Tech stack (don't swap without discussion)
 
