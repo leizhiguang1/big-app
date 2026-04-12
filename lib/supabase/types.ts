@@ -164,6 +164,69 @@ export type Database = {
           },
         ]
       }
+      employee_shifts: {
+        Row: {
+          breaks: Json
+          created_at: string
+          employee_id: string
+          end_time: string
+          id: string
+          is_overnight: boolean
+          outlet_id: string
+          remarks: string | null
+          repeat_end: string | null
+          repeat_type: string
+          shift_date: string
+          start_time: string
+          updated_at: string
+        }
+        Insert: {
+          breaks?: Json
+          created_at?: string
+          employee_id: string
+          end_time?: string
+          id?: string
+          is_overnight?: boolean
+          outlet_id: string
+          remarks?: string | null
+          repeat_end?: string | null
+          repeat_type?: string
+          shift_date: string
+          start_time?: string
+          updated_at?: string
+        }
+        Update: {
+          breaks?: Json
+          created_at?: string
+          employee_id?: string
+          end_time?: string
+          id?: string
+          is_overnight?: boolean
+          outlet_id?: string
+          remarks?: string | null
+          repeat_end?: string | null
+          repeat_type?: string
+          shift_date?: string
+          start_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_shifts_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_shifts_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           address1: string | null
@@ -289,6 +352,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      inventory_items: {
+        Row: {
+          barcode: string | null
+          brand: string | null
+          category: string | null
+          created_at: string
+          discount_cap: number | null
+          id: string
+          in_transit: number
+          is_active: boolean
+          locked: number
+          low_alert_count: number
+          name: string
+          price: number
+          sku: string
+          stock: number
+          stock_status: string | null
+          supplier: string | null
+          type: string
+          uom: string
+          updated_at: string
+        }
+        Insert: {
+          barcode?: string | null
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          discount_cap?: number | null
+          id?: string
+          in_transit?: number
+          is_active?: boolean
+          locked?: number
+          low_alert_count?: number
+          name: string
+          price?: number
+          sku: string
+          stock?: number
+          stock_status?: string | null
+          supplier?: string | null
+          type?: string
+          uom?: string
+          updated_at?: string
+        }
+        Update: {
+          barcode?: string | null
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          discount_cap?: number | null
+          id?: string
+          in_transit?: number
+          is_active?: boolean
+          locked?: number
+          low_alert_count?: number
+          name?: string
+          price?: number
+          sku?: string
+          stock?: number
+          stock_status?: string | null
+          supplier?: string | null
+          type?: string
+          uom?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       outlets: {
         Row: {

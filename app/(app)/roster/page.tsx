@@ -1,10 +1,25 @@
-import { PlaceholderPage } from "@/components/shell/placeholder-page";
+import { Suspense } from "react";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { RosterContent } from "./roster-content";
 
-export default function RosterPage() {
+export default function RosterPage({
+	searchParams,
+}: {
+	searchParams: Promise<{ outlet?: string; week?: string }>;
+}) {
 	return (
-		<PlaceholderPage
-			title="Roster"
-			description="Weekly staff roster with outlet assignments and leave."
-		/>
+		<div className="flex flex-col gap-4">
+			<div className="flex flex-col gap-1">
+				<h2 className="font-semibold text-lg">Roster</h2>
+				<p className="text-muted-foreground text-sm">
+					Weekly staff shifts per outlet.
+				</p>
+			</div>
+			<Suspense
+				fallback={<TableSkeleton columns={8} rows={6} showHeader={false} />}
+			>
+				<RosterContent searchParams={searchParams} />
+			</Suspense>
+		</div>
 	);
 }
