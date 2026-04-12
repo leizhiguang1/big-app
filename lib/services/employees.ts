@@ -247,20 +247,23 @@ export async function updateEmployee(
 	return data;
 }
 
-export async function deactivateEmployee(
-	ctx: Context,
-	id: string,
-): Promise<Employee> {
-	const { data, error } = await ctx.db
+export async function deleteEmployee(ctx: Context, id: string): Promise<void> {
+	const { data: existing, error: fetchError } = await ctx.db
 		.from("employees")
-		.update({ is_active: false })
+		.select("id, auth_user_id")
 		.eq("id", id)
-		.select("*")
 		.single();
-	if (error) throw new ValidationError(error.message);
-	if (!data) throw new NotFoundError(`Employee ${id} not found`);
-	if (data.auth_user_id) {
-		await setAuthUserBanned(ctx, data.auth_user_id, true);
+	if (fetchError || !existing)
+		throw new NotFoundError(`Employee ${id} not found`);
+	const { error } = await ctx.db.from("employees").delete().eq("id", id);
+	if (error) {
+		if (error.code === "23503")
+			throw new ConflictError(
+				"This employee is referenced by existing records (appointments, sales, etc.). Deactivate instead.",
+			);
+		throw new ValidationError(error.message);
 	}
-	return data;
+	if (existing.auth_user_id) {
+		await deleteAuthUser(ctx, existing.auth_user_id);
+	}
 }

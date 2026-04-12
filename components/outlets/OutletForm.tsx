@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
 	Dialog,
 	DialogContent,
@@ -248,6 +249,7 @@ function RoomsEditor({ outletId }: { outletId: string }) {
 	const [newName, setNewName] = useState("");
 	const [pending, startTransition] = useTransition();
 	const [error, setError] = useState<string | null>(null);
+	const [removing, setRemoving] = useState<Room | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -301,13 +303,13 @@ function RoomsEditor({ outletId }: { outletId: string }) {
 		});
 	};
 
-	const removeRoom = (room: Room) => {
-		if (!confirm(`Remove room "${room.name}"?`)) return;
+	const confirmRemove = (room: Room) => {
 		setError(null);
 		startTransition(async () => {
 			try {
 				await deleteRoomAction(outletId, room.id);
 				await refresh();
+				setRemoving(null);
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Failed to remove room");
 			}
@@ -340,7 +342,7 @@ function RoomsEditor({ outletId }: { outletId: string }) {
 								variant="ghost"
 								size="icon-sm"
 								disabled={pending}
-								onClick={() => removeRoom(room)}
+								onClick={() => setRemoving(room)}
 								aria-label="Remove"
 							>
 								<Trash2 />
@@ -374,6 +376,21 @@ function RoomsEditor({ outletId }: { outletId: string }) {
 				</Button>
 			</div>
 			{error && <p className="text-destructive text-xs">{error}</p>}
+			<ConfirmDialog
+				open={!!removing}
+				onOpenChange={(o) => {
+					if (!o) setRemoving(null);
+				}}
+				title="Remove room?"
+				description={
+					removing
+						? `"${removing.name}" will be removed from this outlet.`
+						: undefined
+				}
+				confirmLabel="Remove"
+				pending={pending}
+				onConfirm={() => removing && confirmRemove(removing)}
+			/>
 		</div>
 	);
 }

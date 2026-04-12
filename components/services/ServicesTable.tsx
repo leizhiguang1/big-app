@@ -1,9 +1,11 @@
 "use client";
 
-import { Pencil } from "lucide-react";
-import { useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { deleteServiceAction } from "@/lib/actions/services";
 import { SERVICE_TYPE_LABELS, type ServiceType } from "@/lib/schemas/services";
 import type {
 	ServiceCategory,
@@ -27,6 +29,9 @@ export function ServicesTable({
 	categories: ServiceCategory[];
 }) {
 	const [editing, setEditing] = useState<ServiceWithCategory | null>(null);
+	const [deleting, setDeleting] = useState<ServiceWithCategory | null>(null);
+	const [deleteError, setDeleteError] = useState<string | null>(null);
+	const [pending, startTransition] = useTransition();
 
 	const columns: DataTableColumn<ServiceWithCategory>[] = [
 		{
@@ -137,14 +142,27 @@ export function ServicesTable({
 			header: "Actions",
 			align: "right",
 			cell: (s) => (
-				<Button
-					variant="ghost"
-					size="icon-sm"
-					onClick={() => setEditing(s)}
-					aria-label="Edit"
-				>
-					<Pencil />
-				</Button>
+				<div className="inline-flex gap-1">
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						onClick={() => setEditing(s)}
+						aria-label="Edit"
+					>
+						<Pencil />
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						onClick={() => {
+							setDeleteError(null);
+							setDeleting(s);
+						}}
+						aria-label="Delete"
+					>
+						<Trash2 />
+					</Button>
+				</div>
 			),
 		},
 	];
@@ -165,6 +183,35 @@ export function ServicesTable({
 				service={editing}
 				categories={categories}
 				onClose={() => setEditing(null)}
+			/>
+			<ConfirmDialog
+				open={!!deleting}
+				onOpenChange={(o) => {
+					if (!o) setDeleting(null);
+				}}
+				title="Delete service?"
+				description={
+					deleting
+						? `"${deleting.name}" will be permanently removed. This cannot be undone.${deleteError ? ` — ${deleteError}` : ""}`
+						: undefined
+				}
+				confirmLabel="Delete"
+				pending={pending}
+				onConfirm={() => {
+					if (!deleting) return;
+					const target = deleting;
+					setDeleteError(null);
+					startTransition(async () => {
+						try {
+							await deleteServiceAction(target.id);
+							setDeleting(null);
+						} catch (err) {
+							setDeleteError(
+								err instanceof Error ? err.message : "Failed to delete",
+							);
+						}
+					});
+				}}
 			/>
 		</>
 	);

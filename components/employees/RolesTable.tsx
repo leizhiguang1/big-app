@@ -1,10 +1,11 @@
 "use client";
 
-import { Pencil, Power } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
-import { deactivateRoleAction } from "@/lib/actions/roles";
+import { deleteRoleAction } from "@/lib/actions/roles";
 import {
 	countEnabledFlags,
 	TOTAL_PERMISSION_FLAGS,
@@ -14,6 +15,8 @@ import { RoleFormDialog } from "./RoleForm";
 
 export function RolesTable({ roles }: { roles: Role[] }) {
 	const [editing, setEditing] = useState<Role | null>(null);
+	const [deleting, setDeleting] = useState<Role | null>(null);
+	const [actionError, setActionError] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
 
 	const columns: DataTableColumn<Role>[] = [
@@ -29,7 +32,9 @@ export function RolesTable({ roles }: { roles: Role[] }) {
 			header: "Permissions",
 			sortable: true,
 			sortValue: (r) =>
-				r.permissions.all ? TOTAL_PERMISSION_FLAGS + 1 : countEnabledFlags(r.permissions),
+				r.permissions.all
+					? TOTAL_PERMISSION_FLAGS + 1
+					: countEnabledFlags(r.permissions),
 			cell: (r) => {
 				const enabled = countEnabledFlags(r.permissions);
 				if (r.permissions.all) {
@@ -79,22 +84,17 @@ export function RolesTable({ roles }: { roles: Role[] }) {
 					>
 						<Pencil />
 					</Button>
-					{r.is_active && (
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							disabled={pending}
-							onClick={() => {
-								if (!confirm(`Deactivate role "${r.name}"?`)) return;
-								startTransition(async () => {
-									await deactivateRoleAction(r.id);
-								});
-							}}
-							aria-label="Deactivate"
-						>
-							<Power />
-						</Button>
-					)}
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						onClick={() => {
+							setActionError(null);
+							setDeleting(r);
+						}}
+						aria-label="Delete"
+					>
+						<Trash2 />
+					</Button>
 				</div>
 			),
 		},
@@ -115,6 +115,35 @@ export function RolesTable({ roles }: { roles: Role[] }) {
 				open={!!editing}
 				value={editing}
 				onClose={() => setEditing(null)}
+			/>
+			<ConfirmDialog
+				open={!!deleting}
+				onOpenChange={(o) => {
+					if (!o) setDeleting(null);
+				}}
+				title="Delete role?"
+				description={
+					deleting
+						? `"${deleting.name}" will be permanently removed. This cannot be undone.${actionError ? ` — ${actionError}` : ""}`
+						: undefined
+				}
+				confirmLabel="Delete"
+				pending={pending}
+				onConfirm={() => {
+					if (!deleting) return;
+					const target = deleting;
+					setActionError(null);
+					startTransition(async () => {
+						try {
+							await deleteRoleAction(target.id);
+							setDeleting(null);
+						} catch (err) {
+							setActionError(
+								err instanceof Error ? err.message : "Failed to delete",
+							);
+						}
+					});
+				}}
 			/>
 		</>
 	);

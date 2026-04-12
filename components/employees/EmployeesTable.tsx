@@ -1,10 +1,11 @@
 "use client";
 
-import { Pencil, Power } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
-import { deactivateEmployeeAction } from "@/lib/actions/employees";
+import { deleteEmployeeAction } from "@/lib/actions/employees";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { Position } from "@/lib/services/positions";
 import type { Role } from "@/lib/services/roles";
@@ -33,6 +34,8 @@ function FlagBadge({ on, label }: { on: boolean; label: string }) {
 
 export function EmployeesTable({ employees, roles, positions }: Props) {
 	const [editing, setEditing] = useState<EmployeeWithRelations | null>(null);
+	const [deleting, setDeleting] = useState<EmployeeWithRelations | null>(null);
+	const [actionError, setActionError] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
 
 	const columns: DataTableColumn<EmployeeWithRelations>[] = [
@@ -68,9 +71,7 @@ export function EmployeesTable({ employees, roles, positions }: Props) {
 			sortable: true,
 			sortValue: (e) => e.position?.name ?? "",
 			cell: (e) => (
-				<span className="text-muted-foreground">
-					{e.position?.name ?? "—"}
-				</span>
+				<span className="text-muted-foreground">{e.position?.name ?? "—"}</span>
 			),
 		},
 		{
@@ -147,27 +148,17 @@ export function EmployeesTable({ employees, roles, positions }: Props) {
 					>
 						<Pencil />
 					</Button>
-					{e.is_active && (
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							disabled={pending}
-							onClick={() => {
-								if (
-									!confirm(
-										`Deactivate employee "${e.first_name} ${e.last_name}"?`,
-									)
-								)
-									return;
-								startTransition(async () => {
-									await deactivateEmployeeAction(e.id);
-								});
-							}}
-							aria-label="Deactivate"
-						>
-							<Power />
-						</Button>
-					)}
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						onClick={() => {
+							setActionError(null);
+							setDeleting(e);
+						}}
+						aria-label="Delete"
+					>
+						<Trash2 />
+					</Button>
 				</div>
 			),
 		},
@@ -190,6 +181,35 @@ export function EmployeesTable({ employees, roles, positions }: Props) {
 				roles={roles}
 				positions={positions}
 				onClose={() => setEditing(null)}
+			/>
+			<ConfirmDialog
+				open={!!deleting}
+				onOpenChange={(o) => {
+					if (!o) setDeleting(null);
+				}}
+				title="Delete employee?"
+				description={
+					deleting
+						? `"${deleting.first_name} ${deleting.last_name}" will be permanently removed along with their login. This cannot be undone.${actionError ? ` — ${actionError}` : ""}`
+						: undefined
+				}
+				confirmLabel="Delete"
+				pending={pending}
+				onConfirm={() => {
+					if (!deleting) return;
+					const target = deleting;
+					setActionError(null);
+					startTransition(async () => {
+						try {
+							await deleteEmployeeAction(target.id);
+							setDeleting(null);
+						} catch (err) {
+							setActionError(
+								err instanceof Error ? err.message : "Failed to delete",
+							);
+						}
+					});
+				}}
 			/>
 		</>
 	);

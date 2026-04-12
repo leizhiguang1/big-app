@@ -115,7 +115,7 @@ export function DataTable<T>({
 					className="w-full text-sm"
 					style={{ minWidth: `${minWidth}px` }}
 				>
-					<thead className="border-b bg-muted/40 text-muted-foreground">
+					<thead className="border-b border-accent bg-accent/60 text-accent-foreground">
 						<tr>
 							{columns.map((col) => {
 								const active = sort?.key === col.key;
@@ -139,8 +139,8 @@ export function DataTable<T>({
 												type="button"
 												onClick={() => toggleSort(col.key)}
 												className={cn(
-													"inline-flex items-center gap-1 hover:text-foreground",
-													active && "text-foreground",
+													"inline-flex items-center gap-1 opacity-80 hover:opacity-100",
+													active && "opacity-100",
 												)}
 											>
 												{col.header}

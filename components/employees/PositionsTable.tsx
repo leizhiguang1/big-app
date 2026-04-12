@@ -1,15 +1,18 @@
 "use client";
 
-import { Pencil, Power } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
-import { deactivatePositionAction } from "@/lib/actions/positions";
+import { deletePositionAction } from "@/lib/actions/positions";
 import type { Position } from "@/lib/services/positions";
 import { PositionFormDialog } from "./PositionForm";
 
 export function PositionsTable({ positions }: { positions: Position[] }) {
 	const [editing, setEditing] = useState<Position | null>(null);
+	const [deleting, setDeleting] = useState<Position | null>(null);
+	const [actionError, setActionError] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
 
 	const columns: DataTableColumn<Position>[] = [
@@ -26,9 +29,7 @@ export function PositionsTable({ positions }: { positions: Position[] }) {
 			sortable: true,
 			sortValue: (p) => p.description ?? "",
 			cell: (p) => (
-				<span className="text-muted-foreground">
-					{p.description || "—"}
-				</span>
+				<span className="text-muted-foreground">{p.description || "—"}</span>
 			),
 		},
 		{
@@ -61,22 +62,17 @@ export function PositionsTable({ positions }: { positions: Position[] }) {
 					>
 						<Pencil />
 					</Button>
-					{p.is_active && (
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							disabled={pending}
-							onClick={() => {
-								if (!confirm(`Deactivate position "${p.name}"?`)) return;
-								startTransition(async () => {
-									await deactivatePositionAction(p.id);
-								});
-							}}
-							aria-label="Deactivate"
-						>
-							<Power />
-						</Button>
-					)}
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						onClick={() => {
+							setActionError(null);
+							setDeleting(p);
+						}}
+						aria-label="Delete"
+					>
+						<Trash2 />
+					</Button>
 				</div>
 			),
 		},
@@ -97,6 +93,35 @@ export function PositionsTable({ positions }: { positions: Position[] }) {
 				open={!!editing}
 				position={editing}
 				onClose={() => setEditing(null)}
+			/>
+			<ConfirmDialog
+				open={!!deleting}
+				onOpenChange={(o) => {
+					if (!o) setDeleting(null);
+				}}
+				title="Delete position?"
+				description={
+					deleting
+						? `"${deleting.name}" will be permanently removed. This cannot be undone.${actionError ? ` — ${actionError}` : ""}`
+						: undefined
+				}
+				confirmLabel="Delete"
+				pending={pending}
+				onConfirm={() => {
+					if (!deleting) return;
+					const target = deleting;
+					setActionError(null);
+					startTransition(async () => {
+						try {
+							await deletePositionAction(target.id);
+							setDeleting(null);
+						} catch (err) {
+							setActionError(
+								err instanceof Error ? err.message : "Failed to delete",
+							);
+						}
+					});
+				}}
 			/>
 		</>
 	);

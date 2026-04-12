@@ -3,6 +3,7 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { deleteCustomerAction } from "@/lib/actions/customers";
 import type { CustomerWithRelations } from "@/lib/services/customers";
@@ -24,6 +25,8 @@ export function CustomersTable({
 	defaultConsultantId,
 }: Props) {
 	const [editing, setEditing] = useState<CustomerWithRelations | null>(null);
+	const [deleting, setDeleting] = useState<CustomerWithRelations | null>(null);
+	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
 
 	const columns: DataTableColumn<CustomerWithRelations>[] = [
@@ -125,23 +128,9 @@ export function CustomersTable({
 					<Button
 						variant="ghost"
 						size="icon-sm"
-						disabled={pending}
 						onClick={() => {
-							if (
-								!confirm(
-									`Delete customer "${c.first_name} ${c.last_name ?? ""}"? This cannot be undone.`,
-								)
-							)
-								return;
-							startTransition(async () => {
-								try {
-									await deleteCustomerAction(c.id);
-								} catch (err) {
-									alert(
-										err instanceof Error ? err.message : "Failed to delete",
-									);
-								}
-							});
+							setDeleteError(null);
+							setDeleting(c);
 						}}
 						aria-label="Delete"
 					>
@@ -170,6 +159,35 @@ export function CustomersTable({
 				employees={employees}
 				defaultConsultantId={defaultConsultantId}
 				onClose={() => setEditing(null)}
+			/>
+			<ConfirmDialog
+				open={!!deleting}
+				onOpenChange={(o) => {
+					if (!o) setDeleting(null);
+				}}
+				title="Delete customer?"
+				description={
+					deleting
+						? `"${deleting.first_name} ${deleting.last_name ?? ""}" will be permanently removed. This cannot be undone.${deleteError ? ` — ${deleteError}` : ""}`
+						: undefined
+				}
+				confirmLabel="Delete"
+				pending={pending}
+				onConfirm={() => {
+					if (!deleting) return;
+					const target = deleting;
+					setDeleteError(null);
+					startTransition(async () => {
+						try {
+							await deleteCustomerAction(target.id);
+							setDeleting(null);
+						} catch (err) {
+							setDeleteError(
+								err instanceof Error ? err.message : "Failed to delete",
+							);
+						}
+					});
+				}}
 			/>
 		</>
 	);

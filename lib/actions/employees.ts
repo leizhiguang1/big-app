@@ -27,9 +27,8 @@ export async function updateEmployeeAction(
 	return employee;
 }
 
-export async function deactivateEmployeeAction(id: string) {
+export async function deleteEmployeeAction(id: string) {
 	const ctx = await getServerContext();
-	const employee = await employeesService.deactivateEmployee(ctx, id);
+	await employeesService.deleteEmployee(ctx, id);
 	revalidatePath("/employees");
-	return employee;
 }
