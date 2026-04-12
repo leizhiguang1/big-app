@@ -1,0 +1,24 @@
+[
+  {
+    "id": "bnd-1",
+    "description": "[TRIAL] 产后修复配套 POSTPARTUM RECOVERY THERAPY PACKAGE",
+    "sku": "PKG-0001-T",
+    "sellable_start": "No Expiry",
+    "sellable_end": "No Expiry",
+    "expirable": false,
+    "price": 488,
+    "created_at": "2026-03-13T17:36:58.713639+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "bnd-2",
+    "description": "产后修复配套 POSTPARTUM RECOVERY THERAPY PACKAGE",
+    "sku": "PKG-0001",
+    "sellable_start": "No Expiry",
+    "sellable_end": "No Expiry",
+    "expirable": false,
+    "price": 1464,
+    "created_at": "2026-03-13T17:36:58.713639+00:00",
+    "brand_id": "brand-big-dental"
+  }
+]

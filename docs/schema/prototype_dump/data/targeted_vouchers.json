@@ -1,0 +1,74 @@
+[
+  {
+    "id": 1,
+    "description": "RM200 DENTAL VOUCHER 牙科礼券",
+    "date_range": "01/01/2026 - 31/12/2027",
+    "balance": 1,
+    "type": "MYR",
+    "value": 200,
+    "status": "Active",
+    "created_by": "Dr. James Wong",
+    "created_at": "2026-03-13T16:59:04.083536+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": 2,
+    "description": "RM100 BIRTHDAY DENTAL VOUCHER",
+    "date_range": "01/01/2026 - 31/12/2027",
+    "balance": 1,
+    "type": "MYR",
+    "value": 100,
+    "status": "Active",
+    "created_by": "Dr. Sarah Lim",
+    "created_at": "2026-03-13T16:59:04.083536+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": 3,
+    "description": "RM100 BIRTHDAY DENTAL VOUCHER",
+    "date_range": "01/01/2026 - 31/12/2027",
+    "balance": 1,
+    "type": "MYR",
+    "value": 100,
+    "status": "Active",
+    "created_by": "Dr. Sarah Lim",
+    "created_at": "2026-03-13T16:59:04.083536+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": 4,
+    "description": "RM50 SCALING VOUCHER DISCOUNT",
+    "date_range": "01/03/2026 - 31/12/2027",
+    "balance": 1,
+    "type": "MYR",
+    "value": 50,
+    "status": "Active",
+    "created_by": "Karen Teo",
+    "created_at": "2026-03-13T16:59:04.083536+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": 5,
+    "description": "RM500 IMPLANT VOUCHER",
+    "date_range": "15/01/2026 - 31/12/2027",
+    "balance": 1,
+    "type": "MYR",
+    "value": 500,
+    "status": "Active",
+    "created_by": "Dr. James Wong",
+    "created_at": "2026-03-13T16:59:04.083536+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": 6,
+    "description": "RM30 CHECKUP PROMO VOUCHER",
+    "date_range": "01/02/2026 - 30/06/2026",
+    "balance": 0,
+    "type": "MYR",
+    "value": 30,
+    "status": "Used",
+    "created_by": "Farah Nordin",
+    "created_at": "2026-03-13T16:59:04.083536+00:00",
+    "brand_id": "brand-big-dental"
+  }
+]

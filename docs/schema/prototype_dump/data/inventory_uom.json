@@ -1,0 +1,44 @@
+[
+  {
+    "id": "uom-1",
+    "name": "PCS",
+    "description": "Pieces",
+    "created_at": "2026-03-13T17:36:58.597674+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "uom-2",
+    "name": "BOX",
+    "description": "Box",
+    "created_at": "2026-03-13T17:36:58.597674+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "uom-3",
+    "name": "BAG",
+    "description": "Bag",
+    "created_at": "2026-03-13T17:36:58.597674+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "uom-4",
+    "name": "TIN",
+    "description": "Tin",
+    "created_at": "2026-03-13T17:36:58.597674+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "uom-5",
+    "name": "SET",
+    "description": "Set",
+    "created_at": "2026-03-13T17:36:58.597674+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "uom-6",
+    "name": "PACK",
+    "description": "Pack",
+    "created_at": "2026-03-13T17:36:58.597674+00:00",
+    "brand_id": "brand-big-dental"
+  }
+]

@@ -1,0 +1,142 @@
+[
+  {
+    "id": "svc-1",
+    "name": "Dental Checkup & Consultation",
+    "sku": "DC-001",
+    "category": "General",
+    "type": "Standard",
+    "duration": 30,
+    "price": 80,
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "svc-2",
+    "name": "Teeth Cleaning (Scaling & Polishing)",
+    "sku": "DC-002",
+    "category": "General",
+    "type": "Standard",
+    "duration": 45,
+    "price": 120,
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "svc-3",
+    "name": "Tooth Extraction (Simple)",
+    "sku": "EX-001",
+    "category": "Surgery",
+    "type": "Standard",
+    "duration": 30,
+    "price": 150,
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "svc-4",
+    "name": "Root Canal Treatment",
+    "sku": "EN-001",
+    "category": "Endodontics",
+    "type": "Standard",
+    "duration": 90,
+    "price": 800,
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "svc-5",
+    "name": "Dental Filling (Composite)",
+    "sku": "RS-001",
+    "category": "Restorative",
+    "type": "Standard",
+    "duration": 45,
+    "price": 180,
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "svc-6",
+    "name": "Teeth Whitening",
+    "sku": "CS-001",
+    "category": "Cosmetic",
+    "type": "Premium",
+    "duration": 60,
+    "price": 500,
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "svc-7",
+    "name": "Dental Crown (Porcelain)",
+    "sku": "RS-002",
+    "category": "Restorative",
+    "type": "Premium",
+    "duration": 60,
+    "price": 1200,
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "svc-8",
+    "name": "Dental Implant",
+    "sku": "SG-001",
+    "category": "Surgery",
+    "type": "Premium",
+    "duration": 120,
+    "price": 3500,
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "svc-9",
+    "name": "Orthodontic Consultation",
+    "sku": "OR-001",
+    "category": "Orthodontics",
+    "type": "Standard",
+    "duration": 45,
+    "price": 100,
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "svc-10",
+    "name": "Braces Adjustment",
+    "sku": "OR-002",
+    "category": "Orthodontics",
+    "type": "Standard",
+    "duration": 30,
+    "price": 200,
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "svc-11",
+    "name": "Wisdom Tooth Extraction",
+    "sku": "EX-002",
+    "category": "Surgery",
+    "type": "Standard",
+    "duration": 60,
+    "price": 350,
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "svc-12",
+    "name": "Dental X-Ray (Full Mouth)",
+    "sku": "DG-001",
+    "category": "Diagnostics",
+    "type": "Standard",
+    "duration": 15,
+    "price": 60,
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "svc-13",
+    "name": "Air Polishing",
+    "sku": "DC-003",
+    "category": "General",
+    "type": "Standard",
+    "duration": 30,
+    "price": 100,
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "svc-14",
+    "name": "Posterior Tooth Extraction",
+    "sku": "EX-003",
+    "category": "Surgery",
+    "type": "Standard",
+    "duration": 45,
+    "price": 150,
+    "brand_id": "brand-big-dental"
+  }
+]

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "05fb6433-741b-4fd4-9334-a0073affb25c",
+    "appointment_id": "e2d136be-425b-40d2-8896-3bda4c1a377d",
+    "service_id": "svc-3",
+    "item_name": "Tooth Extraction (Simple)",
+    "quantity": 1,
+    "unit_price": 120,
+    "total": 120,
+    "notes": "",
+    "created_at": "2026-04-06T09:21:06.793427+00:00",
+    "updated_at": "2026-04-06T09:21:06.793427+00:00"
+  },
+  {
+    "id": "ac6ef354-364a-4b82-bf9e-79e3768409d3",
+    "appointment_id": "e2d136be-425b-40d2-8896-3bda4c1a377d",
+    "service_id": "svc-5",
+    "item_name": "Dental Filling (Composite)",
+    "quantity": 1,
+    "unit_price": 180,
+    "total": 180,
+    "notes": "",
+    "created_at": "2026-04-06T09:21:14.373784+00:00",
+    "updated_at": "2026-04-06T09:21:14.373784+00:00"
+  },
+  {
+    "id": "b49a5dda-98b3-4cce-ad43-9b7d679a0b25",
+    "appointment_id": "b9431b14-2467-4d0e-9c64-fab286bb1d42",
+    "service_id": "svc-4",
+    "item_name": "Root Canal Treatment",
+    "quantity": 1,
+    "unit_price": 800,
+    "total": 800,
+    "notes": "",
+    "created_at": "2026-04-07T03:24:28.445407+00:00",
+    "updated_at": "2026-04-07T03:24:28.445407+00:00"
+  },
+  {
+    "id": "fa3c0487-2875-4570-9f41-d2880b884ba3",
+    "appointment_id": "213232de-2669-47f0-b01b-6e7e705cd138",
+    "service_id": "svc-2",
+    "item_name": "Teeth Cleaning (Scaling & Polishing)",
+    "quantity": 1,
+    "unit_price": 120,
+    "total": 120,
+    "notes": "",
+    "created_at": "2026-04-07T03:50:19.620372+00:00",
+    "updated_at": "2026-04-07T03:50:19.620372+00:00"
+  },
+  {
+    "id": "36332495-d57f-4eed-ab53-b14c2cac594f",
+    "appointment_id": "213232de-2669-47f0-b01b-6e7e705cd138",
+    "service_id": "svc-5",
+    "item_name": "Dental Filling (Composite)",
+    "quantity": 1,
+    "unit_price": 180,
+    "total": 180,
+    "notes": "",
+    "created_at": "2026-04-07T03:50:50.513394+00:00",
+    "updated_at": "2026-04-07T03:50:50.513394+00:00"
+  },
+  {
+    "id": "4b46f16c-75d4-4b81-b679-35d98f80329b",
+    "appointment_id": "53df726c-45a4-4fd6-959d-8398ca75589f",
+    "service_id": null,
+    "item_name": "we",
+    "quantity": 1,
+    "unit_price": 10,
+    "total": 10,
+    "notes": "",
+    "created_at": "2026-04-08T03:42:16.17928+00:00",
+    "updated_at": "2026-04-08T03:42:16.17928+00:00"
+  },
+  {
+    "id": "02cbf362-eb71-48e2-9915-9b96085b5b6f",
+    "appointment_id": "739bb6ae-240d-4a6b-87af-f5ae132f3967",
+    "service_id": "svc-1",
+    "item_name": "Dental Checkup & Consultation",
+    "quantity": 1,
+    "unit_price": 80,
+    "total": 80,
+    "notes": "",
+    "created_at": "2026-04-09T04:34:02.875418+00:00",
+    "updated_at": "2026-04-09T04:34:02.875418+00:00"
+  },
+  {
+    "id": "30edff51-0708-42e4-b0f9-b5f8db6b3fa8",
+    "appointment_id": "739bb6ae-240d-4a6b-87af-f5ae132f3967",
+    "service_id": "svc-6",
+    "item_name": "Teeth Whitening",
+    "quantity": 1,
+    "unit_price": 500,
+    "total": 500,
+    "notes": "",
+    "created_at": "2026-04-09T04:34:05.307759+00:00",
+    "updated_at": "2026-04-09T04:34:05.307759+00:00"
+  }
+]

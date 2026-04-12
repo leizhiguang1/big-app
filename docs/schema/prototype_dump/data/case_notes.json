@@ -1,0 +1,16 @@
+[
+  {
+    "id": "267fe836-4327-4ff1-9a9c-6edc2fa2962b",
+    "appointment_id": "213232de-2669-47f0-b01b-6e7e705cd138",
+    "customer_id": "1a205256-2271-4d0e-a120-1a4456feb8d6",
+    "customer_name": "Lei Zhi Guang",
+    "membership_no": "",
+    "note_date": "2026-04-07",
+    "note_time": "12:20:15",
+    "content": "C/O: Pt came for filling appt. \n\n\n\nI/O: \n\n22 - large caries on DO, invovled pulp, TTP++, no tender on palpation, no swelling noted.\n\nOH moderate, calculus + \n\nDental caries 15M,13D,45D, 14DO \n\nCervical abrasions 26\n\nRetained root 17,28\n\nGrossly decayed 48 \n\n\n\nPlan: \n\nF 14DO\n\nKIV RCT/XLA 22\n\nF 15M,13D\n\nXLA 45 (for denture), 17,28  \n\nSuggested valplast to replace 44,45,46 (RM950) \n\n\n\nMx: \n\nExamination done. \n\nF 14DO done with CR A3. \n\nAdvised TCA for other treatments prior to denture. \n\nPt would like to consider first.",
+    "employee_id": null,
+    "created_by": "Dr. apple c",
+    "created_at": "2026-04-07T04:20:15.324+00:00",
+    "updated_at": "2026-04-09T03:59:28.118484+00:00"
+  }
+]

@@ -1,0 +1,281 @@
+[
+  {
+    "name": "Dr. Amy Chen",
+    "salutation": "DR",
+    "phone": "+60138846827",
+    "appt_seq": "3",
+    "kumosan": "Authorized",
+    "last_active": "12/03/2026 17:30:00",
+    "web_login": true,
+    "bookable": true,
+    "online_bookable": false,
+    "shifts": {
+      "1": {
+        "end": "19:00",
+        "start": "10:00"
+      },
+      "2": {
+        "end": "19:00",
+        "start": "10:00"
+      },
+      "3": {
+        "end": "19:00",
+        "start": "10:00"
+      },
+      "4": {
+        "end": "19:00",
+        "start": "10:00"
+      },
+      "5": {
+        "end": "18:00",
+        "start": "10:00"
+      },
+      "6": {
+        "end": "18:00",
+        "start": "10:00"
+      }
+    },
+    "created_at": "2026-03-13T16:59:04.16082+00:00",
+    "brand_id": "brand-big-dental",
+    "position_id": "fa9ece54-0aff-4192-aa42-5da4c7205cde",
+    "role_id": "f9c038cd-3179-42fa-a65c-0d3bcad58804",
+    "email": null,
+    "gender": null,
+    "id": "c2bc9ffd-7ee8-4719-83d3-9fc89a2930bc",
+    "phone2": null,
+    "address1": "",
+    "address2": "",
+    "address3": "",
+    "postcode": "",
+    "identification_no": null,
+    "date_of_birth": null,
+    "start_date": null,
+    "country": "Malaysia",
+    "state": null,
+    "city": null,
+    "sales_target": 0,
+    "is_active": true,
+    "employee_code": null,
+    "updated_at": "2026-04-06T04:26:08.702067+00:00"
+  },
+  {
+    "name": "Dr. Sarah Lim",
+    "salutation": "DR",
+    "phone": "+60102088041",
+    "appt_seq": "2",
+    "kumosan": "Authorized",
+    "last_active": "13/03/2026 09:10:22",
+    "web_login": true,
+    "bookable": true,
+    "online_bookable": false,
+    "shifts": {
+      "0": {
+        "end": "18:00",
+        "start": "09:00"
+      },
+      "1": {
+        "end": "18:00",
+        "start": "09:00"
+      },
+      "2": {
+        "end": "18:00",
+        "start": "09:00"
+      },
+      "3": {
+        "end": "18:00",
+        "start": "09:00"
+      },
+      "4": {
+        "end": "18:00",
+        "start": "09:00"
+      },
+      "5": {
+        "end": "13:00",
+        "start": "09:00"
+      }
+    },
+    "created_at": "2026-03-13T16:59:04.16082+00:00",
+    "brand_id": "brand-big-dental",
+    "position_id": "7e2a07a1-2027-44ea-8084-b9b5cb82b442",
+    "role_id": "f9c038cd-3179-42fa-a65c-0d3bcad58804",
+    "email": null,
+    "gender": "Female",
+    "id": "f4afe337-498e-4b5d-9e1e-9ecd7aca4eed",
+    "phone2": null,
+    "address1": "",
+    "address2": "",
+    "address3": "",
+    "postcode": "",
+    "identification_no": null,
+    "date_of_birth": null,
+    "start_date": null,
+    "country": "Malaysia",
+    "state": null,
+    "city": null,
+    "sales_target": 0,
+    "is_active": true,
+    "employee_code": null,
+    "updated_at": "2026-04-06T04:26:08.702067+00:00"
+  },
+  {
+    "name": "Dr. James Wong",
+    "salutation": "DR",
+    "phone": "+60149612787",
+    "appt_seq": "1",
+    "kumosan": "Authorized",
+    "last_active": "13/03/2026 08:45:00",
+    "web_login": true,
+    "bookable": true,
+    "online_bookable": false,
+    "shifts": {
+      "0": {
+        "end": "17:00",
+        "start": "09:00"
+      },
+      "1": {
+        "end": "17:00",
+        "start": "09:00"
+      },
+      "2": {
+        "end": "17:00",
+        "start": "09:00"
+      },
+      "3": {
+        "end": "17:00",
+        "start": "09:00"
+      },
+      "4": {
+        "end": "17:00",
+        "start": "09:00"
+      },
+      "5": {
+        "end": "13:00",
+        "start": "09:00"
+      }
+    },
+    "created_at": "2026-03-13T16:59:04.16082+00:00",
+    "brand_id": "brand-big-dental",
+    "position_id": "7e2a07a1-2027-44ea-8084-b9b5cb82b442",
+    "role_id": "97797e38-e3ff-419a-8fa7-236e04c93563",
+    "email": null,
+    "gender": null,
+    "id": "38e759ba-0857-4bcb-814d-9e0024bd1ff1",
+    "phone2": null,
+    "address1": "",
+    "address2": "",
+    "address3": "",
+    "postcode": "",
+    "identification_no": null,
+    "date_of_birth": null,
+    "start_date": null,
+    "country": "Malaysia",
+    "state": null,
+    "city": null,
+    "sales_target": 0,
+    "is_active": true,
+    "employee_code": null,
+    "updated_at": "2026-04-06T04:26:08.702067+00:00"
+  },
+  {
+    "name": "Dr. apple c",
+    "salutation": "DR",
+    "phone": "+60123456789",
+    "appt_seq": null,
+    "kumosan": "Unregistered",
+    "last_active": null,
+    "web_login": true,
+    "bookable": true,
+    "online_bookable": false,
+    "shifts": {},
+    "created_at": "2026-03-31T04:54:45.880268+00:00",
+    "brand_id": "brand-big-dental",
+    "position_id": "8ff7e983-6155-4749-a41b-7f8fb0da192e",
+    "role_id": "97797e38-e3ff-419a-8fa7-236e04c93563",
+    "email": null,
+    "gender": "Female",
+    "id": "461e842e-1824-410b-9e89-964e51fc141d",
+    "phone2": null,
+    "address1": "",
+    "address2": "",
+    "address3": "",
+    "postcode": "",
+    "identification_no": null,
+    "date_of_birth": null,
+    "start_date": null,
+    "country": "Malaysia",
+    "state": "",
+    "city": "",
+    "sales_target": 0,
+    "is_active": true,
+    "employee_code": null,
+    "updated_at": "2026-04-06T04:26:08.702067+00:00"
+  },
+  {
+    "name": "Ms. Watson John",
+    "salutation": "MS",
+    "phone": "+60123434334",
+    "appt_seq": null,
+    "kumosan": "Unregistered",
+    "last_active": null,
+    "web_login": true,
+    "bookable": true,
+    "online_bookable": false,
+    "shifts": {},
+    "created_at": "2026-04-05T18:02:55.45538+00:00",
+    "brand_id": "brand-big-dental",
+    "position_id": "0b52c731-152c-4276-b2fc-c1d6b1b245e8",
+    "role_id": "6f526b88-568e-4878-aa1a-b9e803a62e7c",
+    "email": "theadmin@gmail.com",
+    "gender": "Female",
+    "id": "0d41b5fd-dca5-486b-864e-5b990fa8aa8a",
+    "phone2": null,
+    "address1": "",
+    "address2": "",
+    "address3": "",
+    "postcode": "",
+    "identification_no": "010617382323",
+    "date_of_birth": "2001-06-17",
+    "start_date": null,
+    "country": "Malaysia",
+    "state": "",
+    "city": "",
+    "sales_target": 0,
+    "is_active": true,
+    "employee_code": null,
+    "updated_at": "2026-04-06T04:26:08.702067+00:00"
+  },
+  {
+    "name": "Ms. Magnus Carlsen",
+    "salutation": "MS",
+    "phone": "+60167372833",
+    "appt_seq": null,
+    "kumosan": "Unregistered",
+    "last_active": null,
+    "web_login": true,
+    "bookable": true,
+    "online_bookable": false,
+    "shifts": {},
+    "created_at": "2026-04-08T10:18:40.569806+00:00",
+    "brand_id": "brand-big-dental",
+    "position_id": "53c69496-d908-4d57-acd7-3f33c59dc64e",
+    "role_id": "f9c038cd-3179-42fa-a65c-0d3bcad58804",
+    "email": "magnus@gmail.com",
+    "gender": "Female",
+    "id": "46019069-460c-4683-8790-15106100529a",
+    "phone2": null,
+    "address1": "",
+    "address2": "",
+    "address3": "",
+    "postcode": "",
+    "identification_no": "010104122442",
+    "date_of_birth": "2001-01-04",
+    "start_date": null,
+    "country": "Malaysia",
+    "state": null,
+    "city": null,
+    "sales_target": 0,
+    "is_active": true,
+    "employee_code": null,
+    "updated_at": "2026-04-08T10:18:40.569806+00:00"
+  }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "id": "cat-1",
+    "name": "PROTECTIVE EQUIPMENT",
+    "external_code": "PE",
+    "products_assigned": 3,
+    "created_at": "2026-03-13T17:36:58.674613+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "cat-2",
+    "name": "CONSUMABLES",
+    "external_code": "CO",
+    "products_assigned": 3,
+    "created_at": "2026-03-13T17:36:58.674613+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "cat-3",
+    "name": "SURGICAL SUPPLIES",
+    "external_code": "SS",
+    "products_assigned": 1,
+    "created_at": "2026-03-13T17:36:58.674613+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "cat-4",
+    "name": "RESTORATIVE MATERIALS",
+    "external_code": "RM",
+    "products_assigned": 5,
+    "created_at": "2026-03-13T17:36:58.674613+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "cat-5",
+    "name": "IMPRESSION MATERIALS",
+    "external_code": "IM",
+    "products_assigned": 1,
+    "created_at": "2026-03-13T17:36:58.674613+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "cat-6",
+    "name": "ANAESTHETIC",
+    "external_code": "AN",
+    "products_assigned": 1,
+    "created_at": "2026-03-13T17:36:58.674613+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "cat-7",
+    "name": "RADIOGRAPHY",
+    "external_code": "XR",
+    "products_assigned": 1,
+    "created_at": "2026-03-13T17:36:58.674613+00:00",
+    "brand_id": "brand-big-dental"
+  }
+]

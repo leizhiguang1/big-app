@@ -1,0 +1,58 @@
+[
+  {
+    "id": "f9c038cd-3179-42fa-a65c-0d3bcad58804",
+    "name": "SYSTEM ADMIN",
+    "permissions": {
+      "all": true
+    },
+    "created_at": "2026-03-13T17:36:57.663399+00:00"
+  },
+  {
+    "id": "97797e38-e3ff-419a-8fa7-236e04c93563",
+    "name": "ACCOUNT",
+    "permissions": {},
+    "created_at": "2026-03-13T17:36:57.663399+00:00"
+  },
+  {
+    "id": "baafb90d-73e9-4922-9dae-3bdd6bdccc3b",
+    "name": "ACCOUNTANT",
+    "permissions": {},
+    "created_at": "2026-04-05T20:13:50.885067+00:00"
+  },
+  {
+    "id": "b302b89f-af48-4316-9062-7cc10a2c3c4e",
+    "name": "DENTAL ASSISTANT",
+    "permissions": {},
+    "created_at": "2026-04-05T20:13:59.888909+00:00"
+  },
+  {
+    "id": "bd96bc55-7e84-43a4-9fad-aab441b45ea7",
+    "name": "HR",
+    "permissions": {},
+    "created_at": "2026-04-05T20:14:21.410206+00:00"
+  },
+  {
+    "id": "6f526b88-568e-4878-aa1a-b9e803a62e7c",
+    "name": "LOCUM DOCTOR",
+    "permissions": {},
+    "created_at": "2026-04-05T20:14:29.815626+00:00"
+  },
+  {
+    "id": "1d41f639-6cec-4456-b88f-811a74ad3f41",
+    "name": "MARKETING",
+    "permissions": {},
+    "created_at": "2026-04-05T20:14:35.753083+00:00"
+  },
+  {
+    "id": "53a51c26-0e13-491d-b330-14582a7c26d1",
+    "name": "OPERATION",
+    "permissions": {},
+    "created_at": "2026-04-05T20:14:41.190441+00:00"
+  },
+  {
+    "id": "72101d88-2584-4a23-af34-04fe5fb5adfb",
+    "name": "RESIDENT DOCTOR",
+    "permissions": {},
+    "created_at": "2026-04-05T20:14:49.250994+00:00"
+  }
+]

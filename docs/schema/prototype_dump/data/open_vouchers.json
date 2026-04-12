@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "description": "DENTAL CHECKUP VOUCHER",
+    "batch": "BATCH-001",
+    "type": "Fixed",
+    "value": 50,
+    "code": "DCK-50-001",
+    "status": "Active",
+    "created_by": "Dr. James Wong",
+    "created_at": "2026-03-13T16:59:03.976029+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": 2,
+    "description": "TEETH CLEANING PROMO",
+    "batch": "BATCH-001",
+    "type": "Fixed",
+    "value": 30,
+    "code": "TCL-30-002",
+    "status": "Active",
+    "created_by": "Dr. Sarah Lim",
+    "created_at": "2026-03-13T16:59:03.976029+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": 3,
+    "description": "NEW PATIENT DISCOUNT",
+    "batch": "BATCH-002",
+    "type": "Percentage",
+    "value": 15,
+    "code": "NPD-15-003",
+    "status": "Active",
+    "created_by": "Karen Teo",
+    "created_at": "2026-03-13T16:59:03.976029+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": 4,
+    "description": "WHITENING PACKAGE VOUCHER",
+    "batch": "BATCH-002",
+    "type": "Fixed",
+    "value": 100,
+    "code": "WHP-100-004",
+    "status": "Inactive",
+    "created_by": "Dr. Amy Chen",
+    "created_at": "2026-03-13T16:59:03.976029+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": 5,
+    "description": "SCALING & POLISHING PROMO",
+    "batch": "BATCH-003",
+    "type": "Fixed",
+    "value": 20,
+    "code": "SPP-20-005",
+    "status": "Active",
+    "created_by": "Dr. James Wong",
+    "created_at": "2026-03-13T16:59:03.976029+00:00",
+    "brand_id": "brand-big-dental"
+  }
+]

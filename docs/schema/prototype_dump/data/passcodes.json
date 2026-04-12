@@ -1,0 +1,180 @@
+[
+  {
+    "id": "pc-1",
+    "code": "8756",
+    "used": false,
+    "outlet": "KumoDent Main Clinic",
+    "purpose": "[REFUND] Partial/ Full Wallet Refund",
+    "applied_on": "CV/1/000118",
+    "remarks": "WRONG CREATION",
+    "used_by": {
+      "date": "12/03/2026 10:21 AM",
+      "name": "Dr. James Wong"
+    },
+    "created_by": {
+      "date": "12/03/2026 10:21 AM",
+      "name": "Karen Teo"
+    },
+    "created_at": "2026-03-13T17:36:58.732201+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "pc-2",
+    "code": "6840",
+    "used": true,
+    "outlet": "KumoDent Main Clinic",
+    "purpose": "[VOID/ REVERT] Sales Order/ Invoice",
+    "applied_on": "",
+    "remarks": "",
+    "used_by": null,
+    "created_by": {
+      "date": "12/03/2026 10:20 AM",
+      "name": "Dr. James Wong"
+    },
+    "created_at": "2026-03-13T17:36:58.732201+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "pc-3",
+    "code": "5898",
+    "used": true,
+    "outlet": "KumoDent Main Clinic",
+    "purpose": "[VOID/ REVERT] Sales Order/ Invoice",
+    "applied_on": "",
+    "remarks": "",
+    "used_by": null,
+    "created_by": {
+      "date": "03/03/2026 05:38 PM",
+      "name": "Dr. Sarah Lim"
+    },
+    "created_at": "2026-03-13T17:36:58.732201+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "pc-4",
+    "code": "6255",
+    "used": false,
+    "outlet": "KumoDent Main Clinic",
+    "purpose": "[VOID/ REVERT] Sales Order/ Invoice",
+    "applied_on": "SO/1/000323",
+    "remarks": "WRONG CREATION",
+    "used_by": {
+      "date": "02/03/2026 10:52 PM",
+      "name": "Dr. Amy Chen"
+    },
+    "created_by": {
+      "date": "02/03/2026 10:52 PM",
+      "name": "Dr. Amy Chen"
+    },
+    "created_at": "2026-03-13T17:36:58.732201+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "pc-5",
+    "code": "3741",
+    "used": true,
+    "outlet": "KumoDent Main Clinic",
+    "purpose": "[OVERRIDE] Discount Override",
+    "applied_on": "SO/1/000298",
+    "remarks": "",
+    "used_by": {
+      "date": "28/02/2026 02:15 PM",
+      "name": "Dr. Wei Tan"
+    },
+    "created_by": {
+      "date": "28/02/2026 02:10 PM",
+      "name": "Dr. James Wong"
+    },
+    "created_at": "2026-03-13T17:36:58.732201+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "pc-6",
+    "code": "9123",
+    "used": true,
+    "outlet": "KumoDent Main Clinic",
+    "purpose": "[REFUND] Partial/ Full Wallet Refund",
+    "applied_on": "CV/1/000101",
+    "remarks": "",
+    "used_by": {
+      "date": "25/02/2026 11:44 AM",
+      "name": "Karen Teo"
+    },
+    "created_by": {
+      "date": "25/02/2026 11:40 AM",
+      "name": "Farah Nordin"
+    },
+    "created_at": "2026-03-13T17:36:58.732201+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "pc-7",
+    "code": "4478",
+    "used": false,
+    "outlet": "KumoDent Main Clinic",
+    "purpose": "[VOID/ REVERT] Sales Order/ Invoice",
+    "applied_on": "",
+    "remarks": "",
+    "used_by": null,
+    "created_by": {
+      "date": "20/02/2026 09:05 AM",
+      "name": "Dr. Sarah Lim"
+    },
+    "created_at": "2026-03-13T17:36:58.732201+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "pc-8",
+    "code": "7712",
+    "used": true,
+    "outlet": "KumoDent Main Clinic",
+    "purpose": "[OVERRIDE] Discount Override",
+    "applied_on": "SO/1/000240",
+    "remarks": "STAFF DISCOUNT",
+    "used_by": {
+      "date": "18/02/2026 03:30 PM",
+      "name": "Nurse Aida"
+    },
+    "created_by": {
+      "date": "18/02/2026 03:25 PM",
+      "name": "Dr. James Wong"
+    },
+    "created_at": "2026-03-13T17:36:58.732201+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "pc-9",
+    "code": "2256",
+    "used": false,
+    "outlet": "KumoDent Main Clinic",
+    "purpose": "[REFUND] Partial/ Full Wallet Refund",
+    "applied_on": "CV/1/000088",
+    "remarks": "DUPLICATE CHARGE",
+    "used_by": {
+      "date": "15/02/2026 04:10 PM",
+      "name": "Karen Teo"
+    },
+    "created_by": {
+      "date": "15/02/2026 04:08 PM",
+      "name": "Karen Teo"
+    },
+    "created_at": "2026-03-13T17:36:58.732201+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "pc-10",
+    "code": "5534",
+    "used": true,
+    "outlet": "KumoDent Main Clinic",
+    "purpose": "[VOID/ REVERT] Sales Order/ Invoice",
+    "applied_on": "",
+    "remarks": "",
+    "used_by": null,
+    "created_by": {
+      "date": "10/02/2026 01:22 PM",
+      "name": "Dr. Rajesh Kumar"
+    },
+    "created_at": "2026-03-13T17:36:58.732201+00:00",
+    "brand_id": "brand-big-dental"
+  }
+]

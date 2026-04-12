@@ -1,0 +1,122 @@
+[
+  {
+    "id": "mnm-1",
+    "description": "【OP4688】脏腑回春/荷尔蒙平衡调理",
+    "sku": "OP4688",
+    "type": "M&M (R)",
+    "price": 4688,
+    "items_tied": 1,
+    "created_at": "2026-03-13T17:36:58.997589+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "mnm-2",
+    "description": "FOC TREATMENT",
+    "sku": "FOC-001",
+    "type": "M&M (R)",
+    "price": 0,
+    "items_tied": 33,
+    "created_at": "2026-03-13T17:36:58.997589+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "mnm-3",
+    "description": "P1000 TRIAL 体验配套 MIX & MATCH",
+    "sku": "P1000",
+    "type": "M&M (NR)",
+    "price": 1000,
+    "items_tied": 6,
+    "created_at": "2026-03-13T17:36:58.997589+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "mnm-4",
+    "description": "P2980 韩式皮肤管理 KOREA SKIN MANAGEMENT",
+    "sku": "P2980",
+    "type": "M&M (NR)",
+    "price": 2980,
+    "items_tied": 4,
+    "created_at": "2026-03-13T17:36:58.997589+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "mnm-5",
+    "description": "P3000 女性专设 LADIES SPECIAL MIX & MATCH PACKAGE",
+    "sku": "P3000-G",
+    "type": "M&M (NR)",
+    "price": 3000,
+    "items_tied": 9,
+    "created_at": "2026-03-13T17:36:58.997589+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "mnm-6",
+    "description": "P3000 男性专设 GENTLEMENT SPECIAL MIX & MATCH",
+    "sku": "P3000-B",
+    "type": "M&M (NR)",
+    "price": 3000,
+    "items_tied": 8,
+    "created_at": "2026-03-13T17:36:58.997589+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "mnm-7",
+    "description": "P3880 骨盆与脚筋膜修复配套 PELVIC & LEG RESHAPE",
+    "sku": "P3880",
+    "type": "M&M (NR)",
+    "price": 3880,
+    "items_tied": 5,
+    "created_at": "2026-03-13T17:36:58.997589+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "mnm-8",
+    "description": "P6880 PREMIUM MIX & MATCH (BFF X2)",
+    "sku": "P6880-BFF",
+    "type": "M&M (NR)",
+    "price": 6880,
+    "items_tied": 12,
+    "created_at": "2026-03-13T17:36:58.997589+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "mnm-9",
+    "description": "P6880 PREMIUM MIX & MATCH (TREATMENT X20)",
+    "sku": "P6880-T20",
+    "type": "M&M (NR)",
+    "price": 6880,
+    "items_tied": 20,
+    "created_at": "2026-03-13T17:36:58.997589+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "mnm-10",
+    "description": "私密抗衰配套 - 一指紧肤疗(高阶版)",
+    "sku": "PMV-001",
+    "type": "M&M (NR)",
+    "price": 3980,
+    "items_tied": 8,
+    "created_at": "2026-03-13T17:36:58.997589+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "mnm-11",
+    "description": "私密抗衰配套 - 女性外阴紧肤疗(高阶版)",
+    "sku": "PMV-002",
+    "type": "M&M (NR)",
+    "price": 3980,
+    "items_tied": 8,
+    "created_at": "2026-03-13T17:36:58.997589+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "mnm-12",
+    "description": "脏腑抗衰术 ORGANS REJUVENATION HORMONE HARMONISATION",
+    "sku": "ORH-001",
+    "type": "M&M (NR)",
+    "price": 4688,
+    "items_tied": 6,
+    "created_at": "2026-03-13T17:36:58.997589+00:00",
+    "brand_id": "brand-big-dental"
+  }
+]

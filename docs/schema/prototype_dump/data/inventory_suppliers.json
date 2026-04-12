@@ -1,0 +1,62 @@
+[
+  {
+    "id": "sup-1",
+    "name": "MEDITECH SDN BHD",
+    "description": "Medical & dental consumables supplier",
+    "account_no": "MT-2024-001",
+    "terms": "NET 30",
+    "pic": "AZLAN BIN RASHID",
+    "contact_no": "+60123456789",
+    "office_no": "+60312345678",
+    "email": "sales@meditech.com.my",
+    "website": "www.meditech.com.my",
+    "address": "No. 12, Jalan Industri 3, Taman Industri Selesa Jaya, 43300 Balakong, Selangor",
+    "created_at": "2026-03-13T17:36:59.097884+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "sup-2",
+    "name": "DENTAL DEPOT SDN BHD",
+    "description": "Dental materials & equipment distributor",
+    "account_no": "DD-2024-007",
+    "terms": "NET 45",
+    "pic": "WONG KAH MING",
+    "contact_no": "+60198765432",
+    "office_no": "+60387654321",
+    "email": "orders@dentaldepot.com.my",
+    "website": "www.dentaldepot.com.my",
+    "address": "Unit 5, Jalan PJS 1/28, Petaling Utama, 46150 Petaling Jaya, Selangor",
+    "created_at": "2026-03-13T17:36:59.097884+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "sup-3",
+    "name": "HENRY SCHEIN MALAYSIA",
+    "description": "International dental supply chain",
+    "account_no": "HS-2024-042",
+    "terms": "NET 30",
+    "pic": "PRIYA A/P SUBRAMANIAM",
+    "contact_no": "+60176543210",
+    "office_no": "+60321098765",
+    "email": "my.sales@henryschein.com",
+    "website": "www.henryschein.com/my",
+    "address": "Level 8, Menara KH, Jalan Sultan Ismail, 50250 Kuala Lumpur",
+    "created_at": "2026-03-13T17:36:59.097884+00:00",
+    "brand_id": "brand-big-dental"
+  },
+  {
+    "id": "sup-4",
+    "name": "NO SUPPLIER",
+    "description": "-",
+    "account_no": "-",
+    "terms": "-",
+    "pic": "NO SUPPLIER",
+    "contact_no": "-",
+    "office_no": "-",
+    "email": "-",
+    "website": "-",
+    "address": "MALAYSIA",
+    "created_at": "2026-03-13T17:36:59.097884+00:00",
+    "brand_id": "brand-big-dental"
+  }
+]

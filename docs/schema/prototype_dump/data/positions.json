@@ -1,0 +1,51 @@
+[
+  {
+    "id": "0b52c731-152c-4276-b2fc-c1d6b1b245e8",
+    "name": "MARKETING",
+    "description": "MARKETING",
+    "status": "Active",
+    "created_at": "2026-03-31T01:47:16.209072+00:00"
+  },
+  {
+    "id": "53c69496-d908-4d57-acd7-3f33c59dc64e",
+    "name": "STANDARD",
+    "description": "STANDARD",
+    "status": "Active",
+    "created_at": "2026-03-31T01:47:16.209072+00:00"
+  },
+  {
+    "id": "a6c023cd-0996-4636-b372-2c83f2b29805",
+    "name": "DENTAL ASSISTANT",
+    "description": "DENTAL ASSISTANT",
+    "status": "Active",
+    "created_at": "2026-03-31T01:47:16.209072+00:00"
+  },
+  {
+    "id": "8ff7e983-6155-4749-a41b-7f8fb0da192e",
+    "name": "OPERATION",
+    "description": "HQ Operation",
+    "status": "Active",
+    "created_at": "2026-03-31T01:47:16.209072+00:00"
+  },
+  {
+    "id": "81b059da-7d3c-4bbb-ba67-301c4128699b",
+    "name": "ACCOUNTANT",
+    "description": "ACCOUNTANT",
+    "status": "Active",
+    "created_at": "2026-04-05T20:04:57.202172+00:00"
+  },
+  {
+    "id": "7e2a07a1-2027-44ea-8084-b9b5cb82b442",
+    "name": "RESIDENT DOCTOR",
+    "description": "RESIDENT DOCTOR",
+    "status": "Inactive",
+    "created_at": "2026-03-31T01:47:16.209072+00:00"
+  },
+  {
+    "id": "fa9ece54-0aff-4192-aa42-5da4c7205cde",
+    "name": "LOCUM DOCTOR",
+    "description": "LOCUM DOCTOR",
+    "status": "Active",
+    "created_at": "2026-03-31T01:47:16.209072+00:00"
+  }
+]
