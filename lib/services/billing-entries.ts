@@ -6,12 +6,19 @@ import type { Tables } from "@/lib/supabase/types";
 export type BillingEntry = Tables<"billing_entries">;
 
 export type CustomerBillingEntry = BillingEntry & {
+	service: { sku: string; name: string } | null;
 	appointment: {
 		id: string;
 		booking_ref: string;
 		start_at: string;
 		status: string;
 		payment_status: string;
+		paid_via: string | null;
+		employee: {
+			id: string;
+			first_name: string;
+			last_name: string;
+		} | null;
 	} | null;
 };
 
@@ -48,7 +55,7 @@ export async function listBillingEntriesForCustomer(
 	const { data, error } = await ctx.db
 		.from("billing_entries")
 		.select(
-			"*, appointment:appointments!billing_entries_appointment_id_fkey(id, booking_ref, start_at, status, payment_status, customer_id)",
+			"*, service:services!billing_entries_service_id_fkey(sku, name), appointment:appointments!billing_entries_appointment_id_fkey(id, booking_ref, start_at, status, payment_status, paid_via, customer_id, employee:employees!appointments_employee_id_fkey(id, first_name, last_name))",
 		)
 		.eq("appointment.customer_id", customerId)
 		.order("created_at", { ascending: false });

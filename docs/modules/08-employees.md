@@ -94,7 +94,7 @@ Employees are rostered to outlets via the `employee_outlets` junction table (add
 - When `web_login_enabled = true`, the EmployeeForm shows admin-set password fields. `lib/services/employees.ts` calls `dbAdmin.auth.admin.createUser({ email, password, email_confirm: true })`, captures the auth user id, and writes it to `auth_user_id` in the same flow. If the employee row insert fails after the auth user was created, the service rolls back by calling `auth.admin.deleteUser`.
 - Updates: changing the email propagates to the auth user; toggling `web_login_enabled` off bans the auth user (`ban_duration: '876000h'`); toggling back on unbans (or creates fresh if `auth_user_id` is null); soft-deleting the employee bans the auth user.
 - Login lives at `/login` (`app/login/page.tsx` + `app/login/actions.ts`). The login action signs in via `signInWithPassword`, then verifies the linked employee row exists, is active, and has `web_login_enabled = true` — otherwise it signs back out and surfaces an error.
-- `middleware.ts` refreshes the session on every request and redirects unauthenticated traffic to `/login` (everything except `/login` and `/auth/*`).
+- `proxy.ts` refreshes the session on every request and redirects unauthenticated traffic to `/login` (everything except `/login` and `/auth/*`).
 - `lib/context/server.ts` populates `Context.currentUser` from `supabase.auth.getUser()` + the linked employee row.
 - **RLS tightening is still TODO** — every table still has the temp permissive `anon` policy. Tighten per-module once `currentUser` is trusted everywhere.
 

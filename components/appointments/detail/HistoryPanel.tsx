@@ -1,7 +1,6 @@
 "use client";
 
 import {
-	Banknote,
 	ChevronDown,
 	ChevronUp,
 	Layers,
@@ -9,6 +8,7 @@ import {
 	Minimize2,
 	PanelLeftClose,
 	Pencil,
+	Receipt,
 	Save,
 	StickyNote,
 	Trash2,
@@ -22,6 +22,10 @@ import {
 	deleteCaseNoteAction,
 	updateCaseNoteAction,
 } from "@/lib/actions/case-notes";
+import {
+	type AppointmentPaymentMode,
+	APPOINTMENT_PAYMENT_MODE_LABEL,
+} from "@/lib/constants/appointment-status";
 import type { CustomerAppointmentSummary } from "@/lib/services/appointments";
 import type { CustomerBillingEntry } from "@/lib/services/billing-entries";
 import type { CaseNoteWithAuthor } from "@/lib/services/case-notes";
@@ -36,6 +40,8 @@ type BillingThread = {
 	appointmentId: string;
 	bookingRef: string;
 	paymentStatus: string;
+	paidVia: string | null;
+	servedBy: string | null;
 	items: CustomerBillingEntry[];
 	total: number;
 	isCurrent: boolean;
@@ -97,6 +103,8 @@ function buildThreads(
 			bookingRef: string;
 			date: Date;
 			paymentStatus: string;
+			paidVia: string | null;
+			servedBy: string | null;
 			items: CustomerBillingEntry[];
 			total: number;
 		}
@@ -110,10 +118,13 @@ function buildThreads(
 			existing.items.push(b);
 			existing.total += total;
 		} else {
+			const emp = b.appointment.employee;
 			byAppointment.set(aptId, {
 				bookingRef: b.appointment.booking_ref,
 				date: new Date(b.appointment.start_at),
 				paymentStatus: b.appointment.payment_status,
+				paidVia: b.appointment.paid_via,
+				servedBy: emp ? `${emp.first_name} ${emp.last_name}`.trim() : null,
 				items: [b],
 				total,
 			});
@@ -129,6 +140,8 @@ function buildThreads(
 			appointmentId,
 			bookingRef: g.bookingRef,
 			paymentStatus: g.paymentStatus,
+			paidVia: g.paidVia,
+			servedBy: g.servedBy,
 			items: g.items,
 			total: g.total,
 			isCurrent: appointmentId === currentAppointmentId,
@@ -299,7 +312,7 @@ export function HistoryPanel({
 							</>
 						) : (
 							<>
-								<Banknote className="size-[14px]" />
+								<Receipt className="size-[14px]" />
 								<span className="tabular-nums">{billingCount}</span>
 							</>
 						)}
@@ -407,6 +420,19 @@ export function HistoryPanel({
 	);
 }
 
+const PAYMENT_STATUS_STYLES: Record<string, string> = {
+	paid: "bg-emerald-600 text-white",
+	partial: "bg-amber-500 text-white",
+	unpaid: "bg-slate-400 text-white",
+};
+
+function paymentModeLabel(mode: string | null): string | null {
+	if (!mode) return null;
+	return (
+		APPOINTMENT_PAYMENT_MODE_LABEL[mode as AppointmentPaymentMode] ?? mode
+	);
+}
+
 function BillingRow({
 	item,
 	collapsed,
@@ -418,75 +444,158 @@ function BillingRow({
 	onToggle: () => void;
 	onJump?: () => void;
 }) {
+	const paymentStatusClass =
+		PAYMENT_STATUS_STYLES[item.paymentStatus] ?? "bg-slate-400 text-white";
+	const payMode = paymentModeLabel(item.paidVia);
+
 	return (
 		<div
 			className={cn(
-				"border-b border-border/60 px-4 py-2.5",
-				item.isCurrent &&
-					"border-l-[3px] border-l-emerald-600 bg-emerald-50/60",
+				"border-b border-border/60 bg-muted/10 px-2 py-2",
+				item.isCurrent && "border-l-[3px] border-l-emerald-600 bg-emerald-50/40",
 			)}
 		>
-			<div className="mb-1 flex items-center gap-1.5">
-				<button
-					type="button"
-					aria-expanded={!collapsed}
-					aria-label={collapsed ? "Expand" : "Collapse"}
-					onClick={onToggle}
-					className="flex shrink-0 items-center text-muted-foreground hover:text-foreground"
-				>
-					{collapsed ? (
-						<ChevronDown className="size-[14px]" />
-					) : (
-						<ChevronUp className="size-[14px]" />
-					)}
-				</button>
-				<Banknote className="size-[12px] text-emerald-600" />
-				<span className="font-semibold text-[11px] text-muted-foreground">
-					{formatDayMonthYear(item.date)}
-				</span>
-				{item.isCurrent && (
-					<span className="rounded bg-emerald-600 px-1.5 py-[1px] font-bold text-[9px] text-white">
-						CURRENT
-					</span>
-				)}
-				<span className="ml-auto text-[9px] text-muted-foreground uppercase tracking-wide">
-					{item.paymentStatus}
-				</span>
-			</div>
-			<button
-				type="button"
-				onClick={onJump}
-				disabled={!onJump}
-				className="mb-1 block text-left font-semibold text-[12px] text-foreground tabular-nums hover:underline disabled:cursor-default disabled:no-underline"
-			>
-				{item.bookingRef || "No Ref"}
-			</button>
-			{!collapsed ? (
-				<>
-					{item.items.map((bi) => (
-						<div
-							key={bi.id}
-							className="flex justify-between gap-2 text-[11px] text-muted-foreground leading-relaxed"
-						>
-							<span className="truncate">
-								{bi.description}
-								{bi.quantity > 1 && ` ×${bi.quantity}`}
+			<div className="rounded-sm border border-dashed border-border bg-background px-3 py-2.5 font-mono text-[11px] text-foreground shadow-sm">
+				<div className="flex items-start gap-1.5">
+					<button
+						type="button"
+						aria-expanded={!collapsed}
+						aria-label={collapsed ? "Expand receipt" : "Collapse receipt"}
+						onClick={onToggle}
+						className="mt-px shrink-0 text-muted-foreground hover:text-foreground"
+					>
+						{collapsed ? (
+							<ChevronDown className="size-[14px]" />
+						) : (
+							<ChevronUp className="size-[14px]" />
+						)}
+					</button>
+					<div className="flex-1">
+						<div className="flex items-center gap-1.5">
+							<Receipt className="size-[12px] text-emerald-600" />
+							<span className="font-bold text-[11px] uppercase tracking-wide">
+								Receipt
 							</span>
-							<span className="shrink-0 tabular-nums">
-								{Number(bi.total ?? bi.quantity * bi.unit_price).toFixed(2)}
+							{item.isCurrent && (
+								<span className="rounded bg-emerald-600 px-1.5 py-px font-bold text-[9px] text-white">
+									CURRENT
+								</span>
+							)}
+							<span
+								className={cn(
+									"ml-auto rounded px-1.5 py-px font-bold text-[9px] uppercase tracking-wide",
+									paymentStatusClass,
+								)}
+							>
+								{item.paymentStatus}
 							</span>
 						</div>
-					))}
-					<div className="mt-1 text-right font-bold text-[11px] text-foreground tabular-nums">
-						RM {item.total.toFixed(2)}
+						<div className="mt-[2px] text-[10px] text-muted-foreground">
+							{formatDayMonthYear(item.date)} · {formatWeekdayTime(item.date)}
+						</div>
 					</div>
-				</>
-			) : (
-				<div className="text-right text-[11px] text-muted-foreground tabular-nums">
-					RM {item.total.toFixed(2)} · {item.items.length} line
-					{item.items.length !== 1 ? "s" : ""}
 				</div>
-			)}
+
+				<div className="mt-2 border-border/70 border-t border-dashed pt-2">
+					<div className="flex items-baseline justify-between gap-2">
+						<span className="text-[9px] text-muted-foreground uppercase tracking-wide">
+							Booking Ref
+						</span>
+						<button
+							type="button"
+							onClick={onJump}
+							disabled={!onJump}
+							className="truncate text-right font-bold text-[11px] tabular-nums hover:underline disabled:cursor-default disabled:no-underline"
+						>
+							{item.bookingRef || "—"}
+						</button>
+					</div>
+					{item.servedBy && (
+						<div className="flex items-baseline justify-between gap-2">
+							<span className="text-[9px] text-muted-foreground uppercase tracking-wide">
+								Served By
+							</span>
+							<span className="truncate text-right text-[10px]">
+								{item.servedBy}
+							</span>
+						</div>
+					)}
+				</div>
+
+				{!collapsed && (
+					<>
+						<div className="mt-2 border-border/70 border-t border-dashed pt-1.5">
+							<div className="flex gap-1 pb-1 font-semibold text-[9px] text-muted-foreground uppercase tracking-wide">
+								<span className="flex-1">Description</span>
+								<span className="w-[50px] text-right">Qty × Price</span>
+								<span className="w-[48px] text-right">Amount</span>
+							</div>
+							<div className="space-y-1">
+								{item.items.map((bi) => {
+									const lineTotal = Number(
+										bi.total ?? bi.quantity * bi.unit_price,
+									);
+									const qty = Number(bi.quantity);
+									const price = Number(bi.unit_price);
+									return (
+										<div key={bi.id} className="flex gap-1 text-[10px]">
+											<div className="flex-1 min-w-0">
+												<div className="truncate">{bi.description}</div>
+												{bi.service?.sku && (
+													<div className="truncate text-[9px] text-muted-foreground">
+														{bi.service.sku}
+													</div>
+												)}
+											</div>
+											<div className="w-[50px] shrink-0 text-right tabular-nums text-muted-foreground">
+												{qty % 1 === 0 ? qty : qty.toFixed(2)} ×{" "}
+												{price.toFixed(2)}
+											</div>
+											<div className="w-[48px] shrink-0 text-right tabular-nums font-semibold">
+												{lineTotal.toFixed(2)}
+											</div>
+										</div>
+									);
+								})}
+							</div>
+						</div>
+
+						<div className="mt-2 border-border/70 border-t border-dashed pt-1.5">
+							<div className="flex justify-between text-[10px] text-muted-foreground">
+								<span>Sub Total (MYR)</span>
+								<span className="tabular-nums">{item.total.toFixed(2)}</span>
+							</div>
+							<div className="mt-0.5 flex justify-between font-bold text-[11px]">
+								<span>TOTAL (MYR)</span>
+								<span className="tabular-nums">{item.total.toFixed(2)}</span>
+							</div>
+						</div>
+
+						{payMode && (
+							<div className="mt-2 border-border/70 border-t border-dashed pt-1.5">
+								<div className="flex justify-between text-[10px]">
+									<span className="text-muted-foreground uppercase tracking-wide text-[9px]">
+										Payment
+									</span>
+									<span className="font-semibold">{payMode}</span>
+								</div>
+							</div>
+						)}
+					</>
+				)}
+
+				{collapsed && (
+					<div className="mt-2 flex justify-between border-border/70 border-t border-dashed pt-1.5 text-[10px]">
+						<span className="text-muted-foreground">
+							{item.items.length} line{item.items.length !== 1 ? "s" : ""}
+							{payMode && ` · ${payMode}`}
+						</span>
+						<span className="font-bold tabular-nums">
+							RM {item.total.toFixed(2)}
+						</span>
+					</div>
+				)}
+			</div>
 		</div>
 	);
 }

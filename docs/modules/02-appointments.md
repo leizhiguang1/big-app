@@ -3,11 +3,13 @@
 > Status: All five views shipped (day, week, month, list, grid), dialog,
 > billing entries, status workflow, hover popup, right-click context menu,
 > toast notifications. Full-page detail route `/appointments/[id]` with
-> Overview tab (customer sidebar with stats, booking info, status pills,
-> tag picker, payment section) ported from the prototype.
-> Pending: Billing/Case Notes/Follow Up/Documents tabs, drag-to-reschedule,
-> sound effects, recurring appointments, walk-in customer create-inline,
-> transactional Collect Payment (sales_orders).
+> Overview, Billing, and Case Notes tabs shipped. Billing and Case Notes
+> share a sticky **History panel** on the left that stacks every past
+> billing receipt and case note for the customer, filterable (all / case
+> notes / billing), with receipt-style cards for billing threads.
+> Pending: Follow Up / Documents tabs, drag-to-reschedule, sound effects,
+> recurring appointments, walk-in customer create-inline, transactional
+> Collect Payment (sales_orders).
 
 **Key shape change from the prototype:** services are **post-filled after the
 visit** for billing only — they are NOT picked at appointment-creation time,
@@ -94,9 +96,9 @@ Appointments is the central hub of the clinic app. Every booking lives here, and
 
 Full-page route reached by clicking any appointment card on the calendar.
 Mirrors the reference prototype's `DetailPanel` with our conventions (no
-patient terminology, no `brand_id`). Ships with the **Overview tab**;
-Billing / Case Notes / Follow Up / Documents tabs render as disabled stubs
-until Phase B.
+patient terminology, no `brand_id`). Ships with the **Overview**,
+**Billing**, and **Case Notes** tabs; Follow Up / Documents tabs render as
+disabled stubs until Phase B.
 
 Layout:
 - **Header bar** — back button (uses `router.back()` with `/appointments`
@@ -123,6 +125,52 @@ Layout:
   `payment_status` → `paid` and saves `paid_via`; it does NOT create a
   `sales_orders` / `sale_items` / `payments` row. That transactional flow
   lands in the Sales module per CLAUDE.md rule 8.
+
+**Billing tab** renders the inline `BillingSection` editor (add / edit /
+delete line items) for the current appointment. **Case Notes tab** renders
+a list of notes for the current appointment with add + edit + delete.
+
+**History panel (Billing + Case Notes).** When either tab is active and
+the appointment has a linked customer, a sticky left-side panel shows a
+reverse-chronological timeline that merges **every past billing receipt
+and case note** for this customer. Filter chip cycles `All → Case notes
+→ Billing` with counts. Collapse-all / expand-all toggle, plus a
+panel close button (reopens via the `PanelLeftOpen` icon button). The
+current appointment's own threads are marked `CURRENT` and get a colored
+left border.
+
+  Billing threads render as **receipt cards**, not flat rows — a
+  dashed-border, monospace card styled to feel like a printed POS
+  receipt (modelled after KumoDent's billing thread view). Each card
+  shows:
+  - Header: `RECEIPT` label, `CURRENT` badge (if applicable), payment
+    status badge (paid / partial / unpaid), and the full date + time
+    (e.g. `11 Mar 2026 · Wed · 01:09 PM`).
+  - Meta block: `BOOKING REF` (clickable, jumps to that appointment's
+    detail page unless it's the current one) and `SERVED BY` (the
+    appointment's assigned employee).
+  - Itemized table with `Description / Qty × Price / Amount` columns.
+    Each line shows the description, the service SKU underneath as a
+    code line (e.g. `TRT-35`), the quantity × unit price, and the line
+    total.
+  - Totals block: `Sub Total (MYR)` and bold `TOTAL (MYR)` separated by
+    dashed rules.
+  - Payment block: `PAYMENT · Cash` / `Credit Card` / etc. when
+    `appointment.paid_via` is set.
+  - When collapsed, the card shrinks to a one-line summary: line count,
+    payment mode (if any), and the total.
+
+  Note threads render as note cards with weekday + time, author,
+  editable content (inline edit with save/cancel + delete), and a
+  collapse toggle. Note edit/delete actions hit
+  `updateCaseNoteAction` / `deleteCaseNoteAction` scoped to the
+  **current** appointment ID (not the note's original appointment) —
+  edits from the history panel are authorized by the current view.
+
+  `CustomerBillingEntry` is extended in
+  `lib/services/billing-entries.ts` to join `service (sku, name)`,
+  `appointment.paid_via`, and `appointment.employee (first_name,
+  last_name)` so the receipt card can render without extra round-trips.
 
 ### Screen: Appointment Create / Edit Dialog
 
@@ -325,6 +373,9 @@ components/appointments/
     TagPickerRow.tsx                  (single-select chip, optimistic)
     NotesCard.tsx                     (read-only notes)
     PaymentSection.tsx                (total, collect, undo, mode, remark)
+    BillingTab.tsx                    (wraps BillingSection inside the Billing tab + refresh)
+    CaseNotesTab.tsx                  (add/edit/delete notes for the current appointment)
+    HistoryPanel.tsx                  (sticky left timeline: receipt cards + note cards, filter + collapse + close)
   AppointmentsCalendar.tsx            (view switcher, dialog/context-menu/toast state)
   AppointmentsFilterBar.tsx           (outlet, display, scope, date nav, resource, search)
   WeekView.tsx                        (7-day grid, hours 8–22)
