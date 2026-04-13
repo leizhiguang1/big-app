@@ -376,7 +376,12 @@ CREATE TABLE appointments (
 
   -- Notes
   notes           TEXT,
-  tags            TEXT[],
+  -- Single-select tag stored as text[] for schema flexibility.
+  -- The check below caps it to at most one element; the UI and Zod
+  -- schema enforce the same limit.
+  tags            TEXT[] NOT NULL DEFAULT '{}',
+  CONSTRAINT appointments_tags_single_chk
+    CHECK (coalesce(array_length(tags, 1), 0) <= 1),
 
   -- Time blocks (non-appointment calendar blocks)
   is_time_block   BOOLEAN NOT NULL DEFAULT false,

@@ -1,10 +1,20 @@
-import { PlaceholderPage } from "@/components/shell/placeholder-page";
+import { Suspense } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AppointmentsContent } from "./appointments-content";
 
-export default function AppointmentsPage() {
+export default function AppointmentsPage({
+	searchParams,
+}: {
+	searchParams: Promise<{
+		outlet?: string;
+		view?: string;
+		date?: string;
+		resource?: string;
+	}>;
+}) {
 	return (
-		<PlaceholderPage
-			title="Appointments"
-			description="Week/day calendar view with drag-to-reschedule and per-chair columns."
-		/>
+		<Suspense fallback={<Skeleton className="h-[600px] w-full rounded-md" />}>
+			<AppointmentsContent searchParams={searchParams} />
+		</Suspense>
 	);
 }

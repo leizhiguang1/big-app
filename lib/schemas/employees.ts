@@ -73,7 +73,11 @@ const validateIc = (
 	data: { id_type: (typeof ID_TYPES)[number]; id_number?: string },
 	ctx: z.RefinementCtx,
 ) => {
-	if (data.id_type === "ic" && data.id_number && !IC_REGEX.test(data.id_number)) {
+	if (
+		data.id_type === "ic" &&
+		data.id_number &&
+		!IC_REGEX.test(data.id_number)
+	) {
 		ctx.addIssue({
 			code: z.ZodIssueCode.custom,
 			path: ["id_number"],

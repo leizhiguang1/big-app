@@ -1,5 +1,6 @@
 import { Bell, HelpCircle, Plus, Search, Settings } from "lucide-react";
 import { Suspense, type ReactNode } from "react";
+import { AppointmentNotificationsProvider } from "@/components/notifications/AppointmentNotificationsProvider";
 import { AppSidebar } from "@/components/shell/app-sidebar";
 import {
 	UserMenuFallback,
@@ -7,9 +8,21 @@ import {
 } from "@/components/shell/user-menu";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { getServerContext } from "@/lib/context/server";
+import { listOutlets } from "@/lib/services/outlets";
 
-export default function AppLayout({ children }: { children: ReactNode }) {
+export default async function AppLayout({ children }: { children: ReactNode }) {
+	let initialOutletId: string | null = null;
+	try {
+		const ctx = await getServerContext();
+		const outlets = await listOutlets(ctx);
+		initialOutletId = outlets.find((o) => o.is_active)?.id ?? null;
+	} catch {
+		// pre-auth or fetch failure: provider will lazily pick up via localStorage
+	}
+
 	return (
+		<AppointmentNotificationsProvider initialOutletId={initialOutletId}>
 		<SidebarProvider>
 			<AppSidebar />
 			<SidebarInset className="min-w-0">
@@ -71,5 +84,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 				</main>
 			</SidebarInset>
 		</SidebarProvider>
+		</AppointmentNotificationsProvider>
 	);
 }

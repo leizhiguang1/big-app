@@ -14,6 +14,249 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointments: {
+        Row: {
+          block_title: string | null
+          booking_ref: string
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          employee_id: string | null
+          end_at: string
+          follow_up: string | null
+          id: string
+          is_time_block: boolean
+          lead_attended_by_id: string | null
+          lead_name: string | null
+          lead_phone: string | null
+          lead_source: string | null
+          notes: string | null
+          outlet_id: string
+          paid_via: string | null
+          payment_remark: string | null
+          payment_status: string
+          room_id: string | null
+          start_at: string
+          status: string
+          tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          block_title?: string | null
+          booking_ref?: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          employee_id?: string | null
+          end_at: string
+          follow_up?: string | null
+          id?: string
+          is_time_block?: boolean
+          lead_attended_by_id?: string | null
+          lead_name?: string | null
+          lead_phone?: string | null
+          lead_source?: string | null
+          notes?: string | null
+          outlet_id: string
+          paid_via?: string | null
+          payment_remark?: string | null
+          payment_status?: string
+          room_id?: string | null
+          start_at: string
+          status?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          block_title?: string | null
+          booking_ref?: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          employee_id?: string | null
+          end_at?: string
+          follow_up?: string | null
+          id?: string
+          is_time_block?: boolean
+          lead_attended_by_id?: string | null
+          lead_name?: string | null
+          lead_phone?: string | null
+          lead_source?: string | null
+          notes?: string | null
+          outlet_id?: string
+          paid_via?: string | null
+          payment_remark?: string | null
+          payment_status?: string
+          room_id?: string | null
+          start_at?: string
+          status?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_lead_attended_by_id_fkey"
+            columns: ["lead_attended_by_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_entries: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          item_type: string
+          notes: string | null
+          quantity: number
+          service_id: string | null
+          total: number | null
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          item_type?: string
+          notes?: string | null
+          quantity?: number
+          service_id?: string | null
+          total?: number | null
+          unit_price: number
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          item_type?: string
+          notes?: string | null
+          quantity?: number
+          service_id?: string | null
+          total?: number | null
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_entries_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_entries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_entries_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_notes: {
+        Row: {
+          appointment_id: string | null
+          content: string
+          created_at: string
+          customer_id: string
+          employee_id: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          content: string
+          created_at?: string
+          customer_id: string
+          employee_id?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string | null
+          content?: string
+          created_at?: string
+          customer_id?: string
+          employee_id?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_notes_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_notes_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_notes_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address1: string | null
@@ -648,11 +891,183 @@ export type Database = {
           },
         ]
       }
+      wa_api_keys: {
+        Row: {
+          client_name: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          key_hash: string
+          key_prefix: string
+        }
+        Insert: {
+          client_name: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key_hash: string
+          key_prefix: string
+        }
+        Update: {
+          client_name?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key_hash?: string
+          key_prefix?: string
+        }
+        Relationships: []
+      }
+      wa_connections: {
+        Row: {
+          api_key_id: string
+          auth_dir: string
+          connected_at: string | null
+          created_at: string | null
+          id: string
+          label: string | null
+          last_seen_at: string | null
+          metadata: Json
+          phone: string | null
+          status: string
+          updated_at: string | null
+          webhook_secret: string | null
+          webhook_url: string
+        }
+        Insert: {
+          api_key_id: string
+          auth_dir: string
+          connected_at?: string | null
+          created_at?: string | null
+          id?: string
+          label?: string | null
+          last_seen_at?: string | null
+          metadata?: Json
+          phone?: string | null
+          status?: string
+          updated_at?: string | null
+          webhook_secret?: string | null
+          webhook_url: string
+        }
+        Update: {
+          api_key_id?: string
+          auth_dir?: string
+          connected_at?: string | null
+          created_at?: string | null
+          id?: string
+          label?: string | null
+          last_seen_at?: string | null
+          metadata?: Json
+          phone?: string | null
+          status?: string
+          updated_at?: string | null
+          webhook_secret?: string | null
+          webhook_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_connections_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "wa_api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_message_log: {
+        Row: {
+          connection_id: string
+          content_type: string | null
+          created_at: string | null
+          direction: string
+          from_jid: string | null
+          id: string
+          status: string | null
+          to_jid: string | null
+          wa_message_id: string | null
+        }
+        Insert: {
+          connection_id: string
+          content_type?: string | null
+          created_at?: string | null
+          direction: string
+          from_jid?: string | null
+          id?: string
+          status?: string | null
+          to_jid?: string | null
+          wa_message_id?: string | null
+        }
+        Update: {
+          connection_id?: string
+          content_type?: string | null
+          created_at?: string | null
+          direction?: string
+          from_jid?: string | null
+          id?: string
+          status?: string | null
+          to_jid?: string | null
+          wa_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_message_log_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "wa_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_webhook_log: {
+        Row: {
+          attempt_count: number | null
+          connection_id: string
+          created_at: string | null
+          delivered: boolean | null
+          delivered_at: string | null
+          event_type: string
+          id: string
+          last_error: string | null
+          payload: Json
+        }
+        Insert: {
+          attempt_count?: number | null
+          connection_id: string
+          created_at?: string | null
+          delivered?: boolean | null
+          delivered_at?: string | null
+          event_type: string
+          id?: string
+          last_error?: string | null
+          payload: Json
+        }
+        Update: {
+          attempt_count?: number | null
+          connection_id?: string
+          created_at?: string | null
+          delivered?: boolean | null
+          delivered_at?: string | null
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_webhook_log_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "wa_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      gen_booking_ref: { Args: never; Returns: string }
       gen_code: {
         Args: { prefix: string; seq_name: string; width: number }
         Returns: string

@@ -1,0 +1,1114 @@
+"use client";
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import { CalendarDays, Lock, Trash2, UserPlus } from "lucide-react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+	convertLeadToCustomerAction,
+	createAppointmentAction,
+	deleteAppointmentAction,
+	updateAppointmentAction,
+} from "@/lib/actions/appointments";
+import {
+	APPOINTMENT_STATUS_CONFIG,
+	APPOINTMENT_STATUSES,
+	APPOINTMENT_TAG_CONFIG,
+	APPOINTMENT_TAG_KEYS,
+	PAYMENT_STATUS_LABEL,
+	PAYMENT_STATUSES,
+} from "@/lib/constants/appointment-status";
+import {
+	type AppointmentInput,
+	appointmentInputSchema,
+	LEAD_SOURCE_LABEL,
+	LEAD_SOURCES,
+	type LeadSource,
+} from "@/lib/schemas/appointments";
+import type { AppointmentWithRelations } from "@/lib/services/appointments";
+import type { CustomerWithRelations } from "@/lib/services/customers";
+import type { RosterEmployee } from "@/lib/services/employee-shifts";
+import type { EmployeeWithRelations } from "@/lib/services/employees";
+import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
+import { cn } from "@/lib/utils";
+
+const SELECT_CLASS =
+	"h-9 w-full rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+
+const DURATION_PRESETS_MIN = [
+	5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 90, 120, 150, 180, 240,
+] as const;
+const DEFAULT_DURATION_MIN = 60;
+
+function formatDurationLabel(mins: number): string {
+	if (mins < 60) return `${mins} min`;
+	const h = Math.floor(mins / 60);
+	const m = mins % 60;
+	return m === 0 ? `${h} hr` : `${h} hr ${m} min`;
+}
+
+function diffMinutes(startIso: string, endIso: string): number {
+	const s = new Date(startIso).getTime();
+	const e = new Date(endIso).getTime();
+	if (!Number.isFinite(s) || !Number.isFinite(e)) return 0;
+	return Math.round((e - s) / 60000);
+}
+
+function addMinutesIso(iso: string, mins: number): string {
+	const d = new Date(iso);
+	d.setMinutes(d.getMinutes() + mins);
+	return d.toISOString();
+}
+
+type CustomerInputMode = "searching" | "selected-customer" | "selected-lead";
+type BookingMode = "appointment" | "block";
+
+type Props = {
+	open: boolean;
+	onClose: () => void;
+	outletId: string;
+	appointment: AppointmentWithRelations | null;
+	prefill: {
+		startAt: string;
+		endAt: string;
+		employeeId: string | null;
+		roomId: string | null;
+	} | null;
+	customers: CustomerWithRelations[];
+	employees: RosterEmployee[];
+	rooms: Room[];
+	allOutlets: OutletWithRoomCount[];
+	allEmployees: EmployeeWithRelations[];
+};
+
+function isoToLocalInputValue(iso: string): string {
+	const d = new Date(iso);
+	const yyyy = d.getFullYear();
+	const mm = String(d.getMonth() + 1).padStart(2, "0");
+	const dd = String(d.getDate()).padStart(2, "0");
+	const hh = String(d.getHours()).padStart(2, "0");
+	const mi = String(d.getMinutes()).padStart(2, "0");
+	return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
+
+function localInputToIso(local: string): string {
+	if (!local) return "";
+	const d = new Date(local);
+	return d.toISOString();
+}
+
+function buildDefaults(args: {
+	outletId: string;
+	appointment: AppointmentWithRelations | null;
+	prefill: Props["prefill"];
+}): AppointmentInput {
+	const a = args.appointment;
+	if (a) {
+		return {
+			customer_id: a.customer_id,
+			employee_id: a.employee_id,
+			outlet_id: a.outlet_id,
+			room_id: a.room_id,
+			start_at: a.start_at,
+			end_at: a.end_at,
+			status: (a.status as AppointmentInput["status"]) ?? "pending",
+			payment_status:
+				(a.payment_status as AppointmentInput["payment_status"]) ?? "unpaid",
+			notes: a.notes ?? undefined,
+			tags: a.tags ?? [],
+			is_time_block: a.is_time_block,
+			block_title: a.block_title ?? undefined,
+			lead_name: a.lead_name ?? undefined,
+			lead_phone: a.lead_phone ?? undefined,
+			lead_source: (a.lead_source as LeadSource | null) ?? null,
+			lead_attended_by_id: a.lead_attended_by_id,
+		};
+	}
+	const now = new Date();
+	const fallbackStart = new Date(now);
+	fallbackStart.setMinutes(0, 0, 0);
+	const fallbackEnd = new Date(fallbackStart);
+	fallbackEnd.setMinutes(fallbackStart.getMinutes() + DEFAULT_DURATION_MIN);
+	return {
+		customer_id: null,
+		employee_id: args.prefill?.employeeId ?? null,
+		outlet_id: args.outletId,
+		room_id: args.prefill?.roomId ?? null,
+		start_at: args.prefill?.startAt ?? fallbackStart.toISOString(),
+		end_at: args.prefill?.endAt ?? fallbackEnd.toISOString(),
+		status: "pending",
+		payment_status: "unpaid",
+		notes: undefined,
+		tags: [],
+		is_time_block: false,
+		block_title: undefined,
+		lead_name: undefined,
+		lead_phone: undefined,
+		lead_source: null,
+		lead_attended_by_id: null,
+	};
+}
+
+function initialCustomerMode(
+	a: AppointmentWithRelations | null,
+): CustomerInputMode {
+	if (!a) return "searching";
+	if (a.is_time_block) return "searching";
+	if (a.customer_id) return "selected-customer";
+	if (a.lead_name) return "selected-lead";
+	return "searching";
+}
+
+export function AppointmentDialog({
+	open,
+	onClose,
+	outletId,
+	appointment,
+	prefill,
+	customers,
+	employees,
+	rooms,
+	allOutlets,
+	allEmployees,
+}: Props) {
+	const [pending, startTransition] = useTransition();
+	const [serverError, setServerError] = useState<string | null>(null);
+	const [confirmOpen, setConfirmOpen] = useState(false);
+	const [customerSearch, setCustomerSearch] = useState("");
+	const [customerMode, setCustomerMode] = useState<CustomerInputMode>(
+		initialCustomerMode(appointment),
+	);
+	const [pickerOpen, setPickerOpen] = useState(false);
+	const [convertOpen, setConvertOpen] = useState(false);
+
+	const form = useForm<AppointmentInput>({
+		resolver: zodResolver(appointmentInputSchema),
+		defaultValues: buildDefaults({ outletId, appointment, prefill }),
+	});
+
+	useEffect(() => {
+		if (open) {
+			form.reset(buildDefaults({ outletId, appointment, prefill }));
+			setServerError(null);
+			setCustomerSearch("");
+			setPickerOpen(false);
+			setCustomerMode(initialCustomerMode(appointment));
+			setConvertOpen(false);
+		}
+	}, [open, outletId, appointment, prefill, form]);
+
+	const startAt = form.watch("start_at");
+	const endAt = form.watch("end_at");
+	const isBlock = form.watch("is_time_block");
+	const customerId = form.watch("customer_id");
+	const tags = form.watch("tags");
+	const status = form.watch("status");
+	const leadName = form.watch("lead_name");
+	const leadPhone = form.watch("lead_phone");
+	const leadSource = form.watch("lead_source");
+	const leadAttendedById = form.watch("lead_attended_by_id");
+	const errors = form.formState.errors;
+
+	const bookingMode: BookingMode = isBlock ? "block" : "appointment";
+
+	const setBookingMode = (mode: BookingMode) => {
+		const next = mode === "block";
+		form.setValue("is_time_block", next, { shouldDirty: true });
+		if (next) {
+			form.setValue("customer_id", null, { shouldDirty: true });
+			form.setValue("lead_name", undefined, { shouldDirty: true });
+			form.setValue("lead_phone", undefined, { shouldDirty: true });
+			form.setValue("lead_source", null, { shouldDirty: true });
+			form.setValue("lead_attended_by_id", null, { shouldDirty: true });
+			setCustomerMode("searching");
+			setPickerOpen(false);
+		} else {
+			setCustomerMode(initialCustomerMode(appointment));
+		}
+	};
+
+	const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
+
+	const filteredCustomers = useMemo(() => {
+		const sorted = [...customers].sort((a, b) =>
+			`${a.first_name} ${a.last_name ?? ""}`.localeCompare(
+				`${b.first_name} ${b.last_name ?? ""}`,
+			),
+		);
+		const q = customerSearch.trim().toLowerCase();
+		if (!q) return sorted.slice(0, 12);
+		return sorted
+			.filter((c) => {
+				const name = `${c.first_name} ${c.last_name ?? ""}`.toLowerCase();
+				return (
+					name.includes(q) ||
+					c.code.toLowerCase().includes(q) ||
+					c.phone.includes(q.replace(/\D/g, ""))
+				);
+			})
+			.slice(0, 12);
+	}, [customers, customerSearch]);
+
+	const pickCustomer = (id: string) => {
+		form.setValue("customer_id", id, { shouldDirty: true });
+		form.setValue("lead_name", undefined, { shouldDirty: true });
+		form.setValue("lead_phone", undefined, { shouldDirty: true });
+		form.setValue("lead_source", null, { shouldDirty: true });
+		form.setValue("lead_attended_by_id", null, { shouldDirty: true });
+		setCustomerMode("selected-customer");
+		setCustomerSearch("");
+		setPickerOpen(false);
+	};
+
+	const pickAsLead = (name: string) => {
+		const trimmed = name.trim();
+		if (!trimmed) return;
+		form.setValue("customer_id", null, { shouldDirty: true });
+		form.setValue("lead_name", trimmed, { shouldDirty: true });
+		if (!leadSource) {
+			form.setValue("lead_source", "walk_in", { shouldDirty: true });
+		}
+		setCustomerMode("selected-lead");
+		setCustomerSearch("");
+		setPickerOpen(false);
+	};
+
+	const clearCustomerSelection = () => {
+		form.setValue("customer_id", null, { shouldDirty: true });
+		setCustomerSearch(leadName ?? "");
+		setCustomerMode("searching");
+		setPickerOpen(true);
+	};
+
+	const onSubmit = form.handleSubmit((values) => {
+		startTransition(async () => {
+			try {
+				if (appointment) {
+					await updateAppointmentAction(appointment.id, values);
+				} else {
+					await createAppointmentAction(values);
+				}
+				onClose();
+			} catch (err) {
+				setServerError(
+					err instanceof Error ? err.message : "Something went wrong",
+				);
+			}
+		});
+	});
+
+	const onDelete = () => {
+		if (!appointment) return;
+		startTransition(async () => {
+			try {
+				await deleteAppointmentAction(appointment.id);
+				setConfirmOpen(false);
+				onClose();
+			} catch (err) {
+				setServerError(
+					err instanceof Error ? err.message : "Something went wrong",
+				);
+			}
+		});
+	};
+
+	const selectTag = (key: string) => {
+		const next = tags[0] === key ? [] : [key];
+		form.setValue("tags", next, { shouldDirty: true });
+	};
+
+	const isLeadAppointment =
+		!!appointment && !appointment.customer_id && !appointment.is_time_block;
+
+	const headerLabel = appointment
+		? appointment.is_time_block
+			? "Edit time block"
+			: "Edit appointment"
+		: isBlock
+			? "New time block"
+			: "New appointment";
+
+	return (
+		<>
+			<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+				<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+					<DialogHeader className="border-b px-5 py-3">
+						<DialogTitle className="text-base">{headerLabel}</DialogTitle>
+						<DialogDescription className="text-xs">
+							{appointment?.booking_ref ?? "Booking ref auto-generated on save"}
+						</DialogDescription>
+					</DialogHeader>
+
+					<form
+						onSubmit={onSubmit}
+						className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+					>
+						<div className="flex flex-col gap-5 p-5">
+							{/* Booking mode tabs */}
+							<div className="grid grid-cols-2 overflow-hidden rounded-md border">
+								{(
+									[
+										["appointment", "Appointment", CalendarDays],
+										["block", "Time block", Lock],
+									] as const
+								).map(([mode, label, Icon]) => {
+									const active = bookingMode === mode;
+									return (
+										<button
+											key={mode}
+											type="button"
+											onClick={() => setBookingMode(mode)}
+											className={cn(
+												"inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition",
+												active
+													? "bg-primary text-primary-foreground shadow-inner"
+													: "bg-muted/40 text-muted-foreground hover:bg-muted",
+											)}
+										>
+											<Icon className="size-4" />
+											{label}
+										</button>
+									);
+								})}
+							</div>
+
+							{/* Customer or block title */}
+							{isBlock ? (
+								<Field
+									label="Block title"
+									error={errors.block_title?.message}
+									required
+								>
+									<Input
+										placeholder="Lunch, Team meeting…"
+										{...form.register("block_title")}
+									/>
+								</Field>
+							) : (
+								<CustomerSection
+									mode={customerMode}
+									error={
+										errors.customer_id?.message ?? errors.lead_name?.message
+									}
+									selectedCustomer={selectedCustomer}
+									leadName={leadName ?? ""}
+									leadPhone={leadPhone ?? ""}
+									leadSource={leadSource ?? null}
+									leadAttendedById={leadAttendedById ?? null}
+									leadPhoneError={errors.lead_phone?.message}
+									leadSourceError={errors.lead_source?.message}
+									search={customerSearch}
+									pickerOpen={pickerOpen}
+									setPickerOpen={setPickerOpen}
+									setSearch={setCustomerSearch}
+									candidates={filteredCustomers}
+									employees={employees}
+									isLeadAppointment={isLeadAppointment}
+									onPickCustomer={pickCustomer}
+									onPickAsLead={pickAsLead}
+									onClear={clearCustomerSelection}
+									onLeadPhoneChange={(v) =>
+										form.setValue("lead_phone", v || undefined, {
+											shouldDirty: true,
+										})
+									}
+									onLeadSourceChange={(v) =>
+										form.setValue("lead_source", v, { shouldDirty: true })
+									}
+									onLeadAttendedByChange={(v) =>
+										form.setValue("lead_attended_by_id", v, {
+											shouldDirty: true,
+										})
+									}
+									onRegister={() => setConvertOpen(true)}
+								/>
+							)}
+
+							{/* Time */}
+							{(() => {
+								const durationMin =
+									startAt && endAt ? diffMinutes(startAt, endAt) : 0;
+								const isPreset = (
+									DURATION_PRESETS_MIN as readonly number[]
+								).includes(durationMin);
+								return (
+									<div className="grid grid-cols-3 gap-3">
+										<Field
+											label="Start"
+											error={errors.start_at?.message}
+											required
+										>
+											<Input
+												type="datetime-local"
+												value={startAt ? isoToLocalInputValue(startAt) : ""}
+												onChange={(e) => {
+													const iso = localInputToIso(e.target.value);
+													form.setValue("start_at", iso, { shouldDirty: true });
+													const keep =
+														durationMin > 0
+															? durationMin
+															: DEFAULT_DURATION_MIN;
+													form.setValue("end_at", addMinutesIso(iso, keep), {
+														shouldDirty: true,
+													});
+												}}
+											/>
+										</Field>
+										<Field label="Duration">
+											<select
+												className={SELECT_CLASS}
+												value={isPreset ? String(durationMin) : "custom"}
+												onChange={(e) => {
+													if (e.target.value === "custom") return;
+													const mins = Number(e.target.value);
+													form.setValue(
+														"end_at",
+														addMinutesIso(startAt, mins),
+														{ shouldDirty: true },
+													);
+												}}
+											>
+												{!isPreset && (
+													<option value="custom">
+														Custom ({formatDurationLabel(durationMin)})
+													</option>
+												)}
+												{DURATION_PRESETS_MIN.map((m) => (
+													<option key={m} value={m}>
+														{formatDurationLabel(m)}
+													</option>
+												))}
+											</select>
+										</Field>
+										<Field label="End" error={errors.end_at?.message} required>
+											<Input
+												type="datetime-local"
+												value={endAt ? isoToLocalInputValue(endAt) : ""}
+												onChange={(e) =>
+													form.setValue(
+														"end_at",
+														localInputToIso(e.target.value),
+														{ shouldDirty: true },
+													)
+												}
+											/>
+										</Field>
+									</div>
+								);
+							})()}
+
+							{/* Resources */}
+							<div className="grid grid-cols-2 gap-3">
+								<Field label="Employee">
+									<select
+										className={SELECT_CLASS}
+										value={form.watch("employee_id") ?? ""}
+										onChange={(e) =>
+											form.setValue("employee_id", e.target.value || null, {
+												shouldDirty: true,
+											})
+										}
+									>
+										<option value="">— Unassigned —</option>
+										{employees.map((emp) => (
+											<option key={emp.id} value={emp.id}>
+												{emp.first_name} {emp.last_name}
+											</option>
+										))}
+									</select>
+								</Field>
+								<Field label="Room">
+									<select
+										className={SELECT_CLASS}
+										value={form.watch("room_id") ?? ""}
+										onChange={(e) =>
+											form.setValue("room_id", e.target.value || null, {
+												shouldDirty: true,
+											})
+										}
+									>
+										<option value="">— Unassigned —</option>
+										{rooms.map((r) => (
+											<option key={r.id} value={r.id}>
+												{r.name}
+											</option>
+										))}
+									</select>
+								</Field>
+							</div>
+
+							{!isBlock && (
+								<>
+									{/* Status */}
+									<Field label="Status">
+										<div className="flex flex-wrap gap-1.5">
+											{APPOINTMENT_STATUSES.map((s) => {
+												const cfg = APPOINTMENT_STATUS_CONFIG[s];
+												const Icon = cfg.Icon;
+												const active = status === s;
+												return (
+													<button
+														key={s}
+														type="button"
+														onClick={() =>
+															form.setValue("status", s, { shouldDirty: true })
+														}
+														className={cn(
+															"inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition",
+															active
+																? cfg.badge
+																: "bg-muted text-muted-foreground hover:bg-muted/80",
+														)}
+													>
+														<Icon className="size-3.5" />
+														{cfg.label}
+													</button>
+												);
+											})}
+										</div>
+									</Field>
+
+									{/* Payment status */}
+									<Field label="Payment status">
+										<select
+											className={SELECT_CLASS}
+											{...form.register("payment_status")}
+										>
+											{PAYMENT_STATUSES.map((p) => (
+												<option key={p} value={p}>
+													{PAYMENT_STATUS_LABEL[p]}
+												</option>
+											))}
+										</select>
+									</Field>
+
+									{/* Tag (single-select) */}
+									<Field label="Tag">
+										<div className="flex flex-wrap gap-1.5">
+											{APPOINTMENT_TAG_KEYS.map((key) => {
+												const cfg = APPOINTMENT_TAG_CONFIG[key];
+												const active = tags[0] === key;
+												return (
+													<button
+														key={key}
+														type="button"
+														onClick={() => selectTag(key)}
+														className={cn(
+															"inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition",
+															active
+																? "border-transparent text-zinc-900"
+																: "border-muted text-muted-foreground hover:bg-muted/60",
+														)}
+														style={
+															active ? { backgroundColor: cfg.bg } : undefined
+														}
+													>
+														<span
+															className="inline-block size-2 rounded-full"
+															style={{ backgroundColor: cfg.dot }}
+														/>
+														{cfg.label}
+													</button>
+												);
+											})}
+										</div>
+									</Field>
+								</>
+							)}
+
+							{/* Notes */}
+							<Field label="Notes">
+								<textarea
+									rows={3}
+									className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+									{...form.register("notes")}
+								/>
+							</Field>
+
+							{serverError && (
+								<p className="text-destructive text-sm">{serverError}</p>
+							)}
+						</div>
+
+						<DialogFooter className="flex items-center justify-between gap-2 border-t bg-muted/20 px-4 py-3 sm:justify-between">
+							<div>
+								{appointment && (
+									<Button
+										type="button"
+										variant="destructive"
+										size="sm"
+										onClick={() => setConfirmOpen(true)}
+										disabled={pending}
+									>
+										<Trash2 className="size-4" />
+										Delete
+									</Button>
+								)}
+							</div>
+							<div className="flex gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={onClose}
+								>
+									Cancel
+								</Button>
+								<Button type="submit" size="sm" disabled={pending}>
+									{pending
+										? "Saving…"
+										: appointment
+											? "Save changes"
+											: isBlock
+												? "Block slot"
+												: "Create"}
+								</Button>
+							</div>
+						</DialogFooter>
+					</form>
+				</DialogContent>
+			</Dialog>
+
+			<ConfirmDialog
+				open={confirmOpen}
+				onOpenChange={setConfirmOpen}
+				title="Delete appointment?"
+				description="This cannot be undone."
+				confirmLabel="Delete"
+				variant="destructive"
+				pending={pending}
+				onConfirm={onDelete}
+			/>
+
+			{convertOpen && appointment && isLeadAppointment && (
+				<ConvertLeadDialog
+					open={convertOpen}
+					onClose={() => setConvertOpen(false)}
+					appointmentId={appointment.id}
+					defaultName={leadName ?? ""}
+					defaultPhone={leadPhone ?? ""}
+					defaultOutletId={appointment.outlet_id}
+					defaultConsultantId={
+						leadAttendedById ??
+						appointment.employee_id ??
+						allEmployees[0]?.id ??
+						null
+					}
+					outlets={allOutlets}
+					employees={allEmployees}
+					onConverted={(customerId) => {
+						form.setValue("customer_id", customerId, { shouldDirty: true });
+						form.setValue("lead_name", undefined, { shouldDirty: true });
+						form.setValue("lead_phone", undefined, { shouldDirty: true });
+						form.setValue("lead_source", null, { shouldDirty: true });
+						form.setValue("lead_attended_by_id", null, { shouldDirty: true });
+						setCustomerMode("selected-customer");
+						setConvertOpen(false);
+					}}
+				/>
+			)}
+		</>
+	);
+}
+
+// ─── Customer section ──────────────────────────────────────────────────────
+
+function CustomerSection({
+	mode,
+	error,
+	selectedCustomer,
+	leadName,
+	leadPhone,
+	leadSource,
+	leadAttendedById,
+	leadPhoneError,
+	leadSourceError,
+	search,
+	pickerOpen,
+	setPickerOpen,
+	setSearch,
+	candidates,
+	employees,
+	isLeadAppointment,
+	onPickCustomer,
+	onPickAsLead,
+	onClear,
+	onLeadPhoneChange,
+	onLeadSourceChange,
+	onLeadAttendedByChange,
+	onRegister,
+}: {
+	mode: CustomerInputMode;
+	error?: string;
+	selectedCustomer: CustomerWithRelations | null;
+	leadName: string;
+	leadPhone: string;
+	leadSource: LeadSource | null;
+	leadAttendedById: string | null;
+	leadPhoneError?: string;
+	leadSourceError?: string;
+	search: string;
+	pickerOpen: boolean;
+	setPickerOpen: (v: boolean) => void;
+	setSearch: (v: string) => void;
+	candidates: CustomerWithRelations[];
+	employees: RosterEmployee[];
+	isLeadAppointment: boolean;
+	onPickCustomer: (id: string) => void;
+	onPickAsLead: (name: string) => void;
+	onClear: () => void;
+	onLeadPhoneChange: (v: string) => void;
+	onLeadSourceChange: (v: LeadSource) => void;
+	onLeadAttendedByChange: (v: string | null) => void;
+	onRegister: () => void;
+}) {
+	if (mode === "selected-customer" && selectedCustomer) {
+		return (
+			<Field label="Customer" required>
+				<div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+					<div className="flex flex-col">
+						<span className="font-medium">
+							{selectedCustomer.first_name} {selectedCustomer.last_name ?? ""}
+						</span>
+						<span className="text-muted-foreground text-xs">
+							{selectedCustomer.code} · {selectedCustomer.phone}
+						</span>
+					</div>
+					<Button type="button" variant="ghost" size="sm" onClick={onClear}>
+						Change
+					</Button>
+				</div>
+			</Field>
+		);
+	}
+
+	if (mode === "selected-lead") {
+		return (
+			<Field label="Customer" required>
+				<div className="flex flex-col gap-3">
+					<div className="flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+						<div className="flex items-center gap-2">
+							<span className="font-medium text-amber-900">{leadName}</span>
+							<span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-900 uppercase">
+								Walk-in lead
+							</span>
+						</div>
+						<Button type="button" variant="ghost" size="sm" onClick={onClear}>
+							Change
+						</Button>
+					</div>
+
+					<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+						<Field label="Contact number" required error={leadPhoneError}>
+							<Input
+								type="tel"
+								placeholder="+60 12-345 6789"
+								value={leadPhone}
+								onChange={(e) =>
+									onLeadPhoneChange(e.target.value.replace(/[^0-9+\- ]/g, ""))
+								}
+							/>
+						</Field>
+						<Field label="Source" required error={leadSourceError}>
+							<select
+								className={SELECT_CLASS}
+								value={leadSource ?? ""}
+								onChange={(e) =>
+									onLeadSourceChange(e.target.value as LeadSource)
+								}
+							>
+								<option value="">Please choose…</option>
+								{LEAD_SOURCES.map((s) => (
+									<option key={s} value={s}>
+										{LEAD_SOURCE_LABEL[s]}
+									</option>
+								))}
+							</select>
+						</Field>
+					</div>
+
+					<Field label="Lead attended by">
+						<select
+							className={SELECT_CLASS}
+							value={leadAttendedById ?? ""}
+							onChange={(e) => onLeadAttendedByChange(e.target.value || null)}
+						>
+							<option value="">— None —</option>
+							{employees.map((e) => (
+								<option key={e.id} value={e.id}>
+									{e.first_name} {e.last_name}
+								</option>
+							))}
+						</select>
+					</Field>
+
+					{isLeadAppointment && (
+						<button
+							type="button"
+							onClick={onRegister}
+							className="inline-flex w-fit items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+						>
+							<UserPlus className="size-3.5" />
+							Register as Customer
+						</button>
+					)}
+				</div>
+			</Field>
+		);
+	}
+
+	// searching mode — combobox
+	return (
+		<Field label="Customer" required error={error}>
+			<div
+				className="relative"
+				onBlur={(e) => {
+					if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+						setPickerOpen(false);
+						const q = search.trim();
+						if (q) onPickAsLead(q);
+					}
+				}}
+			>
+				<Input
+					type="search"
+					autoComplete="off"
+					placeholder="Search customer or type walk-in name…"
+					value={search}
+					onFocus={() => setPickerOpen(true)}
+					onChange={(e) => setSearch(e.target.value)}
+				/>
+
+				{pickerOpen && (search.trim() || candidates.length > 0) && (
+					<div className="absolute top-full right-0 left-0 z-50 mt-1 max-h-64 overflow-y-auto rounded-md border bg-popover shadow-lg">
+						{search.trim() && (
+							<>
+								<button
+									type="button"
+									onMouseDown={(e) => e.preventDefault()}
+									onClick={() => onPickAsLead(search)}
+									className="flex w-full items-center gap-2 border-b bg-amber-50 px-3 py-2 text-left text-amber-900 text-xs font-semibold transition hover:bg-amber-100"
+								>
+									<UserPlus className="size-3.5" />
+									Book &ldquo;{search.trim()}&rdquo; as walk-in lead
+								</button>
+								{candidates.length > 0 && (
+									<div className="border-b bg-muted/40 px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+										Existing customers
+									</div>
+								)}
+							</>
+						)}
+						{candidates.map((c) => (
+							<button
+								key={c.id}
+								type="button"
+								onMouseDown={(e) => e.preventDefault()}
+								onClick={() => onPickCustomer(c.id)}
+								className="flex w-full flex-col items-start border-b px-3 py-2 text-left text-sm transition last:border-b-0 hover:bg-muted"
+							>
+								<span className="font-medium">
+									{c.first_name} {c.last_name ?? ""}
+								</span>
+								<span className="text-muted-foreground text-xs">
+									{c.code} · {c.phone}
+								</span>
+							</button>
+						))}
+					</div>
+				)}
+			</div>
+		</Field>
+	);
+}
+
+// ─── Convert lead → customer ───────────────────────────────────────────────
+
+function ConvertLeadDialog({
+	open,
+	onClose,
+	appointmentId,
+	defaultName,
+	defaultPhone,
+	defaultOutletId,
+	defaultConsultantId,
+	outlets,
+	employees,
+	onConverted,
+}: {
+	open: boolean;
+	onClose: () => void;
+	appointmentId: string;
+	defaultName: string;
+	defaultPhone: string;
+	defaultOutletId: string;
+	defaultConsultantId: string | null;
+	outlets: OutletWithRoomCount[];
+	employees: EmployeeWithRelations[];
+	onConverted: (customerId: string) => void;
+}) {
+	const [pending, startTransition] = useTransition();
+	const [error, setError] = useState<string | null>(null);
+	const parts = defaultName.trim().split(/\s+/);
+	const [firstName, setFirstName] = useState(parts[0] ?? "");
+	const [lastName, setLastName] = useState(parts.slice(1).join(" "));
+	const [phone, setPhone] = useState(defaultPhone);
+	const [outletIdState, setOutletIdState] = useState(defaultOutletId);
+	const [consultantId, setConsultantId] = useState(
+		defaultConsultantId ?? employees[0]?.id ?? "",
+	);
+
+	const submit = () => {
+		setError(null);
+		if (!firstName.trim()) {
+			setError("First name is required");
+			return;
+		}
+		if (!phone.trim()) {
+			setError("Phone is required");
+			return;
+		}
+		if (!outletIdState) {
+			setError("Home outlet is required");
+			return;
+		}
+		if (!consultantId) {
+			setError("Consultant is required");
+			return;
+		}
+		startTransition(async () => {
+			try {
+				const result = await convertLeadToCustomerAction(appointmentId, {
+					first_name: firstName,
+					last_name: lastName || undefined,
+					phone,
+					home_outlet_id: outletIdState,
+					consultant_id: consultantId,
+				});
+				onConverted(result.customerId);
+			} catch (err) {
+				setError(
+					err instanceof Error ? err.message : "Failed to register customer",
+				);
+			}
+		});
+	};
+
+	return (
+		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+				<DialogHeader className="border-b px-5 py-3">
+					<DialogTitle className="text-base">Register as Customer</DialogTitle>
+					<DialogDescription className="text-xs">
+						Convert this walk-in lead into a permanent customer record.
+					</DialogDescription>
+				</DialogHeader>
+
+				<div className="flex flex-col gap-4 p-5">
+					<div className="grid grid-cols-2 gap-3">
+						<Field label="First name" required>
+							<Input
+								value={firstName}
+								onChange={(e) => setFirstName(e.target.value)}
+							/>
+						</Field>
+						<Field label="Last name">
+							<Input
+								value={lastName}
+								onChange={(e) => setLastName(e.target.value)}
+							/>
+						</Field>
+					</div>
+					<Field label="Phone" required>
+						<Input
+							type="tel"
+							value={phone}
+							onChange={(e) => setPhone(e.target.value)}
+						/>
+					</Field>
+					<Field label="Home outlet" required>
+						<select
+							className={SELECT_CLASS}
+							value={outletIdState}
+							onChange={(e) => setOutletIdState(e.target.value)}
+						>
+							{outlets.map((o) => (
+								<option key={o.id} value={o.id}>
+									{o.name}
+								</option>
+							))}
+						</select>
+					</Field>
+					<Field label="Consultant" required>
+						<select
+							className={SELECT_CLASS}
+							value={consultantId}
+							onChange={(e) => setConsultantId(e.target.value)}
+						>
+							<option value="">Please choose…</option>
+							{employees.map((e) => (
+								<option key={e.id} value={e.id}>
+									{e.first_name} {e.last_name}
+								</option>
+							))}
+						</select>
+					</Field>
+					<p className="rounded-md bg-muted/50 px-3 py-2 text-muted-foreground text-xs">
+						All other lead bookings sharing this phone will be linked to the new
+						customer automatically.
+					</p>
+					{error && <p className="text-destructive text-sm">{error}</p>}
+				</div>
+
+				<DialogFooter className="flex items-center justify-end gap-2 border-t bg-muted/20 px-4 py-3">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={onClose}
+						disabled={pending}
+					>
+						Cancel
+					</Button>
+					<Button type="button" size="sm" onClick={submit} disabled={pending}>
+						{pending ? "Registering…" : "Register customer"}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+function Field({
+	label,
+	required,
+	error,
+	children,
+}: {
+	label: string;
+	required?: boolean;
+	error?: string;
+	children: React.ReactNode;
+}) {
+	return (
+		<div className="flex flex-col gap-1.5">
+			<span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+				{label}
+				{required && <span className="ml-0.5 text-destructive">*</span>}
+			</span>
+			{children}
+			{error && <p className="text-destructive text-xs">{error}</p>}
+		</div>
+	);
+}

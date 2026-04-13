@@ -1,0 +1,420 @@
+"use client";
+
+import { Plus } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useOptimistic,
+	useState,
+	useTransition,
+} from "react";
+import { AppointmentContextMenu } from "@/components/appointments/AppointmentContextMenu";
+import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
+import {
+	AppointmentToastStack,
+	type Toast,
+} from "@/components/appointments/AppointmentToastStack";
+import { useAppointmentNotifications } from "@/components/notifications/AppointmentNotificationsProvider";
+import { DayView } from "@/components/appointments/DayView";
+import { GridView } from "@/components/appointments/GridView";
+import { ListView } from "@/components/appointments/ListView";
+import { MonthView } from "@/components/appointments/MonthView";
+import { WeekView } from "@/components/appointments/WeekView";
+import { Button } from "@/components/ui/button";
+import {
+	deleteAppointmentAction,
+	rescheduleAppointmentAction,
+	setAppointmentStatusAction,
+} from "@/lib/actions/appointments";
+import {
+	buildLocalIso,
+	type DisplayStyle,
+	type TimeScope,
+} from "@/lib/calendar/layout";
+import { writeActiveOutletId } from "@/lib/appointments/active-outlet";
+import { APPOINTMENT_STATUS_NOTIFICATIONS } from "@/lib/constants/appointment-notifications";
+import {
+	APPOINTMENT_STATUS_CONFIG,
+	type AppointmentStatus,
+} from "@/lib/constants/appointment-status";
+import { fmtDate } from "@/lib/roster/week";
+import type { AppointmentWithRelations } from "@/lib/services/appointments";
+import type { CustomerWithRelations } from "@/lib/services/customers";
+import type { RosterEmployee } from "@/lib/services/employee-shifts";
+import type { EmployeeWithRelations } from "@/lib/services/employees";
+import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
+import type { ServiceWithCategory } from "@/lib/services/services";
+import type { ResourceFilter } from "./AppointmentsFilterBar";
+
+const DEFAULT_CREATE_DURATION_MIN = 60;
+
+type Props = {
+	display: DisplayStyle;
+	scope: TimeScope;
+	resource: ResourceFilter;
+	dateStr: string;
+	weekStart: string;
+	outletId: string;
+	appointments: AppointmentWithRelations[];
+	customers: CustomerWithRelations[];
+	employees: RosterEmployee[];
+	rooms: Room[];
+	services: ServiceWithCategory[];
+	allOutlets: OutletWithRoomCount[];
+	allEmployees: EmployeeWithRelations[];
+};
+
+type DialogState =
+	| { kind: "edit"; appointment: AppointmentWithRelations }
+	| {
+			kind: "create";
+			startAt: string;
+			endAt: string;
+			employeeId: string | null;
+			roomId: string | null;
+	  }
+	| null;
+
+type ContextState = {
+	x: number;
+	y: number;
+	appointment: AppointmentWithRelations;
+} | null;
+
+export function AppointmentsCalendar({
+	display,
+	scope,
+	resource,
+	dateStr,
+	weekStart,
+	outletId,
+	appointments,
+	customers,
+	employees,
+	rooms,
+	services,
+	allOutlets,
+	allEmployees,
+}: Props) {
+	const [dialog, setDialog] = useState<DialogState>(null);
+	const [contextMenu, setContextMenu] = useState<ContextState>(null);
+	const [toasts, setToasts] = useState<Toast[]>([]);
+	const router = useRouter();
+	const { showStatusToast, suppressNextRealtime } =
+		useAppointmentNotifications();
+
+	useEffect(() => {
+		writeActiveOutletId(outletId);
+	}, [outletId]);
+	const searchParams = useSearchParams();
+	const [, startTransition] = useTransition();
+
+	const [optimisticAppointments, applyOptimisticStatus] = useOptimistic<
+		AppointmentWithRelations[],
+		{ id: string; status: AppointmentStatus }
+	>(appointments, (current, patch) =>
+		current.map((a) => (a.id === patch.id ? { ...a, status: patch.status } : a)),
+	);
+
+	const showToast = useCallback(
+		(message: string, variant: Toast["variant"] = "default") => {
+			const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+			setToasts((prev) => [...prev, { id, message, variant }]);
+			setTimeout(() => {
+				setToasts((prev) => prev.filter((t) => t.id !== id));
+			}, 3000);
+		},
+		[],
+	);
+
+	const dismissToast = useCallback((id: string) => {
+		setToasts((prev) => prev.filter((t) => t.id !== id));
+	}, []);
+
+	const searchQuery = searchParams.get("q") ?? "";
+	const filteredAppointments = useMemo(() => {
+		if (!searchQuery.trim()) return optimisticAppointments;
+		const q = searchQuery.toLowerCase();
+		return optimisticAppointments.filter((a) => {
+			if (a.is_time_block) return a.block_title?.toLowerCase().includes(q);
+			const name = a.customer
+				? `${a.customer.first_name} ${a.customer.last_name ?? ""}`.toLowerCase()
+				: (a.lead_name ?? "").toLowerCase();
+			const phone = a.customer?.phone ?? a.lead_phone ?? "";
+			const ref = (a.booking_ref ?? "").toLowerCase();
+			const emp = a.employee
+				? `${a.employee.first_name} ${a.employee.last_name}`.toLowerCase()
+				: "";
+			return (
+				name.includes(q) ||
+				ref.includes(q) ||
+				emp.includes(q) ||
+				phone.includes(q)
+			);
+		});
+	}, [optimisticAppointments, searchQuery]);
+
+	const openCreateAt = (args: {
+		dateStr: string;
+		hour: number;
+		minute: number;
+		employeeId?: string | null;
+		roomId?: string | null;
+	}) => {
+		const startIso = buildLocalIso(args.dateStr, args.hour, args.minute);
+		const end = new Date(startIso);
+		end.setMinutes(end.getMinutes() + DEFAULT_CREATE_DURATION_MIN);
+		setDialog({
+			kind: "create",
+			startAt: startIso,
+			endAt: end.toISOString(),
+			employeeId: args.employeeId ?? null,
+			roomId: args.roomId ?? null,
+		});
+	};
+
+	const navigateToDay = (next: string) => {
+		const params = new URLSearchParams(searchParams.toString());
+		params.set("date", next);
+		params.set("scope", "day");
+		params.set("display", "calendar");
+		startTransition(() => router.push(`/appointments?${params.toString()}`));
+	};
+
+	const handleContextMenu = useCallback(
+		(e: React.MouseEvent, a: AppointmentWithRelations) => {
+			setContextMenu({ x: e.clientX, y: e.clientY, appointment: a });
+		},
+		[],
+	);
+
+	const handleSetStatus = (
+		a: AppointmentWithRelations,
+		status: AppointmentStatus,
+	) => {
+		suppressNextRealtime(a.id, status);
+		const notif = APPOINTMENT_STATUS_NOTIFICATIONS[status];
+		if (notif.enabled) {
+			showStatusToast(
+				{
+					customerName: a.customer
+						? `${a.customer.first_name} ${a.customer.last_name ?? ""}`.trim()
+						: (a.lead_name ?? "Customer"),
+					employeeName: a.employee
+						? `${a.employee.first_name} ${a.employee.last_name}`.trim()
+						: null,
+					roomName: a.room?.name ?? null,
+				},
+				status,
+			);
+		}
+		startTransition(async () => {
+			applyOptimisticStatus({ id: a.id, status });
+			try {
+				await setAppointmentStatusAction(a.id, { status });
+				if (!notif.enabled) {
+					showToast(
+						`Marked ${APPOINTMENT_STATUS_CONFIG[status].label}`,
+						"success",
+					);
+				}
+			} catch (err) {
+				showToast(
+					err instanceof Error ? err.message : "Status update failed",
+					"error",
+				);
+			}
+		});
+	};
+
+	const handleReschedule = (
+		id: string,
+		target: {
+			dateStr: string;
+			hour: number;
+			minute: number;
+			employeeId?: string | null;
+			roomId?: string | null;
+		},
+	) => {
+		const apt = appointments.find((a) => a.id === id);
+		if (!apt) return;
+		const startIso = buildLocalIso(target.dateStr, target.hour, target.minute);
+		const durationMs =
+			new Date(apt.end_at).getTime() - new Date(apt.start_at).getTime();
+		const endIso = new Date(
+			new Date(startIso).getTime() + durationMs,
+		).toISOString();
+		const input: Record<string, unknown> = {
+			start_at: startIso,
+			end_at: endIso,
+		};
+		if (target.employeeId !== undefined) input.employee_id = target.employeeId;
+		if (target.roomId !== undefined) input.room_id = target.roomId;
+		startTransition(async () => {
+			try {
+				await rescheduleAppointmentAction(id, input);
+				showToast("Rescheduled", "success");
+			} catch (err) {
+				showToast(
+					err instanceof Error ? err.message : "Reschedule failed",
+					"error",
+				);
+			}
+		});
+	};
+
+	const handleDelete = (a: AppointmentWithRelations) => {
+		const label = a.is_time_block
+			? a.block_title || "Time block"
+			: a.customer
+				? `${a.customer.first_name} ${a.customer.last_name ?? ""}`.trim()
+				: (a.lead_name ?? "Appointment");
+		if (!window.confirm(`Delete appointment for ${label}?`)) return;
+		startTransition(async () => {
+			try {
+				await deleteAppointmentAction(a.id);
+				showToast("Appointment deleted", "success");
+			} catch (err) {
+				showToast(
+					err instanceof Error ? err.message : "Delete failed",
+					"error",
+				);
+			}
+		});
+	};
+
+	const renderView = () => {
+		if (display === "list") {
+			return (
+				<ListView
+					appointments={filteredAppointments}
+					onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
+					onAppointmentContextMenu={handleContextMenu}
+				/>
+			);
+		}
+		if (display === "grid") {
+			return (
+				<GridView
+					scope={scope === "month" ? "week" : scope}
+					dateStr={dateStr}
+					weekStart={weekStart}
+					appointments={filteredAppointments}
+					onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
+					onAppointmentContextMenu={handleContextMenu}
+					onDayClick={navigateToDay}
+				/>
+			);
+		}
+		// display === "calendar"
+		if (scope === "month") {
+			return (
+				<MonthView
+					dateStr={dateStr}
+					appointments={filteredAppointments}
+					onDayClick={navigateToDay}
+					onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
+				/>
+			);
+		}
+		if (scope === "week") {
+			return (
+				<WeekView
+					weekStart={weekStart}
+					appointments={filteredAppointments}
+					onCellClick={openCreateAt}
+					onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
+					onAppointmentContextMenu={handleContextMenu}
+					onReschedule={handleReschedule}
+				/>
+			);
+		}
+		return (
+			<DayView
+				dateStr={dateStr}
+				resourceMode={resource.mode}
+				appointments={filteredAppointments}
+				employees={employees}
+				rooms={rooms}
+				onCellClick={openCreateAt}
+				onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
+				onAppointmentContextMenu={handleContextMenu}
+				onReschedule={handleReschedule}
+			/>
+		);
+	};
+
+	return (
+		<div className="flex flex-col gap-3">
+			<div className="flex justify-end">
+				<Button
+					type="button"
+					size="sm"
+					onClick={() => {
+						const baseDate = fmtDate(new Date());
+						const start = new Date(`${baseDate}T09:00`);
+						const end = new Date(start);
+						end.setMinutes(end.getMinutes() + DEFAULT_CREATE_DURATION_MIN);
+						setDialog({
+							kind: "create",
+							startAt: start.toISOString(),
+							endAt: end.toISOString(),
+							employeeId: null,
+							roomId: null,
+						});
+					}}
+				>
+					<Plus className="size-4" />
+					New appointment
+				</Button>
+			</div>
+
+			{renderView()}
+
+			{dialog && (
+				<AppointmentDialog
+					open
+					onClose={() => setDialog(null)}
+					outletId={outletId}
+					appointment={dialog.kind === "edit" ? dialog.appointment : null}
+					prefill={
+						dialog.kind === "create"
+							? {
+									startAt: dialog.startAt,
+									endAt: dialog.endAt,
+									employeeId: dialog.employeeId,
+									roomId: dialog.roomId,
+								}
+							: null
+					}
+					customers={customers}
+					employees={employees}
+					rooms={rooms}
+					allOutlets={allOutlets}
+					allEmployees={allEmployees}
+				/>
+			)}
+
+			{contextMenu && (
+				<AppointmentContextMenu
+					x={contextMenu.x}
+					y={contextMenu.y}
+					appointment={contextMenu.appointment}
+					onClose={() => setContextMenu(null)}
+					onSetStatus={(status) =>
+						handleSetStatus(contextMenu.appointment, status)
+					}
+					onEdit={() =>
+						setDialog({ kind: "edit", appointment: contextMenu.appointment })
+					}
+					onDelete={() => handleDelete(contextMenu.appointment)}
+				/>
+			)}
+
+			<AppointmentToastStack toasts={toasts} onDismiss={dismissToast} />
+		</div>
+	);
+}
