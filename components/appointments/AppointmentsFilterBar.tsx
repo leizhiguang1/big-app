@@ -86,6 +86,8 @@ type Props = {
 	resource: ResourceFilter;
 	rooms: Room[];
 	employees: RosterEmployee[];
+	onDisplayChange: (next: DisplayStyle) => void;
+	onScopeChange: (next: TimeScope) => void;
 };
 
 export function AppointmentsFilterBar({
@@ -97,6 +99,8 @@ export function AppointmentsFilterBar({
 	resource,
 	rooms,
 	employees,
+	onDisplayChange,
+	onScopeChange,
 }: Props) {
 	const router = useRouter();
 	const searchParams = useSearchParams();
@@ -150,17 +154,6 @@ export function AppointmentsFilterBar({
 		if (scope === "week") return fmtWeekRange(getWeekStart(date));
 		return formatMonthLong(date);
 	})();
-
-	const onDisplayChange = (next: DisplayStyle) => {
-		const allowed = VALID_SCOPES[next];
-		const nextScope = allowed.includes(scope) ? scope : allowed[0];
-		navigate({ display: next, scope: nextScope });
-	};
-
-	const onScopeChange = (next: TimeScope) => {
-		if (!VALID_SCOPES[display].includes(next)) return;
-		navigate({ scope: next });
-	};
 
 	const onResourcePick = (mode: ResourceMode, value: string | null) => {
 		navigate({

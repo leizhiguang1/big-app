@@ -16,30 +16,30 @@ import {
 	AppointmentToastStack,
 	type Toast,
 } from "@/components/appointments/AppointmentToastStack";
-import { useAppointmentNotifications } from "@/components/notifications/AppointmentNotificationsProvider";
 import { DayView } from "@/components/appointments/DayView";
 import { GridView } from "@/components/appointments/GridView";
 import { ListView } from "@/components/appointments/ListView";
 import { MonthView } from "@/components/appointments/MonthView";
 import { WeekView } from "@/components/appointments/WeekView";
+import { useAppointmentNotifications } from "@/components/notifications/AppointmentNotificationsProvider";
 import { Button } from "@/components/ui/button";
 import {
 	deleteAppointmentAction,
 	rescheduleAppointmentAction,
 	setAppointmentStatusAction,
 } from "@/lib/actions/appointments";
+import { writeActiveOutletId } from "@/lib/appointments/active-outlet";
 import {
 	buildLocalIso,
 	type DisplayStyle,
 	type TimeScope,
 } from "@/lib/calendar/layout";
-import { writeActiveOutletId } from "@/lib/appointments/active-outlet";
 import { APPOINTMENT_STATUS_NOTIFICATIONS } from "@/lib/constants/appointment-notifications";
 import {
 	APPOINTMENT_STATUS_CONFIG,
 	type AppointmentStatus,
 } from "@/lib/constants/appointment-status";
-import { fmtDate } from "@/lib/roster/week";
+import { addDays, fmtDate, getWeekStart, parseDate } from "@/lib/roster/week";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type { RosterEmployee } from "@/lib/services/employee-shifts";
@@ -64,6 +64,7 @@ type Props = {
 	services: ServiceWithCategory[];
 	allOutlets: OutletWithRoomCount[];
 	allEmployees: EmployeeWithRelations[];
+	onDrillInToDay: (dateStr: string) => void;
 };
 
 type DialogState =
@@ -97,6 +98,7 @@ export function AppointmentsCalendar({
 	services,
 	allOutlets,
 	allEmployees,
+	onDrillInToDay,
 }: Props) {
 	const [dialog, setDialog] = useState<DialogState>(null);
 	const [contextMenu, setContextMenu] = useState<ContextState>(null);
@@ -156,11 +158,38 @@ export function AppointmentsCalendar({
 		setToasts((prev) => prev.filter((t) => t.id !== id));
 	}, []);
 
+	const viewRange = useMemo(() => {
+		const date = parseDate(dateStr);
+		if (display === "calendar" && scope === "month") {
+			const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+			const gridStart = getWeekStart(firstOfMonth);
+			return {
+				from: gridStart.getTime(),
+				to: addDays(gridStart, 42).getTime(),
+			};
+		}
+		if (scope === "week") {
+			const start = getWeekStart(date);
+			return { from: start.getTime(), to: addDays(start, 7).getTime() };
+		}
+		// day
+		const start = new Date(date);
+		start.setHours(0, 0, 0, 0);
+		return { from: start.getTime(), to: addDays(start, 1).getTime() };
+	}, [display, scope, dateStr]);
+
+	const viewAppointments = useMemo(() => {
+		return optimisticAppointments.filter((a) => {
+			const t = new Date(a.start_at).getTime();
+			return t >= viewRange.from && t < viewRange.to;
+		});
+	}, [optimisticAppointments, viewRange]);
+
 	const searchQuery = searchParams.get("q") ?? "";
 	const filteredAppointments = useMemo(() => {
-		if (!searchQuery.trim()) return optimisticAppointments;
+		if (!searchQuery.trim()) return viewAppointments;
 		const q = searchQuery.toLowerCase();
-		return optimisticAppointments.filter((a) => {
+		return viewAppointments.filter((a) => {
 			if (a.is_time_block) return a.block_title?.toLowerCase().includes(q);
 			const name = a.customer
 				? `${a.customer.first_name} ${a.customer.last_name ?? ""}`.toLowerCase()
@@ -177,7 +206,7 @@ export function AppointmentsCalendar({
 				phone.includes(q)
 			);
 		});
-	}, [optimisticAppointments, searchQuery]);
+	}, [viewAppointments, searchQuery]);
 
 	const openCreateAt = (args: {
 		dateStr: string;
@@ -199,10 +228,9 @@ export function AppointmentsCalendar({
 	};
 
 	const navigateToDay = (next: string) => {
+		onDrillInToDay(next);
 		const params = new URLSearchParams(searchParams.toString());
 		params.set("date", next);
-		params.set("scope", "day");
-		params.set("display", "calendar");
 		startTransition(() => router.push(`/appointments?${params.toString()}`));
 	};
 
