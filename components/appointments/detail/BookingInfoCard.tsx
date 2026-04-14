@@ -8,7 +8,7 @@ type Props = {
 };
 
 function formatDate(iso: string): string {
-	return new Date(iso).toLocaleDateString(undefined, {
+	return new Date(iso).toLocaleDateString("en-GB", {
 		weekday: "short",
 		month: "short",
 		day: "numeric",
@@ -17,7 +17,7 @@ function formatDate(iso: string): string {
 }
 
 function formatTime(iso: string): string {
-	return new Date(iso).toLocaleTimeString(undefined, {
+	return new Date(iso).toLocaleTimeString("en-GB", {
 		hour: "numeric",
 		minute: "2-digit",
 		hour12: true,
@@ -43,50 +43,56 @@ export function BookingInfoCard({ appointment }: Props) {
 	const dur = durationLabel(appointment.start_at, appointment.end_at);
 
 	return (
-		<div className="rounded-md border bg-card p-4">
-			<div className="text-muted-foreground text-xs uppercase tracking-wide">
-				Booking
+		<div className="rounded-xl border bg-card p-3 shadow-sm sm:p-4">
+			<div className="font-semibold text-[11px] text-muted-foreground uppercase tracking-wide">
+				Booking details
 			</div>
-			<div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+			<div className="mt-2.5 grid grid-cols-1 gap-x-4 gap-y-2.5 sm:grid-cols-2">
 				<InfoRow
-					icon={<Clock className="size-4" />}
+					icon={<Clock className="size-3.5 sm:size-4" />}
 					label="Time"
 					value={
 						<>
-							<div className="font-medium">
+							<div className="font-medium text-sm leading-tight">
 								{formatDate(appointment.start_at)}
 							</div>
-							<div className="text-muted-foreground text-xs tabular-nums">
+							<div className="text-muted-foreground text-xs tabular-nums leading-tight">
 								{formatTime(appointment.start_at)} –{" "}
 								{formatTime(appointment.end_at)}
-								{dur && ` (${dur})`}
+								{dur && ` · ${dur}`}
 							</div>
 						</>
 					}
 				/>
 				<InfoRow
-					icon={<UserCog className="size-4" />}
+					icon={<UserCog className="size-3.5 sm:size-4" />}
 					label="Employee"
 					value={
-						<span className={employeeName ? "" : "text-muted-foreground"}>
+						<span
+							className={`text-sm leading-tight ${employeeName ? "" : "text-muted-foreground"}`}
+						>
 							{employeeName ?? "Unassigned"}
 						</span>
 					}
 				/>
 				<InfoRow
-					icon={<DoorOpen className="size-4" />}
+					icon={<DoorOpen className="size-3.5 sm:size-4" />}
 					label="Room"
 					value={
-						<span className={roomName ? "" : "text-muted-foreground"}>
+						<span
+							className={`text-sm leading-tight ${roomName ? "" : "text-muted-foreground"}`}
+						>
 							{roomName ?? "Unassigned"}
 						</span>
 					}
 				/>
 				<InfoRow
-					icon={<Building2 className="size-4" />}
+					icon={<Building2 className="size-3.5 sm:size-4" />}
 					label="Booking ref"
 					value={
-						<span className="tabular-nums">{appointment.booking_ref}</span>
+						<span className="text-sm tabular-nums leading-tight">
+							{appointment.booking_ref}
+						</span>
 					}
 				/>
 			</div>
@@ -104,9 +110,9 @@ function InfoRow({
 	value: React.ReactNode;
 }) {
 	return (
-		<div className="flex items-start gap-3">
-			<div className="mt-0.5 text-muted-foreground">{icon}</div>
-			<div className="flex-1 text-sm">
+		<div className="flex items-start gap-2">
+			<div className="mt-0.5 shrink-0 text-muted-foreground">{icon}</div>
+			<div className="min-w-0 flex-1">
 				<div className="text-[10px] text-muted-foreground uppercase tracking-wide">
 					{label}
 				</div>

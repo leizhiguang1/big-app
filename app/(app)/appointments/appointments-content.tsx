@@ -87,11 +87,11 @@ export async function AppointmentsContent({
 	const weekStart = fmtDate(getWeekStart(date));
 
 	const resource: ResourceFilter = {
-		mode: params.resource === "employee" ? "employee" : "room",
+		mode: params.resource === "room" ? "room" : "employee",
 		value:
-			params.resource === "employee"
-				? (params.eid ?? null)
-				: (params.rid ?? null),
+			params.resource === "room"
+				? (params.rid ?? null)
+				: (params.eid ?? null),
 	};
 
 	const range = monthGridRange(dateStr);

@@ -7,6 +7,7 @@ import {
 	AppointmentToastStack,
 	type Toast,
 } from "@/components/appointments/AppointmentToastStack";
+import { AppointmentSummaryCard } from "@/components/appointments/detail/AppointmentSummaryCard";
 import { BillingTab } from "@/components/appointments/detail/BillingTab";
 import { BookingInfoCard } from "@/components/appointments/detail/BookingInfoCard";
 import { CaseNotesTab } from "@/components/appointments/detail/CaseNotesTab";
@@ -17,12 +18,10 @@ import {
 	DetailTabs,
 } from "@/components/appointments/detail/DetailTabs";
 import { DocumentsTab } from "@/components/appointments/detail/DocumentsTab";
+import { FloatingActionBar } from "@/components/appointments/detail/FloatingActionBar";
 import { FollowUpTab } from "@/components/appointments/detail/FollowUpTab";
 import { HistoryPanel } from "@/components/appointments/detail/HistoryPanel";
-import { NotesCard } from "@/components/appointments/detail/NotesCard";
-import { PaymentSection } from "@/components/appointments/detail/PaymentSection";
-import { StatusProgressionRow } from "@/components/appointments/detail/StatusProgressionRow";
-import { TagPickerRow } from "@/components/appointments/detail/TagPickerRow";
+import { PlaceholderPanel } from "@/components/appointments/detail/PlaceholderPanel";
 import type {
 	AppointmentWithRelations,
 	CustomerAppointmentSummary,
@@ -93,15 +92,6 @@ export function AppointmentDetailView({
 		setToasts((prev) => prev.filter((t) => t.id !== id));
 	}, []);
 
-	const billingTotal = useMemo(
-		() =>
-			billingEntries.reduce(
-				(sum, e) => sum + (e.total ?? e.quantity * e.unit_price),
-				0,
-			),
-		[billingEntries],
-	);
-
 	const stats = useMemo(() => {
 		if (!appointment.customer_id) return { noShows: 0, outstanding: 0 };
 		let noShows = 0;
@@ -113,106 +103,110 @@ export function AppointmentDetailView({
 		return { noShows, outstanding };
 	}, [customerHistory, appointment.customer_id, appointment.id]);
 
-	const nextAppointment = useMemo(() => {
-		if (!appointment.customer_id) return null;
-		const now = Date.now();
-		return (
-			customerHistory
-				.filter(
-					(a) =>
-						a.id !== appointment.id && new Date(a.start_at).getTime() > now,
-				)
-				.sort(
-					(a, b) =>
-						new Date(a.start_at).getTime() - new Date(b.start_at).getTime(),
-				)[0] ?? null
-		);
-	}, [customerHistory, appointment.customer_id, appointment.id]);
+	const outletName = useMemo(
+		() => allOutlets.find((o) => o.id === appointment.outlet_id)?.name ?? null,
+		[allOutlets, appointment.outlet_id],
+	);
 
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="flex flex-col gap-3">
 			<DetailHeader
 				appointment={appointment}
 				onEdit={() => setEditOpen(true)}
 				onToast={showToast}
 			/>
 
-			<DetailTabs activeTab={activeTab} onChange={setActiveTab} />
-
-			{activeTab === "overview" && (
-				<div className="grid grid-cols-1 gap-4 lg:grid-cols-[300px_1fr]">
-					<CustomerCard
-						appointment={appointment}
-						stats={stats}
-						nextAppointment={nextAppointment}
-						allOutlets={allOutlets}
-						allEmployees={allEmployees}
+			<div className="flex gap-3">
+				{canShowHistory && historyOpen && (
+					<HistoryPanel
+						currentAppointmentId={appointment.id}
+						caseNotes={caseNotes}
+						customerBillingHistory={customerBillingHistory}
+						customerHistory={customerHistory}
+						onClose={() => setHistoryOpen(false)}
+						onToast={showToast}
 					/>
-
-					<div className="flex flex-col gap-4">
-						<BookingInfoCard appointment={appointment} />
-						<StatusProgressionRow
-							appointment={appointment}
-							onToast={showToast}
-						/>
-						<TagPickerRow appointment={appointment} onToast={showToast} />
-						<NotesCard appointment={appointment} />
-						<PaymentSection
-							appointment={appointment}
-							billingTotal={billingTotal}
-							onToast={showToast}
-						/>
-					</div>
-				</div>
-			)}
-
-			{isHistoryTab && (
-				<div className="flex gap-4">
-					{canShowHistory && historyOpen && (
-						<HistoryPanel
-							currentAppointmentId={appointment.id}
-							caseNotes={caseNotes}
-							customerBillingHistory={customerBillingHistory}
-							customerHistory={customerHistory}
-							onClose={() => setHistoryOpen(false)}
-							onToast={showToast}
-						/>
-					)}
-					{canShowHistory && !historyOpen && (
-						<button
-							type="button"
-							onClick={() => setHistoryOpen(true)}
-							aria-label="Open history panel"
-							title="Open history"
-							className="flex h-10 shrink-0 items-center justify-center rounded-md border bg-card px-2 text-muted-foreground transition hover:text-foreground"
-						>
-							<PanelLeftOpen className="size-4" />
-						</button>
-					)}
-					<div className="min-w-0 flex-1">
-						{activeTab === "billing" && (
-							<BillingTab
-								appointmentId={appointment.id}
-								entries={billingEntries}
-								services={services}
-							/>
-						)}
-						{activeTab === "casenotes" && (
-							<CaseNotesTab
+				)}
+				{canShowHistory && !historyOpen && (
+					<button
+						type="button"
+						onClick={() => setHistoryOpen(true)}
+						aria-label="Open history panel"
+						title="Open history"
+						className="flex h-9 shrink-0 items-center justify-center self-start rounded-lg border bg-card px-2 text-muted-foreground shadow-sm transition hover:text-foreground"
+					>
+						<PanelLeftOpen className="size-4" />
+					</button>
+				)}
+				<div className="flex min-w-0 flex-1 flex-col gap-3">
+					<div className="flex flex-col gap-3 xl:flex-row xl:items-stretch">
+						<div className="flex min-h-0 min-w-0 xl:min-w-[240px] xl:max-w-md xl:flex-1">
+							<CustomerCard
 								appointment={appointment}
-								caseNotes={caseNotes}
+								stats={stats}
+								allOutlets={allOutlets}
+								allEmployees={allEmployees}
+							/>
+						</div>
+						<div className="flex min-h-0 min-w-0 flex-1 xl:min-w-0">
+							<AppointmentSummaryCard
+								appointment={appointment}
+								outletName={outletName}
 								onToast={showToast}
 							/>
-						)}
+						</div>
 					</div>
+
+					<DetailTabs activeTab={activeTab} onChange={setActiveTab} />
+
+					{activeTab === "overview" && (
+						<div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,26%)_1fr] lg:items-start">
+							<div className="flex flex-col gap-3">
+								<BookingInfoCard appointment={appointment} />
+								<PlaceholderPanel title="Status change log" />
+							</div>
+							<div className="flex min-w-0 flex-col gap-3">
+								<PlaceholderPanel title="Consumables" />
+								<PlaceholderPanel title="Hands-on incentives" />
+							</div>
+						</div>
+					)}
+
+					{activeTab === "casenotes" && (
+						<CaseNotesTab
+							appointment={appointment}
+							caseNotes={caseNotes}
+							onToast={showToast}
+						/>
+					)}
+
+					{activeTab === "billing" && (
+						<BillingTab
+							appointmentId={appointment.id}
+							entries={billingEntries}
+							services={services}
+						/>
+					)}
+
+					{activeTab === "dental-assessment" && (
+						<PlaceholderPanel title="Dental assessment" variant="tab" />
+					)}
+
+					{activeTab === "periodontal-charting" && (
+						<PlaceholderPanel title="Periodontal charting" variant="tab" />
+					)}
+
+					{activeTab === "followup" && (
+						<FollowUpTab appointment={appointment} onToast={showToast} />
+					)}
+
+					{activeTab === "camera" && (
+						<PlaceholderPanel title="Camera" variant="tab" />
+					)}
+
+					{activeTab === "documents" && <DocumentsTab />}
 				</div>
-			)}
-
-			{activeTab === "followup" && (
-				<FollowUpTab appointment={appointment} onToast={showToast} />
-			)}
-
-			{activeTab === "documents" && <DocumentsTab />}
+			</div>
 
 			{editOpen && (
 				<AppointmentDialog
@@ -228,6 +222,12 @@ export function AppointmentDetailView({
 					allEmployees={allEmployees}
 				/>
 			)}
+
+			<FloatingActionBar
+				appointment={appointment}
+				billingEntries={billingEntries}
+				onToast={showToast}
+			/>
 
 			<AppointmentToastStack toasts={toasts} onDismiss={dismissToast} />
 		</div>

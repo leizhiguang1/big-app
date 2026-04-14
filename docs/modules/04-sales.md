@@ -1,6 +1,45 @@
 # Module: Sales
 
-> Status: Deep-dive done (behaviour mirrors the current prototype's billing → payment flow)
+> Status: v1 collect-payment flow shipped (SO + sale_items + payment in one RPC). Sales dashboard / SO list / cancellations UI not built yet.
+
+## Implementation status (Phase 1)
+
+What actually exists in code as of migration `0029_sales`:
+
+**Database (migration `0029_sales`):**
+- `sales_orders` — all columns per the spec below, `so_number` auto-generated `SO000001` from `sales_orders_code_seq` via a `BEFORE INSERT` trigger, generated column `outstanding = total - amount_paid`, status CHECK `draft / completed / cancelled / void`, default `completed`.
+- `sale_items` — normalized rows with generated `total` column, item_type CHECK `service / product / charge`.
+- `payments` — `invoice_no` auto-generated `INV000001` from `payments_code_seq`, payment_mode CHECK `cash / card / bank_transfer / e_wallet / other`.
+- RLS on all three tables with temp `anon` + `authenticated` permissive policies (pre-auth tightening).
+- **RPC `collect_appointment_payment(p_appointment_id, p_items jsonb, p_discount, p_tax, p_rounding, p_payment_mode, p_amount, p_remarks, p_processed_by)`** — wraps the whole SO + sale_items + payment insert + `appointments.payment_status = 'paid'` update in a single transaction. Returns `{ sales_order_id, so_number, invoice_no, subtotal, total }`.
+- **NOT yet built:** `cancellations` table, void flow, petty cash, self-bill, payor/insurance.
+
+**Service layer — [lib/services/sales.ts](../../lib/services/sales.ts):**
+- `collectAppointmentPayment(ctx, appointmentId, input)` — Zod-validates input, calls the RPC, maps errors to `ValidationError`. Pure TS, no framework imports.
+- `getSalesOrderForAppointment(ctx, appointmentId)` — fetches the latest SO for an appointment.
+
+**Schemas — [lib/schemas/sales.ts](../../lib/schemas/sales.ts):**
+- `SALES_PAYMENT_MODES` const tuple + `SALES_PAYMENT_MODE_LABEL` map.
+- `collectPaymentItemSchema` / `collectPaymentInputSchema` Zod schemas feeding both the dialog and the service.
+
+**Server action — [lib/actions/sales.ts](../../lib/actions/sales.ts):**
+- `collectAppointmentPaymentAction(appointmentId, input)` — builds context, calls the service, revalidates `/appointments` and `/appointments/[id]`. Under 10 lines.
+
+**UI — [components/appointments/detail/CollectPaymentDialog.tsx](../../components/appointments/detail/CollectPaymentDialog.tsx):**
+- Two-column dialog patterned after the reference prototype's Collect Payment modal.
+- Left column: remarks card, line-items list (fed from `billing_entries`), Discount / Total / Cash / Balance / Require Rounding toggle.
+- Right column: Attachments placeholder card, Payment section (backdate toggle, payment-mode select, amount input, remarks, add-payment-type link), "This sale will be created at <outlet>" footer, large green confirm button, message-to-frontdesk textarea.
+- Launched from [FloatingActionBar](../../components/appointments/detail/FloatingActionBar.tsx) → `ConfirmDialog` → `CollectPaymentDialog`.
+- Fields with no backing data yet (reference #, tag, attachments, message-to-frontdesk, backdate, itemised allocation, add-payment-type) are rendered as disabled / placeholder controls so the layout is complete and the real wiring can land incrementally.
+
+**What does NOT exist yet (deferred, explicitly):**
+- `/sales` dashboard (Summary, Sales tab, Payment tab, Cancelled tab).
+- Cancellation flow and `cancellations` table.
+- Multi-payment UI (one SO currently gets one payment via the RPC).
+- Line-level discount UI (column exists in `sale_items`, UI still order-level only).
+- Manual / out-of-appointment sales ("New Sales" entry point).
+- Void (admin-only erase).
+- Payor / third-party payer.
 
 ## Overview
 

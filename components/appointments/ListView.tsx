@@ -124,7 +124,17 @@ export function ListView({
 							)}
 						</button>
 						{!isCollapsed && (
-							<table className="w-full text-sm">
+							<table className="w-full table-fixed text-sm">
+								<colgroup>
+									<col className="w-12" />
+									<col />
+									<col className="w-[220px]" />
+									<col className="w-[140px]" />
+									<col className="w-[100px]" />
+									<col className="w-[170px]" />
+									<col className="w-[140px]" />
+									<col className="w-[100px]" />
+								</colgroup>
 								<thead>
 									<tr className="border-b bg-muted/20 text-left text-[11px] text-muted-foreground uppercase tracking-wide">
 										<th className="px-3 py-2">No.</th>

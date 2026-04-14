@@ -662,6 +662,48 @@ export type Database = {
         }
         Relationships: []
       }
+      messages: {
+        Row: {
+          body: string | null
+          content_type: string
+          conversation_id: string
+          created_at: string
+          direction: string
+          id: string
+          media_mime: string | null
+          media_url: string | null
+          sent_at: string
+          status: string
+          wa_message_id: string | null
+        }
+        Insert: {
+          body?: string | null
+          content_type?: string
+          conversation_id: string
+          created_at?: string
+          direction: string
+          id?: string
+          media_mime?: string | null
+          media_url?: string | null
+          sent_at?: string
+          status?: string
+          wa_message_id?: string | null
+        }
+        Update: {
+          body?: string | null
+          content_type?: string
+          conversation_id?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          media_mime?: string | null
+          media_url?: string | null
+          sent_at?: string
+          status?: string
+          wa_message_id?: string | null
+        }
+        Relationships: []
+      }
       outlets: {
         Row: {
           address1: string | null
@@ -678,6 +720,7 @@ export type Database = {
           postcode: string | null
           state: string | null
           updated_at: string
+          wa_connection_id: string | null
         }
         Insert: {
           address1?: string | null
@@ -694,6 +737,7 @@ export type Database = {
           postcode?: string | null
           state?: string | null
           updated_at?: string
+          wa_connection_id?: string | null
         }
         Update: {
           address1?: string | null
@@ -710,8 +754,79 @@ export type Database = {
           postcode?: string | null
           state?: string | null
           updated_at?: string
+          wa_connection_id?: string | null
         }
         Relationships: []
+      }
+      payments: {
+        Row: {
+          amount: number
+          approval_code: string | null
+          bank: string | null
+          created_at: string
+          id: string
+          invoice_no: string
+          outlet_id: string
+          paid_at: string
+          payment_mode: string
+          processed_by: string | null
+          reference_no: string | null
+          remarks: string | null
+          sales_order_id: string
+        }
+        Insert: {
+          amount: number
+          approval_code?: string | null
+          bank?: string | null
+          created_at?: string
+          id?: string
+          invoice_no: string
+          outlet_id: string
+          paid_at?: string
+          payment_mode: string
+          processed_by?: string | null
+          reference_no?: string | null
+          remarks?: string | null
+          sales_order_id: string
+        }
+        Update: {
+          amount?: number
+          approval_code?: string | null
+          bank?: string | null
+          created_at?: string
+          id?: string
+          invoice_no?: string
+          outlet_id?: string
+          paid_at?: string
+          payment_mode?: string
+          processed_by?: string | null
+          reference_no?: string | null
+          remarks?: string | null
+          sales_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_processed_by_fkey"
+            columns: ["processed_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       positions: {
         Row: {
@@ -798,6 +913,165 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "rooms_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sale_items: {
+        Row: {
+          created_at: string
+          discount: number
+          id: string
+          item_name: string
+          item_type: string
+          quantity: number
+          sales_order_id: string
+          service_id: string | null
+          sku: string | null
+          total: number | null
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          discount?: number
+          id?: string
+          item_name: string
+          item_type?: string
+          quantity: number
+          sales_order_id: string
+          service_id?: string | null
+          sku?: string | null
+          total?: number | null
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          discount?: number
+          id?: string
+          item_name?: string
+          item_type?: string
+          quantity?: number
+          sales_order_id?: string
+          service_id?: string | null
+          sku?: string | null
+          total?: number | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_items_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_items_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_orders: {
+        Row: {
+          amount_paid: number
+          appointment_id: string | null
+          consultant_id: string | null
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          discount: number
+          id: string
+          outlet_id: string
+          outstanding: number | null
+          remarks: string | null
+          rounding: number
+          so_number: string
+          sold_at: string
+          status: string
+          subtotal: number
+          tax: number
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          amount_paid?: number
+          appointment_id?: string | null
+          consultant_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          discount?: number
+          id?: string
+          outlet_id: string
+          outstanding?: number | null
+          remarks?: string | null
+          rounding?: number
+          so_number: string
+          sold_at?: string
+          status?: string
+          subtotal?: number
+          tax?: number
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          amount_paid?: number
+          appointment_id?: string | null
+          consultant_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          discount?: number
+          id?: string
+          outlet_id?: string
+          outstanding?: number | null
+          remarks?: string | null
+          rounding?: number
+          so_number?: string
+          sold_at?: string
+          status?: string
+          subtotal?: number
+          tax?: number
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_orders_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_consultant_id_fkey"
+            columns: ["consultant_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_outlet_id_fkey"
             columns: ["outlet_id"]
             isOneToOne: false
             referencedRelation: "outlets"
@@ -918,6 +1192,53 @@ export type Database = {
         }
         Relationships: []
       }
+      wa_chat_cache: {
+        Row: {
+          connection_id: string
+          is_group: boolean
+          jid: string
+          last_message_from_me: boolean | null
+          last_message_preview: string | null
+          last_sender_name: string | null
+          last_ts: number
+          name: string | null
+          unread_count: number
+          updated_at: string
+        }
+        Insert: {
+          connection_id: string
+          is_group?: boolean
+          jid: string
+          last_message_from_me?: boolean | null
+          last_message_preview?: string | null
+          last_sender_name?: string | null
+          last_ts?: number
+          name?: string | null
+          unread_count?: number
+          updated_at?: string
+        }
+        Update: {
+          connection_id?: string
+          is_group?: boolean
+          jid?: string
+          last_message_from_me?: boolean | null
+          last_message_preview?: string | null
+          last_sender_name?: string | null
+          last_ts?: number
+          name?: string | null
+          unread_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_chat_cache_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "wa_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wa_connections: {
         Row: {
           api_key_id: string
@@ -970,6 +1291,62 @@ export type Database = {
             columns: ["api_key_id"]
             isOneToOne: false
             referencedRelation: "wa_api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_message_cache: {
+        Row: {
+          connection_id: string
+          content_type: string | null
+          created_at: string
+          from_me: boolean
+          jid: string
+          media_type: string | null
+          raw_message: Json | null
+          sender_jid: string | null
+          sender_name: string | null
+          text: string | null
+          transcript: string | null
+          ts: number
+          wa_message_id: string
+        }
+        Insert: {
+          connection_id: string
+          content_type?: string | null
+          created_at?: string
+          from_me?: boolean
+          jid: string
+          media_type?: string | null
+          raw_message?: Json | null
+          sender_jid?: string | null
+          sender_name?: string | null
+          text?: string | null
+          transcript?: string | null
+          ts: number
+          wa_message_id: string
+        }
+        Update: {
+          connection_id?: string
+          content_type?: string | null
+          created_at?: string
+          from_me?: boolean
+          jid?: string
+          media_type?: string | null
+          raw_message?: Json | null
+          sender_jid?: string | null
+          sender_name?: string | null
+          text?: string | null
+          transcript?: string | null
+          ts?: number
+          wa_message_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_message_cache_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "wa_connections"
             referencedColumns: ["id"]
           },
         ]
@@ -1067,11 +1444,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      collect_appointment_payment: {
+        Args: {
+          p_amount: number
+          p_appointment_id: string
+          p_discount: number
+          p_items: Json
+          p_payment_mode: string
+          p_processed_by: string
+          p_remarks: string
+          p_rounding: number
+          p_tax: number
+        }
+        Returns: Json
+      }
       gen_booking_ref: { Args: never; Returns: string }
       gen_code: {
         Args: { prefix: string; seq_name: string; width: number }
         Returns: string
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       [_ in never]: never

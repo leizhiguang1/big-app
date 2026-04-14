@@ -21,6 +21,10 @@ export type AppointmentWithRelations = Appointment & {
 		first_name: string;
 		last_name: string | null;
 		phone: string;
+		email: string | null;
+		date_of_birth: string | null;
+		gender: string | null;
+		id_number: string | null;
 	} | null;
 	employee: {
 		id: string;
@@ -42,7 +46,7 @@ export type AppointmentWithRelations = Appointment & {
 };
 
 const SELECT_WITH_RELATIONS =
-	"*, customer:customers!appointments_customer_id_fkey(id, code, first_name, last_name, phone), employee:employees!appointments_employee_id_fkey(id, code, first_name, last_name), room:rooms!appointments_room_id_fkey(id, name), lead_attended_by:employees!appointments_lead_attended_by_id_fkey(id, first_name, last_name), created_by_employee:employees!appointments_created_by_fkey(id, first_name, last_name)";
+	"*, customer:customers!appointments_customer_id_fkey(id, code, first_name, last_name, phone, email, date_of_birth, gender, id_number), employee:employees!appointments_employee_id_fkey(id, code, first_name, last_name), room:rooms!appointments_room_id_fkey(id, name), lead_attended_by:employees!appointments_lead_attended_by_id_fkey(id, first_name, last_name), created_by_employee:employees!appointments_created_by_fkey(id, first_name, last_name)";
 
 function nz<T>(value: T | undefined | null): T | null {
 	return value === undefined || value === null ? null : value;

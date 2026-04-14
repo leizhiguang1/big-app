@@ -68,38 +68,31 @@ export function StatusProgressionRow({ appointment, onToast }: Props) {
 	if (appointment.is_time_block) return null;
 
 	return (
-		<div className="rounded-md border bg-card p-4">
-			<div className="text-muted-foreground text-xs uppercase tracking-wide">
-				Status
-			</div>
-			<div className="mt-3 flex flex-wrap gap-2">
-				{APPOINTMENT_STATUSES.map((s) => {
-					const config = APPOINTMENT_STATUS_CONFIG[s];
-					const Icon = config.Icon;
-					const isActive = optimistic === s;
-					return (
-						<button
-							key={s}
-							type="button"
-							onClick={() => handleClick(s)}
-							disabled={pending}
-							className={cn(
-								"inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-medium text-xs transition",
-								isActive
-									? "border-transparent text-white shadow-sm"
-									: "border-border bg-background text-muted-foreground hover:text-foreground",
-								pending && "cursor-wait opacity-70",
-							)}
-							style={
-								isActive ? { backgroundColor: config.solidHex } : undefined
-							}
-						>
-							<Icon className="size-3.5" aria-hidden />
-							{config.label}
-						</button>
-					);
-				})}
-			</div>
+		<div className="flex flex-wrap gap-1.5 sm:gap-2">
+			{APPOINTMENT_STATUSES.map((s) => {
+				const config = APPOINTMENT_STATUS_CONFIG[s];
+				const Icon = config.Icon;
+				const isActive = optimistic === s;
+				return (
+					<button
+						key={s}
+						type="button"
+						onClick={() => handleClick(s)}
+						disabled={pending}
+						className={cn(
+							"inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 font-semibold text-[11px] uppercase tracking-wide transition sm:px-3 sm:text-xs",
+							isActive
+								? "border-transparent text-white shadow-sm"
+								: "border-border bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+							pending && "cursor-wait opacity-70",
+						)}
+						style={isActive ? { backgroundColor: config.solidHex } : undefined}
+					>
+						<Icon className="size-3 shrink-0 sm:size-3.5" aria-hidden />
+						{config.label}
+					</button>
+				);
+			})}
 		</div>
 	);
 }

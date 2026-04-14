@@ -28,7 +28,7 @@ export default function RootLayout({
 			lang="en"
 			className={`${geistSans.variable} ${geistMono.variable} antialiased`}
 		>
-			<body>
+			<body suppressHydrationWarning>
 				<TooltipProvider delayDuration={0}>{children}</TooltipProvider>
 			</body>
 		</html>

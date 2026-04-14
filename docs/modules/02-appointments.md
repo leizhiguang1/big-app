@@ -2,14 +2,21 @@
 
 > Status: All five views shipped (day, week, month, list, grid), dialog,
 > billing entries, status workflow, hover popup, right-click context menu,
-> toast notifications. Full-page detail route `/appointments/[id]` with
-> Overview, Billing, and Case Notes tabs shipped. Billing and Case Notes
-> share a sticky **History panel** on the left that stacks every past
-> billing receipt and case note for the customer, filterable (all / case
-> notes / billing), with receipt-style cards for billing threads.
-> Pending: Follow Up / Documents tabs, drag-to-reschedule, sound effects,
-> recurring appointments, walk-in customer create-inline, transactional
-> Collect Payment (sales_orders).
+> toast notifications. Full-page detail route `/appointments/[id]`
+> redesigned into a two-column Summary + tabs layout (Overview, Case
+> Notes, Billing, Follow Up, Documents, plus deferred Dental
+> Assessment / Periodontal Charting / Camera tab stubs). Billing and Case
+> Notes share a sticky **History panel** on the left that stacks every
+> past billing receipt and case note for the customer, filterable (all /
+> case notes / billing), with receipt-style cards for billing threads.
+> **Floating action bar** on the detail view exposes queue-ticket, new
+> appointment, cancel, add-to-queue, edit, and complete actions; the
+> complete action opens a confirm dialog that proceeds into the new
+> **Collect Payment dialog** (transactional, wired to the sales module
+> RPC — see [04-sales.md](./04-sales.md)).
+> Pending: drag-to-reschedule, sound effects, recurring appointments,
+> walk-in customer create-inline, Dental Assessment / Periodontal
+> Charting / Camera tab content (Phase 2 clinical sub-modules).
 
 **Key shape change from the prototype:** services are **post-filled after the
 visit** for billing only — they are NOT picked at appointment-creation time,
@@ -270,7 +277,7 @@ time elapsing. Colors live in
   the same update. Triggered from the `Register as Customer` button inside
   the lead appointment dialog.
 - **Time blocks** (lunch, meeting, leave, equipment maintenance) use the same table with `is_time_block = true`, `customer_id` nullable, and `block_title` required (CHECK constraint enforces this).
-- **Payment status** on the appointment row is a mirror — the source of truth will be payments linked to the sales order once Collect Payment ships. Kept on the appointment row for fast calendar rendering. Manual today.
+- **Payment status** on the appointment row is a mirror — the source of truth is `payments` linked to the sales order (Collect Payment shipped in migration `0029_sales`). Kept denormalized on the appointment row for fast calendar rendering; the `collect_appointment_payment` RPC flips `payment_status → 'paid'` inside the same transaction that creates the SO + sale_items + payment.
 
 ## Data Fields
 
