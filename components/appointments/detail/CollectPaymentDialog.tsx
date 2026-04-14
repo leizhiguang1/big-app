@@ -14,11 +14,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import {
-	Dialog,
-	DialogContent,
-	DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { collectAppointmentPaymentAction } from "@/lib/actions/sales";
 import {
@@ -26,15 +22,15 @@ import {
 	SALES_PAYMENT_MODES,
 	type SalesPaymentMode,
 } from "@/lib/schemas/sales";
+import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
-import type { BillingEntry } from "@/lib/services/billing-entries";
 import { cn } from "@/lib/utils";
 
 type Props = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	appointment: AppointmentWithRelations;
-	entries: BillingEntry[];
+	entries: AppointmentLineItem[];
 	onSuccess?: (result: { so_number: string; invoice_no: string }) => void;
 	onError?: (message: string) => void;
 };
@@ -47,7 +43,7 @@ type Line = {
 	unit_price: number;
 };
 
-function toLine(e: BillingEntry): Line {
+function toLine(e: AppointmentLineItem): Line {
 	return {
 		id: e.id,
 		service_id: e.service_id,
@@ -178,7 +174,9 @@ export function CollectPaymentDialog({
 							{customer.name.toUpperCase()}
 						</div>
 						{customer.code && (
-							<div className="text-xs text-muted-foreground">{customer.code}</div>
+							<div className="text-xs text-muted-foreground">
+								{customer.code}
+							</div>
 						)}
 						<div className="mt-1 text-sm font-medium text-amber-500">
 							MYR {money(0)}
@@ -194,7 +192,10 @@ export function CollectPaymentDialog({
 							<Toggle checked={itemized} onCheckedChange={setItemized} />
 						</div>
 						<div className="flex items-end gap-3">
-							<StaffAvatar name={assignedEmployee ?? "Employee 1"} percent={100} />
+							<StaffAvatar
+								name={assignedEmployee ?? "Employee 1"}
+								percent={100}
+							/>
 							<StaffAvatar name="Employee 2" percent={null} muted />
 							<StaffAvatar name="Employee 3" percent={null} muted />
 						</div>
@@ -223,9 +224,7 @@ export function CollectPaymentDialog({
 									<Input placeholder="Optional" disabled className="mt-1 h-8" />
 								</div>
 								<div>
-									<label className="text-xs text-muted-foreground">
-										Tag
-									</label>
+									<label className="text-xs text-muted-foreground">Tag</label>
 									<Input
 										placeholder="Type to search"
 										disabled
@@ -323,9 +322,7 @@ export function CollectPaymentDialog({
 											min={0}
 											step="0.01"
 											value={discount}
-											onChange={(e) =>
-												setDiscount(Number(e.target.value) || 0)
-											}
+											onChange={(e) => setDiscount(Number(e.target.value) || 0)}
 											className="h-7 w-24 text-right"
 										/>
 									}
@@ -525,13 +522,7 @@ export function CollectPaymentDialog({
 	);
 }
 
-function Row({
-	label,
-	value,
-}: {
-	label: string;
-	value: React.ReactNode;
-}) {
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
 	return (
 		<div className="flex items-center justify-between gap-3">
 			<span className="text-xs text-muted-foreground">{label}</span>

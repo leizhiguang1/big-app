@@ -60,10 +60,7 @@ export function AppointmentStatusToastStack({ toasts, onDismiss }: Props) {
 							)}
 						</div>
 						<X
-							className={cn(
-								"mt-0.5 size-3.5 shrink-0 opacity-60",
-								cfg.text,
-							)}
+							className={cn("mt-0.5 size-3.5 shrink-0 opacity-60", cfg.text)}
 						/>
 					</button>
 				);

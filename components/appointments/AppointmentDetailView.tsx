@@ -11,6 +11,7 @@ import { AppointmentSummaryCard } from "@/components/appointments/detail/Appoint
 import { BillingTab } from "@/components/appointments/detail/BillingTab";
 import { BookingInfoCard } from "@/components/appointments/detail/BookingInfoCard";
 import { CaseNotesTab } from "@/components/appointments/detail/CaseNotesTab";
+import { ConsumablesCard } from "@/components/appointments/detail/ConsumablesCard";
 import { CustomerCard } from "@/components/appointments/detail/CustomerCard";
 import { DetailHeader } from "@/components/appointments/detail/DetailHeader";
 import {
@@ -20,16 +21,20 @@ import {
 import { DocumentsTab } from "@/components/appointments/detail/DocumentsTab";
 import { FloatingActionBar } from "@/components/appointments/detail/FloatingActionBar";
 import { FollowUpTab } from "@/components/appointments/detail/FollowUpTab";
+import { HandsOnIncentivesCard } from "@/components/appointments/detail/HandsOnIncentivesCard";
 import { HistoryPanel } from "@/components/appointments/detail/HistoryPanel";
 import { PlaceholderPanel } from "@/components/appointments/detail/PlaceholderPanel";
+import { StatusChangeLogCard } from "@/components/appointments/detail/StatusChangeLogCard";
 import type {
+	AppointmentLineItem,
+	CustomerLineItem,
+	IncentiveWithEmployee,
+} from "@/lib/services/appointment-line-items";
+import type {
+	AppointmentStatusLogEntry,
 	AppointmentWithRelations,
 	CustomerAppointmentSummary,
 } from "@/lib/services/appointments";
-import type {
-	BillingEntry,
-	CustomerBillingEntry,
-} from "@/lib/services/billing-entries";
 import type { CaseNoteWithAuthor } from "@/lib/services/case-notes";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type { RosterEmployee } from "@/lib/services/employee-shifts";
@@ -39,35 +44,40 @@ import type { ServiceWithCategory } from "@/lib/services/services";
 
 type Props = {
 	appointment: AppointmentWithRelations;
-	billingEntries: BillingEntry[];
+	lineItems: AppointmentLineItem[];
+	incentives: IncentiveWithEmployee[];
 	customerHistory: CustomerAppointmentSummary[];
 	caseNotes: CaseNoteWithAuthor[];
-	customerBillingHistory: CustomerBillingEntry[];
+	customerLineItemsHistory: CustomerLineItem[];
 	customers: CustomerWithRelations[];
 	employees: RosterEmployee[];
 	rooms: Room[];
 	services: ServiceWithCategory[];
 	allOutlets: OutletWithRoomCount[];
 	allEmployees: EmployeeWithRelations[];
+	statusLog: AppointmentStatusLogEntry[];
 };
 
 export function AppointmentDetailView({
 	appointment,
-	billingEntries,
+	lineItems,
+	incentives,
 	customerHistory,
 	caseNotes,
-	customerBillingHistory,
+	customerLineItemsHistory,
 	customers,
 	employees,
 	rooms,
 	services,
 	allOutlets,
 	allEmployees,
+	statusLog,
 }: Props) {
 	const [editOpen, setEditOpen] = useState(false);
 	const [activeTab, setActiveTab] = useState<DetailTabKey>("overview");
 	const [toasts, setToasts] = useState<Toast[]>([]);
 	const [historyOpen, setHistoryOpen] = useState(false);
+	const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
 	const isHistoryTab = activeTab === "casenotes" || activeTab === "billing";
 	const canShowHistory =
@@ -103,6 +113,24 @@ export function AppointmentDetailView({
 		return { noShows, outstanding };
 	}, [customerHistory, appointment.customer_id, appointment.id]);
 
+	const nextAppointmentAt = useMemo(() => {
+		if (!appointment.customer_id) return null;
+		const now = Date.now();
+		const upcoming = customerHistory
+			.filter(
+				(a) =>
+					a.id !== appointment.id &&
+					new Date(a.start_at).getTime() > now &&
+					a.status !== "cancelled" &&
+					a.status !== "noshow",
+			)
+			.sort(
+				(a, b) =>
+					new Date(a.start_at).getTime() - new Date(b.start_at).getTime(),
+			);
+		return upcoming[0]?.start_at ?? null;
+	}, [customerHistory, appointment.customer_id, appointment.id]);
+
 	const outletName = useMemo(
 		() => allOutlets.find((o) => o.id === appointment.outlet_id)?.name ?? null,
 		[allOutlets, appointment.outlet_id],
@@ -114,6 +142,12 @@ export function AppointmentDetailView({
 				appointment={appointment}
 				onEdit={() => setEditOpen(true)}
 				onToast={showToast}
+				summaryCollapsed={headerCollapsed}
+				onToggleSummaryCollapse={
+					appointment.is_time_block
+						? undefined
+						: () => setHeaderCollapsed((v) => !v)
+				}
 			/>
 
 			<div className="flex gap-3">
@@ -121,7 +155,7 @@ export function AppointmentDetailView({
 					<HistoryPanel
 						currentAppointmentId={appointment.id}
 						caseNotes={caseNotes}
-						customerBillingHistory={customerBillingHistory}
+						customerBillingHistory={customerLineItemsHistory}
 						customerHistory={customerHistory}
 						onClose={() => setHistoryOpen(false)}
 						onToast={showToast}
@@ -140,21 +174,31 @@ export function AppointmentDetailView({
 				)}
 				<div className="flex min-w-0 flex-1 flex-col gap-3">
 					<div className="flex flex-col gap-3 xl:flex-row xl:items-stretch">
-						<div className="flex min-h-0 min-w-0 xl:min-w-[240px] xl:max-w-md xl:flex-1">
+						<div
+							className={
+								headerCollapsed
+									? "flex min-h-0 min-w-0 flex-1"
+									: "flex min-h-0 min-w-0 xl:w-[380px] xl:shrink-0"
+							}
+						>
 							<CustomerCard
 								appointment={appointment}
 								stats={stats}
+								nextAppointmentAt={nextAppointmentAt}
 								allOutlets={allOutlets}
 								allEmployees={allEmployees}
+								collapsed={headerCollapsed}
 							/>
 						</div>
-						<div className="flex min-h-0 min-w-0 flex-1 xl:min-w-0">
-							<AppointmentSummaryCard
-								appointment={appointment}
-								outletName={outletName}
-								onToast={showToast}
-							/>
-						</div>
+						{!headerCollapsed && (
+							<div className="flex min-h-0 min-w-0 flex-1">
+								<AppointmentSummaryCard
+									appointment={appointment}
+									outletName={outletName}
+									onToast={showToast}
+								/>
+							</div>
+						)}
 					</div>
 
 					<DetailTabs activeTab={activeTab} onChange={setActiveTab} />
@@ -162,12 +206,21 @@ export function AppointmentDetailView({
 					{activeTab === "overview" && (
 						<div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,26%)_1fr] lg:items-start">
 							<div className="flex flex-col gap-3">
-								<BookingInfoCard appointment={appointment} />
-								<PlaceholderPanel title="Status change log" />
+								<BookingInfoCard
+									appointment={appointment}
+									lineItems={lineItems}
+								/>
+								<StatusChangeLogCard entries={statusLog} />
 							</div>
 							<div className="flex min-w-0 flex-col gap-3">
-								<PlaceholderPanel title="Consumables" />
-								<PlaceholderPanel title="Hands-on incentives" />
+								<ConsumablesCard lineItems={lineItems} services={services} />
+								<HandsOnIncentivesCard
+									appointmentId={appointment.id}
+									lineItems={lineItems}
+									incentives={incentives}
+									allEmployees={allEmployees}
+									onToast={showToast}
+								/>
 							</div>
 						</div>
 					)}
@@ -183,7 +236,7 @@ export function AppointmentDetailView({
 					{activeTab === "billing" && (
 						<BillingTab
 							appointmentId={appointment.id}
-							entries={billingEntries}
+							entries={lineItems}
 							services={services}
 						/>
 					)}
@@ -223,11 +276,13 @@ export function AppointmentDetailView({
 				/>
 			)}
 
-			<FloatingActionBar
-				appointment={appointment}
-				billingEntries={billingEntries}
-				onToast={showToast}
-			/>
+			{activeTab === "overview" && (
+				<FloatingActionBar
+					appointment={appointment}
+					lineItems={lineItems}
+					onToast={showToast}
+				/>
+			)}
 
 			<AppointmentToastStack toasts={toasts} onDismiss={dismissToast} />
 		</div>

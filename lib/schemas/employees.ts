@@ -28,6 +28,7 @@ const employeeInputBase = z.object({
 	last_name: z.string().trim().min(1, "Last name is required").max(80),
 	gender: z.enum(GENDERS).nullable().optional(),
 	date_of_birth: optionalDate,
+	profile_image_path: z.string().trim().max(500).nullable().optional(),
 	id_type: z.enum(ID_TYPES),
 	id_number: optionalText(60),
 
@@ -101,11 +102,12 @@ export const employeeFormSchema = employeeInputBase
 	.extend({
 		password: passwordField,
 		password_confirm: passwordField,
+		has_existing_auth: z.boolean().optional(),
 	})
 	.superRefine((data, ctx) => {
 		validateIc(data, ctx);
 		if (data.web_login_enabled) {
-			if (!data.password) {
+			if (!data.password && !data.has_existing_auth) {
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
 					path: ["password"],

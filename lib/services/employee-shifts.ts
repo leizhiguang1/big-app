@@ -15,6 +15,7 @@ export type RosterEmployee = {
 	first_name: string;
 	last_name: string;
 	salutation: string | null;
+	profile_image_path: string | null;
 	position: { id: string; name: string } | null;
 	role: { id: string; name: string } | null;
 };
@@ -64,7 +65,7 @@ export async function listBookableEmployeesForOutlet(
 	const { data, error } = await ctx.db
 		.from("employee_outlets")
 		.select(
-			"employee:employees!inner(id, code, first_name, last_name, salutation, is_bookable, is_active, position:positions(id, name), role:roles(id, name))",
+			"employee:employees!inner(id, code, first_name, last_name, salutation, profile_image_path, is_bookable, is_active, position:positions(id, name), role:roles(id, name))",
 		)
 		.eq("outlet_id", outletId)
 		.eq("employee.is_bookable", true)

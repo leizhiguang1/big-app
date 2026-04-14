@@ -35,30 +35,68 @@
 The shared `set_updated_at()` function and `gen_code(prefix, seq_name)`
 helper are introduced in the first MCP migration before any feature table.
 
-## Phase 1 target surface (16 tables)
+## Schemas owned by other services
 
-Status column: ✅ = built (v1 minimal), ○ = target (not yet built).
+Big-app is not the only writer on its Supabase project. **wa-connector** (a separate Node+Baileys process, its own repo) shares this project and owns:
+
+- The entire `wa_service` Postgres schema — `wa_service.projects`, `wa_service.channel_accounts`, `wa_service.contacts`, `wa_service.contact_channels`, `wa_service.conversations`, `wa_service.messages`.
+- A set of **legacy `public.wa_*` + `public.messages` tables** — `public.messages`, `public.wa_api_keys`, `public.wa_connections`, `public.wa_webhook_log`, `public.wa_message_log`, `public.wa_chat_cache`, `public.wa_message_cache`. These predate the `wa_service` schema split and are still owned by wa-connector, not yet dropped.
+
+**Rules (load-bearing — these are how two services sharing one DB don't step on each other):**
+
+1. Do **not** include any of the above in big-app's table inventory below.
+2. Do **not** create migrations in this repo that `CREATE`, `ALTER`, `DROP`, or otherwise touch them — not even to add an RLS policy or a comment. Any schema change to those tables is made in the wa-connector repo and applied from there.
+3. Do **not** read from them in `lib/services/**` code. Big-app's services only touch `public.*` tables owned by big-app. When big-app's Phase 3 WhatsApp module lands, it will talk to wa-connector over its HTTP API — never by querying wa-connector's tables directly.
+4. Their RLS state (some have RLS disabled) and their naming drift from big-app's conventions are intentionally out of scope for this repo. Don't "fix" them here.
+
+See [ARCHITECTURE.md §2](./ARCHITECTURE.md#2-whatsapp--separate-service-wa-connector-shared-supabase-project-via-isolated-schema-fork-and-strip-build) for the full decision.
+
+## Storage (Supabase Storage buckets)
+
+Big-app uses Supabase Storage for binaries. Two buckets, chosen by read-access pattern:
+
+- **`media`** — public read, 5 MB, image MIME only. Employee/customer avatars, service/product/outlet photos. Public URL derived via `lib/storage/urls.ts → mediaPublicUrl(path)`.
+- **`documents`** — private, 20 MB, images + PDFs. ID scans, clinical photos, signed forms, receipts. Read via short-lived signed URLs (`lib/services/storage.ts → createSignedReadUrl`).
+
+Domain tables carry the **path**, not the URL — e.g. `employees.profile_image_path`, `customers.profile_image_path`. Path convention: `<entity>/<entity_id>/<yyyymmdd>-<uuid>.<ext>`.
+
+Upload flow is direct-to-Supabase (browser → Supabase, never through Next) via signed upload URLs minted by `lib/actions/storage.ts → requestMediaUploadUrlAction`. The reusable UI surface is `components/ui/image-upload.tsx`.
+
+RLS on `storage.objects` currently uses temp permissive policies (both `anon` and `authenticated`) per bucket, marked `-- TEMP: pre-auth tightening` — same pattern as every other table, tightened when the real auth model lands.
+
+Full rationale in [ARCHITECTURE.md §11](./ARCHITECTURE.md#11-file-storage--supabase-storage-two-buckets-path-in-db).
+
+## Phase 1 target surface (~17 tables built, 1 deferred)
+
+Status column: ✅ = built, ○ = target (not yet built), ⏸ = deferred (was in target surface but pushed out of Phase 1).
 
 ## Table Inventory
 
+> **Note:** This lists big-app's `public.*` tables only. wa-connector's `wa_service.*` schema and the legacy `public.wa_*` / `public.messages` tables are intentionally excluded — see "Schemas owned by other services" above. Run `mcp__big-supabase__list_tables` against schemas `["public"]` for the current live shape.
+
 | # | Module | Table | Status | Purpose |
 |---|--------|-------|--------|---------|
-| 1 | Foundation | `outlets` | ○ | Clinic branches / locations |
-| 2 | Foundation | `rooms` | ○ | Treatment rooms per outlet (replaces text[] on outlets) |
-| 3 | Foundation | `positions` | ✅ | Job title labels (Dentist, Assistant, etc.) — v1: name/description/is_active |
-| 4 | Foundation | `roles` | ✅ | Role labels — v1: name/is_active only (no description; pure labels). Permissions JSONB (formerly `role_permissions`) is Phase 2. |
-| 5 | Foundation | `employees` | ✅ | Staff members — v1 minimal fields (see [modules/08-employees.md](./modules/08-employees.md)) |
-| 6 | Foundation | `employee_outlets` | ○ | Many-to-many employee ↔ outlet assignments |
-| 7 | Services | `service_categories` | Service groupings (Diagnostic, Preventive, etc.) |
-| 8 | Services | `services` | Treatment catalog with SKU, price, duration |
-| 9 | Customers | `customers` | ✅ | Customer records — v1: profile + contact + address + home outlet + consultant. Hard-delete model (no `is_active`). See [modules/03-customers.md](./modules/03-customers.md). |
-| 10 | Roster | `employee_shifts` | Per-date shift assignments |
-| 11 | Appointments | `appointments` | Calendar bookings + time blocks |
-| 12 | Appointments | `billing_entries` | Session bundles of work done during appointment. `items` is a JSONB array of line objects. One row per "Save Billing" click. Matches current prototype. |
-| 13 | Sales | `sales_orders` | Sales orders / invoices (from appointments or manual) |
-| 14 | Sales | `sale_items` | Financial line items on a sales order |
-| 15 | Sales | `payments` | Payment records (one SO can have multiple payments) |
-| 16 | Sales | `cancellations` | Cancellation records with CN numbering |
+| 1 | Foundation | `outlets` | ✅ | Clinic branches / locations. See [modules/12.9-outlets.md](./modules/12.9-outlets.md). |
+| 2 | Foundation | `rooms` | ✅ | Treatment rooms per outlet (replaces `text[]` on outlets). Per-outlet default room landed in `0028_outlets_default_room`. |
+| 3 | Foundation | `positions` | ✅ | Job title labels (Dentist, Assistant, etc.). |
+| 4 | Foundation | `roles` | ✅ | Role labels — v1: name/is_active only (no description). Permissions JSONB is Phase 2. |
+| 5 | Foundation | `employees` | ✅ | Staff members. Extended with profile fields in `0011_employees_add_profile_fields` — now 26+ columns; see [modules/08-employees.md](./modules/08-employees.md). |
+| 6 | Foundation | `employee_outlets` | ✅ | Many-to-many employee ↔ outlet assignments. |
+| 7 | Services | `service_categories` | ✅ | Service groupings (Diagnostic, Preventive, etc.). |
+| 8 | Services | `services` | ✅ | Service catalog. Core columns live here (`sku`, `name`, `category_id`, `type`, `duration_min`, `price`, `is_active`). Also carries four free-text holdovers from the prototype port: `consumables` (**now live** as of 2026-04-15 — read by the Appointments Overview `ConsumablesCard`), `incentive_type`, `discount_cap`, `full_payment` (all three still unused). See [modules/06-services.md](./modules/06-services.md). |
+| 9 | Customers | `customers` | ✅ | Customer records — profile + contact + address + home outlet + consultant. Hard-delete model (no `is_active`). See [modules/03-customers.md](./modules/03-customers.md). |
+| 10 | Roster | `employee_shifts` | ✅ | Per-date shift assignments (one row per employee per date; no recurrence). |
+| 11 | Appointments | `appointments` | ✅ | Calendar bookings + time blocks. No `service_id` — the primary service lives in the first line item. Adds lead-intake fields (`lead_name`, `lead_phone`, `lead_source`, `lead_attended_by_id`), `paid_via`, `payment_remark`, `follow_up`, and a single-tag constraint on `tags[]`. See [modules/02-appointments.md](./modules/02-appointments.md). |
+| 12 | Appointments | `appointment_line_items` | ✅ | **Normalized rows** — one row per line item (not a JSONB items array). Columns include `appointment_id`, `item_type`, `service_id`, `description`, `qty`, `unit_price`, `total`. Originally named `billing_entries`; renamed 2026-04-15 to reflect its dual role as clinical record + billing cart. See §9 and [modules/02-appointments.md](./modules/02-appointments.md). |
+| 12a | Appointments | `appointment_line_item_incentives` | ✅ | Child of `appointment_line_items` (CASCADE). Per-line employee attribution. `UNIQUE (line_item_id, employee_id)`. No commission fields — v1 is attribution only. |
+
+> **Dropped same-day:** `appointment_line_item_consumables` was created and then dropped (`drop_appointment_line_item_consumables` migration) after a requirements reread. Consumables are a property of the service catalog (`services.consumables` free-text), not a per-visit editable record. The appointment-side `ConsumablesCard` is a read-only consumer of that field.
+| 13 | Appointments | `case_notes` | ✅ | Clinical notes per visit. Landed in `0027_case_notes`. Was originally scoped as Phase 2 clinical but pulled forward during the Appointments build. No deep-dive doc yet. |
+| 14 | Sales | `sales_orders` | ✅ | Sales orders / invoices (from appointments or manual). Status enum: `draft / completed / cancelled / void`. Default = `completed`. See [modules/04-sales.md](./modules/04-sales.md). |
+| 15 | Sales | `sale_items` | ✅ | Financial line items on a sales order. |
+| 16 | Sales | `payments` | ✅ | Payment records (one SO can have multiple payments). |
+| 17 | Sales | `cancellations` | ⏸ | Cancellation records with CN numbering. **Not built in Phase 1** — cancellation is handled today by flipping `sales_orders.status` to `cancelled`/`void`. Separate table + CN document generation deferred. |
+| 18 | Inventory | `inventory_items` | ✅ | v1 stub — product list only. Full inventory (PO, stock movements, suppliers) is Phase 2. See [modules/07-inventory.md](./modules/07-inventory.md). |
 
 ## Key Design Decisions
 
@@ -79,7 +117,7 @@ changes one trigger and one sequence — not a primary key.
 
 Removed `customer_name`, `employee_name`, `membership_no`, `outlet_name`, etc. from all tables that stored them alongside FK IDs. The v2 schema uses JOINs instead.
 
-**Impact on frontend:** Queries that previously returned flat rows with names now need JOINs. Use Supabase's `.select('*, customer:customers(display_name)')` syntax for clean access.
+**Impact on frontend:** Queries that previously returned flat rows with names now need JOINs. Use Supabase's `.select('*, customer:customers(first_name, last_name)')` syntax and compose the display name at the render layer.
 
 ### 3. Rooms as a proper table
 
@@ -103,11 +141,11 @@ Replaced `category TEXT` on services with a `service_categories` table. Supports
 ### 5. Generated columns
 
 Generated (computed) columns that stay in sync automatically:
-- `customers.display_name` — `trim(first_name || ' ' || last_name)`
+- `appointment_line_items.total` — `qty * unit_price` (per line; normalized row-per-line, see §9).
 - `sale_items.total` — `quantity * unit_price - discount`
 - `sales_orders.outstanding` — `total - amount_paid`
 
-(`billing_entries.total` is not a generated column because the `items` JSONB array makes per-row SQL summation awkward — the app computes the total at save time and stores it.)
+**Not a generated column:** `customers.display_name` was proposed but never implemented — the app concatenates `first_name + last_name` at the query / component layer instead. If we later need indexable full-name search we'll add it via a stored generated column or a functional index; until then, no column.
 
 ### 6. Wallet balances removed from customers
 
@@ -121,34 +159,52 @@ Both `customers` and `employees` use the same `(id_type, id_number)` pair, where
 
 `employee_shifts` stores one row per employee per date. No `day_of_week` or `repeat_type` columns. The app handles "copy week" / "repeat schedule" at the application level. Simpler and more explicit.
 
-### 9. Two-tier billing: billing_entries (JSONB) → sale_items (normalized)
+### 9. Appointment_line_items → sale_items, both normalized
 
-Billing works across two tables with different shapes:
+**Naming note (2026-04-15):** The table was originally called `billing_entries`. It was renamed to `appointment_line_items` to reflect its true dual role: it is *both* the clinical record of what was performed on an appointment AND the billing cart used at payment time. The old name implied "billing only" which misled readers into expecting a separate "services performed" table. The rename is data-layer only — UI components (`BillingTab`, `BillingSection`) and the user-facing "Billing" tab label kept their names because that's the word staff uses.
 
-- **`billing_entries`** — one row per "Save Billing" click inside an appointment. Each row wraps a **JSONB `items` array** of line objects plus a per-save frontdesk message and total. Matches the working prototype (`useBillingEntries` hook + `BillingSection.jsx`). Preserves the "these items were saved together" grouping; staff can add several sessions of billing as treatment progresses.
-- **`sale_items`** — **normalized rows**, one per line. Created when staff clicks "Collect Payment" — billing entries are copied (snapshotted) into sale items and the sales order is committed.
+**Note:** An earlier draft of this document proposed a two-tier design where the table wrapped a JSONB `items` array (matching the prototype's `useBillingEntries` hook) and `sale_items` was the normalized destination. That asymmetry was dropped during implementation. Both tables are now normalized row-per-line — the JSONB story is historical.
 
-Why the asymmetry: billing entries are always viewed in the context of their appointment — no cross-appointment aggregation needed — so JSONB is fine. Sale items, on the other hand, feed reports, commissions, and per-line analytics, so normalization matters.
+Current shape:
 
-**Price override:** inside a billing entry's `items[].unitPrice`, the dentist can type any price — no constraint against the service catalog. Same freedom carries through to sale_items.
+- **`appointment_line_items`** — one row per line item on an appointment. Columns: `appointment_id`, `item_type`, `service_id` (nullable — free-text lines allowed), `description`, `qty`, `unit_price`, `total`, plus standard audit columns. Staff add/edit lines freely during the visit; there is no "Save Billing" batching layer. Has one child table (CASCADE on delete):
+  - `appointment_line_item_incentives` — per-line employee attribution (`employee_id`). Multiple rows allowed; `UNIQUE (line_item_id, employee_id)`. No commission calculation in v1 — this is the data plumbing for a future Commission module.
+- **Consumables** are NOT a child table. They're a catalog-level property stored as `services.consumables` free-text; the appointment-side `ConsumablesCard` reads them per service line for display only. An earlier revision of this refactor created an `appointment_line_item_consumables` table with a per-line editor; it was dropped the same day after clarifying that consumables are a service property, not per-visit.
+- **`sale_items`** — normalized rows on a committed sales order. Created when staff clicks "Collect Payment" — line items are snapshotted into sale items and the sales order is committed in the same transaction. Incentive rows are **not** copied — they remain attached to the originating line item as a historical record.
 
-### 10. Separate cancellations table
+Why keep both tables even though they look similar: `appointment_line_items` are mutable workspace state tied to an open appointment (add, delete, edit freely); `sale_items` are the immutable financial record once the SO is committed. Editing a committed SO goes through a cancellation/reissue flow, not an in-place edit of `sale_items`.
 
-Cancellations have their own CN-numbered records rather than just a status on sales_orders. This matches KumoDent's CN document generation pattern and provides a clean audit trail.
+**Service-only children invariant.** Incentives must attach to a line item with `item_type = 'service'`. Postgres CHECK constraints can't express this (can't subquery the parent row), so it's enforced in `lib/services/appointment-line-items.ts` via `assertServiceLineItem()`. A trigger is easy to add later if belt-and-braces is wanted.
+
+**Price override:** dentist can type any `unit_price` on a line — no constraint against the service catalog. Same freedom carries through to `sale_items`.
+
+### 10. Cancellations — deferred
+
+An earlier draft of this doc planned a dedicated `cancellations` table with CN-numbered records (matching KumoDent's CN document generation pattern). **Not built in Phase 1.** Cancellation today is a status transition on `sales_orders` — `status` supports `cancelled` and `void` alongside `draft` / `completed`. The separate audit table + CN document generation is revisited if/when the finance team asks for it.
 
 ### 11. Appointment status machine
 
 ```
-scheduled → confirmed → in_progress → completed
-                                    → cancelled
-                                    → no_show
+pending → confirmed → arrived → started → billing → completed
+                                                  → noshow
 ```
 
-Default status is `scheduled` (changed from v1's `pending`). CHECK constraint enforces valid values.
+Live enum values: `pending`, `confirmed`, `arrived`, `started`, `billing`, `completed`, `noshow`. Default is `pending`. **There is no `cancelled` status on appointments** — it was removed in migration `appointments_drop_cancelled_status`; deleting an appointment is a hard delete. CHECK constraint enforces valid values.
 
-### 12. RLS with authenticated access
+(An earlier draft of this doc described a simpler `scheduled → confirmed → in_progress → completed / cancelled / no_show` machine. That was the v1 target; the live shape grew during the build to match the operational stages the front desk actually uses.)
 
-All 16 tables have RLS enabled with a simple `auth.role() = 'authenticated'` policy. Per-role policies (e.g., receptionist can only view certain data) will be added during the Auth module deep-dive.
+### 12. RLS — temporary permissive policies during Phase 1
+
+Every table has RLS enabled from the moment it's created. Until per-role tightening lands module-by-module, each table carries the temp policy pair mandated by CLAUDE.md rule 6:
+
+```sql
+create policy "<table> anon all" on public.<table>
+  for all to anon using (true) with check (true);
+create policy "<table> authn all" on public.<table>
+  for all to authenticated using (true) with check (true);
+```
+
+Both policies are marked `-- TEMP: pre-auth tightening`. When a table is tightened per role, the temp pair is dropped and replaced in the same migration. Rationale for the dual-role pair (anon + authenticated) is in CLAUDE.md rule 6 — single-role policies silently return empty rows to the wrong session. Per-role policies (receptionist can only view certain data) land during the Auth module deep-dive.
 
 ## Auto-Generated Codes
 
@@ -158,9 +214,9 @@ All human-readable codes are generated by the shared `gen_code(prefix, seq_name,
 |------|--------|--------|-----------|
 | `employees.code` | `EMP-0001` | ✅ built | `default gen_code('EMP', 'public.employees_code_seq', 4)` |
 | `customers.code` | `CUS-00000001` | ○ target | `default gen_code('CUS', 'public.customers_code_seq', 8)` |
-| `appointments.booking_ref` | `APT-000001` | ○ target | `default gen_code('APT', 'public.appointments_ref_seq', 6)` |
+| `appointments.booking_ref` | `APT00000001` | ✅ built | `gen_booking_ref()` — `'APT' \|\| lpad(nextval('seq_booking_ref')::text, 8, '0')`. **Note the format drift:** appointments chose an 8-digit sequence with *no hyphen* separator, unlike `EMP-0001` / `CUS-00000001`. Consistency pass optional — if we ever normalise, we'd ship a new migration that renames `seq_booking_ref` → `appointments_ref_seq` and reformats the prefix. Not worth doing until another entity forces the issue. |
 | `sales_orders.so_number` | `SO-000001` | ○ target | `default gen_code('SO', 'public.sales_orders_no_seq', 6)` |
-| `cancellations.cn_number` | `CN-000001` | ○ target | `default gen_code('CN', 'public.cancellations_no_seq', 6)` |
+| `cancellations.cn_number` | `CN-000001` | ⏸ deferred | Planned if/when a separate cancellations table lands. |
 | `payments.invoice_no` | `INV-000001` | ○ target | `default gen_code('INV', 'public.payments_inv_seq', 6)` |
 
 Code prefix and sequence width are decided per-entity when the table lands (see [CLAUDE.md](../CLAUDE.md) "Schema conventions" for the opt-in rule).
@@ -192,11 +248,11 @@ Tables to add after Phase 1 is built:
 | Module | Tables | Notes |
 |--------|--------|-------|
 | Inventory | `products`, `suppliers`, `purchase_orders`, `purchase_order_items`, `stock_movements` | Product catalog, stock tracking |
-| Clinical | `case_notes`, `prescriptions`, `dental_assessments`, `documents` | Patient clinical records |
+| Clinical | `prescriptions`, `dental_assessments`, `documents` | Patient clinical records. `case_notes` was originally in this list but was pulled forward into Phase 1 — see inventory row 13. |
 | Loyalty | `wallet_transactions`, `voucher_schemes`, `vouchers`, `discount_schemes` | Loyalty points, vouchers, wallets |
 | Operations | `commissions`, `petty_cash` | Staff commissions, cash float |
 | Config | `config_settings` | Per-module/per-outlet settings |
-| Messaging | Separate service DB | WhatsApp/SMS integration |
+| Messaging | Owned by wa-connector in `wa_service.*` + legacy `public.wa_*` (see "Schemas owned by other services" above) | WhatsApp integration. Big-app adds a thin mapping concept at most — decision deferred to Phase 3. |
 
 ## Seed Data
 
@@ -209,5 +265,8 @@ Tables to add after Phase 1 is built:
 | Module | File | Migration | Contents |
 |--------|------|-----------|----------|
 | Employees | [schema/seeds/08-employees.sql](./schema/seeds/08-employees.sql) | `0005_employees_seed` + `0007_employees_reseed_lookups_v2` | 9 roles, 7 positions, 6 employees (adapted from `schema/prototype_dump/data/employees.json`). v2 set: roles use uppercase labels and the description column was dropped in `0006_roles_drop_description`. |
+| Outlets | [schema/seeds/09-outlets.sql](./schema/seeds/09-outlets.sql) | `0014_seed_outlets_employees_v3` | Outlets + employee_outlets linkage. |
+
+> **Out of sync warning:** Other modules (customers, services, inventory, appointments) have had seed data applied via ad-hoc migrations that are not yet listed here. Run `mcp__big-supabase__list_migrations` for the authoritative list; this table is a human-readable index that lags the DB. If you add a seed migration, also add the row here — and if you spot a gap, backfill it.
 
 When a new module adds seed data: create `schema/seeds/NN-<module>.sql`, apply it via `mcp__big-supabase__apply_migration` as `000N_<module>_seed`, and add a row to the table above in the same commit.

@@ -170,61 +170,63 @@ export function DayView({
 										const cellKey = `${colKey}|${h}|${min}`;
 										const isDragOver = dragOverKey === cellKey;
 										return (
-										<button
-											key={`${h}-${min}`}
-											type="button"
-											onClick={() =>
-												onCellClick({
-													dateStr,
-													hour: h,
-													minute: min,
-													employeeId: resourceMode === "employee" ? c.id : null,
-													roomId: resourceMode === "room" ? c.id : null,
-												})
-											}
-											onDragOver={(e) => {
-												if (!onReschedule) return;
-												e.preventDefault();
-												e.dataTransfer.dropEffect = "move";
-												if (dragOverKey !== cellKey) setDragOverKey(cellKey);
-											}}
-											onDragLeave={() => {
-												if (dragOverKey === cellKey) setDragOverKey(null);
-											}}
-											onDrop={(e) => {
-												if (!onReschedule) return;
-												const id = e.dataTransfer.getData(
-													APPOINTMENT_DRAG_MIME,
-												);
-												setDragOverKey(null);
-												if (!id) return;
-												e.preventDefault();
-												onReschedule(id, {
-													dateStr,
-													hour: h,
-													minute: min,
-													employeeId: resourceMode === "employee" ? c.id : null,
-													roomId: resourceMode === "room" ? c.id : null,
-												});
-											}}
-											className={cn(
-												"absolute left-0 right-0 hover:bg-primary/5",
-												isDragOver &&
-													"bg-primary/20 ring-2 ring-inset ring-primary/60",
-												// hour boundary (bottom of :45 quarter)
-												qIdx === 3
-													? "border-b border-border/30"
-													: // half-hour mark (:30)
-														qIdx === 1
-														? "border-b border-dashed border-muted/70"
-														: // quarter marks (:15, top of hour handled by prev hour's :45)
-															"border-b border-dashed border-muted/40",
-											)}
-											style={{
-												top: hIdx * HOUR_HEIGHT_PX + qIdx * QUARTER_HEIGHT_PX,
-												height: QUARTER_HEIGHT_PX,
-											}}
-										/>
+											<button
+												key={`${h}-${min}`}
+												type="button"
+												onClick={() =>
+													onCellClick({
+														dateStr,
+														hour: h,
+														minute: min,
+														employeeId:
+															resourceMode === "employee" ? c.id : null,
+														roomId: resourceMode === "room" ? c.id : null,
+													})
+												}
+												onDragOver={(e) => {
+													if (!onReschedule) return;
+													e.preventDefault();
+													e.dataTransfer.dropEffect = "move";
+													if (dragOverKey !== cellKey) setDragOverKey(cellKey);
+												}}
+												onDragLeave={() => {
+													if (dragOverKey === cellKey) setDragOverKey(null);
+												}}
+												onDrop={(e) => {
+													if (!onReschedule) return;
+													const id = e.dataTransfer.getData(
+														APPOINTMENT_DRAG_MIME,
+													);
+													setDragOverKey(null);
+													if (!id) return;
+													e.preventDefault();
+													onReschedule(id, {
+														dateStr,
+														hour: h,
+														minute: min,
+														employeeId:
+															resourceMode === "employee" ? c.id : null,
+														roomId: resourceMode === "room" ? c.id : null,
+													});
+												}}
+												className={cn(
+													"absolute left-0 right-0 hover:bg-primary/5",
+													isDragOver &&
+														"bg-primary/20 ring-2 ring-inset ring-primary/60",
+													// hour boundary (bottom of :45 quarter)
+													qIdx === 3
+														? "border-b border-border/30"
+														: // half-hour mark (:30)
+															qIdx === 1
+															? "border-b border-dashed border-muted/70"
+															: // quarter marks (:15, top of hour handled by prev hour's :45)
+																"border-b border-dashed border-muted/40",
+												)}
+												style={{
+													top: hIdx * HOUR_HEIGHT_PX + qIdx * QUARTER_HEIGHT_PX,
+													height: QUARTER_HEIGHT_PX,
+												}}
+											/>
 										);
 									}),
 								)}

@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { getServerContext } from "@/lib/context/server";
+import * as lineItemsService from "@/lib/services/appointment-line-items";
 import * as appointmentsService from "@/lib/services/appointments";
-import * as billingEntriesService from "@/lib/services/billing-entries";
 
 export async function createAppointmentAction(input: unknown) {
 	const ctx = await getServerContext();
@@ -134,53 +134,67 @@ export async function convertLeadToCustomerAction(
 	return result;
 }
 
-export async function listBillingEntriesAction(appointmentId: string) {
+// ─── Appointment line items ─────────────────────────────────────────────────
+
+export async function listLineItemsAction(appointmentId: string) {
 	const ctx = await getServerContext();
-	return billingEntriesService.listBillingEntriesForAppointment(
-		ctx,
-		appointmentId,
-	);
+	return lineItemsService.listLineItemsForAppointment(ctx, appointmentId);
 }
 
-export async function createBillingEntryAction(
+export async function createLineItemAction(
 	appointmentId: string,
 	input: unknown,
 ) {
 	const ctx = await getServerContext();
-	const entry = await billingEntriesService.createBillingEntry(ctx, input);
+	const entry = await lineItemsService.createLineItem(ctx, input);
 	revalidatePath(`/appointments/${appointmentId}`);
 	return entry;
 }
 
-export async function createBillingEntriesBulkAction(
+export async function createLineItemsBulkAction(
 	appointmentId: string,
 	inputs: unknown[],
 ) {
 	const ctx = await getServerContext();
-	const entries = await billingEntriesService.createBillingEntriesBulk(
-		ctx,
-		inputs,
-	);
+	const entries = await lineItemsService.createLineItemsBulk(ctx, inputs);
 	revalidatePath(`/appointments/${appointmentId}`);
 	return entries;
 }
 
-export async function updateBillingEntryAction(
+export async function updateLineItemAction(
 	appointmentId: string,
 	id: string,
 	input: unknown,
 ) {
 	const ctx = await getServerContext();
-	const entry = await billingEntriesService.updateBillingEntry(ctx, id, input);
+	const entry = await lineItemsService.updateLineItem(ctx, id, input);
 	revalidatePath(`/appointments/${appointmentId}`);
 	return entry;
 }
 
-export async function deleteBillingEntryAction(
+export async function deleteLineItemAction(appointmentId: string, id: string) {
+	const ctx = await getServerContext();
+	await lineItemsService.deleteLineItem(ctx, id);
+	revalidatePath(`/appointments/${appointmentId}`);
+}
+
+// ─── Incentives (hands-on attribution) ──────────────────────────────────────
+
+export async function createLineItemIncentiveAction(
+	appointmentId: string,
+	input: unknown,
+) {
+	const ctx = await getServerContext();
+	const row = await lineItemsService.createIncentive(ctx, input);
+	revalidatePath(`/appointments/${appointmentId}`);
+	return row;
+}
+
+export async function deleteLineItemIncentiveAction(
 	appointmentId: string,
 	id: string,
 ) {
 	const ctx = await getServerContext();
-	await billingEntriesService.deleteBillingEntry(ctx, id);
+	await lineItemsService.deleteIncentive(ctx, id);
 	revalidatePath(`/appointments/${appointmentId}`);
 }

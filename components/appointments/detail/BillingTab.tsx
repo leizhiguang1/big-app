@@ -3,12 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { BillingSection } from "@/components/appointments/BillingSection";
-import type { BillingEntry } from "@/lib/services/billing-entries";
+import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { ServiceWithCategory } from "@/lib/services/services";
 
 type Props = {
 	appointmentId: string;
-	entries: BillingEntry[];
+	entries: AppointmentLineItem[];
 	services: ServiceWithCategory[];
 };
 

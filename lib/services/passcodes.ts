@@ -1,0 +1,110 @@
+import type { Context } from "@/lib/context/types";
+import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
+import {
+	passcodeInputSchema,
+	passcodeUpdateSchema,
+} from "@/lib/schemas/passcodes";
+import type { Tables } from "@/lib/supabase/types";
+
+export type Passcode = Tables<"passcodes">;
+
+export type PasscodeEmployeeRef = {
+	id: string;
+	first_name: string;
+	last_name: string;
+};
+
+export type PasscodeListItem = Passcode & {
+	outlet: { id: string; name: string } | null;
+	created_by: PasscodeEmployeeRef | null;
+	used_by: PasscodeEmployeeRef | null;
+};
+
+const LIST_SELECT = `
+  *,
+  outlet:outlets!passcodes_outlet_id_fkey ( id, name ),
+  created_by:employees!passcodes_created_by_employee_id_fkey ( id, first_name, last_name ),
+  used_by:employees!passcodes_used_by_employee_id_fkey ( id, first_name, last_name )
+`;
+
+function generatePasscodeValue(): string {
+	return Math.floor(1000 + Math.random() * 9000).toString();
+}
+
+export async function listPasscodes(
+	ctx: Context,
+): Promise<PasscodeListItem[]> {
+	const { data, error } = await ctx.db
+		.from("passcodes")
+		.select(LIST_SELECT)
+		.order("created_at", { ascending: false });
+	if (error) throw new ValidationError(error.message);
+	return (data ?? []) as unknown as PasscodeListItem[];
+}
+
+export async function getPasscode(
+	ctx: Context,
+	id: string,
+): Promise<PasscodeListItem> {
+	const { data, error } = await ctx.db
+		.from("passcodes")
+		.select(LIST_SELECT)
+		.eq("id", id)
+		.single();
+	if (error || !data) throw new NotFoundError(`Passcode ${id} not found`);
+	return data as unknown as PasscodeListItem;
+}
+
+export async function createPasscode(
+	ctx: Context,
+	input: unknown,
+): Promise<Passcode> {
+	const parsed = passcodeInputSchema.parse(input);
+	const { data, error } = await ctx.db
+		.from("passcodes")
+		.insert({
+			passcode: generatePasscodeValue(),
+			outlet_id: parsed.outlet_id,
+			function: parsed.function,
+			remarks: parsed.remarks || null,
+			created_by_employee_id: ctx.currentUser?.employeeId ?? null,
+		})
+		.select("*")
+		.single();
+	if (error) throw new ValidationError(error.message);
+	return data;
+}
+
+export async function updatePasscode(
+	ctx: Context,
+	id: string,
+	input: unknown,
+): Promise<Passcode> {
+	const parsed = passcodeUpdateSchema.parse(input);
+	const { data, error } = await ctx.db
+		.from("passcodes")
+		.update({ remarks: parsed.remarks || null })
+		.eq("id", id)
+		.select("*")
+		.single();
+	if (error) throw new ValidationError(error.message);
+	if (!data) throw new NotFoundError(`Passcode ${id} not found`);
+	return data;
+}
+
+export async function deletePasscode(ctx: Context, id: string): Promise<void> {
+	const { data: existing, error: fetchError } = await ctx.db
+		.from("passcodes")
+		.select("id, used_at")
+		.eq("id", id)
+		.single();
+	if (fetchError || !existing)
+		throw new NotFoundError(`Passcode ${id} not found`);
+	if (existing.used_at)
+		throw new ConflictError(
+			"Cannot delete a passcode that has already been used.",
+		);
+
+	const { error } = await ctx.db.from("passcodes").delete().eq("id", id);
+	if (error) throw new ValidationError(error.message);
+}

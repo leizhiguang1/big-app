@@ -53,9 +53,9 @@ None of these Phase 1 approaches are hacks — they are the documented Next 16 +
 
 Repo becomes a pnpm workspace: `apps/web` (Next 16), `apps/api` (NestJS), `packages/shared` (Zod schemas + service layer + context types + errors). TanStack Query is installed and becomes the primary data layer in `apps/web`. Migration is mechanical, not a rewrite — see [ARCHITECTURE.md §7](./ARCHITECTURE.md).
 
-**WhatsApp service (separate repo — Phase 3):**
+**wa-connector (separate repo — Phase 3):**
 
-Node.js + Baileys + own Postgres. Not touched in Phase 1. Whether it uses NestJS or plain Node is a Phase 3 decision. See [ARCHITECTURE.md §2](./ARCHITECTURE.md).
+Node.js + Baileys. Runs as its own process but currently shares the big-app Supabase project, isolated in the `wa_service` schema (plus a set of legacy `public.wa_*` + `public.messages` tables). Not touched in Phase 1. Big-app never migrates those tables — any WA schema change is made from the wa-connector repo. Whether wa-connector adopts NestJS or stays plain Node is a Phase 3 decision. See [ARCHITECTURE.md §2](./ARCHITECTURE.md).
 
 **What we are NOT using:**
 
@@ -337,7 +337,7 @@ Write tests only for things that break silently and cost money:
 - Commission calculation (Phase 2)
 - Inventory / products (Phase 2 deep)
 - Clinical sub-modules — case notes, dental charting, prescriptions (Phase 2)
-- WhatsApp / messaging (Phase 3 — separate service, separate repo)
+- WhatsApp / messaging (Phase 3 — handled by wa-connector, a separate Node+Baileys process in its own repo. Shares this Supabase project but owns the `wa_service` schema + legacy `public.wa_*` / `public.messages` tables; never migrated from this repo. See [ARCHITECTURE.md §2](./ARCHITECTURE.md) and [SCHEMA.md](./SCHEMA.md) "Schemas owned by other services".)
 - Automation / workflows (Phase 3)
 - NestJS backend extraction (Phase 2 trigger — not a date; see
   `docs/ARCHITECTURE.md` §7)
@@ -462,7 +462,7 @@ If at any point you feel the urge to install TanStack Query, stop and re-read th
 ### Day 7 — Billing + Sales + Payment (+ first tests)
 
 1. BillingSection inside the appointment edit panel. Follow [04-sales.md](./modules/04-sales.md).
-2. Draft items → save as `billing_entries` JSONB.
+2. Draft items → save as rows in `appointment_line_items` (one row per line, not JSONB).
 3. **Collect Payment** → `lib/services/sales.ts :: collectPayment(input, ctx)` wraps `sales_orders` + `sale_items` + `payments` + appointment status update in a single Postgres RPC. The service is ~30 lines; the action is 5 lines.
 4. **Write the only required unit tests now:** `lib/services/sales.test.ts` — Vitest, tests `collectPayment` happy path + rollback when the payment step fails + rollback when the sale_items step fails. Use a local Supabase or a fake Context.
 5. **Write the only required E2E test now:** `e2e/booking-to-payment.spec.ts` — Playwright: login → create appointment → add billing → collect payment → assert `sales_orders` row. Run it in CI.

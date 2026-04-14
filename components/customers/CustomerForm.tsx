@@ -1,10 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mars, ScanLine, Star, User, Venus } from "lucide-react";
+import { Mars, ScanLine, Star, Venus } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -14,8 +13,8 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import {
 	createCustomerAction,
 	updateCustomerAction,
@@ -30,6 +29,7 @@ import {
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { OutletWithRoomCount } from "@/lib/services/outlets";
+import { cn } from "@/lib/utils";
 
 type Props = {
 	open: boolean;
@@ -49,7 +49,7 @@ const EMPTY: CustomerInput = {
 	last_name: undefined,
 	gender: null,
 	date_of_birth: undefined,
-	profile_image_url: undefined,
+	profile_image_path: null,
 	id_type: "ic",
 	id_number: undefined,
 	phone: "",
@@ -80,7 +80,7 @@ function fromCustomer(c: CustomerWithRelations | null): CustomerInput {
 		last_name: c.last_name ?? undefined,
 		gender: (c.gender as CustomerInput["gender"]) ?? null,
 		date_of_birth: c.date_of_birth ?? undefined,
-		profile_image_url: c.profile_image_url ?? undefined,
+		profile_image_path: c.profile_image_path ?? null,
 		id_type: (c.id_type as CustomerInput["id_type"]) ?? "ic",
 		id_number: c.id_number ?? undefined,
 		phone: c.phone,
@@ -136,11 +136,7 @@ function parseMalaysianIc(raw: string): IcParseResult {
 	return { ok: true, digits, dob, gender };
 }
 
-type SectionKey =
-	| "personal"
-	| "address"
-	| "medical"
-	| "notifications";
+type SectionKey = "personal" | "address" | "medical" | "notifications";
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
 	{ key: "personal", label: "Personal Information" },
@@ -309,8 +305,6 @@ export function CustomerFormDialog({
 		(o) => o.is_active || o.id === customer?.home_outlet_id,
 	);
 
-	const initials =
-		`${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.toUpperCase() || "?";
 	const displayName =
 		[firstName, lastName].filter(Boolean).join(" ") || "New Customer";
 
@@ -327,19 +321,23 @@ export function CustomerFormDialog({
 							: "The customer code is auto-generated on save."}
 					</DialogDescription>
 				</DialogHeader>
-				<form
-					onSubmit={onSubmit}
-					className="flex min-h-0 flex-1 flex-col"
-				>
+				<form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
 					<div className="flex min-h-0 flex-1">
 						{/* Sidebar */}
 						<aside className="flex w-60 shrink-0 flex-col border-r bg-muted/30">
 							<div className="flex flex-col items-center gap-2 p-5 text-center">
-								<Avatar size="lg" className="size-20">
-									<AvatarFallback className="text-lg">
-										{initials}
-									</AvatarFallback>
-								</Avatar>
+								<ImageUpload
+									value={form.watch("profile_image_path") ?? null}
+									onChange={(path) =>
+										form.setValue("profile_image_path", path, {
+											shouldDirty: true,
+										})
+									}
+									entity="customers"
+									entityId={customer?.id ?? null}
+									sizeClass="size-20"
+									layout="stacked"
+								/>
 								<p className="font-semibold text-sm leading-tight">
 									{displayName}
 								</p>
@@ -720,7 +718,11 @@ export function CustomerFormDialog({
 							Cancel
 						</Button>
 						<Button type="submit" disabled={pending}>
-							{pending ? "Saving…" : customer ? "Save changes" : "Create customer"}
+							{pending
+								? "Saving…"
+								: customer
+									? "Save changes"
+									: "Create customer"}
 						</Button>
 					</DialogFooter>
 				</form>

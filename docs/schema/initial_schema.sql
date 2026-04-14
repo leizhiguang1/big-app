@@ -7,7 +7,7 @@
 --   Services:      service_categories, services
 --   Customers:     customers
 --   Roster:        employee_shifts
---   Appointments:  appointments, billing_entries (JSONB items per save click)
+--   Appointments:  appointments, appointment_line_items (+ _consumables, _incentives)
 --   Sales:         sales_orders, sale_items, payments, cancellations
 --
 -- Conventions:
@@ -255,7 +255,7 @@ CREATE TABLE customers (
   salutation           TEXT NOT NULL,          -- Mr, Ms, Mrs, Dr
   gender               TEXT,                   -- male, female
   date_of_birth        DATE,
-  profile_image_url    TEXT,
+  profile_image_path   TEXT,
 
   -- Identification
   id_type              TEXT NOT NULL DEFAULT 'ic'
@@ -397,22 +397,40 @@ CREATE TABLE appointments (
 
 
 -- 7.2 Billing entries — session bundles of work done during an appointment.
---     One row per "Save Billing" click. `items` is a JSONB array of line objects.
---     This matches the current aoikumo prototype and preserves save-session grouping.
---     Shape of each items[i]:
---       { serviceId, itemName, quantity, unitPrice, total, notes }
---     See docs/modules/04-sales.md.
-CREATE TABLE billing_entries (
-  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  appointment_id     UUID NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
-  customer_id        UUID REFERENCES customers(id) ON DELETE SET NULL,
-  items              JSONB NOT NULL DEFAULT '[]',
-  frontdesk_message  TEXT,
-  total              NUMERIC(10,2) NOT NULL DEFAULT 0
-                     CHECK (total >= 0),
-  created_by         UUID REFERENCES employees(id) ON DELETE SET NULL,
-  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+--     appointment_line_items — one row per line item on an appointment.
+--     Originally named `billing_entries`; renamed 2026-04-15 to reflect its
+--     dual role as clinical record + billing cart. See docs/modules/02-appointments.md
+--     "Why line items live in one table".
+CREATE TABLE appointment_line_items (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  appointment_id UUID NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
+  item_type      TEXT NOT NULL DEFAULT 'service'
+                 CHECK (item_type IN ('service', 'product', 'charge')),
+  service_id     UUID REFERENCES services(id) ON DELETE SET NULL,
+  description    TEXT NOT NULL,
+  quantity       NUMERIC(10,2) NOT NULL DEFAULT 1
+                 CHECK (quantity > 0),
+  unit_price     NUMERIC(10,2) NOT NULL
+                 CHECK (unit_price >= 0),
+  total          NUMERIC(12,2),
+  notes          TEXT,
+  created_by     UUID REFERENCES employees(id) ON DELETE SET NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 7.3 Hands-on incentives per line item — employee attribution, no commission fields.
+-- (Consumables intentionally have no child table — they're read from
+-- services.consumables free-text. A sibling appointment_line_item_consumables
+-- table existed briefly and was dropped the same day; see docs/modules/02-appointments.md.)
+CREATE TABLE appointment_line_item_incentives (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  line_item_id UUID NOT NULL REFERENCES appointment_line_items(id) ON DELETE CASCADE,
+  employee_id  UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  created_by   UUID REFERENCES employees(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (line_item_id, employee_id)
 );
 
 
@@ -548,8 +566,9 @@ CREATE INDEX idx_appointments_customer     ON appointments (customer_id);
 CREATE INDEX idx_appointments_employee     ON appointments (employee_id);
 
 -- Billing entries
-CREATE INDEX idx_billing_entries_appointment ON billing_entries (appointment_id);
-CREATE INDEX idx_billing_entries_customer    ON billing_entries (customer_id);
+CREATE INDEX idx_appointment_line_items_appointment ON appointment_line_items (appointment_id);
+CREATE INDEX idx_alii_line_item ON appointment_line_item_incentives (line_item_id);
+CREATE INDEX idx_alii_employee  ON appointment_line_item_incentives (employee_id);
 
 -- Sales orders
 CREATE INDEX idx_sales_orders_customer    ON sales_orders (customer_id);
@@ -611,8 +630,12 @@ CREATE TRIGGER trg_appointments_updated_at
   BEFORE UPDATE ON appointments
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
-CREATE TRIGGER trg_billing_entries_updated_at
-  BEFORE UPDATE ON billing_entries
+CREATE TRIGGER trg_appointment_line_items_updated_at
+  BEFORE UPDATE ON appointment_line_items
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_appointment_line_item_incentives_updated_at
+  BEFORE UPDATE ON appointment_line_item_incentives
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 CREATE TRIGGER trg_sales_orders_updated_at
@@ -637,7 +660,8 @@ ALTER TABLE services                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE employee_shifts            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE appointments               ENABLE ROW LEVEL SECURITY;
-ALTER TABLE billing_entries            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE appointment_line_items             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE appointment_line_item_incentives   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sales_orders               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sale_items                 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments                   ENABLE ROW LEVEL SECURITY;
@@ -655,7 +679,8 @@ CREATE POLICY authenticated_access ON services                   FOR ALL USING (
 CREATE POLICY authenticated_access ON customers                  FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY authenticated_access ON employee_shifts            FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY authenticated_access ON appointments               FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY authenticated_access ON billing_entries            FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY authenticated_access ON appointment_line_items                FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY authenticated_access ON appointment_line_item_incentives      FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY authenticated_access ON sales_orders               FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY authenticated_access ON sale_items                 FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY authenticated_access ON payments                   FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');

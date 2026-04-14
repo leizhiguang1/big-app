@@ -34,12 +34,9 @@ export function ServicePickerDialog({
 		const q = query.trim().toLowerCase();
 		if (!q) return services;
 		return services.filter((s) => {
-			const haystack = [
-				s.name,
-				s.sku,
-				s.category?.name ?? "",
-				s.type,
-			].join(" ").toLowerCase();
+			const haystack = [s.name, s.sku, s.category?.name ?? "", s.type]
+				.join(" ")
+				.toLowerCase();
 			return haystack.includes(q);
 		});
 	}, [services, query]);

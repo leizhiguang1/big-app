@@ -60,12 +60,12 @@ _Deep dive each module in this order. For each: spec the detailed fields, write 
 | Milestone | Status |
 |-----------|--------|
 | Surface pass (all modules) | Done |
-| PRD v1 (structure, modules, dependency map, phases) | Done |
-| Architecture decisions | Done ([ARCHITECTURE.md](./ARCHITECTURE.md)) |
-| Module deep dives (Phase 1 modules) | **7/7 done** — Outlets, Employees, Services, Customers, Roster, Appointments, Sales |
-| Database schema v1 | Done ([initial_schema.sql](./schema/initial_schema.sql) + [seed.sql](./schema/seed.sql)) |
-| New repo setup | Doc ready ([NEW_REPO_SETUP.md](./NEW_REPO_SETUP.md)) |
-| Development | **Ready to start** in new repo |
+| PRD v1 (structure, modules, dependency map, phases) | Done — being refreshed as build reveals deviations |
+| Architecture decisions | Done ([ARCHITECTURE.md](./ARCHITECTURE.md)). wa-connector integration decision updated 2026-04-14. |
+| Module deep dives (Phase 1 modules) | **7/7 drafted** (Outlets, Employees, Services, Customers, Roster, Appointments, Sales) + Auth stub + Inventory stub. Mid-build refresh in progress. |
+| Database schema | Incremental per-module via Supabase MCP. `initial_schema.sql` is **reference target only** — never applied. ~17 tables live. See [SCHEMA.md](./SCHEMA.md) for inventory + ownership rules. |
+| New repo setup | Superseded — this IS the big-app repo. [NEW_REPO_SETUP.md](./NEW_REPO_SETUP.md) kept as historical kickoff context. |
+| Development | **In progress.** Phase 1 golden path (booking → collect payment) is wired end-to-end for the happy path. Auth, cancellations, and Dashboard still outstanding. |
 
 ## Key Files to Read First (For New Conversations)
 

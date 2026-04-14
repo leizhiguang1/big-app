@@ -14,6 +14,164 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointment_line_item_incentives: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          employee_id: string
+          id: string
+          line_item_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          employee_id: string
+          id?: string
+          line_item_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string
+          id?: string
+          line_item_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_line_item_incentives_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_line_item_incentives_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_line_item_incentives_line_item_id_fkey"
+            columns: ["line_item_id"]
+            isOneToOne: false
+            referencedRelation: "appointment_line_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointment_line_items: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          item_type: string
+          notes: string | null
+          quantity: number
+          service_id: string | null
+          total: number | null
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          item_type?: string
+          notes?: string | null
+          quantity?: number
+          service_id?: string | null
+          total?: number | null
+          unit_price: number
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          item_type?: string
+          notes?: string | null
+          quantity?: number
+          service_id?: string | null
+          total?: number | null
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_line_items_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_line_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_line_items_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointment_status_log: {
+        Row: {
+          appointment_id: string
+          changed_at: string
+          changed_by: string | null
+          from_status: string | null
+          id: string
+          to_status: string
+        }
+        Insert: {
+          appointment_id: string
+          changed_at?: string
+          changed_by?: string | null
+          from_status?: string | null
+          id?: string
+          to_status: string
+        }
+        Update: {
+          appointment_id?: string
+          changed_at?: string
+          changed_by?: string | null
+          from_status?: string | null
+          id?: string
+          to_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_status_log_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_status_log_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           block_title: string | null
@@ -138,73 +296,6 @@ export type Database = {
           },
         ]
       }
-      billing_entries: {
-        Row: {
-          appointment_id: string
-          created_at: string
-          created_by: string | null
-          description: string
-          id: string
-          item_type: string
-          notes: string | null
-          quantity: number
-          service_id: string | null
-          total: number | null
-          unit_price: number
-          updated_at: string
-        }
-        Insert: {
-          appointment_id: string
-          created_at?: string
-          created_by?: string | null
-          description: string
-          id?: string
-          item_type?: string
-          notes?: string | null
-          quantity?: number
-          service_id?: string | null
-          total?: number | null
-          unit_price: number
-          updated_at?: string
-        }
-        Update: {
-          appointment_id?: string
-          created_at?: string
-          created_by?: string | null
-          description?: string
-          id?: string
-          item_type?: string
-          notes?: string | null
-          quantity?: number
-          service_id?: string | null
-          total?: number | null
-          unit_price?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "billing_entries_appointment_id_fkey"
-            columns: ["appointment_id"]
-            isOneToOne: false
-            referencedRelation: "appointments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "billing_entries_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "billing_entries_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "services"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       case_notes: {
         Row: {
           appointment_id: string | null
@@ -284,7 +375,7 @@ export type Database = {
           phone: string
           phone2: string | null
           postcode: string | null
-          profile_image_url: string | null
+          profile_image_path: string | null
           salutation: string
           source: string | null
           state: string | null
@@ -316,7 +407,7 @@ export type Database = {
           phone: string
           phone2?: string | null
           postcode?: string | null
-          profile_image_url?: string | null
+          profile_image_path?: string | null
           salutation: string
           source?: string | null
           state?: string | null
@@ -348,7 +439,7 @@ export type Database = {
           phone?: string
           phone2?: string | null
           postcode?: string | null
-          profile_image_url?: string | null
+          profile_image_path?: string | null
           salutation?: string
           source?: string | null
           state?: string | null
@@ -500,6 +591,7 @@ export type Database = {
           phone2: string | null
           position_id: string | null
           postcode: string | null
+          profile_image_path: string | null
           role_id: string | null
           salutation: string | null
           start_date: string | null
@@ -536,6 +628,7 @@ export type Database = {
           phone2?: string | null
           position_id?: string | null
           postcode?: string | null
+          profile_image_path?: string | null
           role_id?: string | null
           salutation?: string | null
           start_date?: string | null
@@ -572,6 +665,7 @@ export type Database = {
           phone2?: string | null
           position_id?: string | null
           postcode?: string | null
+          profile_image_path?: string | null
           role_id?: string | null
           salutation?: string | null
           start_date?: string | null
@@ -757,6 +851,73 @@ export type Database = {
           wa_connection_id?: string | null
         }
         Relationships: []
+      }
+      passcodes: {
+        Row: {
+          applied_on: string | null
+          created_at: string
+          created_by_employee_id: string | null
+          expires_at: string
+          function: string
+          id: string
+          outlet_id: string
+          passcode: string
+          remarks: string | null
+          updated_at: string
+          used_at: string | null
+          used_by_employee_id: string | null
+        }
+        Insert: {
+          applied_on?: string | null
+          created_at?: string
+          created_by_employee_id?: string | null
+          expires_at?: string
+          function: string
+          id?: string
+          outlet_id: string
+          passcode: string
+          remarks?: string | null
+          updated_at?: string
+          used_at?: string | null
+          used_by_employee_id?: string | null
+        }
+        Update: {
+          applied_on?: string | null
+          created_at?: string
+          created_by_employee_id?: string | null
+          expires_at?: string
+          function?: string
+          id?: string
+          outlet_id?: string
+          passcode?: string
+          remarks?: string | null
+          updated_at?: string
+          used_at?: string | null
+          used_by_employee_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "passcodes_created_by_employee_id_fkey"
+            columns: ["created_by_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "passcodes_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "passcodes_used_by_employee_id_fkey"
+            columns: ["used_by_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payments: {
         Row: {
@@ -1597,3 +1758,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

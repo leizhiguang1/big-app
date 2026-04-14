@@ -368,9 +368,9 @@ export function AppointmentDialog({
 					<form
 						ref={formRef}
 						onSubmit={onSubmit}
-						className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+						className="flex min-h-0 flex-1 flex-col"
 					>
-						<div className="flex flex-col gap-5 p-5">
+						<div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-5">
 							{/* Booking mode tabs */}
 							<div className="grid grid-cols-2 overflow-hidden rounded-md border">
 								{(
@@ -644,7 +644,6 @@ export function AppointmentDialog({
 									{...form.register("notes")}
 								/>
 							</Field>
-
 						</div>
 
 						<DialogFooter className="flex flex-col gap-2 border-t bg-muted/20 px-4 py-3 sm:flex-col sm:items-stretch">
@@ -660,39 +659,39 @@ export function AppointmentDialog({
 								);
 							})()}
 							<div className="flex items-center justify-between gap-2">
-							<div>
-								{appointment && (
+								<div>
+									{appointment && (
+										<Button
+											type="button"
+											variant="destructive"
+											size="sm"
+											onClick={() => setConfirmOpen(true)}
+											disabled={pending}
+										>
+											<Trash2 className="size-4" />
+											Delete
+										</Button>
+									)}
+								</div>
+								<div className="flex gap-2">
 									<Button
 										type="button"
-										variant="destructive"
+										variant="outline"
 										size="sm"
-										onClick={() => setConfirmOpen(true)}
-										disabled={pending}
+										onClick={onClose}
 									>
-										<Trash2 className="size-4" />
-										Delete
+										Cancel
 									</Button>
-								)}
-							</div>
-							<div className="flex gap-2">
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={onClose}
-								>
-									Cancel
-								</Button>
-								<Button type="submit" size="sm" disabled={pending}>
-									{pending
-										? "Saving…"
-										: appointment
-											? "Save changes"
-											: isBlock
-												? "Block slot"
-												: "Create"}
-								</Button>
-							</div>
+									<Button type="submit" size="sm" disabled={pending}>
+										{pending
+											? "Saving…"
+											: appointment
+												? "Save changes"
+												: isBlock
+													? "Block slot"
+													: "Create"}
+									</Button>
+								</div>
 							</div>
 						</DialogFooter>
 					</form>

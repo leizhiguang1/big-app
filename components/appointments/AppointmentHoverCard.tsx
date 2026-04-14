@@ -157,9 +157,7 @@ export function AppointmentHoverCard({ appointment: a, anchor }: Props) {
 						<div className="uppercase text-slate-500">{employeeName}</div>
 					)}
 
-					{a.room?.name && (
-						<div className="text-slate-500">{a.room.name}</div>
-					)}
+					{a.room?.name && <div className="text-slate-500">{a.room.name}</div>}
 
 					{leadAttendedByName && (
 						<div>

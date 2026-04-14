@@ -4,16 +4,18 @@ import { Button } from "@/components/ui/button";
 import { getServerContext } from "@/lib/context/server";
 import { NotFoundError } from "@/lib/errors";
 import {
+	type CustomerLineItem,
+	listIncentivesForAppointment,
+	listLineItemsForAppointment,
+	listLineItemsForCustomer,
+} from "@/lib/services/appointment-line-items";
+import {
 	type AppointmentWithRelations,
 	type CustomerAppointmentSummary,
 	getAppointment,
+	listAppointmentStatusLog,
 	listCustomerAppointments,
 } from "@/lib/services/appointments";
-import {
-	type CustomerBillingEntry,
-	listBillingEntriesForAppointment,
-	listBillingEntriesForCustomer,
-} from "@/lib/services/billing-entries";
 import {
 	type CaseNoteWithAuthor,
 	listCaseNotesForCustomer,
@@ -47,33 +49,37 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 			? listCaseNotesForCustomer(ctx, appointment.customer_id)
 			: Promise.resolve([]);
 
-	const customerBillingPromise: Promise<CustomerBillingEntry[]> =
+	const customerLineItemsPromise: Promise<CustomerLineItem[]> =
 		appointment.customer_id
-			? listBillingEntriesForCustomer(ctx, appointment.customer_id)
+			? listLineItemsForCustomer(ctx, appointment.customer_id)
 			: Promise.resolve([]);
 
 	const [
-		billingEntries,
+		lineItems,
+		incentives,
 		customerHistory,
 		caseNotes,
-		customerBillingHistory,
+		customerLineItemsHistory,
 		customers,
 		employees,
 		rooms,
 		services,
 		outlets,
 		allEmployees,
+		statusLog,
 	] = await Promise.all([
-		listBillingEntriesForAppointment(ctx, id),
+		listLineItemsForAppointment(ctx, id),
+		listIncentivesForAppointment(ctx, id),
 		customerHistoryPromise,
 		caseNotesPromise,
-		customerBillingPromise,
+		customerLineItemsPromise,
 		listCustomers(ctx),
 		listBookableEmployeesForOutlet(ctx, appointment.outlet_id),
 		listRooms(ctx, appointment.outlet_id),
 		listServices(ctx),
 		listOutlets(ctx),
 		listEmployees(ctx),
+		listAppointmentStatusLog(ctx, id),
 	]);
 
 	const activeOutlets = outlets.filter((o) => o.is_active);
@@ -84,16 +90,18 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 	return (
 		<AppointmentDetailView
 			appointment={appointment}
-			billingEntries={billingEntries}
+			lineItems={lineItems}
+			incentives={incentives}
 			customerHistory={customerHistory}
 			caseNotes={caseNotes}
-			customerBillingHistory={customerBillingHistory}
+			customerLineItemsHistory={customerLineItemsHistory}
 			customers={customers}
 			employees={employees}
 			rooms={activeRooms}
 			services={activeServices}
 			allOutlets={activeOutlets}
 			allEmployees={activeAllEmployees}
+			statusLog={statusLog}
 		/>
 	);
 }

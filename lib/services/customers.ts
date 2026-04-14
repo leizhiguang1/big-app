@@ -32,7 +32,7 @@ function normalize(input: unknown) {
 		last_name: nz(p.last_name),
 		gender: p.gender ?? null,
 		date_of_birth: nz(p.date_of_birth),
-		profile_image_url: nz(p.profile_image_url),
+		profile_image_path: p.profile_image_path ?? null,
 		id_type: p.id_type,
 		id_number: nz(p.id_number),
 		phone: p.phone,

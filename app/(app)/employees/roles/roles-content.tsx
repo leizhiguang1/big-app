@@ -1,5 +1,5 @@
 import { NewRoleButton } from '@/components/employees/RoleForm'
-import { RolesTable } from '@/components/employees/RolesTable'
+import { RolesPermissionMatrix } from '@/components/employees/RolesPermissionMatrix'
 import { getServerContext } from '@/lib/context/server'
 import { listRoles } from '@/lib/services/roles'
 
@@ -15,7 +15,7 @@ export async function RolesContent() {
         </p>
         <NewRoleButton />
       </div>
-      <RolesTable roles={roles} />
+      <RolesPermissionMatrix roles={roles} />
     </div>
   )
 }

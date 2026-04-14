@@ -1,6 +1,12 @@
 "use client";
 
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import {
+	ArrowLeft,
+	ChevronDown,
+	ChevronUp,
+	Pencil,
+	Trash2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
@@ -13,6 +19,8 @@ type Props = {
 	appointment: AppointmentWithRelations;
 	onEdit: () => void;
 	onToast: (message: string, variant?: Toast["variant"]) => void;
+	summaryCollapsed?: boolean;
+	onToggleSummaryCollapse?: () => void;
 };
 
 function appointmentLabel(a: AppointmentWithRelations): string {
@@ -22,7 +30,13 @@ function appointmentLabel(a: AppointmentWithRelations): string {
 	return a.lead_name ?? "Walk-in";
 }
 
-export function DetailHeader({ appointment, onEdit, onToast }: Props) {
+export function DetailHeader({
+	appointment,
+	onEdit,
+	onToast,
+	summaryCollapsed = false,
+	onToggleSummaryCollapse,
+}: Props) {
 	const router = useRouter();
 	const [deleteOpen, setDeleteOpen] = useState(false);
 	const [pending, startTransition] = useTransition();
@@ -49,22 +63,47 @@ export function DetailHeader({ appointment, onEdit, onToast }: Props) {
 	return (
 		<>
 			<div className="flex items-center justify-between gap-3">
-				<div className="flex items-center gap-3">
+				<div className="flex min-w-0 items-center gap-3">
 					<Button
 						type="button"
 						variant="ghost"
 						size="sm"
 						onClick={handleBack}
-						className="gap-1"
+						className="shrink-0 gap-1"
 					>
 						<ArrowLeft className="size-4" />
 						Back
 					</Button>
-					<div>
-						<div className="text-lg font-semibold leading-tight">{label}</div>
-						<div className="text-muted-foreground text-xs tabular-nums">
-							{appointment.booking_ref}
+					<div className="flex min-w-0 items-center gap-1">
+						<div className="min-w-0">
+							<div className="truncate text-lg font-semibold leading-tight">
+								{label}
+							</div>
+							<div className="text-muted-foreground text-xs tabular-nums">
+								{appointment.booking_ref}
+							</div>
 						</div>
+						{onToggleSummaryCollapse && (
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon"
+								className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+								onClick={onToggleSummaryCollapse}
+								title={summaryCollapsed ? "Expand" : "Collapse"}
+								aria-label={
+									summaryCollapsed
+										? "Expand customer and appointment summary"
+										: "Collapse customer and appointment summary"
+								}
+							>
+								{summaryCollapsed ? (
+									<ChevronDown className="size-4" />
+								) : (
+									<ChevronUp className="size-4" />
+								)}
+							</Button>
+						)}
 					</div>
 				</div>
 				<div className="flex items-center gap-2">

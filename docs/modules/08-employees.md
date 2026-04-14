@@ -100,7 +100,6 @@ Employees are rostered to outlets via the `employee_outlets` junction table (add
 
 **Still deferred:**
 - Outlet picker in the EmployeeForm. The `employee_outlets` table exists and is populated by seed, but the form does not yet let you assign outlets — and the listing has no Outlet column. Next slice.
-- Photo upload → later (storage bucket + RLS).
 - "Active user count" badge ("2 of 5 user license used") → only meaningful after a license cap exists.
 - Permission **enforcement** → role flags are stored but no guard/evaluator reads them yet. Added when we wire RBAC module-by-module.
 - Commission tables → Phase 2. `monthly_sales_target` is the only Phase-2 input we're storing early so the form is feature-complete.

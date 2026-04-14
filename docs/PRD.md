@@ -32,7 +32,7 @@ This is why code and UI say "customer", never "patient"; why the schema has no d
 
 Full details in [ARCHITECTURE.md](./ARCHITECTURE.md). In one paragraph:
 
-Two systems — a clinic app (all-in-one, Next.js + Supabase) and a WhatsApp service (standalone Node.js + Baileys + own Postgres). Automation/workflows live inside the clinic app as a module, extractable later. Single-tenant deployment first; design stays brand-agnostic so multi-tenant can be added without restructuring.
+Two processes — a clinic app (all-in-one, Next.js + Supabase) and **wa-connector** (standalone Node.js + Baileys, separate repo). wa-connector runs on its own but **shares the big-app Supabase project**, isolated in a dedicated `wa_service` Postgres schema (plus a handful of legacy `public.wa_*` / `public.messages` tables also owned by wa-connector). Automation/workflows live inside the clinic app as a module, extractable later. Single-tenant deployment first; design stays brand-agnostic so multi-tenant can be added without restructuring. See [ARCHITECTURE.md §2](./ARCHITECTURE.md#2-whatsapp--separate-service-wa-connector-shared-supabase-project-via-isolated-schema-fork-and-strip-build) for the full boundary + schema-ownership rules.
 
 ---
 
@@ -120,7 +120,7 @@ _One-paragraph reminder of what each module does. Anything with a deep-dive doc 
 Welcome screen. 6 chart panels filterable by outlet: appointments trend, new clients trend, transactions trend, plus matching bar-chart overviews. Read-only — no writes. Depends on Appointments, Customers, Sales being populated.
 
 ### 5.2 Appointments
-Weekly calendar with color-coded blocks. Filter by outlet → then by employee OR room. Click block → popup with customer/service/status/created-by. Views: week / day / list. Status machine: `scheduled → confirmed → in_progress → completed` (or `cancelled` / `no_show`). Core integration point — touches customers, employees, services, rooms, billing, roster.
+Weekly calendar with color-coded blocks. Filter by outlet → then by employee OR room. Click block → detail view with customer/services/status/created-by, billing, case notes, collect-payment. Views: week / day / list. Live status machine: `pending → confirmed → arrived → started → billing → completed` (or `noshow`). No `cancelled` status — deleting an appointment is a hard delete. Core integration point — touches customers, employees, services, rooms, billing, roster. See [02-appointments.md](./modules/02-appointments.md).
 
 ### 5.3 Customers
 See [03-customers.md](./modules/03-customers.md).
@@ -213,14 +213,14 @@ Settings grid with 12+ config areas. Many things are configurable rather than ha
 |-------|------|---------|
 | **1 — Foundation** | Booking-to-payment flow works end-to-end | Outlets · Employees · Services · Customers · Roster · Appointments · Sales · Auth · basic Dashboard |
 | **2 — Operational depth** | Flesh out what Phase 1 left at 80% | Customer clinical tabs · Inventory · Reports · Config UI · Clock in/out · Manual transactions |
-| **3 — Messaging & automation** | Communication layer | WhatsApp service · CRM contacts · Automation engine · AI assistant |
+| **3 — Messaging & automation** | Communication layer (blocked on wa-connector V2 — REST API + API keys + webhook layer — shipping first) | wa-connector integration · CRM contacts · Automation engine · AI assistant |
 | **4 — Scale & platform** | Become a platform | Multi-tenant · Multi-brand · Cross-industry · Mobile app · Online booking portal |
 
 ---
 
 ## 8. Database Schema
 
-See [SCHEMA.md](./SCHEMA.md). Current state: 16 tables across 6 modules. The SQL lives at [schema/initial_schema.sql](./schema/initial_schema.sql) and is kept in sync with module deep-dives as we go.
+See [SCHEMA.md](./SCHEMA.md). Current state: ~17 Phase 1 tables built across 7 modules (Foundation, Services, Customers, Roster, Appointments, Sales, Inventory stub) plus `case_notes` pulled forward from Phase 2. One target table (`cancellations`) is deferred. The live schema is grown per-module via Supabase MCP migrations — [schema/initial_schema.sql](./schema/initial_schema.sql) is a **reference target only** and is not applied as-is. Run `mcp__big-supabase__list_tables` for the authoritative live state.
 
 **v2 schema fixes vs. prototype:**
 - Remove denormalized text fields (customer_name alongside customer_id etc.)
@@ -252,9 +252,9 @@ _Answered from codebase analysis + discussion._
 12. **Config granularity.** Punt per setting. Most Phase 1 config hardcoded; progressive UI from Phase 2.
 13. **Clock in/out.** Simple timestamp log in Phase 1. No geolocation.
 14. **Appointment duration.** Default comes from `services.duration_min`, staff can override `end_at` per appointment.
-15. **Billing items vs sale items — two tables, different shapes.** `billing_entries` (JSONB items array, one row per "Save Billing") during the appointment; `sale_items` (normalized) on the committed sales order. Matches the working prototype exactly. See [04-sales.md](./modules/04-sales.md) and [SCHEMA.md §9](./SCHEMA.md).
+15. **Line items vs sale items — two tables, both normalized.** `appointment_line_items` (originally named `billing_entries`; renamed 2026-04-15) is mutable workspace state on an open appointment — it's both the clinical record of what was performed AND the billing cart that Collect Payment reads from. `sale_items` is the immutable financial record snapshotted from line items when staff clicks "Collect Payment" and the sales order is committed. Both are normalized row-per-line — the earlier JSONB `items` array design was dropped during the Appointments build. See [04-sales.md](./modules/04-sales.md) and [SCHEMA.md §9](./SCHEMA.md).
 16. **Appointments calendar.** Keep the prototype's implementation — three display styles (calendar/list/grid) × three time scopes (day/week/month), unified room/employee resource filter. Already working; v2 preserves behaviour.
-17. **Multi-service per appointment.** Single `service_id` on the appointment row = the primary/booked service. Extras go into billing entries. Dentist can override prices inline.
+17. **Multi-service per appointment.** Appointments have no `service_id` column — the primary booked service lives as the first row in `appointment_line_items`, and additional services are just more rows. Dentist can override prices inline on any line. (An earlier draft proposed a `service_id` on the appointment row as "the primary/booked service"; that was dropped during the Appointments build because it duplicated information that was always going to live in line items anyway. The table was itself renamed from `billing_entries` on 2026-04-15 to reflect its dual role as clinical record + billing cart.)
 18. **`is_active` is now opt-in.** Soft-delete columns only land when a concrete use case (FK breakage, audit history) forces them. Default is hard delete with `ON DELETE RESTRICT`. Existing tables that already carry `is_active` (employees, outlets, roles, positions, services) keep it — the new rule applies going forward only. See [CLAUDE.md](../CLAUDE.md) schema conventions rule 4.
 19. **Customer identifier format.** Customers use the standard `CUS-00000001` code generated by the shared `gen_code` trigger, not a per-outlet membership format like `BDK260790`. Per-outlet prefixes don't help multi-tenancy (outlets belong to tenants too, so the Phase 4 migration is the same symmetric `UNIQUE(code) → UNIQUE(tenant_id, code)` flip regardless of format) and keeping one code convention across entities is simpler. See [modules/03-customers.md](./modules/03-customers.md).
 20. **Customer IC vs passport.** Single `id_type` (`'ic' | 'passport'`) + `id_number` pair. Form shows an IC/Passport toggle that swaps the label and validation. No separate columns.
@@ -266,6 +266,8 @@ _Answered from codebase analysis + discussion._
 
 _None blocking Phase 1 build. Things to revisit during development:_
 
+- **WhatsApp integration pattern — mirror vs match-on-arrival.** Deferred until Phase 3. When wa-connector V2 ships (REST API + API keys + webhook layer) we'll decide whether big-app mirrors wa-connector's contacts/messages into local tables or matches `from_phone` against `customers.phone` on each webhook. Neither is implemented; `app/api/webhooks/whatsapp/` exists only as an empty placeholder.
+- **Legacy `public.wa_*` + `public.messages` tables + `wa_service.*` schema.** Owned by wa-connector even though they live in big-app's Supabase project. Big-app never writes migrations against them — any WA schema change is done from the wa-connector repo. See [ARCHITECTURE.md §2](./ARCHITECTURE.md) and [SCHEMA.md](./SCHEMA.md) "Schemas owned by other services".
 - **Transaction safety on "Collect Payment".** The current prototype fires `INSERT sales_orders`, `INSERT sale_items`, `INSERT payments` sequentially without a transaction wrapper. v2 must wrap these in a Supabase RPC or a server-action transaction.
 - **Overlap enforcement on appointments.** Currently soft warning. If clinics complain about double-bookings, tighten to a hard block via partial unique index on `(employee_id, tstzrange(start_at, end_at))`.
 - **Phase 2 service → inventory BOM.** Shape TBD — likely `service_products` with `(service_id, product_id, quantity_consumed)`.

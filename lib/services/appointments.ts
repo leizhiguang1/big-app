@@ -21,10 +21,13 @@ export type AppointmentWithRelations = Appointment & {
 		first_name: string;
 		last_name: string | null;
 		phone: string;
+		phone2: string | null;
 		email: string | null;
 		date_of_birth: string | null;
 		gender: string | null;
 		id_number: string | null;
+		source: string | null;
+		profile_image_path: string | null;
 	} | null;
 	employee: {
 		id: string;
@@ -46,7 +49,7 @@ export type AppointmentWithRelations = Appointment & {
 };
 
 const SELECT_WITH_RELATIONS =
-	"*, customer:customers!appointments_customer_id_fkey(id, code, first_name, last_name, phone, email, date_of_birth, gender, id_number), employee:employees!appointments_employee_id_fkey(id, code, first_name, last_name), room:rooms!appointments_room_id_fkey(id, name), lead_attended_by:employees!appointments_lead_attended_by_id_fkey(id, first_name, last_name), created_by_employee:employees!appointments_created_by_fkey(id, first_name, last_name)";
+	"*, customer:customers!appointments_customer_id_fkey(id, code, first_name, last_name, phone, phone2, email, date_of_birth, gender, id_number, source, profile_image_path), employee:employees!appointments_employee_id_fkey(id, code, first_name, last_name), room:rooms!appointments_room_id_fkey(id, name), lead_attended_by:employees!appointments_lead_attended_by_id_fkey(id, first_name, last_name), created_by_employee:employees!appointments_created_by_fkey(id, first_name, last_name)";
 
 function nz<T>(value: T | undefined | null): T | null {
 	return value === undefined || value === null ? null : value;
@@ -124,7 +127,22 @@ export async function createAppointment(
 			throw new ConflictError("Referenced record no longer exists");
 		throw new ValidationError(error.message);
 	}
+	await logStatusChange(ctx, data.id, null, data.status);
 	return data;
+}
+
+async function logStatusChange(
+	ctx: Context,
+	appointmentId: string,
+	fromStatus: string | null,
+	toStatus: string,
+): Promise<void> {
+	await ctx.db.from("appointment_status_log").insert({
+		appointment_id: appointmentId,
+		from_status: fromStatus,
+		to_status: toStatus,
+		changed_by: ctx.currentUser?.employeeId ?? null,
+	});
 }
 
 export async function updateAppointment(
@@ -133,6 +151,11 @@ export async function updateAppointment(
 	input: unknown,
 ): Promise<Appointment> {
 	const row = normalize(input);
+	const { data: prev } = await ctx.db
+		.from("appointments")
+		.select("status")
+		.eq("id", id)
+		.single();
 	const { data, error } = await ctx.db
 		.from("appointments")
 		.update(row)
@@ -141,6 +164,9 @@ export async function updateAppointment(
 		.single();
 	if (error) throw new ValidationError(error.message);
 	if (!data) throw new NotFoundError(`Appointment ${id} not found`);
+	if (prev && prev.status !== data.status) {
+		await logStatusChange(ctx, id, prev.status, data.status);
+	}
 	return data;
 }
 
@@ -173,6 +199,11 @@ export async function setAppointmentStatus(
 	input: unknown,
 ): Promise<Appointment> {
 	const p = appointmentStatusSchema.parse(input);
+	const { data: prev } = await ctx.db
+		.from("appointments")
+		.select("status")
+		.eq("id", id)
+		.single();
 	const { data, error } = await ctx.db
 		.from("appointments")
 		.update({ status: p.status })
@@ -181,7 +212,37 @@ export async function setAppointmentStatus(
 		.single();
 	if (error) throw new ValidationError(error.message);
 	if (!data) throw new NotFoundError(`Appointment ${id} not found`);
+	if (prev && prev.status !== data.status) {
+		await logStatusChange(ctx, id, prev.status, data.status);
+	}
 	return data;
+}
+
+export type AppointmentStatusLogEntry = {
+	id: string;
+	from_status: string | null;
+	to_status: string;
+	changed_at: string;
+	changed_by: {
+		id: string;
+		first_name: string;
+		last_name: string;
+	} | null;
+};
+
+export async function listAppointmentStatusLog(
+	ctx: Context,
+	appointmentId: string,
+): Promise<AppointmentStatusLogEntry[]> {
+	const { data, error } = await ctx.db
+		.from("appointment_status_log")
+		.select(
+			"id, from_status, to_status, changed_at, changed_by:employees!appointment_status_log_changed_by_fkey(id, first_name, last_name)",
+		)
+		.eq("appointment_id", appointmentId)
+		.order("changed_at", { ascending: false });
+	if (error) throw new ValidationError(error.message);
+	return (data ?? []) as unknown as AppointmentStatusLogEntry[];
 }
 
 export async function setAppointmentPayment(

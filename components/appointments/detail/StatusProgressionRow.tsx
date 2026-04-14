@@ -24,12 +24,12 @@ export function StatusProgressionRow({ appointment, onToast }: Props) {
 		AppointmentStatus,
 		AppointmentStatus
 	>(initial, (_prev, next) => next);
-	const [pending, startTransition] = useTransition();
+	const [, startTransition] = useTransition();
 	const { showStatusToast, suppressNextRealtime } =
 		useAppointmentNotifications();
 
 	const handleClick = (status: AppointmentStatus) => {
-		if (status === optimistic || pending) return;
+		if (status === optimistic) return;
 		const notif = APPOINTMENT_STATUS_NOTIFICATIONS[status];
 		suppressNextRealtime(appointment.id, status);
 		if (notif.enabled) {
@@ -78,13 +78,11 @@ export function StatusProgressionRow({ appointment, onToast }: Props) {
 						key={s}
 						type="button"
 						onClick={() => handleClick(s)}
-						disabled={pending}
 						className={cn(
 							"inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 font-semibold text-[11px] uppercase tracking-wide transition sm:px-3 sm:text-xs",
 							isActive
 								? "border-transparent text-white shadow-sm"
 								: "border-border bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-							pending && "cursor-wait opacity-70",
 						)}
 						style={isActive ? { backgroundColor: config.solidHex } : undefined}
 					>

@@ -14,7 +14,7 @@ The customer module handles: registration, profile management, and serves as the
 - **Hard delete** — no `is_active` flag. `ON DELETE RESTRICT` on `home_outlet_id` and `consultant_id` prevents accidental destruction of referenced rows. Soft-delete can be added in a follow-up migration if/when appointments/sales start referencing customers and we need to preserve history.
 - **Create/edit in a modal**, not a new route — matches the Employees UX. One scrollable form grouped into visual sections (Identity / Contact / Address / Clinic / Notifications).
 - **Search**: name, phone, IC/passport number. Plain `ilike` on the server, no debounce, form submit pushes `?q=` to the URL. Simple index on `phone` + `id_number`; name is matched with `ilike` against a computed `first_name || ' ' || last_name` pattern — good enough for current scale, upgrade to a trigram/GIN index later if needed.
-- **Photo column exists, no upload UI** — `profile_image_url` is in the schema but the form doesn't expose it until Supabase Storage is configured.
+- **Photo upload is wired.** The column is now `profile_image_path` (relative path into the Supabase Storage `media` bucket). The customer form uses the shared `<ImageUpload />` component; the public URL is derived via `mediaPublicUrl()` from `lib/storage/urls.ts`.
 - **Consultant is required.** Form defaults to the current user if they are an employee.
 - **IC vs passport** — single `id_type` (`'ic' | 'passport'`) + `id_number` pair, identical shape on `employees`. Form has a radio/toggle that swaps the label ("IC Number" ↔ "Passport Number") and the validation rule. Phase 1 only validates Malaysian IC (`YYMMDD-PB-###G`, 12 digits, optional dashes) in Zod when `id_type = 'ic'`; passport is treated as free-form text for any other nationality. A partial unique index on `(id_number) where id_type='ic'` enforces no duplicate Malaysian ICs at the DB level — passport numbers are deliberately not uniqued because they can legitimately collide across issuing countries. If BIG ever onboards a Singapore clinic, NRIC needs its own validator (different format).
 - **Deferred to later phases:** detail page (profile sidebar + any tab), timeline, case notes, clinical sub-modules, wallet, follow-up, lead management, QR registration, customer merging, VIP workflow beyond the flag itself, address autocomplete.
@@ -103,7 +103,7 @@ _v1 customer creation form fields:_
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
-| profile_image_url | text | No | Column present; no upload UI in v1 (Storage deferred) |
+| profile_image_path | text | No | Relative path in Supabase Storage `media` bucket. Uploaded via `<ImageUpload entity="customers" />`. |
 | first_name | text | Yes | |
 | last_name | text | No | |
 | salutation | text | Yes | Mr, Ms, Mrs, Dr |
@@ -198,7 +198,7 @@ create table public.customers (
   salutation text not null,
   gender text,
   date_of_birth date,
-  profile_image_url text,
+  profile_image_path text,
 
   -- Identification (IC or passport — one field, toggled in the UI)
   id_type text not null default 'ic',  -- 'ic' | 'passport'

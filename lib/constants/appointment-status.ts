@@ -1,11 +1,11 @@
 import {
 	Check,
 	CircleDollarSign,
-	ClipboardCheck,
 	HelpCircle,
 	type LucideIcon,
 	Play,
 	ThumbsUp,
+	UserCheck,
 	UserX,
 } from "lucide-react";
 
@@ -58,7 +58,7 @@ export const APPOINTMENT_STATUS_CONFIG: Record<
 	},
 	arrived: {
 		label: "Arrived",
-		Icon: ClipboardCheck,
+		Icon: UserCheck,
 		border: "border-yellow-500",
 		badge: "bg-yellow-100 text-yellow-800 ring-1 ring-yellow-300",
 		dot: "bg-yellow-500",

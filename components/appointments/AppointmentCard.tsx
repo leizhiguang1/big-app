@@ -100,9 +100,19 @@ export function AppointmentCard({
 					opacity: isDragging ? 0.5 : 1,
 					cursor: draggable ? "grab" : "pointer",
 				}}
-				className="flex flex-col items-start overflow-hidden rounded-sm px-2 py-1.5 text-left text-slate-900 shadow-sm transition hover:shadow-md"
+				className="relative flex flex-col items-start overflow-hidden rounded-sm px-2 py-1.5 text-left text-slate-900 shadow-sm transition hover:shadow-md"
 			>
-				<div className="w-full shrink-0 truncate font-bold text-[12px] leading-tight">
+				{!isBlock && (
+					<sc.Icon
+						aria-label={sc.label}
+						className="absolute top-1 right-1 size-[14px] shrink-0"
+						strokeWidth={2.5}
+						style={{ color: sc.solidHex }}
+					>
+						<title>{sc.label}</title>
+					</sc.Icon>
+				)}
+				<div className="w-full shrink-0 truncate pr-4 font-bold text-[12px] leading-tight">
 					{title}
 				</div>
 				{idLine && (

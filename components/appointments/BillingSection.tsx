@@ -6,16 +6,16 @@ import { ServicePickerDialog } from "@/components/appointments/ServicePickerDial
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-	createBillingEntriesBulkAction,
-	deleteBillingEntryAction,
-	updateBillingEntryAction,
+	createLineItemsBulkAction,
+	deleteLineItemAction,
+	updateLineItemAction,
 } from "@/lib/actions/appointments";
-import type { BillingEntry } from "@/lib/services/billing-entries";
+import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { ServiceWithCategory } from "@/lib/services/services";
 
 type Props = {
 	appointmentId: string;
-	entries: BillingEntry[];
+	entries: AppointmentLineItem[];
 	services: ServiceWithCategory[];
 	onChange: () => void;
 };
@@ -31,7 +31,7 @@ type Item = {
 	notes: string;
 };
 
-function toItem(e: BillingEntry): Item {
+function toItem(e: AppointmentLineItem): Item {
 	return {
 		key: e.id,
 		id: e.id,
@@ -57,7 +57,7 @@ function newDraft(): Item {
 	};
 }
 
-function isDirty(item: Item, entries: BillingEntry[]): boolean {
+function isDirty(item: Item, entries: AppointmentLineItem[]): boolean {
 	if (!item.id) return false;
 	const orig = entries.find((e) => e.id === item.id);
 	if (!orig) return false;
@@ -127,7 +127,7 @@ export function BillingSection({
 		setItems((rows) => rows.filter((r) => r.id !== id));
 		startTransition(async () => {
 			try {
-				await deleteBillingEntryAction(appointmentId, id);
+				await deleteLineItemAction(appointmentId, id);
 				onChange();
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Delete failed");
@@ -161,7 +161,7 @@ export function BillingSection({
 		startTransition(async () => {
 			try {
 				for (const i of dirtyEdits) {
-					await updateBillingEntryAction(appointmentId, i.id!, {
+					await updateLineItemAction(appointmentId, i.id!, {
 						appointment_id: appointmentId,
 						item_type: "service",
 						service_id: i.service_id,
@@ -172,7 +172,7 @@ export function BillingSection({
 					});
 				}
 				if (creates.length > 0) {
-					await createBillingEntriesBulkAction(appointmentId, creates);
+					await createLineItemsBulkAction(appointmentId, creates);
 				}
 				setBatchNote("");
 				onChange();

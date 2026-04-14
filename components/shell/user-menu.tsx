@@ -1,5 +1,5 @@
 import { LogOut, User } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -10,10 +10,26 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getServerContext } from "@/lib/context/server";
+import { mediaPublicUrl } from "@/lib/storage/urls";
 
 export async function UserMenuSlot() {
 	const ctx = await getServerContext();
-	return <UserMenu email={ctx.currentUser?.email ?? null} />;
+	const employeeId = ctx.currentUser?.employeeId ?? null;
+	let imagePath: string | null = null;
+	if (employeeId) {
+		const { data } = await ctx.dbAdmin
+			.from("employees")
+			.select("profile_image_path")
+			.eq("id", employeeId)
+			.maybeSingle();
+		imagePath = data?.profile_image_path ?? null;
+	}
+	return (
+		<UserMenu
+			email={ctx.currentUser?.email ?? null}
+			imageUrl={mediaPublicUrl(imagePath)}
+		/>
+	);
 }
 
 export function UserMenuFallback() {
@@ -31,7 +47,13 @@ export function UserMenuFallback() {
 	);
 }
 
-export function UserMenu({ email }: { email: string | null }) {
+export function UserMenu({
+	email,
+	imageUrl,
+}: {
+	email: string | null;
+	imageUrl?: string | null;
+}) {
 	const initials = (email ?? "??").split("@")[0].slice(0, 2).toUpperCase();
 
 	return (
@@ -43,6 +65,7 @@ export function UserMenu({ email }: { email: string | null }) {
 					className="size-9 rounded-full p-0 data-[state=open]:bg-accent"
 				>
 					<Avatar className="size-8">
+						{imageUrl && <AvatarImage src={imageUrl} alt="" />}
 						<AvatarFallback className="bg-primary text-primary-foreground text-xs">
 							{initials}
 						</AvatarFallback>

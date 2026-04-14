@@ -320,33 +320,22 @@ INSERT INTO appointments (id, booking_ref, customer_id, employee_id, service_id,
 
 
 -- ────────────────────────────────────────────────────────────
--- Billing entries (one row per "Save Billing" click, items as JSONB)
+-- Appointment line items (one row per line — was `billing_entries` JSONB
+-- in the earlier draft; renamed and denormalized 2026-04-15)
 -- ────────────────────────────────────────────────────────────
 
-INSERT INTO billing_entries (appointment_id, customer_id, items, total, created_by) VALUES
-  -- APT000001: Scaling + Fluoride (one save session)
-  ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001',
-   '[
-     {"serviceId":"10000000-0000-0000-0000-000000000004","itemName":"Scaling & Polishing","quantity":1,"unitPrice":120.00,"total":120.00},
-     {"serviceId":"10000000-0000-0000-0000-000000000005","itemName":"Fluoride Treatment","quantity":1,"unitPrice":80.00,"total":80.00}
-   ]'::jsonb,
-   200.00, 'e0000000-0000-0000-0000-000000000001'),
+INSERT INTO appointment_line_items (appointment_id, item_type, service_id, description, quantity, unit_price, created_by) VALUES
+  -- APT000001: Scaling + Fluoride
+  ('30000000-0000-0000-0000-000000000001', 'service', '10000000-0000-0000-0000-000000000004', 'Scaling & Polishing', 1, 120.00, 'e0000000-0000-0000-0000-000000000001'),
+  ('30000000-0000-0000-0000-000000000001', 'service', '10000000-0000-0000-0000-000000000005', 'Fluoride Treatment',  1,  80.00, 'e0000000-0000-0000-0000-000000000001'),
 
-  -- APT000002: X-Ray + 2x Composite Filling (one save session)
-  ('30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000003',
-   '[
-     {"serviceId":"10000000-0000-0000-0000-000000000002","itemName":"X-Ray (Periapical)","quantity":1,"unitPrice":35.00,"total":35.00},
-     {"serviceId":"10000000-0000-0000-0000-000000000007","itemName":"Composite Filling","quantity":2,"unitPrice":150.00,"total":300.00}
-   ]'::jsonb,
-   335.00, 'e0000000-0000-0000-0000-000000000001'),
+  -- APT000002: X-Ray + 2x Composite Filling
+  ('30000000-0000-0000-0000-000000000002', 'service', '10000000-0000-0000-0000-000000000002', 'X-Ray (Periapical)',  1,  35.00, 'e0000000-0000-0000-0000-000000000001'),
+  ('30000000-0000-0000-0000-000000000002', 'service', '10000000-0000-0000-0000-000000000007', 'Composite Filling',   2, 150.00, 'e0000000-0000-0000-0000-000000000001'),
 
-  -- APT000004: X-Ray + Simple Extraction (one save session)
-  ('30000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000004',
-   '[
-     {"serviceId":"10000000-0000-0000-0000-000000000002","itemName":"X-Ray (Periapical)","quantity":1,"unitPrice":35.00,"total":35.00},
-     {"serviceId":"10000000-0000-0000-0000-000000000016","itemName":"Simple Extraction","quantity":1,"unitPrice":120.00,"total":120.00}
-   ]'::jsonb,
-   155.00, 'e0000000-0000-0000-0000-000000000003');
+  -- APT000004: X-Ray + Simple Extraction
+  ('30000000-0000-0000-0000-000000000004', 'service', '10000000-0000-0000-0000-000000000002', 'X-Ray (Periapical)',  1,  35.00, 'e0000000-0000-0000-0000-000000000003'),
+  ('30000000-0000-0000-0000-000000000004', 'service', '10000000-0000-0000-0000-000000000016', 'Simple Extraction',   1, 120.00, 'e0000000-0000-0000-0000-000000000003');
 
 
 -- ────────────────────────────────────────────────────────────

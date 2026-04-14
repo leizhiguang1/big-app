@@ -27,7 +27,7 @@ What actually exists in code as of migration `0029_sales`:
 
 **UI — [components/appointments/detail/CollectPaymentDialog.tsx](../../components/appointments/detail/CollectPaymentDialog.tsx):**
 - Two-column dialog patterned after the reference prototype's Collect Payment modal.
-- Left column: remarks card, line-items list (fed from `billing_entries`), Discount / Total / Cash / Balance / Require Rounding toggle.
+- Left column: remarks card, line-items list (fed from `appointment_line_items`), Discount / Total / Cash / Balance / Require Rounding toggle.
 - Right column: Attachments placeholder card, Payment section (backdate toggle, payment-mode select, amount input, remarks, add-payment-type link), "This sale will be created at <outlet>" footer, large green confirm button, message-to-frontdesk textarea.
 - Launched from [FloatingActionBar](../../components/appointments/detail/FloatingActionBar.tsx) → `ConfirmDialog` → `CollectPaymentDialog`.
 - Fields with no backing data yet (reference #, tag, attachments, message-to-frontdesk, backdate, itemised allocation, add-payment-type) are rendered as disabled / placeholder controls so the layout is complete and the real wiring can land incrementally.
@@ -45,7 +45,7 @@ What actually exists in code as of migration `0029_sales`:
 
 Sales closes the money loop. It covers three concepts:
 
-1. **Billing entries** — lists of line items the dentist adds during an appointment (clinical/work record). These live on the appointment until payment is collected. Stored as JSONB rows in a `billing_entries` table, one row per "Save Billing" click.
+1. **Appointment line items** — rows the dentist adds during an appointment (clinical/work record AND billing cart — same table). These live on the appointment until payment is collected. Stored as normalized rows in `appointment_line_items`, one row per line (not per batch). Originally named `billing_entries`; renamed 2026-04-15 for naming honesty. See [02-appointments.md](./02-appointments.md) "Why line items live in one table".
 2. **Sales orders (SO)** — the bill that gets paid. Created when staff clicks "Collect Payment" on an appointment (or via "New Sales" / "Manual Transaction" outside an appointment). Line items are normalized into `sale_items` at this point.
 3. **Payments** — how the SO got paid. One SO can have multiple payments (partial, split tender). Each payment has its own invoice number.
 
@@ -103,41 +103,24 @@ Triggered from the Appointments screen ("Collect Payment" button on `BillingSect
 
 ## Data Model — Three Tiers
 
-### Tier 1: Billing Entries (session bundles on the appointment)
+### Tier 1: Appointment Line Items (the cart-slash-clinical-record on the appointment)
 
-`billing_entries` — one row per "Save Billing" click in the appointment's billing section. Each row wraps a **JSONB array of line items** plus a frontdesk message and a session total. This matches the current prototype exactly.
+`appointment_line_items` — one row per line item on an appointment. The dentist adds rows in the Billing tab as treatment progresses; each row is both "what was performed" (clinical record) and "what will be billed" (cart). There is no batching layer.
 
-**Why JSONB not normalized rows:** billing items are always viewed in the context of their appointment and their save session. We never query individual line items across entries. JSONB preserves the "these items were saved together" grouping with zero join overhead.
+**Why normalized rows, not JSONB:** an earlier draft of this document proposed JSONB `items` bundles per "Save Billing" click, matching the prototype. That was dropped during the Appointments build. Row-per-line keeps querying simple, enables per-line child records (consumables, hands-on incentives — see [02-appointments.md](./02-appointments.md)), and avoids JSONB shape negotiation at the `sale_items` copy step.
 
-```sql
-CREATE TABLE billing_entries (
-  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  appointment_id     UUID NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
-  customer_id        UUID REFERENCES customers(id) ON DELETE SET NULL,
-  items              JSONB NOT NULL DEFAULT '[]',  -- array of { serviceId, itemName, quantity, unitPrice, total, notes }
-  frontdesk_message  TEXT,
-  total              NUMERIC(10,2) NOT NULL DEFAULT 0,
-  created_by         UUID REFERENCES employees(id) ON DELETE SET NULL,
-  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
+**Why one table for both clinical record AND billing cart:** because the UI adds services in one place (the Billing tab), and every attempt to split them created a two-places-of-truth merge problem at payment time. The table serves both roles — the naming (`appointment_line_items`) admits it.
 
-**`items` JSONB shape:**
-```json
-[
-  {
-    "serviceId": "uuid-or-null",
-    "itemName": "Composite Filling",
-    "quantity": 1,
-    "unitPrice": 180.00,
-    "total": 180.00,
-    "notes": "Tooth 16, occlusal surface"
-  }
-]
-```
+Key columns (full list in [02-appointments.md](./02-appointments.md) §Data Fields):
 
-Price can be edited inline per line — dentist can charge different from the service catalog price without mutating the service itself.
+- `appointment_id` (CASCADE) · `item_type` (`service` / `product` / `charge`, default `service`) · `service_id` (SET NULL — snapshot, not source of truth) · `description` · `quantity` · `unit_price` (editable per row — dentist can override the catalog price) · `total` · `notes` · standard audit.
+
+**Child table (CASCADE on delete):**
+- `appointment_line_item_incentives` — per-line employee attribution. `UNIQUE (line_item_id, employee_id)`. No commission fields.
+
+**Consumables** are NOT a child table — they live on the service catalog as `services.consumables` (free-text) and the appointment-side Consumables card is a read-only consumer. See [02-appointments.md](./02-appointments.md) "Overview tab cards".
+
+**Incentive rows are NOT snapshotted into the sales order.** When Collect Payment runs, only `appointment_line_items` columns get copied to `sale_items`. Incentives stay attached to the (still-existing) line item as a historical record. If/when a commission engine runs, it reads the incentive rows via the line item, not via `sale_items`.
 
 ### Tier 2: Sales Orders (`sales_orders` + `sale_items`)
 
@@ -153,7 +136,7 @@ Created when staff clicks "Collect Payment". Billing entries on the appointment 
 - `so_number`: auto `SO000001`
 
 `sale_items`:
-- One row per line (**normalized**, unlike billing entries)
+- One row per line (**normalized**, same shape as `appointment_line_items`)
 - References the sales order, optionally the service
 - Holds item_name, item_type (`service` / `product`), quantity, unit_price, discount, generated `total`
 - Allows discounts per line (even though UI may only expose order-level discount in v1 — the column is there for future)
@@ -186,12 +169,13 @@ Created when staff clicks "Collect Payment". Billing entries on the appointment 
 [Appointment created]
          │
          ▼ staff adds services during visit
-[Billing Entry #1] (JSONB items, saved)
-[Billing Entry #2] (more items, different save click)
+[appointment_line_items row #1]
+[appointment_line_items row #2]
+  (each row may have 0..N incentive rows attached; consumables are read from services.consumables)
          │
          ▼ click "Collect Payment"
 [Sales Order: draft → completed]
-[sale_items: normalized rows copied from billing entries]
+[sale_items: normalized rows snapshot-copied from appointment_line_items]
 [payment #1: e.g. RM 300 cash]
          │
          ▼ (optional) more payments if partial
@@ -199,6 +183,7 @@ Created when staff clicks "Collect Payment". Billing entries on the appointment 
          │
          ▼
 [Appointment.payment_status = paid]
+(appointment_line_items + their consumables + incentives are NOT mutated by the RPC — they remain as the clinical record)
 ```
 
 ### SO status
@@ -210,9 +195,9 @@ draft → completed → cancelled (via cancellation record)
 
 ## Business Rules
 
-- Billing entries are **additive** — editing an entry replaces its `items` JSONB in place; deleting removes the row. Entries accumulate until "Collect Payment" is clicked.
-- On "Collect Payment": billing entries are copied into `sale_items` (snapshot — items do not reference back to the billing entry). Billing entries are kept on the appointment as a clinical/audit record.
-- Once a sales order is `completed`, billing entries can still be added to the appointment (representing follow-up work) but won't be automatically folded into the existing SO — staff must create a new sale or amend.
+- Line items are **additive** — staff adds, edits, or deletes rows freely during the visit. Rows accumulate until "Collect Payment" is clicked.
+- On "Collect Payment": line items are snapshot-copied into `sale_items` (the new `sale_items` rows do NOT reference back to the originating line item). `appointment_line_items` are kept on the appointment as a clinical/audit record. Their child `appointment_line_item_incentives` rows also stay attached — they're never mutated by the RPC.
+- Once a sales order is `completed`, line items can still be added to the appointment (representing follow-up work) but won't be automatically folded into the existing SO — staff must create a new sale or amend.
 - **Order-level discount only** in v1. Line-level discount column exists in schema for Phase 2.
 - **Tax:** flat-percent at the order level, default 0 (Malaysian dental usually tax-exempt). Configurable later.
 - **Payor** (third-party payer like insurance) is **deferred** — v1 assumes customer = payor.
@@ -224,18 +209,25 @@ draft → completed → cancelled (via cancellation record)
 
 ## Data Fields
 
-### `billing_entries`
+### `appointment_line_items`
+
+Full field table lives in [02-appointments.md §Data Fields](./02-appointments.md). Short version:
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | id | uuid | Yes | PK |
 | appointment_id | uuid (FK) | Yes | CASCADE |
-| customer_id | uuid (FK) | No | SET NULL |
-| items | jsonb | Yes | Array of line objects (see shape above) |
-| frontdesk_message | text | No | |
-| total | numeric(10,2) | Yes | Sum of items[].total at save time |
+| item_type | text | Yes | CHECK `service / product / charge`, default `service` |
+| service_id | uuid (FK) | No | SET NULL (snapshot, not source of truth) |
+| description | text | Yes | Snapshot of service name at entry time |
+| quantity | numeric(10,2) | Yes | CHECK > 0, default 1 |
+| unit_price | numeric(10,2) | Yes | CHECK ≥ 0, editable per row |
+| total | numeric(12,2) | — | `quantity * unit_price` |
+| notes | text | No | Per-line remark |
 | created_by | uuid (FK) | No | → employees, SET NULL |
 | created_at, updated_at | timestamptz | Yes | |
+
+Child table (`appointment_line_item_incentives`) is documented in [02-appointments.md §Data Fields](./02-appointments.md) — it belongs to Appointments conceptually. Consumables have no child table; they're read from `services.consumables` free-text.
 
 ### `sales_orders`
 
@@ -313,7 +305,7 @@ draft → completed → cancelled (via cancellation record)
 
 | Related Module | Relationship | Details |
 |---------------|-------------|---------|
-| Appointments | billing_entry → appointment | `billing_entries.appointment_id` (CASCADE) |
+| Appointments | line item → appointment | `appointment_line_items.appointment_id` (CASCADE). Dual role — clinical record AND billing cart. Renamed from `billing_entries` 2026-04-15. |
 | Appointments | sales_order → appointment | `sales_orders.appointment_id` (SET NULL — manual sales allowed) |
 | Customers | sales_order → customer | `sales_orders.customer_id` |
 | Outlets | sales_order + payment → outlet | Both RESTRICT |
@@ -322,7 +314,7 @@ draft → completed → cancelled (via cancellation record)
 
 ## Gaps & Improvements Over KumoDent / Current Prototype
 
-- **`billing_entries` table matches the current prototype exactly.** JSONB items array preserves "who saved what together" semantics and the frontdesk message per save click.
+- **`appointment_line_items` is normalized row-per-line** (not JSONB). The earlier JSONB design from the prototype was dropped during implementation; rows are simpler to query, extend (consumables/incentives child tables), and snapshot into `sale_items`.
 - **Sales orders are not auto-created from appointment completion** — staff explicitly clicks "Collect Payment". This matches current behaviour.
 - **Transaction safety:** "Collect Payment" must wrap the SO + sale_items + payment inserts in a single Postgres transaction (Supabase RPC or server action). The current prototype's frontend fires them sequentially without rollback — fix in v2.
 - **One SO can have many payments** — designed in from the start. Current prototype has this but rarely exercises it.
@@ -333,10 +325,13 @@ draft → completed → cancelled (via cancellation record)
 
 ### Changes from current schema draft
 
-Two changes land here:
+Historical changes (all already landed):
 
-1. **Replace `appointment_billing_items` with `billing_entries`** (JSONB items instead of normalized rows). Matches the working prototype.
-2. **No other structural changes** — `sales_orders`, `sale_items`, `payments`, `cancellations` all stay as drafted.
+1. **`appointment_billing_items` → `billing_entries`** — the very first rename, before the current schema existed.
+2. **JSONB `items` array → normalized rows** — dropped during the Appointments build. One row per line, no batching.
+3. **`billing_entries` → `appointment_line_items`** (2026-04-15) — renamed for naming honesty; same shape, clearer role. Child table `appointment_line_item_incentives` landed in the same migration. A sibling `appointment_line_item_consumables` table was added and then dropped the same day (`drop_appointment_line_item_consumables`) — consumables are a property of the service catalog, not a per-visit record.
+
+Otherwise: `sales_orders`, `sale_items`, `payments`, `cancellations` all stay as drafted.
 
 Payment mode CHECK constraint:
 ```sql

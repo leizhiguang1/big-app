@@ -1,0 +1,101 @@
+import type { Context } from "@/lib/context/types";
+import { ValidationError } from "@/lib/errors";
+
+export const BUCKETS = {
+	media: "media",
+	documents: "documents",
+} as const;
+
+export type BucketId = (typeof BUCKETS)[keyof typeof BUCKETS];
+
+export type MediaEntity =
+	| "employees"
+	| "customers"
+	| "services"
+	| "outlets"
+	| "products";
+
+const EXT_FROM_MIME: Record<string, string> = {
+	"image/jpeg": "jpg",
+	"image/png": "png",
+	"image/webp": "webp",
+	"application/pdf": "pdf",
+};
+
+function extFromFilename(filename: string): string {
+	const dot = filename.lastIndexOf(".");
+	if (dot === -1) return "bin";
+	return filename.slice(dot + 1).toLowerCase();
+}
+
+function sanitizeExt(ext: string): string {
+	return /^[a-z0-9]{1,5}$/.test(ext) ? ext : "bin";
+}
+
+function yyyymmdd(date: Date): string {
+	const y = date.getUTCFullYear();
+	const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+	const d = String(date.getUTCDate()).padStart(2, "0");
+	return `${y}${m}${d}`;
+}
+
+export function buildEntityPath(args: {
+	entity: MediaEntity;
+	entityId: string;
+	filename: string;
+	mime?: string;
+}): string {
+	const { entity, entityId, filename, mime } = args;
+	const ext = sanitizeExt(
+		(mime && EXT_FROM_MIME[mime]) ?? extFromFilename(filename),
+	);
+	const uuid = crypto.randomUUID();
+	return `${entity}/${entityId}/${yyyymmdd(new Date())}-${uuid}.${ext}`;
+}
+
+export function getPublicUrl(
+	ctx: Context,
+	bucket: BucketId,
+	path: string,
+): string {
+	const { data } = ctx.db.storage.from(bucket).getPublicUrl(path);
+	return data.publicUrl;
+}
+
+export async function createSignedUploadUrl(
+	ctx: Context,
+	bucket: BucketId,
+	path: string,
+): Promise<{ signedUrl: string; token: string; path: string }> {
+	const { data, error } = await ctx.db.storage
+		.from(bucket)
+		.createSignedUploadUrl(path);
+	if (error || !data) {
+		throw new ValidationError(error?.message ?? "Failed to create upload URL");
+	}
+	return { signedUrl: data.signedUrl, token: data.token, path: data.path };
+}
+
+export async function createSignedReadUrl(
+	ctx: Context,
+	bucket: BucketId,
+	path: string,
+	expiresIn = 60 * 10,
+): Promise<string> {
+	const { data, error } = await ctx.db.storage
+		.from(bucket)
+		.createSignedUrl(path, expiresIn);
+	if (error || !data) {
+		throw new ValidationError(error?.message ?? "Failed to sign read URL");
+	}
+	return data.signedUrl;
+}
+
+export async function deleteObject(
+	ctx: Context,
+	bucket: BucketId,
+	path: string,
+): Promise<void> {
+	const { error } = await ctx.db.storage.from(bucket).remove([path]);
+	if (error) throw new ValidationError(error.message);
+}

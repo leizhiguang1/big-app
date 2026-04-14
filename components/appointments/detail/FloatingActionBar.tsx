@@ -4,13 +4,13 @@ import { Ban, Check, ListOrdered, Pencil, Plus, Ticket } from "lucide-react";
 import { useState } from "react";
 import { CollectPaymentDialog } from "@/components/appointments/detail/CollectPaymentDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
-import type { BillingEntry } from "@/lib/services/billing-entries";
 import { cn } from "@/lib/utils";
 
 type Props = {
 	appointment: AppointmentWithRelations;
-	billingEntries: BillingEntry[];
+	lineItems: AppointmentLineItem[];
 	onToast?: (
 		message: string,
 		variant?: "default" | "success" | "error",
@@ -20,11 +20,7 @@ type Props = {
 const baseBtn =
 	"flex h-11 w-11 items-center justify-center rounded-full shadow-lg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50";
 
-export function FloatingActionBar({
-	appointment,
-	billingEntries,
-	onToast,
-}: Props) {
+export function FloatingActionBar({ appointment, lineItems, onToast }: Props) {
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [collectOpen, setCollectOpen] = useState(false);
 
@@ -107,7 +103,7 @@ export function FloatingActionBar({
 				open={collectOpen}
 				onOpenChange={setCollectOpen}
 				appointment={appointment}
-				entries={billingEntries}
+				entries={lineItems}
 				onSuccess={(r) =>
 					onToast?.(
 						`Payment collected · ${r.so_number} / ${r.invoice_no}`,

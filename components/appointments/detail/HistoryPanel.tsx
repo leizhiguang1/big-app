@@ -23,11 +23,11 @@ import {
 	updateCaseNoteAction,
 } from "@/lib/actions/case-notes";
 import {
-	type AppointmentPaymentMode,
 	APPOINTMENT_PAYMENT_MODE_LABEL,
+	type AppointmentPaymentMode,
 } from "@/lib/constants/appointment-status";
+import type { CustomerLineItem } from "@/lib/services/appointment-line-items";
 import type { CustomerAppointmentSummary } from "@/lib/services/appointments";
-import type { CustomerBillingEntry } from "@/lib/services/billing-entries";
 import type { CaseNoteWithAuthor } from "@/lib/services/case-notes";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +42,7 @@ type BillingThread = {
 	paymentStatus: string;
 	paidVia: string | null;
 	servedBy: string | null;
-	items: CustomerBillingEntry[];
+	items: CustomerLineItem[];
 	total: number;
 	isCurrent: boolean;
 };
@@ -62,7 +62,7 @@ type Thread = BillingThread | NoteThread;
 type Props = {
 	currentAppointmentId: string;
 	caseNotes: CaseNoteWithAuthor[];
-	customerBillingHistory: CustomerBillingEntry[];
+	customerBillingHistory: CustomerLineItem[];
 	customerHistory: CustomerAppointmentSummary[];
 	onClose: () => void;
 	onToast: (message: string, variant?: Toast["variant"]) => void;
@@ -90,7 +90,7 @@ function authorLabel(n: CaseNoteWithAuthor): string {
 
 function buildThreads(
 	caseNotes: CaseNoteWithAuthor[],
-	billing: CustomerBillingEntry[],
+	billing: CustomerLineItem[],
 	customerHistory: CustomerAppointmentSummary[],
 	currentAppointmentId: string,
 ): { threads: Thread[]; noteCount: number; billingCount: number } {
@@ -105,7 +105,7 @@ function buildThreads(
 			paymentStatus: string;
 			paidVia: string | null;
 			servedBy: string | null;
-			items: CustomerBillingEntry[];
+			items: CustomerLineItem[];
 			total: number;
 		}
 	>();
@@ -194,12 +194,7 @@ export function HistoryPanel({
 				customerHistory,
 				currentAppointmentId,
 			),
-		[
-			caseNotes,
-			customerBillingHistory,
-			customerHistory,
-			currentAppointmentId,
-		],
+		[caseNotes, customerBillingHistory, customerHistory, currentAppointmentId],
 	);
 
 	const visible = useMemo(
@@ -295,15 +290,14 @@ export function HistoryPanel({
 								"border-amber-300 bg-amber-50 text-amber-700",
 							mode === "billing" &&
 								"border-emerald-300 bg-emerald-50 text-emerald-700",
-							mode === "all" && "border-border bg-muted/40 text-muted-foreground",
+							mode === "all" &&
+								"border-border bg-muted/40 text-muted-foreground",
 						)}
 					>
 						{mode === "all" ? (
 							<>
 								<Layers className="size-[14px]" />
-								<span className="tabular-nums">
-									{noteCount + billingCount}
-								</span>
+								<span className="tabular-nums">{noteCount + billingCount}</span>
 							</>
 						) : mode === "casenotes" ? (
 							<>
@@ -396,9 +390,7 @@ export function HistoryPanel({
 								onJump={
 									t.appointmentId && !t.isCurrent
 										? () =>
-												router.push(
-													`/appointments/${t.appointmentId ?? ""}`,
-												)
+												router.push(`/appointments/${t.appointmentId ?? ""}`)
 										: undefined
 								}
 							/>
@@ -428,9 +420,7 @@ const PAYMENT_STATUS_STYLES: Record<string, string> = {
 
 function paymentModeLabel(mode: string | null): string | null {
 	if (!mode) return null;
-	return (
-		APPOINTMENT_PAYMENT_MODE_LABEL[mode as AppointmentPaymentMode] ?? mode
-	);
+	return APPOINTMENT_PAYMENT_MODE_LABEL[mode as AppointmentPaymentMode] ?? mode;
 }
 
 function BillingRow({
@@ -452,7 +442,8 @@ function BillingRow({
 		<div
 			className={cn(
 				"border-b border-border/60 bg-muted/10 px-2 py-2",
-				item.isCurrent && "border-l-[3px] border-l-emerald-600 bg-emerald-50/40",
+				item.isCurrent &&
+					"border-l-[3px] border-l-emerald-600 bg-emerald-50/40",
 			)}
 		>
 			<div className="rounded-sm border border-dashed border-border bg-background px-3 py-2.5 font-mono text-[11px] text-foreground shadow-sm">

@@ -244,7 +244,15 @@ Write tests only for things that break silently and cost money:
 - Commission calculation (Phase 2)
 - Inventory / products (Phase 2 deep)
 - Clinical sub-modules — case notes, dental charting, prescriptions (Phase 2)
-- WhatsApp / messaging (Phase 3 — separate service, separate repo)
+- WhatsApp / messaging (Phase 3 — handled by **wa-connector**, a separate
+  Node+Baileys process in its own repo. wa-connector shares this Supabase
+  project but owns the `wa_service` schema plus a set of legacy
+  `public.wa_*` + `public.messages` tables. **Never create a migration in
+  this repo that touches those tables** — any WA schema change is made
+  from the wa-connector repo. Never query those tables directly from
+  `lib/services/**`; big-app will talk to wa-connector over its HTTP API
+  when the Phase 3 integration lands. See `docs/ARCHITECTURE.md` §2 and
+  `docs/SCHEMA.md` "Schemas owned by other services".)
 - Automation / workflows (Phase 3)
 - NestJS backend extraction (Phase 2 trigger — not a date; see
   `docs/ARCHITECTURE.md` §7)

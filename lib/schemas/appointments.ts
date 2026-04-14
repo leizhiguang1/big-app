@@ -180,14 +180,19 @@ export const convertLeadInputSchema = z.object({
 });
 export type ConvertLeadInput = z.infer<typeof convertLeadInputSchema>;
 
-// ─── Billing entries ────────────────────────────────────────────────────────
+// ─── Appointment line items ─────────────────────────────────────────────────
+// The `appointment_line_items` table is the source of truth for what
+// happened on an appointment: services delivered plus any ad-hoc products
+// or charges added during the visit. It is ALSO what the Collect Payment
+// flow reads to build sale_items. One table, two roles — see
+// docs/modules/02-appointments.md.
 
-export const BILLING_ITEM_TYPES = ["service", "product", "charge"] as const;
-export type BillingItemType = (typeof BILLING_ITEM_TYPES)[number];
+export const LINE_ITEM_TYPES = ["service", "product", "charge"] as const;
+export type LineItemType = (typeof LINE_ITEM_TYPES)[number];
 
-export const billingEntryInputSchema = z.object({
+export const lineItemInputSchema = z.object({
 	appointment_id: z.string().uuid(),
-	item_type: z.enum(BILLING_ITEM_TYPES),
+	item_type: z.enum(LINE_ITEM_TYPES),
 	service_id: z.string().uuid("Service is required"),
 	description: z.string().trim().min(1, "Description is required").max(200),
 	quantity: z.coerce.number().positive("Quantity must be > 0"),
@@ -199,4 +204,17 @@ export const billingEntryInputSchema = z.object({
 		.nullish()
 		.transform((v) => (v && v.length > 0 ? v : null)),
 });
-export type BillingEntryInput = z.infer<typeof billingEntryInputSchema>;
+export type LineItemInput = z.infer<typeof lineItemInputSchema>;
+
+// ─── Line item child records: hands-on incentives ──────────────────────────
+// Consumables intentionally have no schema here — they are a property of the
+// service catalog (`services.consumables` free-text), read-only on the
+// appointment side. See docs/modules/02-appointments.md.
+
+export const lineItemIncentiveInputSchema = z.object({
+	line_item_id: z.string().uuid(),
+	employee_id: z.string().uuid("Employee is required"),
+});
+export type LineItemIncentiveInput = z.infer<
+	typeof lineItemIncentiveInputSchema
+>;

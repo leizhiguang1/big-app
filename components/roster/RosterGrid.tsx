@@ -2,7 +2,7 @@
 
 import { Coffee, Moon, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
 	fmtDate,
@@ -16,6 +16,7 @@ import type {
 	EmployeeShift,
 	RosterEmployee,
 } from "@/lib/services/employee-shifts";
+import { mediaPublicUrl } from "@/lib/storage/urls";
 import { cn } from "@/lib/utils";
 import { ShiftDialog } from "./ShiftDialog";
 
@@ -96,7 +97,13 @@ export function RosterGrid({ outletId, weekStart, employees, shifts }: Props) {
 							<tr key={emp.id} className="border-b last:border-b-0">
 								<td className="sticky left-0 z-10 min-w-44 border-r bg-card px-3 py-2 align-middle">
 									<div className="flex items-center gap-2.5">
-										<Avatar className="size-8">
+										<Avatar className="size-9">
+											{emp.profile_image_path && (
+												<AvatarImage
+													src={mediaPublicUrl(emp.profile_image_path) ?? ""}
+													alt=""
+												/>
+											)}
 											<AvatarFallback className="text-[11px]">
 												{(emp.first_name[0] ?? "?").toUpperCase()}
 												{(emp.last_name[0] ?? "").toUpperCase()}

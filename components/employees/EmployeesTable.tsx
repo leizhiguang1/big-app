@@ -1,6 +1,7 @@
 "use client";
 
 import { Pencil, Trash2 } from "lucide-react";
+import Image from "next/image";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -9,6 +10,7 @@ import { deleteEmployeeAction } from "@/lib/actions/employees";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { Position } from "@/lib/services/positions";
 import type { Role } from "@/lib/services/roles";
+import { mediaPublicUrl } from "@/lib/storage/urls";
 import { EmployeeFormDialog } from "./EmployeeForm";
 
 type Props = {
@@ -44,17 +46,40 @@ export function EmployeesTable({ employees, roles, positions }: Props) {
 			header: "Name",
 			sortable: true,
 			sortValue: (e) => `${e.first_name} ${e.last_name}`,
-			cell: (e) => (
-				<>
-					<div className="font-medium">
-						{e.salutation ? `${e.salutation} ` : ""}
-						{e.first_name} {e.last_name}
+			cell: (e) => {
+				const imageUrl = mediaPublicUrl(e.profile_image_path);
+				const initials =
+					`${e.first_name?.[0] ?? ""}${e.last_name?.[0] ?? ""}`.toUpperCase();
+				return (
+					<div className="flex items-center gap-3">
+						<div className="relative size-11 shrink-0 overflow-hidden rounded-full border bg-muted">
+							{imageUrl ? (
+								<Image
+									src={imageUrl}
+									alt=""
+									fill
+									sizes="44px"
+									className="object-cover"
+									unoptimized
+								/>
+							) : (
+								<div className="flex size-full items-center justify-center font-medium text-muted-foreground text-xs">
+									{initials || "?"}
+								</div>
+							)}
+						</div>
+						<div className="min-w-0">
+							<div className="font-medium">
+								{e.salutation ? `${e.salutation} ` : ""}
+								{e.first_name} {e.last_name}
+							</div>
+							<div className="font-mono text-muted-foreground text-xs">
+								{e.code}
+							</div>
+						</div>
 					</div>
-					<div className="font-mono text-muted-foreground text-xs">
-						{e.code}
-					</div>
-				</>
-			),
+				);
+			},
 		},
 		{
 			key: "role",

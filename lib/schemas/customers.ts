@@ -43,7 +43,7 @@ export const customerInputSchema = z
 		last_name: optionalText(80),
 		gender: z.enum(GENDERS).nullable().optional(),
 		date_of_birth: optionalDate,
-		profile_image_url: optionalText(500),
+		profile_image_path: z.string().trim().max(500).nullable().optional(),
 
 		// Identification
 		id_type: z.enum(ID_TYPES),

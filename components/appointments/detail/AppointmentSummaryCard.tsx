@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, MapPin } from "lucide-react";
+import { Building2, CalendarClock, DoorOpen } from "lucide-react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
 import { StatusProgressionRow } from "@/components/appointments/detail/StatusProgressionRow";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
@@ -45,35 +45,38 @@ export function AppointmentSummaryCard({
 		? (appointment.block_title ?? "Time block")
 		: appointment.booking_ref;
 	const roomName = appointment.room?.name ?? null;
-	const location = [outletName, roomName].filter(Boolean).join(" / ");
 	const dur = durationLabel(appointment.start_at, appointment.end_at);
 
 	return (
-		<div className="flex h-full w-full min-w-0 flex-col gap-3 rounded-xl border bg-card p-3 shadow-sm sm:p-4">
-			<div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
-				<div className="min-w-0 space-y-1">
-					<div className="font-semibold text-sky-800 text-sm tabular-nums sm:text-[15px]">
-						{title}
-					</div>
-					<div className="flex items-start gap-1.5 text-muted-foreground text-[11px] sm:text-xs">
-						<CalendarClock className="mt-0.5 size-3.5 shrink-0" />
-						<span className="min-w-0 tabular-nums leading-snug">
-							{formatDateTime(appointment.start_at)} —{" "}
-							{formatDateTime(appointment.end_at)}
-							{dur && ` (${dur})`}
-						</span>
-					</div>
-					{location && (
-						<div className="flex items-center gap-1.5 text-muted-foreground text-[11px] sm:text-xs">
-							<MapPin className="size-3.5 shrink-0" />
-							<span className="min-w-0">{location}</span>
-						</div>
-					)}
+		<div className="flex h-full w-full min-w-0 flex-col gap-2.5 rounded-xl border bg-card p-3 shadow-sm sm:p-3.5">
+			<div className="min-w-0 space-y-1">
+				<div className="font-semibold text-sky-800 text-sm tabular-nums sm:text-[15px]">
+					{title}
 				</div>
-				<div className="min-w-0 lg:max-w-[min(100%,520px)] lg:flex-1">
-					<div className="sr-only">Appointment status</div>
-					<StatusProgressionRow appointment={appointment} onToast={onToast} />
+				<div className="flex items-start gap-1.5 text-muted-foreground text-[11px] sm:text-xs">
+					<CalendarClock className="mt-0.5 size-3.5 shrink-0" />
+					<span className="min-w-0 tabular-nums leading-snug">
+						{formatDateTime(appointment.start_at)} —{" "}
+						{formatDateTime(appointment.end_at)}
+						{dur && ` (${dur})`}
+					</span>
 				</div>
+				{outletName && (
+					<div className="flex items-center gap-1.5 text-muted-foreground text-[11px] sm:text-xs">
+						<Building2 className="size-3.5 shrink-0" />
+						<span className="min-w-0">{outletName}</span>
+					</div>
+				)}
+				{roomName && (
+					<div className="flex items-center gap-1.5 text-muted-foreground text-[11px] sm:text-xs">
+						<DoorOpen className="size-3.5 shrink-0" />
+						<span className="min-w-0">{roomName}</span>
+					</div>
+				)}
+			</div>
+			<div className="min-w-0">
+				<div className="sr-only">Appointment status</div>
+				<StatusProgressionRow appointment={appointment} onToast={onToast} />
 			</div>
 		</div>
 	);

@@ -1,17 +1,20 @@
 "use client";
 
-import { Building2, Clock, DoorOpen, UserCog } from "lucide-react";
+import { FileText } from "lucide-react";
+import { AppointmentServicesList } from "@/components/appointments/detail/AppointmentServicesList";
+import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 
 type Props = {
 	appointment: AppointmentWithRelations;
+	lineItems: AppointmentLineItem[];
 };
 
 function formatDate(iso: string): string {
 	return new Date(iso).toLocaleDateString("en-GB", {
 		weekday: "short",
-		month: "short",
 		day: "numeric",
+		month: "short",
 		year: "numeric",
 	});
 }
@@ -30,12 +33,12 @@ function durationLabel(startIso: string, endIso: string): string {
 	if (!Number.isFinite(diff) || diff <= 0) return "";
 	const h = Math.floor(diff / 60);
 	const m = Math.round(diff % 60);
-	if (h === 0) return `${m} min`;
-	if (m === 0) return `${h} hr`;
-	return `${h} hr ${m} min`;
+	if (h === 0) return `${m}m`;
+	if (m === 0) return `${h}h`;
+	return `${h}h ${m}m`;
 }
 
-export function BookingInfoCard({ appointment }: Props) {
+export function BookingInfoCard({ appointment, lineItems }: Props) {
 	const employeeName = appointment.employee
 		? `${appointment.employee.first_name} ${appointment.employee.last_name}`
 		: null;
@@ -43,81 +46,83 @@ export function BookingInfoCard({ appointment }: Props) {
 	const dur = durationLabel(appointment.start_at, appointment.end_at);
 
 	return (
-		<div className="rounded-xl border bg-card p-3 shadow-sm sm:p-4">
-			<div className="font-semibold text-[11px] text-muted-foreground uppercase tracking-wide">
+		<div className="flex flex-col gap-1.5 rounded-xl border bg-card p-2.5 text-[11px] shadow-sm">
+			<div className="flex items-center gap-1.5 font-semibold text-[10px] text-muted-foreground uppercase tracking-wide">
+				<FileText className="size-3" />
 				Booking details
 			</div>
-			<div className="mt-2.5 grid grid-cols-1 gap-x-4 gap-y-2.5 sm:grid-cols-2">
-				<InfoRow
-					icon={<Clock className="size-3.5 sm:size-4" />}
+
+			<dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 leading-tight">
+				<Row label="Date" value={formatDate(appointment.start_at)} />
+				<Row
 					label="Time"
 					value={
-						<>
-							<div className="font-medium text-sm leading-tight">
-								{formatDate(appointment.start_at)}
-							</div>
-							<div className="text-muted-foreground text-xs tabular-nums leading-tight">
-								{formatTime(appointment.start_at)} –{" "}
-								{formatTime(appointment.end_at)}
-								{dur && ` · ${dur}`}
-							</div>
-						</>
-					}
-				/>
-				<InfoRow
-					icon={<UserCog className="size-3.5 sm:size-4" />}
-					label="Employee"
-					value={
-						<span
-							className={`text-sm leading-tight ${employeeName ? "" : "text-muted-foreground"}`}
-						>
-							{employeeName ?? "Unassigned"}
+						<span className="tabular-nums">
+							{formatTime(appointment.start_at)}–
+							{formatTime(appointment.end_at)}
+							{dur && ` · ${dur}`}
 						</span>
 					}
 				/>
-				<InfoRow
-					icon={<DoorOpen className="size-3.5 sm:size-4" />}
-					label="Room"
+				<Row label="Employee" value={employeeName} muted={!employeeName} />
+				<Row label="Room" value={roomName} muted={!roomName} />
+				<Row
+					label="Ref"
 					value={
-						<span
-							className={`text-sm leading-tight ${roomName ? "" : "text-muted-foreground"}`}
-						>
-							{roomName ?? "Unassigned"}
-						</span>
+						<span className="tabular-nums">{appointment.booking_ref}</span>
 					}
 				/>
-				<InfoRow
-					icon={<Building2 className="size-3.5 sm:size-4" />}
-					label="Booking ref"
-					value={
-						<span className="text-sm tabular-nums leading-tight">
-							{appointment.booking_ref}
-						</span>
-					}
-				/>
-			</div>
+			</dl>
+
+			<Section label="Services">
+				<AppointmentServicesList entries={lineItems} compact />
+			</Section>
+
+			<Section label="Symptoms">
+				<span className="text-muted-foreground italic">
+					No symptoms recorded
+				</span>
+			</Section>
 		</div>
 	);
 }
 
-function InfoRow({
-	icon,
+function Row({
 	label,
 	value,
+	muted,
 }: {
-	icon: React.ReactNode;
 	label: string;
 	value: React.ReactNode;
+	muted?: boolean;
 }) {
 	return (
-		<div className="flex items-start gap-2">
-			<div className="mt-0.5 shrink-0 text-muted-foreground">{icon}</div>
-			<div className="min-w-0 flex-1">
-				<div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-					{label}
-				</div>
-				<div className="mt-0.5">{value}</div>
+		<>
+			<dt className="text-[10px] text-muted-foreground uppercase tracking-wide">
+				{label}
+			</dt>
+			<dd
+				className={`min-w-0 truncate ${muted ? "text-muted-foreground" : ""}`}
+			>
+				{value ?? "—"}
+			</dd>
+		</>
+	);
+}
+
+function Section({
+	label,
+	children,
+}: {
+	label: string;
+	children: React.ReactNode;
+}) {
+	return (
+		<div className="border-t pt-1">
+			<div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+				{label}
 			</div>
+			<div className="mt-0.5">{children}</div>
 		</div>
 	);
 }

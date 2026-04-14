@@ -1,245 +1,248 @@
 # Module: Appointments
 
-> Status: All five views shipped (day, week, month, list, grid), dialog,
-> billing entries, status workflow, hover popup, right-click context menu,
-> toast notifications. Full-page detail route `/appointments/[id]`
-> redesigned into a two-column Summary + tabs layout (Overview, Case
-> Notes, Billing, Follow Up, Documents, plus deferred Dental
-> Assessment / Periodontal Charting / Camera tab stubs). Billing and Case
-> Notes share a sticky **History panel** on the left that stacks every
-> past billing receipt and case note for the customer, filterable (all /
-> case notes / billing), with receipt-style cards for billing threads.
-> **Floating action bar** on the detail view exposes queue-ticket, new
-> appointment, cancel, add-to-queue, edit, and complete actions; the
-> complete action opens a confirm dialog that proceeds into the new
-> **Collect Payment dialog** (transactional, wired to the sales module
-> RPC — see [04-sales.md](./04-sales.md)).
-> Pending: drag-to-reschedule, sound effects, recurring appointments,
-> walk-in customer create-inline, Dental Assessment / Periodontal
-> Charting / Camera tab content (Phase 2 clinical sub-modules).
+> Last updated: 2026-04-15. Reflects the live code and the `2 - Appointments.png` / `2.1 - Appointment Detail - Overview.png` screenshots.
+>
+> **Rename note (2026-04-15).** The table formerly named `billing_entries` was renamed to `appointment_line_items` to reflect its true role: it is the source of truth for **what happened on the appointment** (services delivered, plus ad-hoc products or charges). It is *also* what the Collect Payment flow reads when building sale items — one table serves both roles on purpose. The `BillingSection` / `BillingTab` component names and the "Billing" tab label stay for now (they're UX-facing and users expect them); only the data layer got renamed. See "Why line items live in one table" below.
 
-**Key shape change from the prototype:** services are **post-filled after the
-visit** for billing only — they are NOT picked at appointment-creation time,
-do NOT set the slot duration, and the appointments table has **no `service_id`
-column**. Doctors add what was actually performed via the BillingSection
-inside the appointment dialog. See [06-services.md](./06-services.md) §Overview
-and the Billing entries section below.
+## Status
+
+**Shipped**
+- Five calendar views: day, week, month, list, grid.
+- Create / edit dialog (Appointment + Time block modes).
+- Hover popup card, right-click context menu, status-change toast stack.
+- Full-page detail route `/appointments/[id]` with eight tabs: Overview, Case Notes, Billing, Dental Assessment, Periodontal Charting, Follow Up, Camera, Documents.
+- Billing tab with inline add/edit/delete of `appointment_line_items`.
+- **Consumables card (Overview tab)** — read-only display of each service line's consumables, sourced from `services.consumables` (free-text on the service catalog). Nothing to add or edit on the appointment side — consumables are a property of the service, not per-visit.
+- **Hands-on Incentives card (Overview tab)** — per-line employee attribution. Each service line has a persistent empty select; picking an employee creates an `appointment_line_item_incentives` row. Multiple employees per line allowed (unique on `(line_item_id, employee_id)`). No commission calculation — v1 just records who did what.
+- Case Notes tab with CRUD.
+- Follow Up tab wired to `appointments.follow_up` via `setAppointmentFollowUp()` (v1 = freeform textarea).
+- History panel (shared between Case Notes + Billing tabs): reverse-chronological timeline merging every past receipt and note for the same customer, receipt-card styling for billing threads, inline edit/delete for notes, filter chip, collapse-all, close.
+- Realtime status-change toasts via `AppointmentNotificationsProvider` (live Supabase subscription on the active outlet).
+- **Collect Payment flow — transactional, shipped.** Fires the `collect_appointment_payment` RPC which writes `sales_orders` + `sale_items` + `payments` + flips `appointments.payment_status` in a single DB transaction. See [04-sales.md](./04-sales.md).
+- Lead → customer conversion (one-click, back-links all appointments sharing the lead phone).
+- `AppointmentsView` client shell owns display/scope state (persisted in `localStorage`); `monthGridRange` pre-fetch so scope/display switches are instant.
+
+**UI parked — intentional placeholders, not wired**
+- Floating action bar right-side icons: queue ticket, create-new-for-customer, cancel, add-to-queue, edit. (The sixth icon, **Complete**, *is* wired — it opens the confirm dialog → `CollectPaymentDialog`.)
+- Overview tab: **Status Change Log** remains a placeholder (no audit storage yet). Consumables and Hands-on Incentives are **live** — see §Overview tab cards below.
+- `CollectPaymentDialog` parked controls: Itemised Allocation toggle, secondary staff avatars, Repeat Previous Items, Apply Auto Discount, Attachments card, Backdate Invoice toggle, Add Payment Type row, Reference / Tag fields, message-to-frontdesk textarea. The dialog collects payments end-to-end today — these are UI-first stubs to be wired later.
+
+**Still pending**
+- Drag-to-reschedule (`rescheduleAppointment()` service method exists; HTML5 drag wiring TBD).
+- Advanced filters panel (status / payment / dentist / room). Search bar already shipped.
+- Recurring / repeat appointments.
+- Sound effects on status change.
+- Dental Assessment, Periodontal Charting, Camera tab content — Phase 2 clinical sub-modules.
+- Status Change Log content (the stored audit trail doesn't exist yet — planned).
+
+## Key shape rule — services are post-filled, not pre-booked
+
+Services are added in the **Billing tab after treatment**. They are NOT picked at appointment-creation time, do NOT set the slot duration, and the `appointments` table has **no `service_id` column**. Doctors add what was actually performed as one or more rows in `appointment_line_items`. An appointment's "primary service" is simply the first line item — there's no separate pointer. This is the most important deviation from the reference prototype and from an earlier draft of this doc. See [06-services.md](./06-services.md) §Overview.
+
+### Why line items live in one table
+
+`appointment_line_items` does double duty: it's both the **clinical record** ("what was performed") and the **billing cart** ("what gets charged"). An earlier draft discussed splitting them into `appointment_services` (clinical) + `billing_entries` (cart), with a merge step at payment time. We didn't, because:
+
+1. **The UI adds them in one place.** Staff uses the Billing tab to record services as they go — the cart *is* the treatment record. Splitting would force a two-place-of-truth reconciliation with no user-facing benefit.
+2. **Stable FK target for child records.** `appointment_line_item_consumables` and `appointment_line_item_incentives` both hang off `appointment_line_items.id` with `ON DELETE CASCADE`. If services lived in a different table from the cart, either the child tables would need dual foreign keys or the merge step would have to re-link them at payment time.
+3. **Collect Payment stays simple.** The `collect_appointment_payment` RPC snapshots line items into `sale_items` and commits the SO. The child consumables/incentives tables are NOT copied over — they remain attached to the line item as a historical record and can be re-read via the appointment relationship.
+
+The UI-facing labels (`BillingTab`, `BillingSection`, the "Billing" tab) still say "Billing" because that's the word staff use for it. Only the data layer got renamed.
 
 ## Overview
 
 Appointments is the central hub of the clinic app. Every booking lives here, and the screen ties together customers, employees, services, rooms, outlets, rosters, billing, and sales. Most of a clinic's day-to-day usage happens on this screen.
 
-**Key point:** the current prototype repo has already built this module and we are keeping its behaviour in v2 with minimal tweaks. The notes below reflect **what the current code already does** so we don't regress. Tweaks happen during development in the new repo, not here.
-
 ## Screenshots
 
-| # | Screenshot | What it shows |
-|---|-----------|---------------|
+| # | File | What it shows |
+|---|------|---------------|
 | 1 | `2 - Appointments.png` | Weekly calendar with color-coded appointment blocks grouped by room |
-| 2 | `0-kumodent-screen.png` | KumoDent original (reference) |
+| 2 | `2.1 - Appointment Detail -  Overview.png` | Full-page detail view, two-column top row, 8 tabs, Overview layout with **live** Consumables + Hands-on Incentives cards and a (still placeholder) status change log |
+| 3 | `0-kumodent-screen.png` | KumoDent original (reference only) |
 
 ## Screens & Views
 
 ### Screen: Appointments Calendar
 
 **URL pattern:** `/appointments`
-**Purpose:** View, create, edit, and manage all bookings at a given outlet
+**Purpose:** View, create, edit, and manage all bookings at a given outlet.
+
+**State split between URL and client.** The outlet / date / resource-filter selection lives in URL query params (`?outlet=&date=&resource=&rid=&eid=`) so deep-linking works and `AppointmentsContent` can re-fetch server-side on change. **Display style (`calendar` / `list` / `grid`) and time scope (`day` / `week` / `month`) are client-only**, owned by `AppointmentsView` and persisted to `localStorage` via `readViewPrefs` / `writeViewPrefs`. Switching between day/week/month or calendar/list/grid therefore **does not trigger a server round-trip** — the client already has the data.
+
+**Data pre-fetch — month grid strategy.** `AppointmentsContent` always loads the 6×7 month grid containing the current `date` (`monthGridRange()`), regardless of which scope the client ends up rendering. Day and week are just narrower slices of the same rowset. Only a change to `outlet` or `date` triggers a refetch.
 
 **Filter bar (top):**
-- **Outlet selector** — required, one outlet at a time
-- **Display style** — `calendar` · `list` · `grid`
-- **Time scope** — `day` · `week` · `month` (calendar only). List + grid are
-  constrained to day/week. Switching display auto-clamps an invalid scope.
-- **Resource mode** (calendar/day only) — `By employee` columns or `By room`
-  columns, with "Unassigned" always last. Single mode at a time.
-- **Date navigation** — prev / next / today; week shifts by 7, day by 1,
-  month by 1 calendar month.
-- **Search** — full-text across customer name, phone, lead name, employee
-  name, and booking ref. Driven by `?q=` query param so deep-linking works.
+- **Outlet selector** — required, one outlet at a time.
+- **Display style** — `calendar` · `list` · `grid` (client state).
+- **Time scope** — `day` · `week` · `month` (calendar only; list + grid are clamped to day/week). Switching display auto-clamps an invalid scope via `VALID_SCOPES`.
+- **Resource mode** (calendar/day only) — `By employee` columns or `By room` columns, with "Unassigned" always last. Single mode at a time.
+- **Date navigation** — prev / next / today; week shifts by 7, day by 1, month by 1 calendar month.
+- **Search** — full-text across customer name, phone, lead name, employee name, and booking ref. Driven by `?q=` query param so deep-linking works.
 - **Filters panel** — *pending* (status / payment / dentist / room).
 
 **Calendar cells:**
-- Each appointment = colored block spanning its time range
-- **Card content (in order):** customer/lead name · `booking_ref | customer.code`
-  (or `| LEAD` when no customer_id) · remarks (notes, with clipboard icon) ·
-  doctor name (with stethoscope icon) · customer/lead phone (with phone icon) ·
-  first tag chip. Everything is `overflow-hidden` so short calendar slots
-  naturally clip the lower lines.
-- **Card styling:** `rounded-sm` (square-ish, small radius), thin 1px full
-  border + 5px left border, both colored by status (`sc.solidHex`). Background
-  comes from the first tag's `bg` (fallback white); lead appointments get a
-  warm amber background and blocks get slate. This mirrors the reference
-  prototype: the left rail reads as "status at a glance" while the fill reads
-  as "what kind of procedure".
-- Click block → navigates to `/appointments/[id]` (full-page detail view)
-- Click empty cell → opens create dialog pre-filled with (outlet, time, room/employee)
-- **Hover** any block → opens a fixed-position popup card (`AppointmentHoverCard`)
-  rendered via portal so calendar overflow doesn't clip it. Card shows status,
-  booking ref, customer code, phone, time + duration, employee, room, notes,
-  and tag chips. Position auto-flips left if there's no room on the right.
-- **Right-click** any block → opens a context menu (`AppointmentContextMenu`)
-  with: Status submenu (8 values, active state highlighted), Edit appointment,
-  Delete appointment. Menu and submenu both auto-clamp to viewport. Status
-  changes fire `setAppointmentStatusAction` and pop a toast on success.
+- Each appointment = colored block spanning its time range.
+- **Card content (in order):** customer/lead name · `booking_ref | customer.code` (or `| LEAD` when no `customer_id`) · remarks (notes, with clipboard icon) · doctor name (with stethoscope icon) · customer/lead phone (with phone icon) · first tag chip. Everything is `overflow-hidden` so short slots naturally clip the lower lines.
+- **Card styling:** `rounded-sm`, thin 1px full border + 5px left border, both coloured from `sc.solidHex` (status). Background comes from the first tag's `bg` (fallback white); lead appointments get a warm amber background and blocks get slate. The left rail reads as "status at a glance" while the fill reads as "what kind of procedure".
+- **Click block** → navigates to `/appointments/[id]`.
+- **Click empty cell** → opens the create dialog pre-filled with (outlet, time, room/employee).
+- **Hover** any block → fixed-position portal popup (`AppointmentHoverCard`) showing status, booking ref, customer code, phone, time + duration, employee, room, notes, tag chips, lead-attended-by, created-by. Position auto-flips if there's no room on the right.
+- **Right-click** any block → context menu (`AppointmentContextMenu`) with: Status submenu (8 values, active highlighted), Edit appointment, Delete appointment. Menu + submenu auto-clamp to the viewport.
 
 **Other display modes:**
-- **List view** — Grouped by date with collapsible day sections. Each row
-  shows index, customer/block label (with Lead / Block badges, phone,
-  tag chips), booking ref, employee, room, time range (12-hour), status
-  badge, and payment badge. Right-click on a row triggers the same context
-  menu. "⭐ Today —" prefix highlights today's group header.
-- **Grid view** — Day-per-column matrix. Day scope = 1 column; week scope =
-  7 columns. Each column is a vertical stack of appointment cards sorted
-  by start time. Today's column gets an amber background and circled date.
-  Click the column header to drill into the day view.
-- **Month view** — 42-cell grid (Mon → Sun, six rows). Each cell shows up
-  to 3 appointment chips and a `+N more` overflow. Click a day to drill in.
+- **List view** — grouped by date with collapsible day sections. Each row shows index, customer/block label (with Lead / Block badges, phone, tag chips), booking ref, employee, room, time range (12-hour), status badge, and payment badge. Right-click triggers the same context menu. "⭐ Today —" prefix highlights today's group header.
+- **Grid view** — day-per-column matrix. Day scope = 1 column; week scope = 7 columns. Each column is a vertical stack of appointment cards sorted by start time. Today's column gets an amber background and circled date. Click the column header to drill into the day view.
+- **Month view** — 42-cell grid (Mon → Sun, six rows). Each cell shows up to 3 appointment chips and a `+N more` overflow. Click a day to drill in.
 
 **Column headers:**
-- Built **dynamically from live data** — whatever rooms or employees have appointments (or are rostered) for the visible date range become column headers
-- "Unassigned" always appears as the last column for blocks without a room or employee
+- Built **dynamically from live data** — whatever rooms or employees have appointments (or are rostered) for the visible date range become column headers.
+- "Unassigned" always appears as the last column for blocks without a room or employee.
 
 ### Screen: Appointment Detail (`/appointments/[id]`)
 
-Full-page route reached by clicking any appointment card on the calendar.
-Mirrors the reference prototype's `DetailPanel` with our conventions (no
-patient terminology, no `brand_id`). Ships with the **Overview**,
-**Billing**, and **Case Notes** tabs; Follow Up / Documents tabs render as
-disabled stubs until Phase B.
+Full-page route reached by clicking any appointment card on the calendar. Layout is a **collapsible header area + 8 segmented tabs + a content area + a fixed bottom-right floating action bar**. When Case Notes or Billing is active and the appointment has a linked customer, a sticky **History panel** slides in on the left.
 
-Layout:
-- **Header bar** — back button (uses `router.back()` with `/appointments`
-  fallback), title (customer/block label + booking ref), Edit and Delete
-  buttons. Edit reuses `AppointmentDialog` in edit mode via local state.
-- **Tab strip** — five segmented buttons; only Overview clickable.
-- **Customer card (left sidebar)** — avatar with initials, name, code (or
-  amber `Walk-in lead` badge), phone (with `tel:` link), stats grid showing
-  `No-shows` and `Outstanding` computed from the customer's full appointment
-  history, and a `Next appointment` link to the customer's upcoming visit.
-- **Booking info card** — read-only: date, time range, duration, employee,
-  room, booking ref.
-- **Status progression row** — 8 pills wired to `setAppointmentStatusAction`
-  with `useOptimistic`; active pill filled with `solidHex`.
-- **Tag picker row** — multi-select chips using `APPOINTMENT_TAG_CONFIG`;
-  writes via `setAppointmentTagsAction`.
-- **Notes card** — read-only display of `appointment.notes`.
-- **Payment section** — total (sum of billing entries), status badge,
-  payment mode dropdown (cash / credit card / debit card / online transfer
-  / e-wallet from `APPOINTMENT_PAYMENT_MODES`), Collect button, Undo
-  button (when paid), and a debounced `payment_remark` textarea. The
-  Collect button is disabled when the appointment has no linked customer
-  or no billing entries. **UI-only today:** the button flips
-  `payment_status` → `paid` and saves `paid_via`; it does NOT create a
-  `sales_orders` / `sale_items` / `payments` row. That transactional flow
-  lands in the Sales module per CLAUDE.md rule 8.
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ DetailHeader  (back · title · collapse toggle · delete)                │
+├────────────────────────────────────────────────────────────────────────┤
+│ ┌─ History ─┐ ┌─ CustomerCard (380px) ─┐ ┌─ AppointmentSummaryCard ──┐ │
+│ │ (only on  │ │ avatar · name · code · │ │ title · time · outlet ·   │ │
+│ │  casenote │ │ phone · stats grid ·   │ │ room · StatusProgression  │ │
+│ │   /bill)  │ │ next appointment       │ │ pills                     │ │
+│ │           │ └────────────────────────┘ └───────────────────────────┘ │
+│ │           │ ┌─────────────── DetailTabs (8) ─────────────────────┐   │
+│ │           │ └────────────────────────────────────────────────────┘   │
+│ │           │ ┌──────────── Active tab content ────────────────────┐   │
+│ │           │ └────────────────────────────────────────────────────┘   │
+│ └───────────┘                                                          │
+│                                                   [FloatingActionBar] │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
-**Billing tab** renders the inline `BillingSection` editor (add / edit /
-delete line items) for the current appointment. **Case Notes tab** renders
-a list of notes for the current appointment with add + edit + delete.
+**Header bar** (`DetailHeader`) — back button (`router.back()` with `/appointments` fallback), title (customer/block label + booking ref), a **collapse chevron** that toggles `summaryCollapsed` (hides the Summary card and stretches the Customer card to full width — useful on narrower screens), and a delete button. Edit is NOT in the header anymore — it lives on the floating action bar. Edit opens `AppointmentDialog` in edit mode via local state.
 
-**History panel (Billing + Case Notes).** When either tab is active and
-the appointment has a linked customer, a sticky left-side panel shows a
-reverse-chronological timeline that merges **every past billing receipt
-and case note** for this customer. Filter chip cycles `All → Case notes
-→ Billing` with counts. Collapse-all / expand-all toggle, plus a
-panel close button (reopens via the `PanelLeftOpen` icon button). The
-current appointment's own threads are marked `CURRENT` and get a colored
-left border.
+**Top row — two stacked cards at xl, single column below:**
+- **`CustomerCard`** (left, 380px at `xl:`) — avatar with initials, name, code (or amber `Walk-in lead` badge), phone (with `tel:` link), a stats grid showing `No-shows` and `Outstanding` computed from the customer's full appointment history, and a `Next appointment` link. When the header is collapsed, this card expands to full width and the Summary card is hidden.
+- **`AppointmentSummaryCard`** (right, flex-1) — `booking_ref` (or `block_title` for time blocks), formatted date/time range with duration, outlet name, room name, and the **`StatusProgressionRow`** (8 pills wired to `setAppointmentStatusAction` with `useOptimistic`; active pill filled with `solidHex`). This is where the live status change happens.
 
-  Billing threads render as **receipt cards**, not flat rows — a
-  dashed-border, monospace card styled to feel like a printed POS
-  receipt (modelled after KumoDent's billing thread view). Each card
-  shows:
-  - Header: `RECEIPT` label, `CURRENT` badge (if applicable), payment
-    status badge (paid / partial / unpaid), and the full date + time
-    (e.g. `11 Mar 2026 · Wed · 01:09 PM`).
-  - Meta block: `BOOKING REF` (clickable, jumps to that appointment's
-    detail page unless it's the current one) and `SERVED BY` (the
-    appointment's assigned employee).
-  - Itemized table with `Description / Qty × Price / Amount` columns.
-    Each line shows the description, the service SKU underneath as a
-    code line (e.g. `TRT-35`), the quantity × unit price, and the line
-    total.
-  - Totals block: `Sub Total (MYR)` and bold `TOTAL (MYR)` separated by
-    dashed rules.
-  - Payment block: `PAYMENT · Cash` / `Credit Card` / etc. when
-    `appointment.paid_via` is set.
-  - When collapsed, the card shrinks to a one-line summary: line count,
-    payment mode (if any), and the total.
+**Tab strip** (`DetailTabs`) — 8 segmented buttons, all clickable. Unimplemented tabs render a placeholder panel with the tab name.
 
-  Note threads render as note cards with weekday + time, author,
-  editable content (inline edit with save/cancel + delete), and a
-  collapse toggle. Note edit/delete actions hit
-  `updateCaseNoteAction` / `deleteCaseNoteAction` scoped to the
-  **current** appointment ID (not the note's original appointment) —
-  edits from the history panel are authorized by the current view.
+| Tab | Status | Content |
+|-----|--------|---------|
+| **Overview** | ✅ live | Two-column grid — left: `BookingInfoCard` + Status Change Log (placeholder) · right: `ConsumablesCard` + `HandsOnIncentivesCard` (both live). See screenshot `2.1 - Appointment Detail -  Overview.png`. |
+| **Case Notes** | ✅ live | `CaseNotesTab` — add/edit/delete notes for the current appointment. Sticky History panel on the left (see below). |
+| **Billing** | ✅ live | `BillingTab` wraps `BillingSection` — inline line-item editor (add, edit, delete) writing to `appointment_line_items`. Sticky History panel on the left. |
+| **Dental Assessment** | ⏳ placeholder | Phase 2 clinical sub-module. |
+| **Periodontal Charting** | ⏳ placeholder | Phase 2 clinical sub-module. |
+| **Follow Up** | ✅ live (v1) | `FollowUpTab` — single freeform textarea writing `appointments.follow_up` via `setAppointmentFollowUp()`. Will become structured (date + text + completion) in a future pass; keep v1 simple. |
+| **Camera** | ⏳ placeholder | Phase 2 clinical sub-module. |
+| **Documents** | ⏳ placeholder | `DocumentsTab` renders a static stub — real file storage integration deferred. |
 
-  `CustomerBillingEntry` is extended in
-  `lib/services/billing-entries.ts` to join `service (sku, name)`,
-  `appointment.paid_via`, and `appointment.employee (first_name,
-  last_name)` so the receipt card can render without extra round-trips.
+#### Overview tab cards
+
+- **Status Change Log (placeholder).** An audit trail of every `status` transition on this appointment with timestamp and actor. No storage for this yet. When it lands, it'll be a small dedicated table (`appointment_status_events`) or a JSONB column — decide when the feature is scoped.
+
+- **Consumables (`ConsumablesCard`, live, read-only).** Iterates every line item where `item_type = 'service'` and displays the `services.consumables` free-text field from the joined service catalog row. **Consumables are a property of the service, not a per-visit editable record.** There is no add/delete flow on the appointment side — if a service's consumables list changes, edit it in the Services module, not here. An earlier revision had a per-line child table (`appointment_line_item_consumables`) with add/edit UI; that was dropped after a reread of the requirements. If the appointment has no service line items, the card shows "Add services in the Billing tab first." If a service has no consumables text set, the card shows "No consumables defined on this service" under that line.
+
+  **Why read-only from the service catalog?** Because the "which masks/needles/impression materials does this procedure use" decision is a catalog-level question (every scaling uses the same materials), not a per-appointment one. Per-visit deviation can be captured in line notes if needed. When Inventory lands in Phase 2, this card becomes a structured readout of `service_consumable_items` junction rows and feeds stock movements on Collect Payment — but the *input* still lives on the service, not the visit.
+
+- **Hands-on Incentives (`HandsOnIncentivesCard`, live).** Iterates service line items. Each line shows attached employees as chips via `appointment_line_item_incentives` (unique on `(line_item_id, employee_id)` so the same employee can't be attributed twice to one line). There is **no "+ Add employee" button** — instead, each line has a **persistent empty select** that shows "Pick employee…" (amber border when the line has zero attributions) or "+ add another…" (muted border when the line already has at least one). Picking an employee immediately calls `createLineItemIncentiveAction` and the select resets for a follow-up pick. Remove via the X on a chip → `deleteLineItemIncentiveAction`. Multiple employees per line are allowed. **v1 is attribution only, no commission calculation.** The KumoDent "intended positions" advisory popup (hint when staff picks an employee whose position isn't expected for the service) is deferred until we add `services.intended_positions text[]`. Auto-defaulting to the appointment's assigned employee (or `lead_attended_by`) is also deferred — for now, staff fill it in manually on every service line before marking the appointment complete.
+
+**Service-layer invariant.** Incentives must attach to a line item with `item_type = 'service'`. Postgres can't express this as a CHECK constraint (CHECKs can't subquery the parent), so it's enforced in `lib/services/appointment-line-items.ts` via `assertServiceLineItem()`. If you bypass the service layer and write directly to the table, you're responsible. A trigger-based enforcement is easy to add later if we find we need belt-and-braces.
+
+#### History panel (shared between Case Notes and Billing tabs)
+
+When either Case Notes or Billing is active and the appointment has a linked customer, a sticky left-side panel shows a reverse-chronological timeline that merges **every past billing receipt and case note** for this customer. Filter chip cycles `All → Case notes → Billing` with counts. Collapse-all / expand-all toggle, plus a panel close button (reopens via the `PanelLeftOpen` icon button). The current appointment's own threads are marked `CURRENT` and get a coloured left border.
+
+> **Design note — case notes are an appointment-adjacent concept, not strictly an appointment-only one.** Although this module is where they live in the nav today, the case_notes service and UI pieces are written to be reusable. Expect them to also show up on the customer detail page (and possibly other customer-context views) once those screens exist. The table has `customer_id` directly, not just `appointment_id`, for exactly this reason.
+
+**Billing threads render as receipt cards** — dashed-border, monospace card styled to feel like a printed POS receipt (modelled after KumoDent's billing thread view). Each card shows:
+- Header: `RECEIPT` label, `CURRENT` badge (if applicable), payment status badge (paid / partial / unpaid), and the full date + time (e.g. `11 Mar 2026 · Wed · 01:09 PM`).
+- Meta block: `BOOKING REF` (clickable, jumps to that appointment's detail page unless it's the current one) and `SERVED BY` (the appointment's assigned employee).
+- Itemised table with `Description / Qty × Price / Amount` columns. Each line shows the description, the service SKU underneath as a code line (e.g. `TRT-35`), the quantity × unit price, and the line total.
+- Totals block: `Sub Total (MYR)` and bold `TOTAL (MYR)` separated by dashed rules.
+- Payment block: `PAYMENT · Cash` / `Credit Card` / etc. when `appointment.paid_via` is set.
+- Collapsed card shrinks to a one-line summary: line count, payment mode (if any), total.
+
+**Note threads render as note cards** with weekday + time, author, editable content (inline edit with save/cancel + delete), and a collapse toggle. Note edit/delete actions hit `updateCaseNoteAction` / `deleteCaseNoteAction` scoped to the **current** appointment ID (not the note's original appointment) — edits from the history panel are authorised by the current view.
+
+`CustomerLineItem` in `lib/services/appointment-line-items.ts` joins `service (sku, name)`, `appointment.paid_via`, and `appointment.employee (first_name, last_name)` so the receipt card renders without extra round-trips.
+
+#### Floating Action Bar (bottom-right)
+
+Six circular icon buttons pinned to `fixed right-4 bottom-4`. Only **Complete** is wired; the rest are placeholders that will be wired next.
+
+| Icon | Colour | Action | Status |
+|------|--------|--------|--------|
+| 🎫 Ticket | white/blue | Print queue ticket | ⏳ placeholder |
+| ➕ Plus | green | New appointment for this customer | ⏳ placeholder |
+| 🚫 Ban | red | Cancel appointment | ⏳ placeholder |
+| 📋 ListOrdered | sky | Add to queue | ⏳ placeholder |
+| ✏️ Pencil | amber | Edit appointment | ⏳ placeholder (Edit also reachable via header dialog state) |
+| ✅ Check | emerald | **Complete appointment** → `ConfirmDialog` ("Are you sure you would like to complete the selected appointment?") → on confirm, opens `CollectPaymentDialog` | ✅ wired |
+
+#### Collect Payment Dialog
+
+Large centered modal (`sm:max-w-6xl`), two-column layout.
+
+**Top bar:** customer name (uppercase), customer code, cash-wallet balance placeholder, Itemised Allocation toggle (UI only), three staff-avatar slots (only the first reads the appointment's assigned employee; the other two are placeholder "Employee 2 / Employee 3"), close button.
+
+**Left column** (`flex-1`):
+- Custom fields card with `Reference #` (disabled), `Tag` (disabled), and `Remarks` textarea (wired).
+- Line items list sourced from `appointment_line_items`. Each line: `(SVC) description`, quantity, unit_price, line total, SKU shown as `TRT-<id[0:3]>` (placeholder — real SKU feed TBD), and a `LOCALIZATION / Tax Amount (MYR): 0.00` sub-line.
+- Action links: `Add Item to Cart`, `Repeat Previous Items`, `Apply Auto Discount` — all disabled placeholders.
+- Totals block: editable `Discount`, display `Total (MYR)`, display `Cash (MYR)`, display `Balance (MYR)`, `Require Rounding?` toggle.
+
+**Right column** (360px):
+- `ATTACHMENTS` section with a dummy `ATTACH-<id>` card (print + paperclip icons, disabled).
+- `PAYMENT` section: `Backdate Invoice?` toggle (UI only), payment-mode select (from `SALES_PAYMENT_MODES`), amount input, remarks input, `Add Payment Type` link (disabled), sales-target outlet display.
+- **Primary submit — the big green checkmark button** — calls `collectAppointmentPaymentAction(appointment.id, …)`. On success, fires the `onSuccess` toast `Payment collected · <so_number> / <invoice_no>`, closes the dialog, and calls `router.refresh()`.
+- Message-to-frontdesk textarea (UI only — not currently sent to the action payload).
+
+Validation:
+- Button disabled while the mutation is pending, when `lines.length === 0`, or when the amount field is empty/NaN/non-positive.
+- On submit errors (service throws), the error is shown inline in a red strip AND routed out to the toast stack via `onError`.
+
+The **transactional write** (create SO + sale_items + payment + flip appointment payment_status) happens inside the `collect_appointment_payment` Postgres RPC called by `collectAppointmentPaymentAction`. Full spec in [04-sales.md](./04-sales.md). Billing items are NOT copied at RPC time — they're passed into the action as `items[]`, so whatever the dialog sends is what gets committed. This matches the "snapshot at collect time" rule: the committed sales order is the immutable record.
 
 ### Screen: Appointment Create / Edit Dialog
 
 Centered modal (`components/ui/dialog.tsx`), not a side sheet.
 
-**Top of dialog: mode tabs.** Two equal-width segmented buttons — `Appointment`
-and `Time block` — replace the earlier checkbox. Switching to `Time block`
-locks out customer / status / payment / tags and unlocks `block_title`. This
-mirrors the reference prototype's `bookingMode` switch.
+**Top of dialog: mode tabs.** Two equal-width segmented buttons — `Appointment` and `Time block` — replace the earlier checkbox. Switching to `Time block` locks out customer / status / payment / tags and unlocks `block_title`. This mirrors the reference prototype's `bookingMode` switch.
 
 **Fields (Appointment mode):**
-- **Customer** — three-state combobox mirroring the prototype:
-  1. *Searching* — search by name / code / phone. Dropdown shows matching
-     existing customers. If the user has typed a query that doesn't match
-     anyone, a pinned `Book "<name>" as walk-in lead` row appears at the top
-     of the dropdown. Blurring with a pending query auto-commits as a lead.
-  2. *Selected customer* — muted chip with name + code + phone and a `Change`
-     button.
-  3. *Selected lead* — amber chip with the lead's name, a `Walk-in lead`
-     badge, `Change` button, and extra fields `Contact number` (required),
-     `Source` (required — walk_in / referral / ads / online_booking), and
-     `Lead attended by`. On an existing lead appointment, a `Register as
-     Customer` button opens the conversion sub-dialog.
-- **Start / End** — `datetime-local` inputs; if end is moved before start, end
-  jumps forward 30 min.
-- **Employee** — optional dropdown of bookable employees rostered at the outlet
-- **Room** — optional dropdown of rooms at the outlet
-- **Status** — pill picker (8 values, see below)
-- **Payment status** — `unpaid` / `partial` / `paid` (will be flipped by the
-  billing flow once Collect Payment ships; manual today)
-- **Tag** — **single-select** chip with hex colors (configurable later). Stored
-  as `text[]` for schema flexibility, but a CHECK constraint
-  (`appointments_tags_single_chk`) enforces `array_length(tags, 1) <= 1` and
-  the Zod schema caps `tags` with `.max(1)`. Clicking the active tag clears
-  it.
-- **Notes** — free text
+- **Customer** — three-state combobox:
+  1. *Searching* — search by name / code / phone. Dropdown shows matching existing customers. If the user has typed a query that doesn't match anyone, a pinned `Book "<name>" as walk-in lead` row appears at the top of the dropdown. Blurring with a pending query auto-commits as a lead.
+  2. *Selected customer* — muted chip with name + code + phone and a `Change` button.
+  3. *Selected lead* — amber chip with the lead's name, a `Walk-in lead` badge, `Change` button, and extra fields `Contact number` (required), `Source` (required — walk_in / referral / ads / online_booking), and `Lead attended by`. On an existing lead appointment, a `Register as Customer` button opens `LeadConvertDialog`.
+- **Start / End** — `datetime-local` inputs; if end is moved before start, end jumps forward 30 min.
+- **Employee** — optional dropdown of bookable employees rostered at the outlet. Planned: the KumoDent "intended positions" warning popup (see Hands-on Incentives note above) — not built yet.
+- **Room** — required dropdown for non-block appointments (Zod enforces `room_id` non-null). Optional for time blocks.
+- **Status** — pill picker (8 values, see below).
+- **Payment status** — `unpaid` / `partial` / `paid`. Normally driven by the Collect Payment flow; the dialog exposes it for manual correction.
+- **Tag** — **single-select** chip with hex colors (configurable later). Stored as `text[]` for schema flexibility, but a CHECK constraint (`appointments_tags_single_chk`) enforces `array_length(tags, 1) <= 1` and the Zod schema caps `tags` with `.max(1)`. Clicking the active tag clears it.
+- **Notes** — free text.
 
 **Fields (Time block mode):**
-- **Block title** — required
-- Start / End, Employee, Room, Notes
+- **Block title** — required.
+- Start / End, Employee, Room, Notes.
 
-**Billing section is NOT shown in the Create / Edit Dialog.** Billing lives
-only on the full-page detail route (`/appointments/[id]` → Billing tab), not
-inside the dialog — keep the dialog focused on scheduling. The inline
-`BillingSection` component is still used by the detail view and is fed by
-the `billing_entries` table — one row per line item. Doctor picks a service
-from the catalog (auto-fills name + price), or types a custom description,
-sets quantity + unit price (override allowed), optionally types a **note
-for frontdesk** (e.g. "waive deposit", "follow-up call needed") that saves
-into the entry's `notes` column, and clicks Add. Total updates live. Each
-row shows the description plus the note (if any), and the row's price is
-editable in place; delete via trash icon. This is the **post-treatment
-fill-in** that drives the eventual Collect Payment flow.
+**Billing section is NOT shown in the Create / Edit Dialog.** Billing lives only on the full-page detail route (`/appointments/[id]` → Billing tab). The dialog stays focused on scheduling. `BillingSection` is the inline component used by `BillingTab` — doctor picks a service from the catalog (auto-fills name + price), or types a custom description, sets quantity + unit price (override allowed), optionally types a note for frontdesk, and clicks Add. Each row's price is editable in place; delete via trash icon. See `ServicePickerDialog.tsx` for the picker UX.
+
+## Realtime status-change toasts
+
+`components/notifications/AppointmentNotificationsProvider.tsx` wraps the app shell and subscribes via Supabase realtime to changes on the currently-selected outlet's appointments (`appointments_realtime` migration + `appointments_replica_identity_full`). Status transitions trigger a toast via `AppointmentStatusToastStack` — a separate stack from the per-page `AppointmentToastStack`. This is how the calendar feels "alive" without polling. The active outlet ID comes from `lib/appointments/view-prefs.ts` helpers (`readActiveOutletId`, …).
 
 ## Workflows & Status Transitions
 
-Status enum follows the prototype literally:
+Live enum:
 
 ```
 pending → confirmed → arrived → started → billing → completed
                                                   → noshow
-                                                  → cancelled
 ```
 
 | Key | Label | Icon | When |
@@ -251,74 +254,60 @@ pending → confirmed → arrived → started → billing → completed
 | `billing` | Billing | 💲 | Treatment done, billing being entered |
 | `completed` | Completed | ✔ | Paid + closed |
 | `noshow` | No Show | 🚫 | Didn't turn up |
-| `cancelled` | Cancelled | ✖ | Voided before completion |
 
-Transitions are **manual** — staff clicks a status pill. No auto-advance from
-time elapsing. Colors live in
-`lib/constants/appointment-status.ts` as Tailwind classes (easy to swap).
+**No `cancelled` status** — it was removed in migration `appointments_drop_cancelled_status`. Deleting an appointment is a hard delete. Transitions are manual (staff clicks a status pill); no auto-advance from time elapsing. Colours live in `lib/constants/appointment-status.ts` as Tailwind classes.
 
 ## Business Rules
 
-- `end_at > start_at` (CHECK constraint)
-- An appointment belongs to exactly one outlet (RESTRICT — can't delete outlet with appointments)
-- Customer, employee, room are all **optional** at the schema level (SET NULL on delete) — supports time blocks and walk-ins
-- **No `service_id` on appointments.** Services live only in `billing_entries` and are filled in post-treatment.
+- `end_at > start_at` (CHECK constraint).
+- An appointment belongs to exactly one outlet (RESTRICT — can't delete outlet with appointments).
+- **Room is required for non-block appointments**, enforced at the Zod level (`room_id` superRefine). Customer / employee remain optional at the schema level (SET NULL on delete) to support walk-in leads.
+- **No `service_id` on appointments.** Services live only in `appointment_line_items` and are filled in post-treatment.
 - **Overlap handling:** soft warning only — `findOverlappingAppointments()` is exposed by the service for callers that want to check, but writes never block on overlap. Staff is trusted.
-- **Walk-in leads are first-class** — a non-block appointment without a
-  `customer_id` is treated as a lead and must supply `lead_name`, `lead_phone`,
-  and `lead_source`. `lead_attended_by_id` is optional. Enforced by the
-  `appointments_customer_or_lead_chk` CHECK constraint and by the Zod schema.
-- **Lead → customer conversion** is a one-click op via
-  `convertLeadToCustomer()` in [lib/services/appointments.ts](../../lib/services/appointments.ts).
-  It creates a new `customers` row with the minimal required fields (name,
-  phone, home outlet, consultant, ID type default `ic`, source `walk_in`)
-  and back-links **every** appointment with the same `lead_phone` and
-  `customer_id IS NULL` to the new customer, clearing their lead fields in
-  the same update. Triggered from the `Register as Customer` button inside
-  the lead appointment dialog.
-- **Time blocks** (lunch, meeting, leave, equipment maintenance) use the same table with `is_time_block = true`, `customer_id` nullable, and `block_title` required (CHECK constraint enforces this).
-- **Payment status** on the appointment row is a mirror — the source of truth is `payments` linked to the sales order (Collect Payment shipped in migration `0029_sales`). Kept denormalized on the appointment row for fast calendar rendering; the `collect_appointment_payment` RPC flips `payment_status → 'paid'` inside the same transaction that creates the SO + sale_items + payment.
+- **Walk-in leads are first-class** — a non-block appointment without a `customer_id` is treated as a lead and must supply `lead_name`, `lead_phone`, and `lead_source`. `lead_attended_by_id` is optional. Enforced by the `appointments_customer_or_lead_chk` CHECK constraint and by the Zod schema.
+- **Lead → customer conversion** is a one-click op via `convertLeadToCustomer()` in [lib/services/appointments.ts](../../lib/services/appointments.ts). It creates a new `customers` row with the minimal required fields (name, phone, home outlet, consultant, ID type default `ic`, source `walk_in`) and back-links **every** appointment with the same `lead_phone` and `customer_id IS NULL` to the new customer, clearing their lead fields in the same update. Triggered from the `Register as Customer` button inside the lead appointment dialog (`LeadConvertDialog`).
+- **Time blocks** (lunch, meeting, leave, equipment maintenance) use the same table with `is_time_block = true`, `customer_id` nullable, and `block_title` required (CHECK + Zod).
+- **Payment status** on the appointment row is a denormalized mirror for fast calendar rendering; the source of truth is the `payments` table linked to the sales order. The `collect_appointment_payment` RPC flips `appointments.payment_status → 'paid'` inside the same transaction that creates the SO + sale_items + payment (migration `0029_sales`).
 
 ## Data Fields
 
-### `appointments` (migrations `0023_appointments`, `0024_appointments_leads`)
+### `appointments` (migrations `0023_appointments`, `0024_appointments_leads`, `appointments_single_tag`, `appointments_drop_cancelled_status`, `appointments_realtime`, `appointments_replica_identity_full`, `0025_appointments_follow_up`)
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | id | uuid | Yes | PK, default `gen_random_uuid()` |
-| booking_ref | text | Yes | Auto `APT00000001` (8-digit sequence via `gen_booking_ref()`) |
+| booking_ref | text | Yes | Auto `APT00000001` — `'APT' \|\| lpad(nextval('seq_booking_ref'), 8, '0')`. No hyphen. |
 | customer_id | uuid (FK customers) | No | SET NULL; required for non-block non-lead |
 | employee_id | uuid (FK employees) | No | SET NULL |
 | outlet_id | uuid (FK outlets) | Yes | RESTRICT |
-| room_id | uuid (FK rooms) | No | SET NULL |
+| room_id | uuid (FK rooms) | No (schema) / Yes (Zod for non-block) | SET NULL at DB level; Zod requires for non-block rows |
 | start_at | timestamptz | Yes | |
 | end_at | timestamptz | Yes | CHECK `> start_at` |
-| status | text | Yes | CHECK 8 values (see Status table above), default `pending` |
-| payment_status | text | Yes | CHECK `unpaid / partial / paid`, default `unpaid` |
-| paid_via | text | No | Free-text today; enum lands with the sales module (`cash / credit_card / debit_card / online_transfer / e_wallet`) |
+| status | text | Yes | CHECK `pending / confirmed / arrived / started / billing / completed / noshow`, default `pending` |
+| payment_status | text | Yes | CHECK `unpaid / partial / paid`, default `unpaid`. Denormalised mirror. |
+| paid_via | text | No | `cash / credit_card / debit_card / online_transfer / e_wallet` |
 | payment_remark | text | No | Free-text; transaction IDs, card refs, partial-payment notes |
 | notes | text | No | |
-| tags | text[] | Yes | Default `'{}'`; CHECK `appointments_tags_single_chk` caps to one element (single-select tag) |
+| tags | text[] | Yes | Default `'{}'`; CHECK `appointments_tags_single_chk` caps to one element (single-select) |
 | is_time_block | bool | Yes | Default false |
 | block_title | text | No | CHECK: required when `is_time_block = true` |
 | lead_name | text | No | Walk-in lead name when `customer_id IS NULL` — source of truth, not denormalized |
 | lead_phone | text | No | Walk-in lead phone; indexed for conversion back-link |
 | lead_source | text | No | CHECK `walk_in / referral / ads / online_booking` |
 | lead_attended_by_id | uuid (FK employees) | No | SET NULL — which employee first met the lead |
-| created_by | uuid (FK employees) | No | SET NULL; audit trail — populated from `ctx.currentUser.employeeId` on insert, surfaced in the hover card as "Created By" |
+| follow_up | text | No | Freeform follow-up notes (v1). Will evolve to structured fields later. |
+| created_by | uuid (FK employees) | No | SET NULL; populated from `ctx.currentUser.employeeId`. Surfaced in the hover card as "Created By". |
 | created_at, updated_at | timestamptz | Yes | shared `set_updated_at()` trigger |
 
-Indexes: `(outlet_id, start_at)`, `(employee_id, start_at)`, `(customer_id)`,
-partial `(lead_phone) WHERE customer_id IS NULL AND lead_phone IS NOT NULL`.
+Indexes: `(outlet_id, start_at)`, `(employee_id, start_at)`, `(customer_id)`, partial `(lead_phone) WHERE customer_id IS NULL AND lead_phone IS NOT NULL`.
 
-**CHECK: `appointments_customer_or_lead_chk`** — for non-block rows, require
-either a `customer_id` or a non-empty `lead_name`. This keeps the "walk-in
-without a record" flow first-class without needing a separate `leads` table.
+**CHECKs:**
+- `appointments_customer_or_lead_chk` — for non-block rows, require either `customer_id` or a non-empty `lead_name`.
+- `appointments_tags_single_chk` — `array_length(tags, 1) <= 1`.
 
-### `billing_entries` (same migration)
+### `appointment_line_items` (originally `billing_entries`; renamed in migration `rename_billing_entries_and_add_consumables_incentives`, 2026-04-15)
 
-One row per line item — flattened, not grouped. Maps 1:1 to `sale_items` once
-Collect Payment ships, so no JSONB shape negotiation later.
+One row per line item — flattened, not grouped. Maps 1:1 to `sale_items` when Collect Payment snapshots, so no JSONB shape negotiation later. See [SCHEMA.md §9](../SCHEMA.md) for the broader story (both tables are normalized; the earlier JSONB plan was dropped). The table was originally named `billing_entries` — renamed to reflect its dual role as clinical record + billing cart. See "Why line items live in one table" above.
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
@@ -330,91 +319,154 @@ Collect Payment ships, so no JSONB shape negotiation later.
 | quantity | numeric(10,2) | Yes | CHECK `> 0`, default 1 |
 | unit_price | numeric(10,2) | Yes | CHECK `>= 0`, **editable per row** (price override) |
 | total | numeric(12,2) | — | GENERATED `quantity * unit_price` STORED |
-| notes | text | No | |
+| notes | text | No | Frontdesk note per line |
 | created_by | uuid (FK employees) | No | SET NULL |
 | created_at, updated_at | timestamptz | Yes | |
 
 Index: `(appointment_id)`.
 
-Both tables ship with the temporary anon + authenticated all-access RLS pair
-per the project rule. They get tightened when the auth tightening pass lands.
+### Consumables — no table
+
+Consumables live on the service catalog as `services.consumables` (free-text). The Overview tab's `ConsumablesCard` reads this field for each service line item; there is no per-appointment child table.
+
+A previous revision introduced `appointment_line_item_consumables` and was dropped in migration `drop_appointment_line_item_consumables` after a reread of the requirements — consumables are a catalog-level decision, not a per-visit one. When Inventory ships in Phase 2, this will evolve into a `service_consumable_items` junction table on the Services side, feeding stock movements on Collect Payment. The appointment side remains a read-only consumer.
+
+### `appointment_line_item_incentives` (migration `rename_billing_entries_and_add_consumables_incentives`)
+
+Child of `appointment_line_items`. Per-line employee attribution. Multiple rows per line allowed; `UNIQUE (line_item_id, employee_id)` prevents double-attributing the same employee. No commission fields — just attribution.
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| id | uuid | Yes | PK |
+| line_item_id | uuid (FK appointment_line_items) | Yes | CASCADE |
+| employee_id | uuid (FK employees) | Yes | CASCADE |
+| created_by | uuid (FK employees) | No | SET NULL |
+| created_at, updated_at | timestamptz | Yes | shared `set_updated_at()` trigger |
+
+Indexes: `(line_item_id)`, `(employee_id)`. Unique: `(line_item_id, employee_id)`.
+
+### `case_notes` (migration `0027_case_notes`)
+
+Although viewed inside the Appointments detail route, case notes are designed to be reusable across customer-scoped views (the customer detail page will surface them too). That's why the table keys on both `appointment_id` and `customer_id`.
+
+Short shape (read the migration for the full definition):
+
+| Field | Type | Notes |
+|-------|------|-------|
+| id | uuid | PK |
+| appointment_id | uuid (FK appointments) | CASCADE |
+| customer_id | uuid (FK customers) | SET NULL — kept separately so notes stay readable even if an appointment is deleted |
+| author_id | uuid (FK employees) | SET NULL |
+| content | text | Freeform note body |
+| created_at, updated_at | timestamptz | |
+
+Service: `lib/services/case-notes.ts`. Actions: `lib/actions/case-notes.ts`. UI entry point: `components/appointments/detail/CaseNotesTab.tsx` + note cards inside `HistoryPanel.tsx`.
+
+**All tables (`appointments`, `appointment_line_items`, `appointment_line_item_incentives`, `case_notes`) ship with the temporary anon + authenticated all-access RLS pair** per CLAUDE.md rule 6. They get tightened when the auth tightening pass lands.
 
 ## Relationships to Other Modules
 
 | Related Module | Relationship | Details |
 |---------------|-------------|---------|
-| Customers | appointment → customer | `customer_id` (optional for blocks) |
-| Employees | appointment → employee | `employee_id` (performer) + `created_by` |
-| Services | appointment → service | `service_id` (primary/booked service) |
+| Customers | appointment → customer | `customer_id` (optional; nullable for blocks and leads) |
+| Employees | appointment → employee | `employee_id` (performer), `lead_attended_by_id`, `created_by` |
+| Services | line item → service | **No `service_id` on appointments.** Services appear only via `appointment_line_items.service_id`. |
 | Outlets | appointment → outlet | `outlet_id` (required, RESTRICT) |
-| Rooms | appointment → room | `room_id` (optional) |
-| Roster | roster drives staff availability | Roster reads guide the staff picker |
-| Billing (`billing_entries`) | appointment → billing entries | One appointment, many billing entries (one per "Save Billing" click) |
-| Sales | appointment → sales orders | `sales_orders.appointment_id` (created on "Collect Payment") |
+| Rooms | appointment → room | `room_id` (optional at schema, required by Zod for non-blocks) |
+| Roster | roster drives staff availability | `listBookableEmployeesForOutlet` reads roster to gate the staff picker |
+| Line items (`appointment_line_items`) | appointment → line items | One appointment, many line items (one per line, not per batch). Dual role — clinical record AND billing cart. |
+| Consumables | line item → service.consumables | Read-only from `services.consumables` free-text. No child table on the appointment side. |
+| Incentives (`appointment_line_item_incentives`) | line item → employees | CASCADE from line item. Multiple employees per line; unique on `(line_item_id, employee_id)`. |
+| Case Notes (`case_notes`) | appointment → notes | CASCADE from appointment, customer kept on SET NULL for reusability |
+| Sales | appointment → sales orders | `sales_orders.appointment_id` (created by `collect_appointment_payment` RPC). Line items are snapshot-copied into `sale_items` at commit time; incentives stay attached to the line item (not copied). |
+| Inventory (future) | Consumables → inventory items | Phase 2. Replace `services.consumables text` with a `service_consumable_items` junction table; the appointment-side card still reads through the service. Feeds stock movements. |
+| Commission (future) | Incentives → commission engine | Phase 2. Reads `appointment_line_item_incentives` to calculate per-employee payouts. |
 
 ## Gaps & Improvements Over KumoDent
 
-- **Single outlet per calendar view** — no all-outlets view, the filter is always one outlet. This matches both KumoDent and the current prototype.
-- **Unified room/employee filter** — one dropdown with mode toggle, instead of KumoDent's separate filters. Already built in the prototype; keep as-is.
+- **Single outlet per calendar view** — no all-outlets view, the filter is always one outlet. Matches the reference.
+- **Unified room/employee filter** — one dropdown with a mode toggle, instead of KumoDent's separate filters. Already built.
 - **Soft-warning overlap** instead of hard block — trust the staff.
-- **Same model handles time blocks** — no separate table. Simpler.
-- **Billing entries decoupled** — billing is not part of the appointment row. Save-as-you-go semantics (see [04-sales.md](./04-sales.md)).
+- **Same model handles time blocks** — no separate table.
+- **Line items decoupled from appointment row** — no `service_id`, no denormalized service fields. Save-as-you-go semantics (see [04-sales.md](./04-sales.md)).
+- **No mandatory service at booking time** — all services are post-treatment. Lets front desk book by person and let the doctor fill in what actually happened.
 
 ## File map
 
 ```
 app/(app)/appointments/
   page.tsx                            (Suspense shell)
-  appointments-content.tsx            (RSC: data load + filter bar + calendar)
+  loading.tsx                         (loading skeleton)
+  appointments-content.tsx            (RSC: resolve outlet/date/resource from URL, load month-grid data, pass into AppointmentsView)
   [id]/
     page.tsx                          (Suspense shell for detail route)
-    appointment-detail-content.tsx    (RSC: load appointment + lookups)
+    appointment-detail-content.tsx    (RSC: load appointment + customer history + billing history + case notes + lookup data)
+
 components/appointments/
-  AppointmentDetailView.tsx           (full-page client view, coordinates tabs + edit dialog)
-  detail/
-    DetailHeader.tsx                  (back/edit/delete)
-    DetailTabs.tsx                    (segmented tabs; only Overview enabled)
-    CustomerCard.tsx                  (left sidebar: avatar, stats, next appt)
-    BookingInfoCard.tsx               (time, employee, room, ref)
-    StatusProgressionRow.tsx          (8 pills, optimistic)
-    TagPickerRow.tsx                  (single-select chip, optimistic)
-    NotesCard.tsx                     (read-only notes)
-    PaymentSection.tsx                (total, collect, undo, mode, remark)
-    BillingTab.tsx                    (wraps BillingSection inside the Billing tab + refresh)
-    CaseNotesTab.tsx                  (add/edit/delete notes for the current appointment)
-    HistoryPanel.tsx                  (sticky left timeline: receipt cards + note cards, filter + collapse + close)
-  AppointmentsCalendar.tsx            (view switcher, dialog/context-menu/toast state)
+  AppointmentsView.tsx                (NEW — client shell: owns display/scope state, persists to localStorage, hosts FilterBar + Calendar)
   AppointmentsFilterBar.tsx           (outlet, display, scope, date nav, resource, search)
+  AppointmentsCalendar.tsx            (view switcher, dialog/context-menu/toast state)
   WeekView.tsx                        (7-day grid, hours 8–22)
   DayView.tsx                         (1-day grid, columns = employees or rooms)
   MonthView.tsx                       (42-cell month grid)
   ListView.tsx                        (collapsible day-grouped table)
   GridView.tsx                        (day-per-column card matrix)
   AppointmentCard.tsx                 (single block, owns hover popup state)
-  AppointmentHoverCard.tsx            (portal popup: status banner, booking ref, customer, phone, time, employee, room, Lead Attended By, remarks, tag, Created By)
+  AppointmentHoverCard.tsx            (portal popup)
   AppointmentContextMenu.tsx          (right-click portal menu w/ status submenu)
-  AppointmentToastStack.tsx           (bottom-right portal toast stack)
-  AppointmentDialog.tsx               (Dialog form — scheduling only; no BillingSection, tag is single-select)
-  BillingSection.tsx                  (post-treatment line items + frontdesk notes — used by the detail route Billing tab only)
+  AppointmentToastStack.tsx           (per-page toast stack used by the detail view)
+  AppointmentStatusToastStack.tsx     (realtime status-change toast stack used by the global AppointmentNotificationsProvider)
+  AppointmentDialog.tsx               (Dialog form — scheduling only)
+  BillingSection.tsx                  (post-treatment line-item editor, used by BillingTab)
+  ServicePickerDialog.tsx             (service catalog picker inside BillingSection)
+  AppointmentDetailView.tsx           (full-page client view, coordinates tabs + edit dialog + floating action bar + history panel + toasts)
+  detail/
+    DetailHeader.tsx                  (back, title, collapse toggle, delete)
+    DetailTabs.tsx                    (8 segmented tabs — all clickable)
+    CustomerCard.tsx                  (left-top card: avatar, name, stats, next appt)
+    AppointmentSummaryCard.tsx        (right-top card: title, time, outlet, room, StatusProgressionRow)
+    BookingInfoCard.tsx               (Overview left column: time, employee, room, ref)
+    StatusProgressionRow.tsx          (8 pills, optimistic)
+    BillingTab.tsx                    (wraps BillingSection inside the Billing tab)
+    ConsumablesCard.tsx               (Overview tab: read-only per-line consumables from services.consumables free-text)
+    HandsOnIncentivesCard.tsx         (Overview tab: per-line employee attribution; writes appointment_line_item_incentives)
+    CaseNotesTab.tsx                  (add/edit/delete case notes)
+    FollowUpTab.tsx                   (single freeform textarea writing appointments.follow_up)
+    DocumentsTab.tsx                  (static stub)
+    HistoryPanel.tsx                  (sticky left timeline: receipt cards + note cards, filter + collapse + close)
+    PlaceholderPanel.tsx              (reusable placeholder card — now used only by clinical/Camera tabs and the Status Change Log overview sub-card)
+    FloatingActionBar.tsx             (fixed bottom-right: 5 placeholders + wired Complete → ConfirmDialog → CollectPaymentDialog)
+    CollectPaymentDialog.tsx          (two-column POS-style dialog calling collectAppointmentPaymentAction)
+    LeadConvertDialog.tsx             (Register-as-customer sub-dialog launched from the appointment dialog)
+
+components/notifications/
+  AppointmentNotificationsProvider.tsx (global realtime subscription; renders AppointmentStatusToastStack)
+
 lib/calendar/layout.ts                (timeToY, layoutOverlaps, click-to-quarter)
+lib/appointments/view-prefs.ts        (localStorage read/write for display/scope + active outlet id)
 lib/constants/appointment-status.ts   (status + tag config + solid-hex map)
-lib/schemas/appointments.ts           (Zod input schemas)
-lib/services/appointments.ts          (CRUD + reschedule + setStatus + overlap finder)
-lib/services/billing-entries.ts       (CRUD)
-lib/actions/appointments.ts           (server actions)
+lib/schemas/appointments.ts           (Zod input schemas: input / reschedule / status / payment / tags / follow_up / convertLead / lineItem / lineItemIncentive)
+lib/services/appointments.ts          (list/get/create/update/reschedule/setStatus/setPayment/setTags/setFollowUp/delete/convertLead/findOverlapping)
+lib/services/appointment-line-items.ts (line-item CRUD + CustomerLineItem joined rows for receipt cards + incentives CRUD with assertServiceLineItem invariant)
+lib/services/case-notes.ts            (CRUD)
+lib/actions/appointments.ts           (server actions — wrappers)
+lib/actions/case-notes.ts             (server actions — wrappers)
+lib/actions/sales.ts                  (collectAppointmentPaymentAction — used by CollectPaymentDialog)
 ```
 
 ## Pending follow-ups
 
-- **Drag-to-reschedule** — service has `rescheduleAppointment()` ready;
-  needs the HTML5 drag wiring on `AppointmentCard` + drop targets in
-  `DayView` / `WeekView`. The reference prototype doesn't actually have
-  this either, so it's a net-new build whenever we get to it.
-- **Filters panel** — status, dentist, payment-status, room (search bar
-  is shipped).
+- **Wire the Floating Action Bar placeholders** — queue ticket, new appointment, cancel, add to queue, edit.
+- **Consumables (v2)** — replace the free-text `services.consumables` column with a structured `service_consumable_items` junction on the Services side. Build item-picker UI in the services admin, feed stock movements on Collect Payment. The appointment-side `ConsumablesCard` stays a read-only consumer. Gated on Inventory module landing (Phase 2).
+- **Hands-on Incentives (v2)** — auto-default the employee selection to the appointment's assigned employee (or `lead_attended_by`) so staff only has to touch it when it differs. Add the KumoDent "intended positions" advisory popup once `services.intended_positions text[]` exists. Wire to a Commission engine in Phase 2. Possibly gate the Complete button on every service line having at least one incentive assigned — needs a UX call.
+- **Status Change Log** — decide storage shape (separate events table vs JSONB on appointments), then wire the Overview card.
+- **Drag-to-reschedule** — service has `rescheduleAppointment()` ready; needs HTML5 drag wiring on `AppointmentCard` + drop targets in `DayView` / `WeekView`.
+- **Advanced filters panel** — status, dentist, payment-status, room.
 - **Walk-in customer create-inline** shortcut from inside `AppointmentDialog`.
-- **Sound effects on status change** — the prototype has the `Audio()`
-  call commented out; we'd add a toggle in user preferences.
-- **Recurring / repeat appointments** — net-new feature, not in prototype.
-- **Customer sidebar** — show linked customer history, no-show count,
-  upcoming appointments alongside the dialog.
+- **Recurring / repeat appointments** — net-new feature.
+- **Sound effects on status change** — behind a user-preference toggle.
+- **Dental Assessment / Periodontal Charting / Camera / Documents tab content** — Phase 2 clinical sub-modules.
+- **Follow Up tab v2** — structured fields (date, text, completion flag, link to follow-up appointment).
+- **Case notes improvements** — linkage to billing lines, multi-author edit history, reuse on the customer detail page.
+- **Service employee-picker "intended positions" popup** — matches KumoDent UX; needs a `services.intended_positions text[]` field first.
+- **Collect Payment dialog v2** — wire Itemised Allocation, secondary staff avatars, Add Item to Cart, Repeat Previous Items, Apply Auto Discount, Attachments, Backdate, Add Payment Type, frontdesk message plumbing.

@@ -40,7 +40,7 @@ These are separate systems — passcodes authorize specific operations, PINs ver
              │ REST API + webhooks
              ▼
 ┌──────────────────────────────────────────────┐
-│  WHATSAPP SERVICE (separate)                 │
+│  wa-connector (separate process)             │
 │  Node.js + Baileys                           │
 │                                              │
 │  - WhatsApp connection (Baileys WebSocket)   │
@@ -49,8 +49,10 @@ These are separate systems — passcodes authorize specific operations, PINs ver
 │  - Templates                                 │
 │  - Webhooks → notify app of inbound messages │
 │                                              │
-│  DB: Own Postgres (separate from clinic DB)  │
-│  Linked to clinic app via phone number       │
+│  DB: SAME Supabase project as big-app,       │
+│      isolated in the `wa_service` schema     │
+│      (+ legacy public.wa_*, public.messages) │
+│  Linked to big-app via connection UUID       │
 └──────────────────────────────────────────────┘
 ```
 
@@ -75,19 +77,21 @@ These are separate systems — passcodes authorize specific operations, PINs ver
 - **Terminology:** "Customer" (not "patient") — supports cross-industry use (dental, salon, beauty).
 - **Future link:** `customer_contacts` mapping table or phone-number matching when messaging is integrated.
 
-### 2. WhatsApp = Separate Service, Separate DB, Fork-and-Strip Build
-- **Decision:** WhatsApp service is a standalone Node.js app (`wa-service`) with its own Supabase project. One deployment per consumer product (BIG, future GHL clone, etc). Big-app talks to it over REST + webhooks.
-- **Build strategy:** Fork `whatsapp-crm-main/backend` wholesale and strip out the Aoikumo-shaped bits (AI replies, automations, Google Sheets, tenant formatters). **Do not rewrite the protocol layer from scratch** — the Baileys lifecycle, error 515 fix, LID resolution, send queue, and 24h gap detection are battle-tested and stay as-is. See `wa-service/PRD.md` for the full plan.
-- **Why:** Persistent WebSocket process (Baileys) is operationally different from the clinic app. High message volume shouldn't impact clinic DB. Will be reused by future products (BIG = offline services, GHL clone = online services — completely different apps, shared WhatsApp layer).
-- **Why fork-and-strip instead of rewrite:** whatsapp-crm-main contains ~2,400 lines of protocol code that took months to stabilize. Re-deriving those bug fixes is waste. The right move is to inherit the working code and remove what doesn't belong.
-- **What its DB holds:** sessions (Baileys auth state), contacts (phone-based), conversations, messages. Own Supabase project — never shared with big-app.
-- **What it does NOT hold:** Customer names, appointments, sales — anything clinic-specific. No CRM, no AI, no automation, no business logic.
-- **Link to big-app:** `outlets.whatsapp_connection_id` (nullable) — one outlet, one connection, one WhatsApp number in v1. Big-app stores the stable wa-service connection UUID, never the phone number. If staff re-pair with a different SIM, the phone changes in wa-service but big-app's FK doesn't move (see wa-service PRD §4a — connection is durable, phone is mutable). Multi-number-per-outlet is deferred until a real need appears; at that point big-app adds a junction table, wa-service stays unchanged.
-- **Metadata passthrough:** When big-app creates a connection in wa-service, it passes `metadata: { outlet_id, outlet_name, consumer_product: "big-app" }`. wa-service echoes this back in every webhook event, so big-app's webhook handler can route by `metadata.outlet_id` without a DB lookup. See wa-service PRD §4b.
-- **Customer linking:** separate concern from connection linking. Customers link to inbound messages by phone-number matching against `whatsapp_contacts` (which big-app mirrors from webhook events). A customer may or may not have a WA contact; a WA contact may or may not match a customer.
-- **Socket.IO vs webhooks:** wa-service keeps Socket.IO internally for its own future inbox frontend (v3). For big-app and other backend consumers, it uses webhooks (standard server-to-server pattern). These coexist — same event goes out both channels.
-- **Local dev:** run wa-service backend on `:3001` and big-app on `:3000` on the same machine; wa-service posts webhooks to `http://localhost:3000/api/webhooks/whatsapp`. No tunnels needed. Prod: separate deployments on Railway (wa-service) and wherever big-app ends up.
-- **V1 scope of wa-service:** scan QR, receive messages to DB, send messages via HTTP. Everything else (REST API for external consumers, webhook layer, rename `tenant`→`connection`, media, groups, status tracking) is v2+. See `wa-service/PRD.md` §5.
+### 2. WhatsApp = Separate Service (wa-connector), Shared Supabase Project via Isolated Schema, Fork-and-Strip Build
+- **Decision:** WhatsApp is handled by a standalone Node.js process called **wa-connector** (repo: `wa-connector`, lives at `/Users/leizhiguang/Documents/Programming/1-FunnelDuo/wa-service/` on disk for historical reasons). It maintains a persistent Baileys WebSocket and exposes HTTP endpoints. Big-app talks to it over HTTP (and later, webhooks).
+- **Build strategy:** Fork `whatsapp-crm-main/backend` wholesale and strip out the Aoikumo-shaped bits (AI replies, automations, Google Sheets, tenant formatters). **Do not rewrite the protocol layer from scratch** — the Baileys lifecycle, error 515 fix, LID resolution, send queue, and 24h gap detection are battle-tested and stay as-is. See wa-connector `PRD.md` for the full plan.
+- **Why:** Persistent WebSocket process (Baileys) is operationally different from the clinic app. Will be reused by future products (BIG = offline services, a future GHL clone = online services — completely different apps, shared WhatsApp layer).
+- **Why fork-and-strip instead of rewrite:** whatsapp-crm-main contains ~2,400 lines of protocol code that took months to stabilize. Re-deriving those bug fixes is waste. Inherit the working code and remove what doesn't belong.
+- **Database sharing — shared Supabase project, isolated by schema.** Earlier drafts of this document called for wa-connector to have its *own* Supabase project. That was superseded during build. Current reality: **wa-connector and big-app share one Supabase project**, and wa-connector keeps all of its tables in a dedicated `wa_service` Postgres schema (`wa_service.projects`, `wa_service.channel_accounts`, `wa_service.contacts`, `wa_service.contact_channels`, `wa_service.conversations`, `wa_service.messages`). There are also legacy `public.wa_*` + `public.messages` tables in the same project that predate the schema-isolation decision — still owned by wa-connector, not yet dropped.
+- **Schema ownership rule (load-bearing):** big-app owns `public.*` *except* for the legacy `public.wa_*` and `public.messages` tables. **Big-app must never create a migration that touches the `wa_service` schema, the legacy `public.wa_*` tables, or `public.messages`.** Any WhatsApp-side schema change — adding a column, renaming a table, dropping the legacy tables — is made in the wa-connector repo and applied from there. This rule is the only thing keeping the two services from stepping on each other, now that they share a DB.
+- **What wa-connector's schema holds:** sessions (Baileys auth state), channel accounts (connections), contacts (phone-based), conversations, messages. No CRM, no AI, no automation, no business logic. No customer names, no appointments, no sales.
+- **Link to big-app:** the eventual bridge is `outlets.whatsapp_connection_id` (nullable) — one outlet, one connection, one WhatsApp number in v1. Big-app stores wa-connector's stable channel-account UUID, never the phone number. If staff re-pair with a different SIM, the phone changes in wa-connector but big-app's FK doesn't move (see wa-connector PRD §4a — connection is durable, phone is mutable). Multi-number-per-outlet is deferred until a real need appears; at that point big-app adds a junction table, wa-connector stays unchanged. **This column does not exist yet** — it lands in Phase 3 together with the rest of the WhatsApp module.
+- **Metadata passthrough:** When big-app creates a connection in wa-connector, it passes `metadata: { outlet_id, outlet_name, consumer_product: "big-app" }`. wa-connector echoes this back in every webhook event, so big-app's webhook handler can route by `metadata.outlet_id` without a DB lookup. See wa-connector PRD §4b.
+- **Integration pattern — still undecided, Phase 3 concern.** Whether big-app *mirrors* wa-connector's contacts/messages into its own tables or does a *match-on-arrival* against `customers.phone` inside the webhook handler is an open design question. Neither is implemented. The directory `app/api/webhooks/whatsapp/` currently exists as an empty placeholder — no handler, no service, no mapping table. Revisit when Phase 3 kicks off.
+- **Socket.IO vs webhooks:** wa-connector keeps Socket.IO internally for its own future inbox frontend (v3). For big-app and other backend consumers, it uses webhooks (standard server-to-server pattern). These coexist — same event goes out both channels.
+- **Local dev:** wa-connector backend on `:3001`, big-app on `:3000`, same machine; wa-connector posts webhooks to `http://localhost:3000/api/webhooks/whatsapp`. No tunnels needed. Prod: separate deployments (wa-connector on Railway, big-app wherever it lands), still pointing at the same Supabase project.
+- **V1 scope of wa-connector:** scan QR, receive messages to DB, send messages via HTTP. Everything else (REST API for external consumers, API keys, webhook layer, rename `tenant`→`connection`, media, groups, status tracking) is v2+. See wa-connector PRD §5.
+- **Sequencing — big-app's WhatsApp work is blocked on wa-connector V2.** V1 of wa-connector is a standalone protocol proof; there is no webhook layer, no API-key system, and no public REST contract for external consumers yet. Big-app's Phase 3 WhatsApp module cannot start shipping until wa-connector ships V2 (REST API + API keys + webhooks) — which is wa-connector PRD §9 V4's "first consumer integration".
 
 ### 3. Automation = Built-in Module
 - **Decision:** Workflow/automation engine is a module inside the clinic app, not a separate service
@@ -134,8 +138,8 @@ When we onboard a second owner (e.g., another dental clinic chain or a beauty br
 - **Frontend:** Next.js 16 stays, but becomes frontend-only. Server actions are deleted. Reads and writes go through a client-side data layer that calls the NestJS API over HTTP. **This is where TanStack Query enters the project** — it becomes the primary client cache because there's no more server-action magic to paper over the loss of RSC freshness. Installing it in Phase 1 would be premature; installing it in Phase 2 is non-optional.
 - **Package layout:** pnpm workspace — `apps/web` (Next) + `apps/api` (NestJS) + `packages/shared` (Zod schemas + types + service layer + errors + context types). See §7.
 
-**WhatsApp service (separate repo — Phase 3):**
-- Node.js + Baileys + own Postgres. Out of current scope. Whether it uses NestJS or stays plain Node is decided when that work starts — not our problem now.
+**wa-connector (separate repo — Phase 3):**
+- Node.js + Baileys. Runs as its own process but currently shares the big-app Supabase project, isolated in the `wa_service` schema (see §2). Out of big-app's current scope. Whether it adopts NestJS or stays plain Node is decided when that work starts.
 
 **Auth (both phases):**
 - Supabase Auth is the identity provider. JWT-based. Works identically for Next server actions (cookie-based session) and NestJS (`Authorization: Bearer <jwt>` header). No auth rewrite when NestJS arrives.
@@ -405,13 +409,37 @@ Every listing view in the app (Employees, Roles, Positions, Outlets, Customers, 
 
 **Non-goals for Phase 1 DataTable.** Do not add: column visibility toggles, saved views, CSV export, inline editing, drag-to-reorder, row expansion. Each of these is easy to add when a real user need appears; none of them are speculative-add material.
 
+## 11. File storage — Supabase Storage, two buckets, path-in-DB
+
+We use Supabase Storage for every binary the app handles (profile photos today, later clinical photos, attachments, signed documents). Two buckets are enough for Phase 1:
+
+| Bucket | Public? | Purpose | Size limit | MIME |
+|---|---|---|---|---|
+| `media` | ✅ public read | Everything visible in normal UI — employee/customer avatars, service photos, product images | 5 MB | `image/jpeg,image/png,image/webp` |
+| `documents` | 🔒 private | Anything sensitive enough to need signed URLs — ID scans, clinical photos, signed forms, receipts | 20 MB | `image/*,application/pdf` |
+
+Why two. We split on read access pattern, not by module — so we don't end up with `employee_photos`, `customer_photos`, `product_photos` and the maintenance cost of N buckets. Organization inside a bucket is by path prefix (`employees/<id>/…`, `customers/<id>/…`, `services/<id>/…`).
+
+**Store the path, not the URL.** Domain tables carry `profile_image_path text` (e.g. `employees/<uuid>/20260415-<uuid>.jpg`), not a full URL. Public URLs are derived via `lib/storage/urls.ts → mediaPublicUrl(path)` (and `lib/services/storage.ts → getPublicUrl(ctx, bucket, path)` on the server). Flipping a bucket from public to private later is then a config change, not a data migration.
+
+**Uploads skip the server.** The pattern is:
+1. Browser calls the `requestMediaUploadUrlAction` server action → returns a short-lived signed upload URL + the final path.
+2. Browser uploads directly to Supabase via `supabase.storage.from('media').uploadToSignedUrl(path, token, file)`.
+3. Browser puts the returned path into the form state; the normal save action persists it on the domain row.
+
+This keeps files out of the Next.js server entirely (no body-size limits, no memory pressure) and works the same whether the backend is Phase-1 Next or Phase-2 NestJS.
+
+**The reusable component.** `components/ui/image-upload.tsx` is the only upload surface for images. Every form that needs a photo just drops `<ImageUpload entity="employees|customers|services|…" entityId={id} … />` into the right spot — layout modes `row` and `stacked` cover the common form shapes. When documents land later, a sibling `<FileUpload />` will use the same storage service + the `documents` bucket.
+
+**RLS on `storage.objects`.** Temp permissive policies for BOTH `anon` and `authenticated` per bucket, marked `-- TEMP: pre-auth tightening`, matching the per-table convention. `media` additionally has a public read policy so `<Image />` can fetch without signed URLs.
+
 ## Decisions Pending
 
 - [x] Product name — **BIG** (our brand). Repo name: `big-app`.
 - [ ] Hosting: Vercel + Railway? AWS? Supabase-only? (must also answer "where does NestJS run in Phase 2" — Railway is the obvious default)
 - [ ] Exact Phase 2 trigger for NestJS extraction — define a concrete signal, not a date
 - [ ] WhatsApp: Baileys (unofficial) vs Meta Cloud API (official) for production
-- [ ] WhatsApp service hosting — where to run the persistent Baileys process (Railway / VPS / EC2?)
+- [ ] wa-connector hosting — where to run the persistent Baileys process (Railway / VPS / EC2?)
 - [ ] Offline support / PWA requirements
-- [ ] File storage strategy (X-rays, documents, profile photos)
+- [x] File storage strategy — Supabase Storage, two buckets (`media` public, `documents` private), paths stored on domain rows (see §11)
 - [ ] Notification strategy (push, email, in-app)
