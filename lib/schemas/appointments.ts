@@ -62,6 +62,13 @@ export const appointmentInputSchema = z
 				message: "End must be after start",
 			});
 		}
+		if (!data.is_time_block && !data.room_id) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["room_id"],
+				message: "Room is required",
+			});
+		}
 		if (data.is_time_block) {
 			if (!data.block_title) {
 				ctx.addIssue({

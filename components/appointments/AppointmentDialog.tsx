@@ -110,7 +110,9 @@ function buildDefaults(args: {
 	outletId: string;
 	appointment: AppointmentWithRelations | null;
 	prefill: Props["prefill"];
+	rooms: Room[];
 }): AppointmentInput {
+	const defaultRoomId = args.rooms[0]?.id ?? null;
 	const a = args.appointment;
 	if (a) {
 		return {
@@ -142,7 +144,7 @@ function buildDefaults(args: {
 		customer_id: null,
 		employee_id: args.prefill?.employeeId ?? null,
 		outlet_id: args.outletId,
-		room_id: args.prefill?.roomId ?? null,
+		room_id: args.prefill?.roomId ?? defaultRoomId,
 		start_at: args.prefill?.startAt ?? fallbackStart.toISOString(),
 		end_at: args.prefill?.endAt ?? fallbackEnd.toISOString(),
 		status: "pending",
@@ -192,19 +194,19 @@ export function AppointmentDialog({
 
 	const form = useForm<AppointmentInput>({
 		resolver: zodResolver(appointmentInputSchema),
-		defaultValues: buildDefaults({ outletId, appointment, prefill }),
+		defaultValues: buildDefaults({ outletId, appointment, prefill, rooms }),
 	});
 
 	useEffect(() => {
 		if (open) {
-			form.reset(buildDefaults({ outletId, appointment, prefill }));
+			form.reset(buildDefaults({ outletId, appointment, prefill, rooms }));
 			setServerError(null);
 			setCustomerSearch("");
 			setPickerOpen(false);
 			setCustomerMode(initialCustomerMode(appointment));
 			setConvertOpen(false);
 		}
-	}, [open, outletId, appointment, prefill, form]);
+	}, [open, outletId, appointment, prefill, rooms, form]);
 
 	const startAt = form.watch("start_at");
 	const endAt = form.watch("end_at");
@@ -551,13 +553,20 @@ export function AppointmentDialog({
 												shouldDirty: true,
 											})
 										}
+										disabled={rooms.length === 0}
 									>
-										<option value="">— Unassigned —</option>
-										{rooms.map((r) => (
-											<option key={r.id} value={r.id}>
-												{r.name}
-											</option>
-										))}
+										{rooms.length === 0 ? (
+											<option value="">No rooms — add one in Outlets</option>
+										) : (
+											<>
+												{isBlock && <option value="">— Unassigned —</option>}
+												{rooms.map((r) => (
+													<option key={r.id} value={r.id}>
+														{r.name}
+													</option>
+												))}
+											</>
+										)}
 									</select>
 								</Field>
 							</div>

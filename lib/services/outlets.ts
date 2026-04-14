@@ -184,6 +184,29 @@ export async function updateRoom(
 }
 
 export async function deleteRoom(ctx: Context, id: string): Promise<void> {
+	const { data: room, error: lookupError } = await ctx.db
+		.from("rooms")
+		.select("outlet_id")
+		.eq("id", id)
+		.single();
+	if (lookupError || !room) throw new NotFoundError(`Room ${id} not found`);
+
+	const { count, error: countError } = await ctx.db
+		.from("rooms")
+		.select("id", { count: "exact", head: true })
+		.eq("outlet_id", room.outlet_id);
+	if (countError) throw new ValidationError(countError.message);
+	if ((count ?? 0) <= 1)
+		throw new ValidationError(
+			"Each outlet must keep at least one room. Add another room before deleting this one.",
+		);
+
 	const { error } = await ctx.db.from("rooms").delete().eq("id", id);
-	if (error) throw new ValidationError(error.message);
+	if (error) {
+		if (error.code === "23503")
+			throw new ConflictError(
+				"This room is linked to existing appointments. Reassign them first.",
+			);
+		throw new ValidationError(error.message);
+	}
 }

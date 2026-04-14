@@ -405,7 +405,7 @@ export function AppointmentsCalendar({
 							startAt: start.toISOString(),
 							endAt: end.toISOString(),
 							employeeId: null,
-							roomId: null,
+							roomId: rooms[0]?.id ?? null,
 						});
 					}}
 				>
