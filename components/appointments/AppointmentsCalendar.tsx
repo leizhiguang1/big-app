@@ -111,11 +111,34 @@ export function AppointmentsCalendar({
 	const searchParams = useSearchParams();
 	const [, startTransition] = useTransition();
 
-	const [optimisticAppointments, applyOptimisticStatus] = useOptimistic<
+	type OptimisticPatch =
+		| { kind: "status"; id: string; status: AppointmentStatus }
+		| {
+				kind: "reschedule";
+				id: string;
+				start_at: string;
+				end_at: string;
+				employee_id?: string | null;
+				room_id?: string | null;
+		  };
+
+	const [optimisticAppointments, applyOptimistic] = useOptimistic<
 		AppointmentWithRelations[],
-		{ id: string; status: AppointmentStatus }
+		OptimisticPatch
 	>(appointments, (current, patch) =>
-		current.map((a) => (a.id === patch.id ? { ...a, status: patch.status } : a)),
+		current.map((a) => {
+			if (a.id !== patch.id) return a;
+			if (patch.kind === "status") return { ...a, status: patch.status };
+			return {
+				...a,
+				start_at: patch.start_at,
+				end_at: patch.end_at,
+				...(patch.employee_id !== undefined
+					? { employee_id: patch.employee_id }
+					: {}),
+				...(patch.room_id !== undefined ? { room_id: patch.room_id } : {}),
+			};
+		}),
 	);
 
 	const showToast = useCallback(
@@ -211,7 +234,7 @@ export function AppointmentsCalendar({
 			);
 		}
 		startTransition(async () => {
-			applyOptimisticStatus({ id: a.id, status });
+			applyOptimistic({ kind: "status", id: a.id, status });
 			try {
 				await setAppointmentStatusAction(a.id, { status });
 				if (!notif.enabled) {
@@ -239,7 +262,7 @@ export function AppointmentsCalendar({
 			roomId?: string | null;
 		},
 	) => {
-		const apt = appointments.find((a) => a.id === id);
+		const apt = optimisticAppointments.find((a) => a.id === id);
 		if (!apt) return;
 		const startIso = buildLocalIso(target.dateStr, target.hour, target.minute);
 		const durationMs =
@@ -247,6 +270,15 @@ export function AppointmentsCalendar({
 		const endIso = new Date(
 			new Date(startIso).getTime() + durationMs,
 		).toISOString();
+		if (
+			apt.start_at === startIso &&
+			apt.end_at === endIso &&
+			(target.employeeId === undefined ||
+				target.employeeId === apt.employee_id) &&
+			(target.roomId === undefined || target.roomId === apt.room_id)
+		) {
+			return;
+		}
 		const input: Record<string, unknown> = {
 			start_at: startIso,
 			end_at: endIso,
@@ -254,6 +286,16 @@ export function AppointmentsCalendar({
 		if (target.employeeId !== undefined) input.employee_id = target.employeeId;
 		if (target.roomId !== undefined) input.room_id = target.roomId;
 		startTransition(async () => {
+			applyOptimistic({
+				kind: "reschedule",
+				id,
+				start_at: startIso,
+				end_at: endIso,
+				...(target.employeeId !== undefined
+					? { employee_id: target.employeeId }
+					: {}),
+				...(target.roomId !== undefined ? { room_id: target.roomId } : {}),
+			});
 			try {
 				await rescheduleAppointmentAction(id, input);
 				showToast("Rescheduled", "success");

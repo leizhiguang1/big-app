@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
 	APPOINTMENT_DRAG_MIME,
 	AppointmentCard,
@@ -76,6 +76,7 @@ export function WeekView({
 		[weekStart],
 	);
 	const today = fmtDate(new Date());
+	const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
 	const aptsByDay = useMemo(() => {
 		const map = new Map<string, AppointmentWithRelations[]>();
@@ -107,7 +108,7 @@ export function WeekView({
 								className={cn(
 									"border-r px-2 py-2.5 text-center font-semibold text-xs",
 									isToday
-										? "border-b-2 border-primary bg-amber-50/60 text-primary dark:bg-amber-900/10"
+										? "bg-amber-50/60 text-primary dark:bg-amber-900/10"
 										: "text-muted-foreground",
 								)}
 							>
@@ -157,7 +158,10 @@ export function WeekView({
 							>
 								{/* 15-minute grid cells */}
 								{HOURS.flatMap((h, hIdx) =>
-									QUARTERS.map((min, qIdx) => (
+									QUARTERS.map((min, qIdx) => {
+										const cellKey = `${dateStr}|${h}|${min}`;
+										const isDragOver = dragOverKey === cellKey;
+										return (
 										<button
 											key={`${h}-${min}`}
 											type="button"
@@ -168,18 +172,25 @@ export function WeekView({
 												if (!onReschedule) return;
 												e.preventDefault();
 												e.dataTransfer.dropEffect = "move";
+												if (dragOverKey !== cellKey) setDragOverKey(cellKey);
+											}}
+											onDragLeave={() => {
+												if (dragOverKey === cellKey) setDragOverKey(null);
 											}}
 											onDrop={(e) => {
 												if (!onReschedule) return;
 												const id = e.dataTransfer.getData(
 													APPOINTMENT_DRAG_MIME,
 												);
+												setDragOverKey(null);
 												if (!id) return;
 												e.preventDefault();
 												onReschedule(id, { dateStr, hour: h, minute: min });
 											}}
 											className={cn(
 												"absolute left-0 right-0 hover:bg-primary/5",
+												isDragOver &&
+													"bg-primary/20 ring-2 ring-inset ring-primary/60",
 												// hour boundary (bottom of :45 quarter)
 												qIdx === 3
 													? "border-b border-border/30"
@@ -194,7 +205,8 @@ export function WeekView({
 												height: QUARTER_HEIGHT_PX,
 											}}
 										/>
-									)),
+										);
+									}),
 								)}
 
 								{dayApts.map((a) => {

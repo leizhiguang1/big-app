@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarDays, Lock, Trash2, UserPlus } from "lucide-react";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -26,8 +26,6 @@ import {
 	APPOINTMENT_STATUSES,
 	APPOINTMENT_TAG_CONFIG,
 	APPOINTMENT_TAG_KEYS,
-	PAYMENT_STATUS_LABEL,
-	PAYMENT_STATUSES,
 } from "@/lib/constants/appointment-status";
 import {
 	type AppointmentInput,
@@ -291,22 +289,37 @@ export function AppointmentDialog({
 		setPickerOpen(true);
 	};
 
-	const onSubmit = form.handleSubmit((values) => {
-		startTransition(async () => {
-			try {
-				if (appointment) {
-					await updateAppointmentAction(appointment.id, values);
-				} else {
-					await createAppointmentAction(values);
+	const formRef = useRef<HTMLFormElement>(null);
+
+	const onSubmit = form.handleSubmit(
+		(values) => {
+			startTransition(async () => {
+				try {
+					if (appointment) {
+						await updateAppointmentAction(appointment.id, values);
+					} else {
+						await createAppointmentAction(values);
+					}
+					onClose();
+				} catch (err) {
+					setServerError(
+						err instanceof Error ? err.message : "Something went wrong",
+					);
 				}
-				onClose();
-			} catch (err) {
-				setServerError(
-					err instanceof Error ? err.message : "Something went wrong",
-				);
+			});
+		},
+		(errors) => {
+			const firstKey = Object.keys(errors)[0];
+			if (!firstKey || !formRef.current) return;
+			const el = formRef.current.querySelector<HTMLElement>(
+				`[name="${firstKey}"]`,
+			);
+			if (el) {
+				el.scrollIntoView({ block: "center", behavior: "smooth" });
+				el.focus({ preventScroll: true });
 			}
-		});
-	});
+		},
+	);
 
 	const onDelete = () => {
 		if (!appointment) return;
@@ -351,6 +364,7 @@ export function AppointmentDialog({
 					</DialogHeader>
 
 					<form
+						ref={formRef}
 						onSubmit={onSubmit}
 						className="flex min-h-0 flex-1 flex-col overflow-y-auto"
 					>
@@ -579,20 +593,6 @@ export function AppointmentDialog({
 										</div>
 									</Field>
 
-									{/* Payment status */}
-									<Field label="Payment status">
-										<select
-											className={SELECT_CLASS}
-											{...form.register("payment_status")}
-										>
-											{PAYMENT_STATUSES.map((p) => (
-												<option key={p} value={p}>
-													{PAYMENT_STATUS_LABEL[p]}
-												</option>
-											))}
-										</select>
-									</Field>
-
 									{/* Tag (single-select) */}
 									<Field label="Tag">
 										<div className="flex flex-wrap gap-1.5">
@@ -636,12 +636,21 @@ export function AppointmentDialog({
 								/>
 							</Field>
 
-							{serverError && (
-								<p className="text-destructive text-sm">{serverError}</p>
-							)}
 						</div>
 
-						<DialogFooter className="flex items-center justify-between gap-2 border-t bg-muted/20 px-4 py-3 sm:justify-between">
+						<DialogFooter className="flex flex-col gap-2 border-t bg-muted/20 px-4 py-3 sm:flex-col sm:items-stretch">
+							{(() => {
+								const messages = Object.values(form.formState.errors)
+									.map((e) => (e as { message?: string })?.message)
+									.filter((m): m is string => !!m);
+								if (!serverError && messages.length === 0) return null;
+								return (
+									<div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-destructive text-xs">
+										{serverError ?? `Please fix: ${messages.join(" • ")}`}
+									</div>
+								);
+							})()}
+							<div className="flex items-center justify-between gap-2">
 							<div>
 								{appointment && (
 									<Button
@@ -674,6 +683,7 @@ export function AppointmentDialog({
 												? "Block slot"
 												: "Create"}
 								</Button>
+							</div>
 							</div>
 						</DialogFooter>
 					</form>

@@ -75,12 +75,19 @@ These are separate systems — passcodes authorize specific operations, PINs ver
 - **Terminology:** "Customer" (not "patient") — supports cross-industry use (dental, salon, beauty).
 - **Future link:** `customer_contacts` mapping table or phone-number matching when messaging is integrated.
 
-### 2. WhatsApp = Separate Service, Separate DB
-- **Decision:** WhatsApp service is a standalone Node.js app with its own Postgres database
-- **Why:** Persistent WebSocket process (Baileys) is operationally different from the clinic app. High message volume shouldn't impact clinic DB. Will be reused by future products.
-- **What its DB holds:** sessions (Baileys auth state), contacts (phone-based), conversations, messages, templates
-- **What it does NOT hold:** Customer names, appointments, sales — anything clinic-specific
-- **Link to app:** Phone number matching. Clinic app calls WhatsApp API or receives webhooks for inbound messages.
+### 2. WhatsApp = Separate Service, Separate DB, Fork-and-Strip Build
+- **Decision:** WhatsApp service is a standalone Node.js app (`wa-service`) with its own Supabase project. One deployment per consumer product (BIG, future GHL clone, etc). Big-app talks to it over REST + webhooks.
+- **Build strategy:** Fork `whatsapp-crm-main/backend` wholesale and strip out the Aoikumo-shaped bits (AI replies, automations, Google Sheets, tenant formatters). **Do not rewrite the protocol layer from scratch** — the Baileys lifecycle, error 515 fix, LID resolution, send queue, and 24h gap detection are battle-tested and stay as-is. See `wa-service/PRD.md` for the full plan.
+- **Why:** Persistent WebSocket process (Baileys) is operationally different from the clinic app. High message volume shouldn't impact clinic DB. Will be reused by future products (BIG = offline services, GHL clone = online services — completely different apps, shared WhatsApp layer).
+- **Why fork-and-strip instead of rewrite:** whatsapp-crm-main contains ~2,400 lines of protocol code that took months to stabilize. Re-deriving those bug fixes is waste. The right move is to inherit the working code and remove what doesn't belong.
+- **What its DB holds:** sessions (Baileys auth state), contacts (phone-based), conversations, messages. Own Supabase project — never shared with big-app.
+- **What it does NOT hold:** Customer names, appointments, sales — anything clinic-specific. No CRM, no AI, no automation, no business logic.
+- **Link to big-app:** `outlets.whatsapp_connection_id` (nullable) — one outlet, one connection, one WhatsApp number in v1. Big-app stores the stable wa-service connection UUID, never the phone number. If staff re-pair with a different SIM, the phone changes in wa-service but big-app's FK doesn't move (see wa-service PRD §4a — connection is durable, phone is mutable). Multi-number-per-outlet is deferred until a real need appears; at that point big-app adds a junction table, wa-service stays unchanged.
+- **Metadata passthrough:** When big-app creates a connection in wa-service, it passes `metadata: { outlet_id, outlet_name, consumer_product: "big-app" }`. wa-service echoes this back in every webhook event, so big-app's webhook handler can route by `metadata.outlet_id` without a DB lookup. See wa-service PRD §4b.
+- **Customer linking:** separate concern from connection linking. Customers link to inbound messages by phone-number matching against `whatsapp_contacts` (which big-app mirrors from webhook events). A customer may or may not have a WA contact; a WA contact may or may not match a customer.
+- **Socket.IO vs webhooks:** wa-service keeps Socket.IO internally for its own future inbox frontend (v3). For big-app and other backend consumers, it uses webhooks (standard server-to-server pattern). These coexist — same event goes out both channels.
+- **Local dev:** run wa-service backend on `:3001` and big-app on `:3000` on the same machine; wa-service posts webhooks to `http://localhost:3000/api/webhooks/whatsapp`. No tunnels needed. Prod: separate deployments on Railway (wa-service) and wherever big-app ends up.
+- **V1 scope of wa-service:** scan QR, receive messages to DB, send messages via HTTP. Everything else (REST API for external consumers, webhook layer, rename `tenant`→`connection`, media, groups, status tracking) is v2+. See `wa-service/PRD.md` §5.
 
 ### 3. Automation = Built-in Module
 - **Decision:** Workflow/automation engine is a module inside the clinic app, not a separate service

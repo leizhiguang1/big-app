@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
 	APPOINTMENT_DRAG_MIME,
 	AppointmentCard,
@@ -17,7 +17,6 @@ import {
 	TOTAL_GRID_HEIGHT_PX,
 	timeToY,
 } from "@/lib/calendar/layout";
-import { fmtDate } from "@/lib/roster/week";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 import type { RosterEmployee } from "@/lib/services/employee-shifts";
 import type { Room } from "@/lib/services/outlets";
@@ -74,8 +73,7 @@ export function DayView({
 	onAppointmentContextMenu,
 	onReschedule,
 }: Props) {
-	const today = fmtDate(new Date());
-	const isToday = dateStr === today;
+	const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
 	const columns: Column[] = useMemo(() => {
 		if (resourceMode === "room") {
@@ -124,7 +122,6 @@ export function DayView({
 							key={c.id ?? "_unassigned"}
 							className={cn(
 								"truncate border-r px-2 py-2.5 text-center font-semibold text-[11px] text-muted-foreground uppercase tracking-wide",
-								isToday && "bg-amber-50/60 dark:bg-amber-900/10",
 							)}
 						>
 							{c.label}
@@ -164,15 +161,15 @@ export function DayView({
 						return (
 							<div
 								key={c.id ?? "_unassigned"}
-								className={cn(
-									"relative border-r",
-									isToday && "bg-amber-50/60 dark:bg-amber-900/10",
-								)}
+								className="relative border-r"
 								style={{ height: TOTAL_GRID_HEIGHT_PX }}
 							>
 								{/* 15-minute grid cells */}
 								{HOURS.flatMap((h, hIdx) =>
-									QUARTERS.map((min, qIdx) => (
+									QUARTERS.map((min, qIdx) => {
+										const cellKey = `${colKey}|${h}|${min}`;
+										const isDragOver = dragOverKey === cellKey;
+										return (
 										<button
 											key={`${h}-${min}`}
 											type="button"
@@ -189,12 +186,17 @@ export function DayView({
 												if (!onReschedule) return;
 												e.preventDefault();
 												e.dataTransfer.dropEffect = "move";
+												if (dragOverKey !== cellKey) setDragOverKey(cellKey);
+											}}
+											onDragLeave={() => {
+												if (dragOverKey === cellKey) setDragOverKey(null);
 											}}
 											onDrop={(e) => {
 												if (!onReschedule) return;
 												const id = e.dataTransfer.getData(
 													APPOINTMENT_DRAG_MIME,
 												);
+												setDragOverKey(null);
 												if (!id) return;
 												e.preventDefault();
 												onReschedule(id, {
@@ -207,6 +209,8 @@ export function DayView({
 											}}
 											className={cn(
 												"absolute left-0 right-0 hover:bg-primary/5",
+												isDragOver &&
+													"bg-primary/20 ring-2 ring-inset ring-primary/60",
 												// hour boundary (bottom of :45 quarter)
 												qIdx === 3
 													? "border-b border-border/30"
@@ -221,7 +225,8 @@ export function DayView({
 												height: QUARTER_HEIGHT_PX,
 											}}
 										/>
-									)),
+										);
+									}),
 								)}
 
 								{colApts.map((a) => {

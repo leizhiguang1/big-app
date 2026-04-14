@@ -142,32 +142,45 @@ export async function listBillingEntriesAction(appointmentId: string) {
 	);
 }
 
-export async function createBillingEntryAction(input: unknown) {
+export async function createBillingEntryAction(
+	appointmentId: string,
+	input: unknown,
+) {
 	const ctx = await getServerContext();
 	const entry = await billingEntriesService.createBillingEntry(ctx, input);
-	revalidatePath("/appointments");
+	revalidatePath(`/appointments/${appointmentId}`);
 	return entry;
 }
 
-export async function createBillingEntriesBulkAction(inputs: unknown[]) {
+export async function createBillingEntriesBulkAction(
+	appointmentId: string,
+	inputs: unknown[],
+) {
 	const ctx = await getServerContext();
 	const entries = await billingEntriesService.createBillingEntriesBulk(
 		ctx,
 		inputs,
 	);
-	revalidatePath("/appointments");
+	revalidatePath(`/appointments/${appointmentId}`);
 	return entries;
 }
 
-export async function updateBillingEntryAction(id: string, input: unknown) {
+export async function updateBillingEntryAction(
+	appointmentId: string,
+	id: string,
+	input: unknown,
+) {
 	const ctx = await getServerContext();
 	const entry = await billingEntriesService.updateBillingEntry(ctx, id, input);
-	revalidatePath("/appointments");
+	revalidatePath(`/appointments/${appointmentId}`);
 	return entry;
 }
 
-export async function deleteBillingEntryAction(id: string) {
+export async function deleteBillingEntryAction(
+	appointmentId: string,
+	id: string,
+) {
 	const ctx = await getServerContext();
 	await billingEntriesService.deleteBillingEntry(ctx, id);
-	revalidatePath("/appointments");
+	revalidatePath(`/appointments/${appointmentId}`);
 }

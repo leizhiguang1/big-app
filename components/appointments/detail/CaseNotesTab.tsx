@@ -2,7 +2,7 @@
 
 import { Pencil, Save, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -43,7 +43,12 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editContent, setEditContent] = useState("");
 	const [deleteId, setDeleteId] = useState<string | null>(null);
-	const [pending, startTransition] = useTransition();
+	const [, startTransition] = useTransition();
+	const [localNotes, setLocalNotes] = useState<CaseNoteWithAuthor[]>(caseNotes);
+
+	useEffect(() => {
+		setLocalNotes(caseNotes);
+	}, [caseNotes]);
 
 	const isLead = !appointment.is_time_block && !appointment.customer_id;
 	const isBlock = appointment.is_time_block;
@@ -53,18 +58,33 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 
 	const handleAdd = () => {
 		if (!customerId || !draft.trim()) return;
+		const content = draft.trim();
+		const tempId = `temp-${crypto.randomUUID()}`;
+		const optimistic: CaseNoteWithAuthor = {
+			id: tempId,
+			appointment_id: appointment.id,
+			customer_id: customerId,
+			employee_id: appointment.employee_id ?? null,
+			content,
+			created_at: new Date().toISOString(),
+			updated_at: new Date().toISOString(),
+			employee: null,
+		} as CaseNoteWithAuthor;
+		setLocalNotes((prev) => [...prev, optimistic]);
+		setDraft("");
 		startTransition(async () => {
 			try {
 				await createCaseNoteAction(appointment.id, {
 					appointment_id: appointment.id,
 					customer_id: customerId,
 					employee_id: appointment.employee_id ?? null,
-					content: draft.trim(),
+					content,
 				});
-				setDraft("");
 				onToast("Note saved", "success");
 				refresh();
 			} catch (err) {
+				setLocalNotes((prev) => prev.filter((n) => n.id !== tempId));
+				setDraft(content);
 				onToast(
 					err instanceof Error ? err.message : "Could not save note",
 					"error",
@@ -75,13 +95,16 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 
 	const handleUpdate = () => {
 		if (!editingId || !editContent.trim()) return;
+		const id = editingId;
+		const content = editContent.trim();
+		setLocalNotes((prev) =>
+			prev.map((n) => (n.id === id ? { ...n, content } : n)),
+		);
+		setEditingId(null);
+		setEditContent("");
 		startTransition(async () => {
 			try {
-				await updateCaseNoteAction(appointment.id, editingId, {
-					content: editContent.trim(),
-				});
-				setEditingId(null);
-				setEditContent("");
+				await updateCaseNoteAction(appointment.id, id, { content });
 				onToast("Note updated", "success");
 				refresh();
 			} catch (err) {
@@ -89,16 +112,19 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 					err instanceof Error ? err.message : "Could not update note",
 					"error",
 				);
+				refresh();
 			}
 		});
 	};
 
 	const handleDelete = () => {
 		if (!deleteId) return;
+		const id = deleteId;
+		setLocalNotes((prev) => prev.filter((n) => n.id !== id));
+		setDeleteId(null);
 		startTransition(async () => {
 			try {
-				await deleteCaseNoteAction(appointment.id, deleteId);
-				setDeleteId(null);
+				await deleteCaseNoteAction(appointment.id, id);
 				onToast("Note deleted", "success");
 				refresh();
 			} catch (err) {
@@ -106,6 +132,7 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 					err instanceof Error ? err.message : "Could not delete note",
 					"error",
 				);
+				refresh();
 			}
 		});
 	};
@@ -126,7 +153,7 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 		);
 	}
 
-	const notesOnThisVisit = caseNotes.filter(
+	const notesOnThisVisit = localNotes.filter(
 		(n) => n.appointment_id === appointment.id,
 	);
 
@@ -148,7 +175,7 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 						type="button"
 						size="sm"
 						onClick={handleAdd}
-						disabled={pending || !draft.trim()}
+						disabled={!draft.trim()}
 					>
 						<Save className="size-3.5" />
 						Save note
@@ -183,7 +210,6 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 								onEditChange={setEditContent}
 								onEditSave={handleUpdate}
 								onDelete={() => setDeleteId(n.id)}
-								pending={pending}
 							/>
 						))
 					)}
@@ -196,7 +222,6 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 				title="Delete this case note?"
 				description="This removes the note permanently."
 				confirmLabel="Delete"
-				pending={pending}
 				onConfirm={handleDelete}
 			/>
 		</div>
@@ -212,7 +237,6 @@ function NoteRow({
 	onEditChange,
 	onEditSave,
 	onDelete,
-	pending,
 }: {
 	note: CaseNoteWithAuthor;
 	isEditing: boolean;
@@ -222,7 +246,6 @@ function NoteRow({
 	onEditChange: (v: string) => void;
 	onEditSave: () => void;
 	onDelete: () => void;
-	pending: boolean;
 }) {
 	return (
 		<div className="rounded border bg-background p-3 text-sm">
@@ -255,7 +278,7 @@ function NoteRow({
 							<button
 								type="button"
 								onClick={onEditSave}
-								disabled={pending || !editContent.trim()}
+								disabled={!editContent.trim()}
 								className="text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
 								aria-label="Save edit"
 							>

@@ -12,7 +12,6 @@ import {
 } from "@/lib/actions/appointments";
 import type { BillingEntry } from "@/lib/services/billing-entries";
 import type { ServiceWithCategory } from "@/lib/services/services";
-import { cn } from "@/lib/utils";
 
 type Props = {
 	appointmentId: string;
@@ -125,12 +124,14 @@ export function BillingSection({
 			return;
 		}
 		const id = item.id;
+		setItems((rows) => rows.filter((r) => r.id !== id));
 		startTransition(async () => {
 			try {
-				await deleteBillingEntryAction(id);
+				await deleteBillingEntryAction(appointmentId, id);
 				onChange();
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Delete failed");
+				onChange();
 			}
 		});
 	};
@@ -160,7 +161,7 @@ export function BillingSection({
 		startTransition(async () => {
 			try {
 				for (const i of dirtyEdits) {
-					await updateBillingEntryAction(i.id!, {
+					await updateBillingEntryAction(appointmentId, i.id!, {
 						appointment_id: appointmentId,
 						item_type: "service",
 						service_id: i.service_id,
@@ -171,12 +172,13 @@ export function BillingSection({
 					});
 				}
 				if (creates.length > 0) {
-					await createBillingEntriesBulkAction(creates);
+					await createBillingEntriesBulkAction(appointmentId, creates);
 				}
 				setBatchNote("");
 				onChange();
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Save failed");
+				onChange();
 			}
 		});
 	};
@@ -204,7 +206,7 @@ export function BillingSection({
 				</Button>
 			</div>
 
-			<div className={cn("flex flex-col gap-2.5", pending && "opacity-70")}>
+			<div className="flex flex-col gap-2.5">
 				{items.length === 0 && (
 					<div className="rounded-md border border-dashed p-8 text-center text-muted-foreground text-sm">
 						No billing items yet. Click <b>Add service</b> to start.
@@ -212,9 +214,7 @@ export function BillingSection({
 				)}
 
 				{items.map((item) => {
-					const svc = item.service_id
-						? serviceById.get(item.service_id)
-						: null;
+					const svc = item.service_id ? serviceById.get(item.service_id) : null;
 					const lineTotal = item.quantity * item.unit_price - item.discount;
 					return (
 						<div
