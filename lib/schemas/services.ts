@@ -18,11 +18,16 @@ export const serviceCreateSchema = z.object({
 		.int()
 		.min(5, "Minimum 5 minutes")
 		.max(600, "Maximum 600 minutes"),
+	external_code: z.string().trim().max(80).nullable(),
+	image_url: z.string().trim().max(500).nullable(),
 	price: z.number().min(0, "Price must be ≥ 0"),
+	other_fees: z.number().min(0, "Other fees must be ≥ 0"),
 	incentive_type: z.string().trim().max(80).nullable(),
 	consumables: z.string().trim().max(500).nullable(),
 	discount_cap: z.number().min(0, "Min 0").max(100, "Max 100").nullable(),
 	full_payment: z.boolean(),
+	allow_redemption_without_payment: z.boolean(),
+	allow_cash_price_range: z.boolean(),
 	is_active: z.boolean(),
 });
 

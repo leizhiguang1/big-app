@@ -30,3 +30,16 @@ export async function createCategoryAction(input: unknown) {
 	revalidatePath("/services");
 	return category;
 }
+
+export async function updateCategoryAction(id: string, input: unknown) {
+	const ctx = await getServerContext();
+	const category = await servicesService.updateCategory(ctx, id, input);
+	revalidatePath("/services");
+	return category;
+}
+
+export async function deleteCategoryAction(id: string) {
+	const ctx = await getServerContext();
+	await servicesService.deleteCategory(ctx, id);
+	revalidatePath("/services");
+}

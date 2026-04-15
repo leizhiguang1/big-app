@@ -702,68 +702,244 @@ export type Database = {
           },
         ]
       }
-      inventory_items: {
+      inventory_brands: {
         Row: {
-          barcode: string | null
-          brand: string | null
-          category: string | null
           created_at: string
-          discount_cap: number | null
           id: string
-          in_transit: number
-          is_active: boolean
-          locked: number
-          low_alert_count: number
           name: string
-          price: number
-          sku: string
-          stock: number
-          stock_status: string | null
-          supplier: string | null
-          type: string
-          uom: string
           updated_at: string
         }
         Insert: {
-          barcode?: string | null
-          brand?: string | null
-          category?: string | null
           created_at?: string
-          discount_cap?: number | null
           id?: string
-          in_transit?: number
-          is_active?: boolean
-          locked?: number
-          low_alert_count?: number
           name: string
-          price?: number
-          sku: string
-          stock?: number
-          stock_status?: string | null
-          supplier?: string | null
-          type?: string
-          uom?: string
           updated_at?: string
         }
         Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      inventory_categories: {
+        Row: {
+          created_at: string
+          external_code: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          external_code?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          external_code?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      inventory_items: {
+        Row: {
+          barcode: string | null
+          brand_id: string | null
+          category_id: string | null
+          cost_price: number
+          created_at: string
+          discount_cap: number | null
+          e_invoice_code: string | null
+          external_code: string | null
+          id: string
+          image_path: string | null
+          in_transit: number
+          is_active: boolean
+          is_controlled: boolean | null
+          is_sellable: boolean
+          kind: string
+          location: string | null
+          locked: number
+          name: string
+          needs_replenish_reminder: boolean | null
+          prescription_default_billing_qty: number | null
+          prescription_dosage: number | null
+          prescription_dosage_uom_id: string | null
+          prescription_duration: string | null
+          prescription_frequency: string | null
+          prescription_notes: string | null
+          prescription_reason: string | null
+          purchasing_to_stock_factor: number
+          purchasing_uom_id: string
+          selling_price: number
+          sku: string
+          stock: number
+          stock_alert_count: number
+          stock_status: string | null
+          stock_to_use_factor: number | null
+          stock_uom_id: string
+          supplier_id: string | null
+          updated_at: string
+          use_uom_id: string | null
+        }
+        Insert: {
           barcode?: string | null
-          brand?: string | null
-          category?: string | null
+          brand_id?: string | null
+          category_id?: string | null
+          cost_price?: number
           created_at?: string
           discount_cap?: number | null
+          e_invoice_code?: string | null
+          external_code?: string | null
           id?: string
+          image_path?: string | null
           in_transit?: number
           is_active?: boolean
+          is_controlled?: boolean | null
+          is_sellable?: boolean
+          kind: string
+          location?: string | null
           locked?: number
-          low_alert_count?: number
+          name: string
+          needs_replenish_reminder?: boolean | null
+          prescription_default_billing_qty?: number | null
+          prescription_dosage?: number | null
+          prescription_dosage_uom_id?: string | null
+          prescription_duration?: string | null
+          prescription_frequency?: string | null
+          prescription_notes?: string | null
+          prescription_reason?: string | null
+          purchasing_to_stock_factor?: number
+          purchasing_uom_id: string
+          selling_price?: number
+          sku: string
+          stock?: number
+          stock_alert_count?: number
+          stock_status?: string | null
+          stock_to_use_factor?: number | null
+          stock_uom_id: string
+          supplier_id?: string | null
+          updated_at?: string
+          use_uom_id?: string | null
+        }
+        Update: {
+          barcode?: string | null
+          brand_id?: string | null
+          category_id?: string | null
+          cost_price?: number
+          created_at?: string
+          discount_cap?: number | null
+          e_invoice_code?: string | null
+          external_code?: string | null
+          id?: string
+          image_path?: string | null
+          in_transit?: number
+          is_active?: boolean
+          is_controlled?: boolean | null
+          is_sellable?: boolean
+          kind?: string
+          location?: string | null
+          locked?: number
           name?: string
-          price?: number
+          needs_replenish_reminder?: boolean | null
+          prescription_default_billing_qty?: number | null
+          prescription_dosage?: number | null
+          prescription_dosage_uom_id?: string | null
+          prescription_duration?: string | null
+          prescription_frequency?: string | null
+          prescription_notes?: string | null
+          prescription_reason?: string | null
+          purchasing_to_stock_factor?: number
+          purchasing_uom_id?: string
+          selling_price?: number
           sku?: string
           stock?: number
+          stock_alert_count?: number
           stock_status?: string | null
-          supplier?: string | null
-          type?: string
-          uom?: string
+          stock_to_use_factor?: number | null
+          stock_uom_id?: string
+          supplier_id?: string | null
+          updated_at?: string
+          use_uom_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_items_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_items_prescription_dosage_uom_id_fkey"
+            columns: ["prescription_dosage_uom_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_uoms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_items_purchasing_uom_id_fkey"
+            columns: ["purchasing_uom_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_uoms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_items_stock_uom_id_fkey"
+            columns: ["stock_uom_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_uoms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_items_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_items_use_uom_id_fkey"
+            columns: ["use_uom_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_uoms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_uoms: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
           updated_at?: string
         }
         Relationships: []
@@ -1281,48 +1457,63 @@ export type Database = {
       }
       services: {
         Row: {
+          allow_cash_price_range: boolean
+          allow_redemption_without_payment: boolean
           category_id: string | null
           consumables: string | null
           created_at: string
           discount_cap: number | null
           duration_min: number
+          external_code: string | null
           full_payment: boolean
           id: string
+          image_url: string | null
           incentive_type: string | null
           is_active: boolean
           name: string
+          other_fees: number
           price: number
           sku: string
           type: string
           updated_at: string
         }
         Insert: {
+          allow_cash_price_range?: boolean
+          allow_redemption_without_payment?: boolean
           category_id?: string | null
           consumables?: string | null
           created_at?: string
           discount_cap?: number | null
           duration_min?: number
+          external_code?: string | null
           full_payment?: boolean
           id?: string
+          image_url?: string | null
           incentive_type?: string | null
           is_active?: boolean
           name: string
+          other_fees?: number
           price?: number
           sku: string
           type?: string
           updated_at?: string
         }
         Update: {
+          allow_cash_price_range?: boolean
+          allow_redemption_without_payment?: boolean
           category_id?: string | null
           consumables?: string | null
           created_at?: string
           discount_cap?: number | null
           duration_min?: number
+          external_code?: string | null
           full_payment?: boolean
           id?: string
+          image_url?: string | null
           incentive_type?: string | null
           is_active?: boolean
           name?: string
+          other_fees?: number
           price?: number
           sku?: string
           type?: string
@@ -1337,6 +1528,75 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      suppliers: {
+        Row: {
+          account_number: string | null
+          address_1: string | null
+          address_2: string | null
+          city: string | null
+          country: string | null
+          created_at: string
+          description: string | null
+          email: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          mobile_number: string | null
+          name: string
+          office_phone: string | null
+          payment_terms_unit: string | null
+          payment_terms_value: number | null
+          postcode: string | null
+          state: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          account_number?: string | null
+          address_1?: string | null
+          address_2?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          mobile_number?: string | null
+          name: string
+          office_phone?: string | null
+          payment_terms_unit?: string | null
+          payment_terms_value?: number | null
+          postcode?: string | null
+          state?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          account_number?: string | null
+          address_1?: string | null
+          address_2?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          mobile_number?: string | null
+          name?: string
+          office_phone?: string | null
+          payment_terms_unit?: string | null
+          payment_terms_value?: number | null
+          postcode?: string | null
+          state?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
       }
       wa_api_keys: {
         Row: {
@@ -1770,3 +2030,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

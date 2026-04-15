@@ -1,25 +1,36 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { Check, ImageIcon, Pencil, Settings2, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { deleteServiceAction } from "@/lib/actions/services";
-import { SERVICE_TYPE_LABELS, type ServiceType } from "@/lib/schemas/services";
+import type { ServiceType } from "@/lib/schemas/services";
 import type {
 	ServiceCategory,
 	ServiceWithCategory,
 } from "@/lib/services/services";
+import { ManageCategoriesSheet } from "./ManageCategoriesSheet";
 import { ServiceFormDialog } from "./ServiceForm";
 
 const priceFormatter = new Intl.NumberFormat("en-MY", {
-	style: "currency",
-	currency: "MYR",
 	minimumFractionDigits: 2,
+	maximumFractionDigits: 2,
 });
 
 const dash = <span className="text-muted-foreground">—</span>;
+
+const TYPE_SHORT: Record<ServiceType, string> = {
+	retail: "S (R)",
+	non_retail: "S (NR)",
+};
+
+function formatDuration(minutes: number): string {
+	const h = Math.floor(minutes / 60);
+	const m = minutes % 60;
+	return `${String(h).padStart(2, "0")} Hour(s) ${String(m).padStart(2, "0")} Minute(s)`;
+}
 
 export function ServicesTable({
 	services,
@@ -32,18 +43,50 @@ export function ServicesTable({
 	const [deleting, setDeleting] = useState<ServiceWithCategory | null>(null);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
+	const [categoriesOpen, setCategoriesOpen] = useState(false);
 
 	const columns: DataTableColumn<ServiceWithCategory>[] = [
 		{
+			key: "image",
+			header: "",
+			headerClassName: "w-12",
+			cell: (s) => (
+				<div className="flex size-10 items-center justify-center rounded-md border bg-muted/30">
+					{s.image_url ? (
+						// biome-ignore lint/performance/noImgElement: avatar thumbnail
+						<img
+							src={s.image_url}
+							alt=""
+							className="size-full rounded-md object-cover"
+						/>
+					) : (
+						<ImageIcon className="size-4 text-muted-foreground/50" />
+					)}
+				</div>
+			),
+		},
+		{
 			key: "name",
-			header: "Name",
+			header: "Description",
 			sortable: true,
 			sortValue: (s) => s.name,
 			cell: (s) => (
-				<>
-					<div className="font-medium">{s.name}</div>
-					<div className="font-mono text-muted-foreground text-xs">{s.sku}</div>
-				</>
+				<button
+					type="button"
+					className="text-left font-medium text-primary hover:underline"
+					onClick={() => setEditing(s)}
+				>
+					{s.name}
+				</button>
+			),
+		},
+		{
+			key: "sku",
+			header: "SKU",
+			sortable: true,
+			sortValue: (s) => s.sku,
+			cell: (s) => (
+				<span className="font-mono text-muted-foreground text-xs">{s.sku}</span>
 			),
 		},
 		{
@@ -53,7 +96,7 @@ export function ServicesTable({
 			sortValue: (s) => s.type,
 			cell: (s) => (
 				<span className="text-muted-foreground">
-					{SERVICE_TYPE_LABELS[s.type as ServiceType] ?? s.type}
+					{TYPE_SHORT[s.type as ServiceType] ?? s.type}
 				</span>
 			),
 		},
@@ -63,7 +106,7 @@ export function ServicesTable({
 			sortable: true,
 			sortValue: (s) => s.category?.name ?? "",
 			cell: (s) => (
-				<span className="text-muted-foreground">
+				<span className="text-muted-foreground uppercase">
 					{s.category?.name ?? dash}
 				</span>
 			),
@@ -72,10 +115,10 @@ export function ServicesTable({
 			key: "duration_min",
 			header: "Duration",
 			sortable: true,
-			align: "right",
+			sortValue: (s) => s.duration_min,
 			cell: (s) => (
-				<span className="text-muted-foreground tabular-nums">
-					{s.duration_min} min
+				<span className="text-muted-foreground text-xs tabular-nums">
+					{formatDuration(s.duration_min)}
 				</span>
 			),
 		},
@@ -94,7 +137,9 @@ export function ServicesTable({
 			key: "consumables",
 			header: "Consumables",
 			cell: (s) => (
-				<span className="text-muted-foreground">{s.consumables ?? dash}</span>
+				<span className="text-muted-foreground">
+					{s.consumables && s.consumables.trim() !== "" ? s.consumables : dash}
+				</span>
 			),
 		},
 		{
@@ -130,16 +175,14 @@ export function ServicesTable({
 			align: "center",
 			cell: (s) =>
 				s.full_payment ? (
-					<span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary text-xs">
-						Yes
-					</span>
+					<Check className="mx-auto size-4 text-primary" />
 				) : (
 					dash
 				),
 		},
 		{
 			key: "actions",
-			header: "Actions",
+			header: "",
 			align: "right",
 			cell: (s) => (
 				<div className="inline-flex gap-1">
@@ -167,6 +210,18 @@ export function ServicesTable({
 		},
 	];
 
+	const toolbar = (
+		<Button
+			type="button"
+			variant="outline"
+			size="sm"
+			onClick={() => setCategoriesOpen(true)}
+		>
+			<Settings2 />
+			Manage Categories
+		</Button>
+	);
+
 	return (
 		<>
 			<DataTable
@@ -176,13 +231,19 @@ export function ServicesTable({
 				searchKeys={["name", "sku"]}
 				searchPlaceholder="Search services…"
 				emptyMessage="No services yet. Click “New service” to create one."
-				minWidth={1300}
+				minWidth={1400}
+				toolbar={toolbar}
 			/>
 			<ServiceFormDialog
 				open={!!editing}
 				service={editing}
 				categories={categories}
 				onClose={() => setEditing(null)}
+			/>
+			<ManageCategoriesSheet
+				open={categoriesOpen}
+				onOpenChange={setCategoriesOpen}
+				categories={categories}
 			/>
 			<ConfirmDialog
 				open={!!deleting}
