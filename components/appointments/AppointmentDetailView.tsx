@@ -331,6 +331,7 @@ export function AppointmentDetailView({
 				<FloatingActionBar
 					appointment={appointment}
 					lineItems={lineItems}
+					services={services}
 					taxes={taxes}
 					onToast={showToast}
 				/>

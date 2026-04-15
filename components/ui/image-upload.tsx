@@ -23,6 +23,12 @@ type Props = {
 	sizeClass?: string;
 	layout?: "row" | "stacked";
 	disabled?: boolean;
+	/**
+	 * When true, the placeholder is the only clickable surface — no Upload/
+	 * Replace/Remove buttons, no hint text. Use inside forms where the image
+	 * is a secondary concern and the layout is tight.
+	 */
+	minimal?: boolean;
 };
 
 function publicUrlFor(path: string): string {
@@ -40,6 +46,7 @@ export function ImageUpload({
 	sizeClass = "size-24",
 	layout = "row",
 	disabled,
+	minimal,
 }: Props) {
 	const inputId = useId();
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -119,6 +126,71 @@ export function ImageUpload({
 		layout === "stacked"
 			? "flex flex-col items-center gap-2"
 			: "flex items-start gap-4";
+
+	if (minimal) {
+		return (
+			<>
+				<button
+					type="button"
+					onClick={handlePick}
+					disabled={!canUpload}
+					className={cn(
+						"group relative flex shrink-0 items-center justify-center overflow-hidden border border-dashed bg-muted/30 transition-colors",
+						rounded,
+						sizeClass,
+						canUpload && "cursor-pointer hover:border-solid hover:bg-muted/60",
+						!canUpload && "cursor-not-allowed opacity-60",
+					)}
+					aria-label={previewUrl ? "Replace photo" : "Upload photo"}
+				>
+					{previewUrl ? (
+						<>
+							<Image
+								src={previewUrl}
+								alt=""
+								fill
+								sizes="96px"
+								className="object-cover"
+								unoptimized
+							/>
+							<button
+								type="button"
+								onClick={(e) => {
+									e.stopPropagation();
+									handleRemove();
+								}}
+								className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-background/90 text-muted-foreground shadow-sm hover:text-destructive"
+								aria-label="Remove photo"
+							>
+								<Trash2 className="size-3" />
+							</button>
+						</>
+					) : (
+						<Camera className="size-6 text-muted-foreground" />
+					)}
+					{uploading && (
+						<div className="absolute inset-0 flex items-center justify-center bg-background/70">
+							<Loader2 className="size-5 animate-spin" />
+						</div>
+					)}
+				</button>
+				{error && (
+					<p className="mt-1 text-center text-destructive text-xs">{error}</p>
+				)}
+				<input
+					ref={inputRef}
+					id={inputId}
+					type="file"
+					accept={ACCEPTED_MIME.join(",")}
+					className="hidden"
+					onChange={(e) => {
+						const file = e.target.files?.[0];
+						if (file) void handleFile(file);
+					}}
+				/>
+			</>
+		);
+	}
 
 	return (
 		<div className={containerClass}>

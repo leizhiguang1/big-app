@@ -88,21 +88,22 @@ Bulk activate/deactivate is **not** in v1.
 - **Image** — column ready (`image_url`); upload UI is a Phase-2 placeholder until a storage bucket+uploader pattern lands
 
 *Pricing section*
-- **Selling Price** (MYR) — single amount, applies to all outlets in v1
+- **Selling Price** (MYR) — single amount, applies to all outlets in v1. Shown only when `allow_cash_price_range` is off.
 - **Other Fees** (MYR) — additional fee beyond the selling price
-- **Individual Discount Capping** — optional; checkbox "Enable" reveals a percentage input; stored as `discount_cap` (nullable; null = no cap)
+- **Individual Discount Capping** — optional; checkbox "Enable" reveals a percentage input; stored as `discount_cap` (nullable; null = no cap). Enforced at Collect Payment — staff can enter discounts in % or RM at billing but neither form can exceed this cap on the line total.
 - **Full payment required** — `full_payment` bool
 - **Allow redemption without payment** — `allow_redemption_without_payment` bool (default true)
-- **Allow cash selling price range** — `allow_cash_price_range` bool (default false)
+- **Allow cash selling price range** — `allow_cash_price_range` bool (default false). When enabled, **Selling Price is hidden** and the form shows **Min Price** / **Max Price** inputs instead — two fields, not three, to avoid "which of these prices is the real one?" confusion. On save, `services.price` is auto-mirrored to `price_min` so downstream code that reads `service.price` (billing default, services list, etc.) naturally shows the low price first; the cashier can edit `unit_price` up to `price_max` at billing time (follow-up task). The DB `CHECK` (`services_price_range_valid`) enforces: both columns NULL iff the flag is off; both set and `price_min ≤ price ≤ price_max` iff on.
 
 *Status*
 - **Active** — unchecking moves the row to the "Discontinued" tab
 
+**Individual Discount Capping — live (enforced at billing, 2026-04-15).** Stored as `discount_cap` (nullable numeric percent, 0–100). Null = no cap. Enforced at Collect Payment time: per-line discount (MYR or %) cannot exceed `round(line_total * discount_cap / 100, 2)`. Client-side clamps on blur, server-side re-validates in [lib/services/sales.ts](../../lib/services/sales.ts) `assertLineDiscountCaps` — a `ValidationError` rolls back before the RPC fires. Staff choose how to *express* the discount at billing (segmented % / RM toggle on each line); the cap is stored once, in %, to avoid creation-time confusion.
+
 **Rendered as disabled `<PhaseTwoSection>` placeholders in the form** (the UI cards exist so the layout matches the prototype and future wire-up is a single component swap — but nothing saves):
 - **Per-outlet price overrides** — prototype has an "Apply above prices to all outlets" toggle; when off, a per-outlet table appears with `site.floorprice`, `site.otherChargeValue`, `site.points`, `site.beautipoints`, `site.taxable`, and a per-outlet availability toggle (`siteavialabilityserviceedit*`). Deferred.
 - **Points pricing** — two separate loyalty-currency columns: `beautipoints` (BP Value) and `points` (Selling Points). Deferred with the loyalty module.
-- **Individual Discount Capping** — `discount` field; prototype uses `-1.00` as sentinel for "no cap". Deferred.
-- **Allow cash selling price range** — per-service flag that lets staff override price within a range at point of sale. Deferred with sales rules.
+- ~~**Allow cash selling price range**~~ — shipped (creation side). Billing-time override UI still deferred.
 - **Allow Redemption Without Payment** — per-service flag; when off the service is implicitly Non-Retail (S(NR)) and sold only as part of a promo/package. In v1 we store `type` directly instead.
 - **Hands-On Incentive** — the real commission model: radio with three modes (`Positions` / `Points` / `Position & Points`) and per-position male/female rate inputs. Phase 2 commissions owns this.
 - **Consumables** — structured repeating list with "Add New" (not the free-text column the old doc drafts assumed). Phase 2 inventory BOM.
@@ -134,7 +135,9 @@ Inline CRUD list opened from a "Manage Categories" button on the services page. 
 | duration_min | int | Yes | Default 30, CHECK between 5 and 600 |
 | external_code | text | No | Optional free-text identifier for interop |
 | image_url | text | No | Public URL. Upload UI is Phase 2; column is live. |
-| price | numeric(10,2) | Yes | Default 0, CHECK ≥ 0. Single MYR amount. |
+| price | numeric(10,2) | Yes | Default 0, CHECK ≥ 0. Single MYR amount. When `allow_cash_price_range` is on, this column is auto-mirrored to `price_min` on save — the form doesn't expose it as a separate input, so the user only sees Min/Max. Billing code keeps reading `service.price` as the default seed and therefore always defaults to the low end of the range. |
+| price_min | numeric(10,2) | No | Min cashier-editable price. NULL iff `allow_cash_price_range` is false; otherwise required and ≥ 0. Enforced by `services_price_range_valid` CHECK. |
+| price_max | numeric(10,2) | No | Max cashier-editable price. NULL iff `allow_cash_price_range` is false; otherwise required, ≥ `price_min`, and `price` must sit inside `[price_min, price_max]` (always true since `price = price_min` when the flag is on). |
 | other_fees | numeric(10,2) | Yes | Default 0, CHECK ≥ 0. Additional fee beyond selling price. |
 | discount_cap | numeric | No | Nullable. Null = no cap. Range 0–100 (percent). |
 | full_payment | bool | Yes | Default false. |

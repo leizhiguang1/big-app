@@ -24,6 +24,7 @@ import {
 } from "@/lib/schemas/sales";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
+import type { ServiceWithCategory } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
 import { cn } from "@/lib/utils";
 
@@ -32,10 +33,13 @@ type Props = {
 	onOpenChange: (open: boolean) => void;
 	appointment: AppointmentWithRelations;
 	entries: AppointmentLineItem[];
+	services: ServiceWithCategory[];
 	taxes: Tax[];
 	onSuccess?: (result: { so_number: string; invoice_no: string }) => void;
 	onError?: (message: string) => void;
 };
+
+type DiscountType = "percent" | "amount";
 
 type Line = {
 	id: string;
@@ -46,6 +50,8 @@ type Line = {
 	quantity: number;
 	unit_price: number;
 	tax_id: string | null;
+	discount_type: DiscountType;
+	discount_input: string;
 };
 
 function toLine(e: AppointmentLineItem): Line {
@@ -58,14 +64,41 @@ function toLine(e: AppointmentLineItem): Line {
 		quantity: Number(e.quantity),
 		unit_price: Number(e.unit_price),
 		tax_id: e.tax_id ?? null,
+		discount_type: "amount",
+		discount_input: "",
 	};
 }
 
-function lineTaxAmount(line: Line, taxes: Tax[]): number {
+function lineGross(line: Line): number {
+	return Math.max(0, line.quantity * line.unit_price);
+}
+
+function capMyrForLine(line: Line, capPct: number | null): number | null {
+	if (capPct == null) return null;
+	return Math.round(lineGross(line) * capPct) / 100;
+}
+
+// Translates the staff's raw input into the final MYR discount applied to the
+// line. Clamps to [0, line total] and, when the line's service carries a cap,
+// to the cap MYR. The returned number matches what we send to the RPC.
+function computeLineDiscount(line: Line, capPct: number | null): number {
+	const raw = Number(line.discount_input);
+	if (!Number.isFinite(raw) || raw <= 0) return 0;
+	const gross = lineGross(line);
+	const asMyr =
+		line.discount_type === "percent"
+			? Math.round(((raw * gross) / 100) * 100) / 100
+			: raw;
+	const capMyr = capMyrForLine(line, capPct);
+	const ceiling = capMyr == null ? gross : Math.min(gross, capMyr);
+	return Math.max(0, Math.min(asMyr, ceiling));
+}
+
+function lineTaxAmount(line: Line, taxes: Tax[], discountMyr: number): number {
 	if (!line.tax_id) return 0;
 	const tax = taxes.find((t) => t.id === line.tax_id);
 	if (!tax) return 0;
-	const base = Math.max(0, line.quantity * line.unit_price);
+	const base = Math.max(0, lineGross(line) - discountMyr);
 	return Math.round(base * Number(tax.rate_pct)) / 100;
 }
 
@@ -94,6 +127,7 @@ export function CollectPaymentDialog({
 	onOpenChange,
 	appointment,
 	entries,
+	services,
 	taxes,
 	onSuccess,
 	onError,
@@ -104,11 +138,60 @@ export function CollectPaymentDialog({
 	useEffect(() => {
 		setLines(entries.map(toLine));
 	}, [entries]);
+	const capByServiceId = useMemo(() => {
+		const map = new Map<string, number>();
+		for (const s of services) {
+			if (s.discount_cap != null) map.set(s.id, Number(s.discount_cap));
+		}
+		return map;
+	}, [services]);
+	const capFor = (serviceId: string | null): number | null =>
+		serviceId ? (capByServiceId.get(serviceId) ?? null) : null;
 	const setLineTax = (id: string, taxId: string | null) =>
 		setLines((rows) =>
 			rows.map((r) => (r.id === id ? { ...r, tax_id: taxId } : r)),
 		);
-	const [discount, setDiscount] = useState(0);
+	const setLineDiscountType = (id: string, type: DiscountType) =>
+		setLines((rows) =>
+			rows.map((r) => (r.id === id ? { ...r, discount_type: type } : r)),
+		);
+	const setLineDiscountInput = (id: string, value: string) =>
+		setLines((rows) =>
+			rows.map((r) => (r.id === id ? { ...r, discount_input: value } : r)),
+		);
+	// On blur: clamp the raw input to the cap (and to the line total). We
+	// re-write the field so the staff sees what will actually be charged,
+	// instead of silently lying on submit.
+	const clampLineDiscountInput = (id: string) => {
+		setLines((rows) =>
+			rows.map((r) => {
+				if (r.id !== id) return r;
+				const raw = Number(r.discount_input);
+				if (!Number.isFinite(raw) || raw <= 0) {
+					return { ...r, discount_input: "" };
+				}
+				const gross = lineGross(r);
+				const capPct = capFor(r.service_id);
+				if (r.discount_type === "percent") {
+					const ceilingPct = capPct != null ? Math.min(100, capPct) : 100;
+					const next = Math.min(raw, ceilingPct);
+					return {
+						...r,
+						discount_input: next === raw ? r.discount_input : String(next),
+					};
+				}
+				const capMyr =
+					capPct == null
+						? gross
+						: Math.min(gross, capMyrForLine(r, capPct) ?? gross);
+				const next = Math.min(raw, capMyr);
+				return {
+					...r,
+					discount_input: next === raw ? r.discount_input : next.toFixed(2),
+				};
+			}),
+		);
+	};
 	const [rounding, setRounding] = useState(0);
 	const [requireRounding, setRequireRounding] = useState(false);
 	const [paymentMode, setPaymentMode] = useState<SalesPaymentMode>("cash");
@@ -125,15 +208,33 @@ export function CollectPaymentDialog({
 		? `${appointment.employee.first_name} ${appointment.employee.last_name}`.trim()
 		: null;
 
+	const lineDiscounts = useMemo(
+		() =>
+			lines.map((l) =>
+				computeLineDiscount(
+					l,
+					l.service_id ? (capByServiceId.get(l.service_id) ?? null) : null,
+				),
+			),
+		[lines, capByServiceId],
+	);
 	const subtotal = useMemo(
-		() => lines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0),
+		() => lines.reduce((sum, l) => sum + lineGross(l), 0),
 		[lines],
 	);
-	const totalTax = useMemo(
-		() => lines.reduce((sum, l) => sum + lineTaxAmount(l, taxes), 0),
-		[lines, taxes],
+	const totalDiscount = useMemo(
+		() => lineDiscounts.reduce((sum, d) => sum + d, 0),
+		[lineDiscounts],
 	);
-	const total = Math.max(0, subtotal - discount + totalTax + rounding);
+	const totalTax = useMemo(
+		() =>
+			lines.reduce(
+				(sum, l, i) => sum + lineTaxAmount(l, taxes, lineDiscounts[i] ?? 0),
+				0,
+			),
+		[lines, taxes, lineDiscounts],
+	);
+	const total = Math.max(0, subtotal - totalDiscount + totalTax + rounding);
 
 	const parsedAmount = Number(amount);
 	const amountValid =
@@ -154,7 +255,7 @@ export function CollectPaymentDialog({
 		startTransition(async () => {
 			try {
 				const result = await collectAppointmentPaymentAction(appointment.id, {
-					items: lines.map((l) => ({
+					items: lines.map((l, i) => ({
 						service_id: l.service_id,
 						inventory_item_id: l.inventory_item_id,
 						sku: null,
@@ -162,10 +263,10 @@ export function CollectPaymentDialog({
 						item_type: l.item_type,
 						quantity: l.quantity,
 						unit_price: l.unit_price,
-						discount: 0,
+						discount: lineDiscounts[i] ?? 0,
 						tax_id: l.tax_id,
 					})),
-					discount,
+					discount: 0,
 					tax: 0,
 					rounding,
 					payment_mode: paymentMode,
@@ -282,9 +383,15 @@ export function CollectPaymentDialog({
 								</div>
 							) : (
 								<ul className="divide-y">
-									{lines.map((l) => {
-										const taxAmt = lineTaxAmount(l, taxes);
+									{lines.map((l, i) => {
+										const appliedDiscount = lineDiscounts[i] ?? 0;
+										const taxAmt = lineTaxAmount(l, taxes, appliedDiscount);
 										const activeTaxes = taxes.filter((t) => t.is_active);
+										const capPct = capFor(l.service_id);
+										const gross = lineGross(l);
+										const capMyr =
+											capPct != null ? Math.round(gross * capPct) / 100 : null;
+										const netTotal = Math.max(0, gross - appliedDiscount);
 										return (
 											<li key={l.id} className="px-3 py-3">
 												<div className="grid grid-cols-[1fr_60px_110px_110px_24px] items-center gap-2 text-sm">
@@ -304,7 +411,7 @@ export function CollectPaymentDialog({
 														{money(l.unit_price)}
 													</div>
 													<div className="text-right font-medium tabular-nums">
-														{money(l.quantity * l.unit_price)}
+														{money(netTotal)}
 													</div>
 													<ChevronDown className="size-4 text-muted-foreground" />
 												</div>
@@ -329,8 +436,70 @@ export function CollectPaymentDialog({
 														))}
 													</select>
 													<span className="text-muted-foreground tabular-nums">
-														Tax Amount (MYR): {money(taxAmt)}
+														Tax: {money(taxAmt)}
 													</span>
+												</div>
+												<div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+													<span className="text-muted-foreground">
+														Discount
+													</span>
+													<div className="flex items-center overflow-hidden rounded-md border">
+														<Input
+															type="number"
+															min={0}
+															step="0.01"
+															value={l.discount_input}
+															placeholder="0"
+															onChange={(e) =>
+																setLineDiscountInput(l.id, e.target.value)
+															}
+															onBlur={() => clampLineDiscountInput(l.id)}
+															className="h-6 w-20 rounded-none border-0 text-right text-[11px] focus-visible:ring-0"
+															aria-label={`Discount for ${l.item_name}`}
+														/>
+														<div className="flex border-l">
+															<button
+																type="button"
+																onClick={() =>
+																	setLineDiscountType(l.id, "percent")
+																}
+																className={cn(
+																	"px-2 text-[11px]",
+																	l.discount_type === "percent"
+																		? "bg-blue-600 text-white"
+																		: "bg-background text-muted-foreground hover:bg-muted",
+																)}
+																aria-pressed={l.discount_type === "percent"}
+															>
+																%
+															</button>
+															<button
+																type="button"
+																onClick={() =>
+																	setLineDiscountType(l.id, "amount")
+																}
+																className={cn(
+																	"border-l px-2 text-[11px]",
+																	l.discount_type === "amount"
+																		? "bg-blue-600 text-white"
+																		: "bg-background text-muted-foreground hover:bg-muted",
+																)}
+																aria-pressed={l.discount_type === "amount"}
+															>
+																RM
+															</button>
+														</div>
+													</div>
+													{appliedDiscount > 0 && (
+														<span className="tabular-nums text-muted-foreground">
+															−{money(appliedDiscount)}
+														</span>
+													)}
+													{capPct != null ? (
+														<span className="text-muted-foreground">
+															Max {capPct}% ({money(capMyr ?? 0)})
+														</span>
+													) : null}
 												</div>
 											</li>
 										);
@@ -376,16 +545,11 @@ export function CollectPaymentDialog({
 									}
 								/>
 								<Row
-									label="Discount"
+									label="Discount (MYR)"
 									value={
-										<Input
-											type="number"
-											min={0}
-											step="0.01"
-											value={discount}
-											onChange={(e) => setDiscount(Number(e.target.value) || 0)}
-											className="h-7 w-24 text-right"
-										/>
+										<span className="tabular-nums">
+											−{money(totalDiscount)}
+										</span>
 									}
 								/>
 								<Row

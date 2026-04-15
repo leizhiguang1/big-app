@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ImageIcon, Pencil, Settings2, Trash2 } from "lucide-react";
+import { Check, ImageIcon, Pencil, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -12,7 +12,6 @@ import type {
 	ServiceWithCategory,
 } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
-import { ManageCategoriesSheet } from "./ManageCategoriesSheet";
 import { ServiceFormDialog } from "./ServiceForm";
 
 const priceFormatter = new Intl.NumberFormat("en-MY", {
@@ -46,7 +45,6 @@ export function ServicesTable({
 	const [deleting, setDeleting] = useState<ServiceWithCategory | null>(null);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
-	const [categoriesOpen, setCategoriesOpen] = useState(false);
 
 	const columns: DataTableColumn<ServiceWithCategory>[] = [
 		{
@@ -166,11 +164,24 @@ export function ServicesTable({
 			sortable: true,
 			align: "right",
 			sortValue: (s) => Number(s.price),
-			cell: (s) => (
-				<span className="tabular-nums">
-					{priceFormatter.format(Number(s.price))}
-				</span>
-			),
+			cell: (s) => {
+				const hasRange =
+					s.allow_cash_price_range &&
+					s.price_min != null &&
+					s.price_max != null;
+				return (
+					<span
+						className="tabular-nums"
+						title={
+							hasRange
+								? `Range ${priceFormatter.format(Number(s.price_min))} – ${priceFormatter.format(Number(s.price_max))}`
+								: undefined
+						}
+					>
+						{priceFormatter.format(Number(s.price))}
+					</span>
+				);
+			},
 		},
 		{
 			key: "full_payment",
@@ -213,18 +224,6 @@ export function ServicesTable({
 		},
 	];
 
-	const toolbar = (
-		<Button
-			type="button"
-			variant="outline"
-			size="sm"
-			onClick={() => setCategoriesOpen(true)}
-		>
-			<Settings2 />
-			Manage Categories
-		</Button>
-	);
-
 	return (
 		<>
 			<DataTable
@@ -235,7 +234,6 @@ export function ServicesTable({
 				searchPlaceholder="Search services…"
 				emptyMessage="No services yet. Click “New service” to create one."
 				minWidth={1400}
-				toolbar={toolbar}
 			/>
 			<ServiceFormDialog
 				open={!!editing}
@@ -243,11 +241,6 @@ export function ServicesTable({
 				categories={categories}
 				taxes={taxes}
 				onClose={() => setEditing(null)}
-			/>
-			<ManageCategoriesSheet
-				open={categoriesOpen}
-				onOpenChange={setCategoriesOpen}
-				categories={categories}
 			/>
 			<ConfirmDialog
 				open={!!deleting}

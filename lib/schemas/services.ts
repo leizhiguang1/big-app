@@ -8,7 +8,8 @@ export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
 	non_retail: "Non-Retail",
 };
 
-export const serviceCreateSchema = z.object({
+const serviceBaseShape = z.object({
+	id: z.string().uuid().optional(),
 	sku: z.string().trim().min(1, "SKU is required").max(40),
 	name: z.string().trim().min(1, "Name is required").max(200),
 	category_id: z.string().uuid().nullable(),
@@ -21,6 +22,8 @@ export const serviceCreateSchema = z.object({
 	external_code: z.string().trim().max(80).nullable(),
 	image_url: z.string().trim().max(500).nullable(),
 	price: z.number().min(0, "Price must be ≥ 0"),
+	price_min: z.number().min(0, "Min price must be ≥ 0").nullable(),
+	price_max: z.number().min(0, "Max price must be ≥ 0").nullable(),
 	other_fees: z.number().min(0, "Other fees must be ≥ 0"),
 	incentive_type: z.string().trim().max(80).nullable(),
 	consumables: z.string().trim().max(500).nullable(),
@@ -32,7 +35,75 @@ export const serviceCreateSchema = z.object({
 	tax_ids: z.array(z.string().uuid()),
 });
 
-export const serviceUpdateSchema = serviceCreateSchema.omit({ sku: true });
+type ServiceRangeFields = {
+	price: number;
+	price_min: number | null;
+	price_max: number | null;
+	allow_cash_price_range: boolean;
+};
+
+const refinePriceRange = (val: ServiceRangeFields, ctx: z.RefinementCtx) => {
+	if (val.allow_cash_price_range) {
+		if (val.price_min == null) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["price_min"],
+				message: "Min price is required when price range is enabled",
+			});
+		}
+		if (val.price_max == null) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["price_max"],
+				message: "Max price is required when price range is enabled",
+			});
+		}
+		if (
+			val.price_min != null &&
+			val.price_max != null &&
+			val.price_max < val.price_min
+		) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["price_max"],
+				message: "Max price must be ≥ min price",
+			});
+		}
+		if (
+			val.price_min != null &&
+			val.price_max != null &&
+			(val.price < val.price_min || val.price > val.price_max)
+		) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["price"],
+				message: "Default price must sit within min–max range",
+			});
+		}
+		return;
+	}
+	if (val.price_min != null) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ["price_min"],
+			message: "Min price must be blank when range is disabled",
+		});
+	}
+	if (val.price_max != null) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ["price_max"],
+			message: "Max price must be blank when range is disabled",
+		});
+	}
+};
+
+export const serviceCreateSchema =
+	serviceBaseShape.superRefine(refinePriceRange);
+
+export const serviceUpdateSchema = serviceBaseShape
+	.omit({ sku: true })
+	.superRefine(refinePriceRange);
 
 export type ServiceCreateInput = z.infer<typeof serviceCreateSchema>;
 export type ServiceUpdateInput = z.infer<typeof serviceUpdateSchema>;

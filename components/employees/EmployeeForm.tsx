@@ -70,6 +70,7 @@ const EMPTY: EmployeeFormInput = {
 	password: undefined,
 	password_confirm: undefined,
 	has_existing_auth: false,
+	pin: undefined,
 	address1: undefined,
 	address2: undefined,
 	address3: undefined,
@@ -115,6 +116,7 @@ function fromEmployee(e: EmployeeWithRelations | null): EmployeeFormInput {
 		password: undefined,
 		password_confirm: undefined,
 		has_existing_auth: Boolean(e.auth_user_id),
+		pin: undefined,
 		address1: e.address1 ?? undefined,
 		address2: e.address2 ?? undefined,
 		address3: e.address3 ?? undefined,
@@ -333,14 +335,16 @@ export function EmployeeFormDialog({
 					password,
 					password_confirm: _pc,
 					has_existing_auth: _hea,
+					pin,
 					...rest
 				} = values;
 				if (employee) {
-					await updateEmployeeAction(employee.id, rest, password);
+					await updateEmployeeAction(employee.id, rest, password, pin);
 				} else {
 					await createEmployeeAction(
 						{ ...rest, id: pendingId ?? undefined },
 						password,
+						pin,
 					);
 				}
 				savedRef.current = true;
@@ -730,6 +734,27 @@ export function EmployeeFormDialog({
 											</Field>
 										</>
 									)}
+
+									<Field
+										label={
+											employee ? "Set / Reset PIN (6 digits)" : "PIN (6 digits)"
+										}
+										htmlFor="emp-pin"
+										full
+										error={errors.pin?.message}
+									>
+										<Input
+											id="emp-pin"
+											type="password"
+											inputMode="numeric"
+											autoComplete="off"
+											maxLength={6}
+											placeholder={
+												employee ? "Leave blank to keep current" : "••••••"
+											}
+											{...form.register("pin")}
+										/>
+									</Field>
 								</div>
 
 								<div className="flex flex-col gap-3 border-t pt-5">
@@ -836,10 +861,7 @@ export function EmployeeFormDialog({
 											<Input id="emp-addr3" {...form.register("address3")} />
 										</Field>
 										<Field label="Postcode" htmlFor="emp-postcode">
-											<Input
-												id="emp-postcode"
-												{...form.register("postcode")}
-											/>
+											<Input id="emp-postcode" {...form.register("postcode")} />
 										</Field>
 										<Field label="City" htmlFor="emp-city">
 											<Input id="emp-city" {...form.register("city")} />

@@ -121,11 +121,18 @@ const passwordField = z
 	.optional()
 	.or(z.literal("").transform(() => undefined));
 
+export const pinField = z
+	.string()
+	.regex(/^\d{6}$/, "PIN must be exactly 6 digits")
+	.optional()
+	.or(z.literal("").transform(() => undefined));
+
 export const employeeFormSchema = employeeInputBase
 	.extend({
 		password: passwordField,
 		password_confirm: passwordField,
 		has_existing_auth: z.boolean().optional(),
+		pin: pinField,
 	})
 	.superRefine((data, ctx) => {
 		validateIc(data, ctx);

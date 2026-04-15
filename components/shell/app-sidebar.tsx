@@ -42,9 +42,12 @@ const navItems: SidebarNavItemData[] = [
 	{ label: "Employees", href: "/employees", icon: UserCog },
 	{ label: "Voucher", href: "/voucher", icon: Ticket },
 	{ label: "Passcode", href: "/passcode", icon: KeyRound },
-	{ label: "Config", href: "/config", icon: Settings },
 	{ label: "Reports", href: "/reports", icon: BarChart2 },
 	{ label: "Webstore", href: "/webstore", icon: Store },
+];
+
+const footerNavItems: SidebarNavItemData[] = [
+	{ label: "Config", href: "/config", icon: Settings },
 ];
 
 export function AppSidebar() {
@@ -75,7 +78,12 @@ export function AppSidebar() {
 			</SidebarContent>
 
 			<SidebarFooter className="border-sidebar-border border-t">
-				<div className="px-3 py-2 text-[11px] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
+				<SidebarMenu className="gap-0.5 px-2 py-2">
+					{footerNavItems.map((item) => (
+						<SidebarNavItem key={item.href} item={item} />
+					))}
+				</SidebarMenu>
+				<div className="px-3 pb-2 text-[11px] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
 					BIG App v1.0.0
 				</div>
 			</SidebarFooter>

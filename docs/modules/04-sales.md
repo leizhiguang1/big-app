@@ -29,7 +29,7 @@ What actually exists in code as of migration `0029_sales`:
 
 **UI — [components/appointments/detail/CollectPaymentDialog.tsx](../../components/appointments/detail/CollectPaymentDialog.tsx):**
 - Two-column dialog patterned after the reference prototype's Collect Payment modal.
-- Left column: remarks card, line-items list (fed from `appointment_line_items`), Discount / Total / Cash / Balance / Require Rounding toggle.
+- Left column: remarks card, line-items list (fed from `appointment_line_items`), Discount / Total / Cash / Balance / Require Rounding toggle. **Discount is per-line**: each row has a compact input with a `% | RM` segmented toggle. On blur, the input is clamped against the line's service cap (`services.discount_cap`) and to the line total; a `Max N% (RM X.XX)` hint sits next to the input when a cap is set. The totals panel's "Discount" row is the sum of all line discounts — there is no separate order-level discount input.
 - Right column: Attachments placeholder card, Payment section (backdate toggle, payment-mode select, amount input, remarks, add-payment-type link), "This sale will be created at <outlet>" footer, large green confirm button, message-to-frontdesk textarea.
 - Launched from [FloatingActionBar](../../components/appointments/detail/FloatingActionBar.tsx) → `ConfirmDialog` → `CollectPaymentDialog`.
 - Fields with no backing data yet (reference #, tag, attachments, message-to-frontdesk, backdate, itemised allocation, add-payment-type) are rendered as disabled / placeholder controls so the layout is complete and the real wiring can land incrementally.
@@ -38,7 +38,6 @@ What actually exists in code as of migration `0029_sales`:
 - `/sales` dashboard (Summary, Sales tab, Payment tab, Cancelled tab).
 - Cancellation flow and `cancellations` table.
 - Multi-payment UI (one SO currently gets one payment via the RPC).
-- Line-level discount UI (column exists in `sale_items`, UI still order-level only).
 - Manual / out-of-appointment sales ("New Sales" entry point).
 - Void (admin-only erase).
 - Payor / third-party payer.
@@ -200,7 +199,7 @@ draft → completed → cancelled (via cancellation record)
 - Line items are **additive** — staff adds, edits, or deletes rows freely during the visit. Rows accumulate until "Collect Payment" is clicked.
 - On "Collect Payment": line items are snapshot-copied into `sale_items` (the new `sale_items` rows do NOT reference back to the originating line item). `appointment_line_items` are kept on the appointment as a clinical/audit record. Their child `appointment_line_item_incentives` rows also stay attached — they're never mutated by the RPC.
 - Once a sales order is `completed`, line items can still be added to the appointment (representing follow-up work) but won't be automatically folded into the existing SO — staff must create a new sale or amend.
-- **Order-level discount only** in v1. Line-level discount column exists in schema for Phase 2.
+- **Per-line discount with % / RM toggle** (2026-04-15). Each line has its own discount input; the totals panel sums them. No separate order-level discount input in the UI. The service's `discount_cap` (percent) sets a ceiling per line — the UI clamps on blur and the service layer (`assertLineDiscountCaps`) re-validates before the RPC fires. See [06-services.md](./06-services.md) §Individual Discount Capping.
 - **Tax:** flat-percent at the order level, default 0 (Malaysian dental usually tax-exempt). Configurable later.
 - **Payor** (third-party payer like insurance) is **deferred** — v1 assumes customer = payor.
 - **Petty Cash** and **Self Bill** tabs are rendered as empty-state placeholders in v1. No schema.
@@ -323,7 +322,7 @@ Child table (`appointment_line_item_incentives`) is documented in [02-appointmen
 - **Transaction safety:** "Collect Payment" must wrap the SO + sale_items + payment inserts in a single Postgres transaction (Supabase RPC or server action). The current prototype's frontend fires them sequentially without rollback — fix in v2.
 - **One SO can have many payments** — designed in from the start. Current prototype has this but rarely exercises it.
 - **Cancellations are separate rows** — not just a status flip. CN audit trail preserved.
-- **Line-level discount column exists but UI defers to Phase 2.** Zero cost to keep it in the schema.
+- **Line-level discount UI shipped** (2026-04-15). `sale_items.discount` is driven per line from the Collect Payment dialog, with a `% / RM` toggle for input and cap enforcement against `services.discount_cap`.
 
 ## Schema Notes
 

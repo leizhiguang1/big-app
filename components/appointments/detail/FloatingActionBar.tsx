@@ -25,12 +25,14 @@ import {
 } from "@/lib/actions/appointments";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
+import type { ServiceWithCategory } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
 import { cn } from "@/lib/utils";
 
 type Props = {
 	appointment: AppointmentWithRelations;
 	lineItems: AppointmentLineItem[];
+	services: ServiceWithCategory[];
 	taxes: Tax[];
 	onToast?: (
 		message: string,
@@ -57,6 +59,7 @@ function pickCompletionPath(
 export function FloatingActionBar({
 	appointment,
 	lineItems,
+	services,
 	taxes,
 	onToast,
 }: Props) {
@@ -286,6 +289,7 @@ export function FloatingActionBar({
 				onOpenChange={setCollectOpen}
 				appointment={appointment}
 				entries={lineItems}
+				services={services}
 				taxes={taxes}
 				onSuccess={(r) =>
 					onToast?.(

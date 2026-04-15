@@ -57,6 +57,7 @@ export async function createService(
 	const { data, error } = await ctx.db
 		.from("services")
 		.insert({
+			...(parsed.id ? { id: parsed.id } : {}),
 			sku: parsed.sku,
 			name: parsed.name,
 			category_id: parsed.category_id,
@@ -65,6 +66,8 @@ export async function createService(
 			external_code: parsed.external_code,
 			image_url: parsed.image_url,
 			price: parsed.price,
+			price_min: parsed.price_min,
+			price_max: parsed.price_max,
 			other_fees: parsed.other_fees,
 			incentive_type: parsed.incentive_type,
 			consumables: parsed.consumables,
@@ -101,6 +104,8 @@ export async function updateService(
 			external_code: parsed.external_code,
 			image_url: parsed.image_url,
 			price: parsed.price,
+			price_min: parsed.price_min,
+			price_max: parsed.price_max,
 			other_fees: parsed.other_fees,
 			incentive_type: parsed.incentive_type,
 			consumables: parsed.consumables,

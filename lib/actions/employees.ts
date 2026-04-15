@@ -4,9 +4,18 @@ import { revalidatePath } from "next/cache";
 import { getServerContext } from "@/lib/context/server";
 import * as employeesService from "@/lib/services/employees";
 
-export async function createEmployeeAction(input: unknown, password?: string) {
+export async function createEmployeeAction(
+	input: unknown,
+	password?: string,
+	pin?: string,
+) {
 	const ctx = await getServerContext();
-	const employee = await employeesService.createEmployee(ctx, input, password);
+	const employee = await employeesService.createEmployee(
+		ctx,
+		input,
+		password,
+		pin,
+	);
 	revalidatePath("/employees");
 	return employee;
 }
@@ -15,6 +24,7 @@ export async function updateEmployeeAction(
 	id: string,
 	input: unknown,
 	password?: string,
+	pin?: string,
 ) {
 	const ctx = await getServerContext();
 	const employee = await employeesService.updateEmployee(
@@ -22,6 +32,7 @@ export async function updateEmployeeAction(
 		id,
 		input,
 		password,
+		pin,
 	);
 	revalidatePath("/employees");
 	return employee;

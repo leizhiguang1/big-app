@@ -756,6 +756,7 @@ export type Database = {
           monthly_sales_target: number
           phone: string | null
           phone2: string | null
+          pin_hash: string | null
           position_id: string | null
           postcode: string | null
           profile_image_path: string | null
@@ -793,6 +794,7 @@ export type Database = {
           monthly_sales_target?: number
           phone?: string | null
           phone2?: string | null
+          pin_hash?: string | null
           position_id?: string | null
           postcode?: string | null
           profile_image_path?: string | null
@@ -830,6 +832,7 @@ export type Database = {
           monthly_sales_target?: number
           phone?: string | null
           phone2?: string | null
+          pin_hash?: string | null
           position_id?: string | null
           postcode?: string | null
           profile_image_path?: string | null
@@ -1860,6 +1863,8 @@ export type Database = {
           name: string
           other_fees: number
           price: number
+          price_max: number | null
+          price_min: number | null
           sku: string
           type: string
           updated_at: string
@@ -1881,6 +1886,8 @@ export type Database = {
           name: string
           other_fees?: number
           price?: number
+          price_max?: number | null
+          price_min?: number | null
           sku: string
           type?: string
           updated_at?: string
@@ -1902,6 +1909,8 @@ export type Database = {
           name?: string
           other_fees?: number
           price?: number
+          price_max?: number | null
+          price_min?: number | null
           sku?: string
           type?: string
           updated_at?: string
@@ -2310,8 +2319,16 @@ export type Database = {
         Args: { prefix: string; seq_name: string; width: number }
         Returns: string
       }
+      set_employee_pin: {
+        Args: { p_employee_id: string; p_pin: string }
+        Returns: undefined
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      verify_employee_pin: {
+        Args: { p_employee_id: string; p_pin: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

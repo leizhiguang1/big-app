@@ -1,11 +1,12 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ImageIcon } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { Info, Minus, Plus, X } from "lucide-react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { TaxesSelector } from "@/components/taxes/TaxesSelector";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CreateButton } from "@/components/ui/create-button";
 import {
 	Dialog,
@@ -15,14 +16,23 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { Input } from "@/components/ui/input";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
 	createServiceAction,
 	updateServiceAction,
 } from "@/lib/actions/services";
 import {
-	SERVICE_TYPE_LABELS,
-	SERVICE_TYPES,
+	SERVICE_FORM_TOOLTIPS,
+	type ServiceFormTooltipKey,
+} from "@/lib/constants/service-form-tooltips";
+import {
 	type ServiceCreateInput,
 	serviceCreateSchema,
 } from "@/lib/schemas/services";
@@ -31,8 +41,7 @@ import type {
 	ServiceWithCategory,
 } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
-import { DurationInput } from "./DurationInput";
-import { PhaseTwoSection } from "./PhaseTwoSection";
+import { cn } from "@/lib/utils";
 
 type Props = {
 	open: boolean;
@@ -42,7 +51,8 @@ type Props = {
 	onClose: () => void;
 };
 
-const EMPTY: ServiceCreateInput = {
+const emptyDefaults = (): ServiceCreateInput => ({
+	id: crypto.randomUUID(),
 	sku: "",
 	name: "",
 	category_id: null,
@@ -51,16 +61,22 @@ const EMPTY: ServiceCreateInput = {
 	external_code: null,
 	image_url: null,
 	price: 0,
+	price_min: null,
+	price_max: null,
 	other_fees: 0,
 	incentive_type: null,
 	consumables: null,
 	discount_cap: null,
 	full_payment: false,
-	allow_redemption_without_payment: true,
+	allow_redemption_without_payment: false,
 	allow_cash_price_range: false,
 	is_active: true,
 	tax_ids: [],
-};
+});
+
+const taxRateFormatter = new Intl.NumberFormat("en-MY", {
+	maximumFractionDigits: 2,
+});
 
 export function ServiceFormDialog({
 	open,
@@ -75,8 +91,26 @@ export function ServiceFormDialog({
 
 	const form = useForm<ServiceCreateInput>({
 		resolver: zodResolver(serviceCreateSchema),
-		defaultValues: EMPTY,
+		defaultValues: emptyDefaults(),
 	});
+
+	const priceRangeOn = form.watch("allow_cash_price_range");
+	const priceMinWatch = form.watch("price_min");
+	const typeWatch = form.watch("type");
+	const isRetail = typeWatch === "retail";
+
+	useEffect(() => {
+		if (!priceRangeOn) {
+			form.setValue("price_min", null, { shouldValidate: true });
+			form.setValue("price_max", null, { shouldValidate: true });
+		}
+	}, [priceRangeOn, form]);
+
+	useEffect(() => {
+		if (priceRangeOn && priceMinWatch != null) {
+			form.setValue("price", priceMinWatch, { shouldValidate: true });
+		}
+	}, [priceRangeOn, priceMinWatch, form]);
 
 	useEffect(() => {
 		if (open) {
@@ -84,6 +118,7 @@ export function ServiceFormDialog({
 				service?.discount_cap == null ? null : Number(service.discount_cap);
 			const defaultTaxIds = taxes.filter((t) => t.is_active).map((t) => t.id);
 			form.reset({
+				id: service?.id ?? crypto.randomUUID(),
 				sku: service?.sku ?? "",
 				name: service?.name ?? "",
 				category_id: service?.category_id ?? null,
@@ -92,13 +127,17 @@ export function ServiceFormDialog({
 				external_code: service?.external_code ?? null,
 				image_url: service?.image_url ?? null,
 				price: service ? Number(service.price) : 0,
+				price_min:
+					service?.price_min == null ? null : Number(service.price_min),
+				price_max:
+					service?.price_max == null ? null : Number(service.price_max),
 				other_fees: service ? Number(service.other_fees ?? 0) : 0,
 				incentive_type: service?.incentive_type ?? null,
 				consumables: service?.consumables ?? null,
 				discount_cap: nextCap,
 				full_payment: service?.full_payment ?? false,
 				allow_redemption_without_payment:
-					service?.allow_redemption_without_payment ?? true,
+					service?.allow_redemption_without_payment ?? false,
 				allow_cash_price_range: service?.allow_cash_price_range ?? false,
 				is_active: service?.is_active ?? true,
 				tax_ids: service?.tax_ids ?? defaultTaxIds,
@@ -109,14 +148,19 @@ export function ServiceFormDialog({
 	}, [open, service, form, taxes]);
 
 	const onSubmit = form.handleSubmit((values) => {
+		const rangeOn = values.allow_cash_price_range;
 		const sanitized: ServiceCreateInput = {
 			...values,
 			discount_cap: discountCapEnabled ? (values.discount_cap ?? 0) : null,
+			price_min: rangeOn ? values.price_min : null,
+			price_max: rangeOn ? values.price_max : null,
+			price:
+				rangeOn && values.price_min != null ? values.price_min : values.price,
 		};
 		startTransition(async () => {
 			try {
 				if (service) {
-					const { sku: _omit, ...rest } = sanitized;
+					const { id: _id, sku: _sku, ...rest } = sanitized;
 					await updateServiceAction(service.id, rest);
 				} else {
 					await createServiceAction(sanitized);
@@ -130,436 +174,636 @@ export function ServiceFormDialog({
 		});
 	});
 
+	const activeTaxes = useMemo(() => taxes.filter((t) => t.is_active), [taxes]);
+	const imageEntityId = form.watch("id") ?? null;
+
 	return (
-		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-			<DialogContent className="flex max-h-[92vh] w-full flex-col gap-0 p-0 sm:max-w-3xl">
-				<DialogHeader>
-					<DialogTitle>{service ? "Edit service" : "New service"}</DialogTitle>
-					<DialogDescription>
-						Catalog entry used as a billing line item after a visit.
-					</DialogDescription>
-				</DialogHeader>
-				<form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
-					<div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
-						{/* ── General ───────────────────────────────────────────── */}
-						<section className="flex flex-col gap-3 rounded-md border p-4">
-							<h3 className="font-medium text-sm">General</h3>
-							<div className="grid grid-cols-[auto_1fr] gap-4">
-								<div className="flex flex-col items-center gap-2">
-									<div className="flex size-24 items-center justify-center rounded-md border border-dashed bg-muted/30 text-muted-foreground">
-										<ImageIcon className="size-8 opacity-40" />
-									</div>
-									<span className="text-[10px] text-muted-foreground uppercase tracking-wide">
-										Image (Phase 2)
-									</span>
-								</div>
-								<div className="flex flex-col gap-3">
-									<div className="grid grid-cols-2 gap-3">
-										<div className="flex flex-col gap-1.5">
-											<label
-												htmlFor="service-name"
-												className="font-medium text-sm"
-											>
-												Description
-											</label>
-											<Input
-												id="service-name"
-												placeholder="EG: SCALING & POLISHING"
-												{...form.register("name")}
-											/>
-											{form.formState.errors.name && (
-												<p className="text-destructive text-xs">
-													{form.formState.errors.name.message}
-												</p>
-											)}
-										</div>
-										<div className="flex flex-col gap-1.5">
-											<label
-												htmlFor="service-sku"
-												className="font-medium text-sm"
-											>
-												SKU
-											</label>
-											<Input
-												id="service-sku"
-												placeholder="TRT-01"
-												disabled={!!service}
-												{...form.register("sku")}
-											/>
-											{form.formState.errors.sku && (
-												<p className="text-destructive text-xs">
-													{form.formState.errors.sku.message}
-												</p>
-											)}
-											{service && (
-												<p className="text-muted-foreground text-xs">
-													SKU is immutable.
-												</p>
-											)}
-										</div>
-									</div>
-									<div className="grid grid-cols-2 gap-3">
-										<div className="flex flex-col gap-1.5">
-											<label
-												htmlFor="service-category"
-												className="font-medium text-sm"
-											>
-												Category
-											</label>
-											<select
-												id="service-category"
-												className="h-9 rounded-md border bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-												{...form.register("category_id", {
-													setValueAs: (v) => (v === "" ? null : v),
-												})}
-											>
-												<option value="">— None —</option>
-												{categories.map((c) => (
-													<option key={c.id} value={c.id}>
-														{c.name}
-													</option>
-												))}
-											</select>
-										</div>
-										<div className="flex flex-col gap-1.5">
-											<label
-												htmlFor="service-type"
-												className="font-medium text-sm"
-											>
-												Type
-											</label>
-											<select
-												id="service-type"
-												className="h-9 rounded-md border bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-												{...form.register("type")}
-											>
-												{SERVICE_TYPES.map((t) => (
-													<option key={t} value={t}>
-														{SERVICE_TYPE_LABELS[t]}
-													</option>
-												))}
-											</select>
-										</div>
-									</div>
-									<div className="grid grid-cols-2 gap-3">
-										<div className="flex flex-col gap-1.5">
-											<label className="font-medium text-sm">Duration</label>
+		<TooltipProvider delayDuration={150}>
+			<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+				<DialogContent className="flex max-h-[92vh] w-[96vw] flex-col gap-0 p-0 sm:max-w-6xl">
+					<DialogHeader className="border-b px-6 py-4">
+						<DialogTitle className="text-center font-medium text-base">
+							{service ? "Edit Service" : "Create New Service"}
+						</DialogTitle>
+						<DialogDescription className="sr-only">
+							Catalog entry used as a billing line item after a visit.
+						</DialogDescription>
+					</DialogHeader>
+					<form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+						<div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
+							<div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+								{/* ─── LEFT COLUMN ──────────────────────────── */}
+								<div className="flex flex-col gap-5">
+									<Section title="General">
+										<div className="flex flex-col items-center">
 											<Controller
 												control={form.control}
-												name="duration_min"
+												name="image_url"
 												render={({ field }) => (
-													<DurationInput
+													<ImageUpload
 														value={field.value}
 														onChange={field.onChange}
+														entity="services"
+														entityId={imageEntityId}
+														shape="square"
+														sizeClass="size-24"
+														minimal
 													/>
 												)}
 											/>
-											{form.formState.errors.duration_min && (
-												<p className="text-destructive text-xs">
-													{form.formState.errors.duration_min.message}
+										</div>
+										<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+											<Field
+												label="Service Name"
+												required
+												error={form.formState.errors.name?.message}
+											>
+												<Input
+													placeholder="EG: BODY MASSAGE"
+													{...form.register("name")}
+												/>
+											</Field>
+											<Field
+												label="SKU"
+												required
+												error={form.formState.errors.sku?.message}
+												hint={service ? "SKU is immutable." : undefined}
+											>
+												<Input
+													placeholder="EG: BME-0001"
+													disabled={!!service}
+													{...form.register("sku")}
+												/>
+											</Field>
+											<Field label="Category" required tooltipKey="category">
+												<div className="flex items-center gap-2">
+													<select
+														className="h-8 flex-1 rounded-lg border bg-background px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
+														{...form.register("category_id", {
+															setValueAs: (v) => (v === "" ? null : v),
+														})}
+													>
+														<option value="">Please choose…</option>
+														{categories.map((c) => (
+															<option key={c.id} value={c.id}>
+																{c.name}
+															</option>
+														))}
+													</select>
+												</div>
+											</Field>
+											<Field
+												label="Duration"
+												required
+												tooltipKey="duration"
+												error={form.formState.errors.duration_min?.message}
+											>
+												<Controller
+													control={form.control}
+													name="duration_min"
+													render={({ field }) => (
+														<DurationStepper
+															value={field.value}
+															onChange={field.onChange}
+														/>
+													)}
+												/>
+											</Field>
+											<Field
+												label="Case Note Template"
+												phase2
+												tooltipKey="caseNoteTemplate"
+											>
+												<select
+													disabled
+													className="h-8 w-full rounded-lg border bg-muted/30 px-2.5 text-muted-foreground text-sm"
+												>
+													<option>Please choose…</option>
+												</select>
+											</Field>
+											<Field
+												label="e-Invoice Classification Code"
+												phase2
+												tooltipKey="eInvoiceCode"
+											>
+												<select
+													disabled
+													className="h-8 w-full rounded-lg border bg-muted/30 px-2.5 text-muted-foreground text-sm"
+												>
+													<option>Please choose…</option>
+												</select>
+											</Field>
+										</div>
+										<div className="flex flex-col gap-2 pt-1">
+											<div className="flex items-center gap-2 text-sm">
+												<Checkbox
+													id="svc-is-retail"
+													checked={isRetail}
+													onCheckedChange={(checked) =>
+														form.setValue(
+															"type",
+															checked === true ? "retail" : "non_retail",
+															{ shouldDirty: true },
+														)
+													}
+												/>
+												<label
+													htmlFor="svc-is-retail"
+													className="flex cursor-pointer items-center gap-1.5"
+												>
+													This is a Service Retail item,{" "}
+													<Badge
+														variant="info"
+														className="px-1.5 py-0 text-[10px]"
+													>
+														S (R)
+													</Badge>{" "}
+													<span className="text-muted-foreground">
+														(sellable on its own)
+													</span>
+												</label>
+												<InfoTip tooltipKey="retailItem" />
+											</div>
+											{!isRetail && (
+												<p className="pl-6 text-muted-foreground text-xs leading-snug">
+													This service is assumed to only be sold as part of a
+													promotion or package and will be tagged as{" "}
+													<Badge
+														variant="secondary"
+														className="px-1.5 py-0 text-[10px]"
+													>
+														S (NR)
+													</Badge>{" "}
+													Services (Non-Retail).
 												</p>
 											)}
+											<div className="flex items-center gap-2 text-sm">
+												<Controller
+													control={form.control}
+													name="allow_redemption_without_payment"
+													render={({ field }) => (
+														<Checkbox
+															id="svc-allow-redemption"
+															checked={!!field.value}
+															onCheckedChange={(c) =>
+																field.onChange(c === true)
+															}
+														/>
+													)}
+												/>
+												<label
+													htmlFor="svc-allow-redemption"
+													className="cursor-pointer"
+												>
+													Allow Redemption Without Payment
+												</label>
+												<InfoTip tooltipKey="allowRedemptionWithoutPayment" />
+											</div>
 										</div>
-										<div className="flex flex-col gap-1.5">
-											<label
-												htmlFor="service-external-code"
-												className="font-medium text-sm"
-											>
-												External Code
-											</label>
-											<Input
-												id="service-external-code"
-												placeholder="Optional"
-												{...form.register("external_code", {
-													setValueAs: (v) =>
-														v === "" || v == null ? null : String(v),
-												})}
+									</Section>
+
+									<PlaceholderListSection
+										title="Consumables"
+										tooltipKey="consumables"
+									/>
+									<PlaceholderListSection
+										title="Medications"
+										tooltipKey="medications"
+									/>
+								</div>
+
+								{/* ─── RIGHT COLUMN ─────────────────────────── */}
+								<div className="flex flex-col gap-5">
+									<Section title="Pricing">
+										<div className="flex items-center gap-2 text-sm">
+											<Controller
+												control={form.control}
+												name="allow_cash_price_range"
+												render={({ field }) => (
+													<Checkbox
+														id="svc-allow-range"
+														checked={!!field.value}
+														onCheckedChange={(c) => field.onChange(c === true)}
+													/>
+												)}
 											/>
+											<label
+												htmlFor="svc-allow-range"
+												className="cursor-pointer text-muted-foreground"
+											>
+												Allow cash selling price range for this service
+											</label>
+											<InfoTip tooltipKey="allowCashPriceRange" />
 										</div>
-									</div>
-								</div>
-							</div>
-						</section>
+										<div className="flex flex-col gap-4">
+											<Field
+												label="Selling Price"
+												required
+												error={
+													form.formState.errors.price?.message ??
+													form.formState.errors.price_min?.message ??
+													form.formState.errors.price_max?.message
+												}
+											>
+												{priceRangeOn ? (
+													<div className="flex items-center gap-3">
+														<MyrInput
+															placeholder="0.00"
+															{...form.register("price_min", {
+																setValueAs: (v) =>
+																	v === "" || v == null ? null : Number(v),
+															})}
+														/>
+														<span className="text-muted-foreground text-xs">
+															to
+														</span>
+														<MyrInput
+															placeholder="0.00"
+															{...form.register("price_max", {
+																setValueAs: (v) =>
+																	v === "" || v == null ? null : Number(v),
+															})}
+														/>
+													</div>
+												) : (
+													<MyrInput
+														placeholder="0.00"
+														{...form.register("price", {
+															valueAsNumber: true,
+														})}
+													/>
+												)}
+											</Field>
+											<Field
+												label="Other Fees"
+												tooltipKey="otherFees"
+												error={form.formState.errors.other_fees?.message}
+											>
+												<MyrInput
+													placeholder="0.00"
+													{...form.register("other_fees", {
+														valueAsNumber: true,
+													})}
+												/>
+											</Field>
+										</div>
+										<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+											<div className="flex flex-col gap-1.5">
+												<div className="flex items-center gap-2 text-sm">
+													<Checkbox
+														id="svc-discount-cap"
+														checked={discountCapEnabled}
+														onCheckedChange={(c) =>
+															setDiscountCapEnabled(c === true)
+														}
+													/>
+													<label
+														htmlFor="svc-discount-cap"
+														className="cursor-pointer"
+													>
+														Individual Discount Capping
+													</label>
+													<InfoTip tooltipKey="individualDiscountCapping" />
+												</div>
+												{discountCapEnabled && (
+													<Field
+														label="Discount Cap Amount (%)"
+														required
+														error={form.formState.errors.discount_cap?.message}
+													>
+														<Input
+															type="number"
+															min={0}
+															max={100}
+															step={1}
+															placeholder="0.00"
+															{...form.register("discount_cap", {
+																setValueAs: (v) =>
+																	v === "" || v === null || v === undefined
+																		? 0
+																		: Number(v),
+															})}
+														/>
+													</Field>
+												)}
+											</div>
+											<div className="flex flex-col gap-1.5">
+												<div className="flex items-baseline justify-between">
+													<span className="text-muted-foreground text-xs">
+														Taxes
+													</span>
+												</div>
+												<p className="text-[11px] text-muted-foreground">
+													When enabled, the Selling Price is exclusive of the
+													selected tax percentages.
+												</p>
+												<Controller
+													control={form.control}
+													name="tax_ids"
+													render={({ field }) => (
+														<TaxChipSelector
+															taxes={activeTaxes}
+															value={field.value ?? []}
+															onChange={field.onChange}
+														/>
+													)}
+												/>
+											</div>
+										</div>
+									</Section>
 
-						<PhaseTwoSection
-							title="Case Note Template"
-							hint="Attach a clinical case-note template per service."
-						>
-							<select
-								disabled
-								className="h-9 w-full rounded-md border bg-background px-2.5 text-sm"
-							>
-								<option>Please choose…</option>
-							</select>
-						</PhaseTwoSection>
-
-						<PhaseTwoSection
-							title="e-Invoice Classification Code"
-							hint="Malaysian LHDN e-invoicing classification. Wired up when invoicing ships."
-						>
-							<select
-								disabled
-								className="h-9 w-full rounded-md border bg-background px-2.5 text-sm"
-							>
-								<option>Please choose…</option>
-							</select>
-						</PhaseTwoSection>
-
-						{/* ── Pricing ──────────────────────────────────────────── */}
-						<section className="flex flex-col gap-3 rounded-md border p-4">
-							<h3 className="font-medium text-sm">Pricing</h3>
-							<div className="grid grid-cols-2 gap-3">
-								<div className="flex flex-col gap-1.5">
-									<label
-										htmlFor="service-price"
-										className="font-medium text-sm"
-									>
-										Selling Price (MYR)
-									</label>
-									<Input
-										id="service-price"
-										type="number"
-										min={0}
-										step={0.01}
-										{...form.register("price", { valueAsNumber: true })}
-									/>
-									{form.formState.errors.price && (
-										<p className="text-destructive text-xs">
-											{form.formState.errors.price.message}
+									<PlaceholderSection title="Outlets">
+										<p className="text-muted-foreground text-xs">
+											Per-outlet pricing overrides are coming soon. For now, the
+											Pricing above applies to every outlet.
 										</p>
-									)}
-								</div>
-								<div className="flex flex-col gap-1.5">
-									<label
-										htmlFor="service-other-fees"
-										className="font-medium text-sm"
+									</PlaceholderSection>
+
+									<PlaceholderSection
+										title="Coverage Payor"
+										tooltipKey="coveragePayor"
 									>
-										Other Fees (MYR)
-									</label>
-									<Input
-										id="service-other-fees"
-										type="number"
-										min={0}
-										step={0.01}
-										{...form.register("other_fees", { valueAsNumber: true })}
-									/>
-									{form.formState.errors.other_fees && (
-										<p className="text-destructive text-xs">
-											{form.formState.errors.other_fees.message}
+										<p className="text-muted-foreground text-xs">
+											No coverage panels created. Insurance / corporate panel
+											billing arrives in a later phase.
 										</p>
-									)}
+									</PlaceholderSection>
+
+									<PlaceholderSection
+										title="Hands-On Incentive"
+										tooltipKey="handsOnIncentive"
+									>
+										<p className="text-muted-foreground text-xs">
+											Commission rules will be configurable here once the
+											incentive engine ships.
+										</p>
+									</PlaceholderSection>
 								</div>
 							</div>
 
-							<div className="flex flex-col gap-1.5">
-								<label className="flex items-center gap-2 font-medium text-sm">
-									<input
-										type="checkbox"
-										className="size-4"
-										checked={discountCapEnabled}
-										onChange={(e) => setDiscountCapEnabled(e.target.checked)}
-									/>
-									Individual Discount Capping
-								</label>
-								{discountCapEnabled && (
-									<div className="flex items-center gap-2">
-										<Input
-											type="number"
-											min={0}
-											max={100}
-											step={1}
-											className="max-w-32"
-											{...form.register("discount_cap", {
-												setValueAs: (v) =>
-													v === "" || v === null || v === undefined
-														? 0
-														: Number(v),
-											})}
-										/>
-										<span className="text-muted-foreground text-xs">
-											% maximum discount
-										</span>
-									</div>
-								)}
-								{form.formState.errors.discount_cap && (
-									<p className="text-destructive text-xs">
-										{form.formState.errors.discount_cap.message}
-									</p>
-								)}
-							</div>
+							{serverError && (
+								<p className="text-destructive text-sm">{serverError}</p>
+							)}
+						</div>
+						<DialogFooter className="border-t">
+							<Button type="button" variant="outline" onClick={onClose}>
+								Cancel
+							</Button>
+							<Button type="submit" disabled={pending}>
+								{pending ? "Saving…" : "Save"}
+							</Button>
+						</DialogFooter>
+					</form>
+				</DialogContent>
+			</Dialog>
+		</TooltipProvider>
+	);
+}
 
-							<div className="flex flex-col gap-2">
-								<label className="flex items-center gap-2 text-sm">
-									<input
-										type="checkbox"
-										className="size-4"
-										{...form.register("full_payment")}
-									/>
-									Full payment required
-								</label>
-								<label className="flex items-center gap-2 text-sm">
-									<input
-										type="checkbox"
-										className="size-4"
-										{...form.register("allow_redemption_without_payment")}
-									/>
-									Allow redemption without payment
-								</label>
-								<label className="flex items-center gap-2 text-sm">
-									<input
-										type="checkbox"
-										className="size-4"
-										{...form.register("allow_cash_price_range")}
-									/>
-									Allow cash selling price range
-								</label>
-							</div>
-						</section>
+/* ─── Helpers ─────────────────────────────────────────────────────────── */
 
-						<PhaseTwoSection
-							title="Loyalty Points Pricing"
-							hint="Selling Points + Beauti Points (BP) value — lands with the loyalty module."
+function Section({
+	title,
+	children,
+}: {
+	title: string;
+	children: React.ReactNode;
+}) {
+	return (
+		<section className="flex flex-col gap-4 rounded-lg border bg-card p-4">
+			<h3 className="font-medium text-foreground text-sm">{title}</h3>
+			{children}
+		</section>
+	);
+}
+
+function PlaceholderSection({
+	title,
+	tooltipKey,
+	children,
+}: {
+	title: string;
+	tooltipKey?: ServiceFormTooltipKey;
+	children: React.ReactNode;
+}) {
+	return (
+		<section className="flex flex-col gap-2 rounded-lg border border-dashed bg-muted/20 p-4">
+			<div className="flex items-center gap-2">
+				<h3 className="font-medium text-muted-foreground text-sm">{title}</h3>
+				<Badge variant="secondary" className="text-[9px]">
+					Phase 2
+				</Badge>
+				{tooltipKey && <InfoTip tooltipKey={tooltipKey} />}
+			</div>
+			{children}
+		</section>
+	);
+}
+
+function PlaceholderListSection({
+	title,
+	tooltipKey,
+}: {
+	title: string;
+	tooltipKey?: ServiceFormTooltipKey;
+}) {
+	return (
+		<PlaceholderSection title={title} tooltipKey={tooltipKey}>
+			<div className="flex flex-col items-center gap-1 py-2 text-center text-xs">
+				<span className="text-muted-foreground">No entry found.</span>
+			</div>
+		</PlaceholderSection>
+	);
+}
+
+function Field({
+	label,
+	required,
+	phase2,
+	tooltipKey,
+	hint,
+	error,
+	children,
+}: {
+	label: string;
+	required?: boolean;
+	phase2?: boolean;
+	tooltipKey?: ServiceFormTooltipKey;
+	hint?: string;
+	error?: string;
+	children: React.ReactNode;
+}) {
+	return (
+		<div className="flex flex-col gap-1.5">
+			<div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+				<span>
+					{label}
+					{required && <span className="text-destructive"> *</span>}
+				</span>
+				{tooltipKey && <InfoTip tooltipKey={tooltipKey} />}
+				{phase2 && (
+					<Badge variant="secondary" className="text-[9px]">
+						Phase 2
+					</Badge>
+				)}
+			</div>
+			{children}
+			{hint && <p className="text-muted-foreground text-xs">{hint}</p>}
+			{error && <p className="text-destructive text-xs">{error}</p>}
+		</div>
+	);
+}
+
+function InfoTip({ tooltipKey }: { tooltipKey: ServiceFormTooltipKey }) {
+	const paragraphs = SERVICE_FORM_TOOLTIPS[tooltipKey];
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					aria-label="More info"
+					className="inline-flex size-3.5 items-center justify-center rounded-full text-muted-foreground/80 hover:text-foreground"
+				>
+					<Info className="size-3.5" />
+				</button>
+			</TooltipTrigger>
+			<TooltipContent
+				side="top"
+				className="max-w-sm whitespace-normal text-left leading-snug"
+			>
+				<div className="flex flex-col gap-1.5">
+					{paragraphs.map((p) => (
+						<p key={p}>{p}</p>
+					))}
+				</div>
+			</TooltipContent>
+		</Tooltip>
+	);
+}
+
+function MyrInput(
+	props: React.InputHTMLAttributes<HTMLInputElement> & {
+		inputClassName?: string;
+	},
+) {
+	const { inputClassName, className, ...rest } = props;
+	return (
+		<div className={cn("relative flex-1", className)}>
+			<Input
+				type="number"
+				min={0}
+				step={0.01}
+				{...rest}
+				className={cn("pr-14", inputClassName)}
+			/>
+			<Badge
+				variant="info"
+				className="-translate-y-1/2 absolute top-1/2 right-1 h-5 px-1.5 font-mono text-[10px]"
+			>
+				MYR
+			</Badge>
+		</div>
+	);
+}
+
+function DurationStepper({
+	value,
+	onChange,
+}: {
+	value: number;
+	onChange: (n: number) => void;
+}) {
+	return (
+		<div className="flex items-center gap-1">
+			<Button
+				type="button"
+				variant="ghost"
+				size="icon-sm"
+				onClick={() => onChange(Math.max(5, value - 5))}
+				aria-label="Decrease duration"
+			>
+				<Minus className="size-3.5" />
+			</Button>
+			<div className="flex h-8 flex-1 items-center justify-center rounded-lg border bg-background text-sm">
+				{value} minutes
+			</div>
+			<Button
+				type="button"
+				variant="ghost"
+				size="icon-sm"
+				onClick={() => onChange(value + 5)}
+				aria-label="Increase duration"
+			>
+				<Plus className="size-3.5" />
+			</Button>
+		</div>
+	);
+}
+
+function TaxChipSelector({
+	taxes,
+	value,
+	onChange,
+}: {
+	taxes: Tax[];
+	value: string[];
+	onChange: (next: string[]) => void;
+}) {
+	const selected = new Set(value);
+	const selectedTaxes = taxes.filter((t) => selected.has(t.id));
+	const unselectedTaxes = taxes.filter((t) => !selected.has(t.id));
+
+	const add = (id: string) => onChange([...value, id]);
+	const remove = (id: string) => onChange(value.filter((v) => v !== id));
+
+	if (taxes.length === 0) {
+		return (
+			<p className="text-muted-foreground text-xs">
+				No taxes configured. Add taxes under Config → Taxes.
+			</p>
+		);
+	}
+	return (
+		<div className="flex flex-col gap-2">
+			<div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border bg-background p-1.5">
+				{selectedTaxes.length === 0 && (
+					<span className="px-1 text-muted-foreground text-xs">
+						No taxes selected
+					</span>
+				)}
+				{selectedTaxes.map((t) => (
+					<Badge
+						key={t.id}
+						variant="info"
+						className="gap-1 pl-2 pr-1 font-medium"
+					>
+						{t.name} {taxRateFormatter.format(Number(t.rate_pct))}%
+						<button
+							type="button"
+							onClick={() => remove(t.id)}
+							aria-label={`Remove ${t.name}`}
+							className="flex size-3.5 items-center justify-center rounded-full hover:bg-background/30"
 						>
-							<div className="grid grid-cols-2 gap-3">
-								<div className="flex flex-col gap-1.5">
-									<label className="text-xs">Selling Points</label>
-									<Input disabled type="number" value={0} readOnly />
-								</div>
-								<div className="flex flex-col gap-1.5">
-									<label className="text-xs">Beauti Points Price</label>
-									<Input disabled type="number" value={0} readOnly />
-								</div>
-							</div>
-						</PhaseTwoSection>
-
-						<section className="flex flex-col gap-3 rounded-md border p-4">
-							<div>
-								<h3 className="font-medium text-sm">Taxes</h3>
-								<p className="text-muted-foreground text-xs">
-									Available taxes for this service. Cashier picks one per line
-									item at billing time.
-								</p>
-							</div>
-							<Controller
-								control={form.control}
-								name="tax_ids"
-								render={({ field }) => (
-									<TaxesSelector
-										taxes={taxes}
-										value={field.value ?? []}
-										onChange={field.onChange}
-									/>
-								)}
-							/>
-						</section>
-
-						<PhaseTwoSection
-							title="Per-Outlet Pricing Overrides"
-							hint="Override price, fees, availability and taxes per outlet. Currently one price for all outlets."
+							<X className="size-3" />
+						</button>
+					</Badge>
+				))}
+			</div>
+			{unselectedTaxes.length > 0 && (
+				<div className="flex flex-wrap gap-1.5">
+					{unselectedTaxes.map((t) => (
+						<button
+							key={t.id}
+							type="button"
+							onClick={() => add(t.id)}
+							className="rounded-full border border-dashed px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
 						>
-							<div className="flex items-center gap-2 text-xs">
-								<input type="checkbox" disabled checked readOnly />
-								<span>Apply above prices to all outlets</span>
-							</div>
-							<div className="mt-2 overflow-hidden rounded-md border">
-								<table className="w-full text-xs">
-									<thead className="bg-muted/50">
-										<tr>
-											<th className="px-2 py-1 text-left">Outlet</th>
-											<th className="px-2 py-1 text-right">Price</th>
-											<th className="px-2 py-1 text-right">Other Fees</th>
-											<th className="px-2 py-1 text-center">Available</th>
-										</tr>
-									</thead>
-									<tbody>
-										<tr>
-											<td className="px-2 py-1 text-muted-foreground">
-												(all outlets)
-											</td>
-											<td className="px-2 py-1 text-right tabular-nums">—</td>
-											<td className="px-2 py-1 text-right tabular-nums">—</td>
-											<td className="px-2 py-1 text-center">—</td>
-										</tr>
-									</tbody>
-								</table>
-							</div>
-						</PhaseTwoSection>
-
-						<PhaseTwoSection
-							title="Consumables"
-							hint="Structured list of materials used per procedure — replaces the free-text column when inventory ships."
-						>
-							<div className="flex items-center justify-between">
-								<span className="text-xs">No entries</span>
-								<Button type="button" variant="outline" size="sm" disabled>
-									Add
-								</Button>
-							</div>
-						</PhaseTwoSection>
-
-						<PhaseTwoSection
-							title="Medications"
-							hint="Linked prescription items dispensed with this service."
-						>
-							<div className="flex items-center justify-between">
-								<span className="text-xs">No entries</span>
-								<Button type="button" variant="outline" size="sm" disabled>
-									Add
-								</Button>
-							</div>
-						</PhaseTwoSection>
-
-						<PhaseTwoSection
-							title="Coverage Payor"
-							hint="Insurance or third-party payer linkage."
-						>
-							<span className="text-xs">
-								No coverage payor set for this service.
-							</span>
-						</PhaseTwoSection>
-
-						<PhaseTwoSection
-							title="Hands-On Incentive"
-							hint="Commission rule — Positions, Points, or both, with per-position rates."
-						>
-							<div className="flex items-center gap-4 text-xs">
-								<label className="flex items-center gap-1.5">
-									<input type="radio" disabled checked readOnly /> Positions
-								</label>
-								<label className="flex items-center gap-1.5">
-									<input type="radio" disabled /> Points
-								</label>
-								<label className="flex items-center gap-1.5">
-									<input type="radio" disabled /> Position & Points
-								</label>
-							</div>
-						</PhaseTwoSection>
-
-						{/* ── Active ───────────────────────────────────────────── */}
-						<label className="flex items-center gap-2 text-sm">
-							<input
-								type="checkbox"
-								className="size-4"
-								{...form.register("is_active")}
-							/>
-							Active
-						</label>
-
-						{serverError && (
-							<p className="text-destructive text-sm">{serverError}</p>
-						)}
-					</div>
-					<DialogFooter className="border-t">
-						<Button type="button" variant="outline" onClick={onClose}>
-							Cancel
-						</Button>
-						<Button type="submit" disabled={pending}>
-							{pending ? "Saving…" : "Save"}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+							+ {t.name} {taxRateFormatter.format(Number(t.rate_pct))}%
+						</button>
+					))}
+				</div>
+			)}
+		</div>
 	);
 }
 

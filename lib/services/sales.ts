@@ -2,6 +2,7 @@ import type { Context } from "@/lib/context/types";
 import { ValidationError } from "@/lib/errors";
 import {
 	type CollectPaymentInput,
+	type CollectPaymentItem,
 	collectPaymentInputSchema,
 } from "@/lib/schemas/sales";
 import type { Tables } from "@/lib/supabase/types";
@@ -62,6 +63,7 @@ export async function collectAppointmentPayment(
 	input: unknown,
 ): Promise<CollectPaymentResult> {
 	const parsed: CollectPaymentInput = collectPaymentInputSchema.parse(input);
+	await assertLineDiscountCaps(ctx, parsed.items);
 	const { data, error } = await ctx.db.rpc("collect_appointment_payment", {
 		p_appointment_id: appointmentId,
 		p_items: parsed.items.map((i) => ({
@@ -86,6 +88,45 @@ export async function collectAppointmentPayment(
 	if (error) throw new ValidationError(error.message);
 	if (!data) throw new ValidationError("Collect payment returned no result");
 	return data as unknown as CollectPaymentResult;
+}
+
+// Enforces per-service discount caps on a collect-payment payload. The UI
+// clamps on blur, but the cap is a server invariant — never trust the client.
+// Cap is stored as a percent on services.discount_cap (null = no cap).
+async function assertLineDiscountCaps(
+	ctx: Context,
+	items: CollectPaymentItem[],
+): Promise<void> {
+	const serviceIds = Array.from(
+		new Set(
+			items.map((i) => i.service_id).filter((id): id is string => id != null),
+		),
+	);
+	if (serviceIds.length === 0) return;
+	const { data, error } = await ctx.db
+		.from("services")
+		.select("id, name, discount_cap")
+		.in("id", serviceIds);
+	if (error) throw new ValidationError(error.message);
+	const capMap = new Map<string, number | null>();
+	for (const row of data ?? []) {
+		capMap.set(
+			row.id,
+			row.discount_cap == null ? null : Number(row.discount_cap),
+		);
+	}
+	for (const item of items) {
+		if (!item.service_id) continue;
+		const capPct = capMap.get(item.service_id);
+		if (capPct == null) continue;
+		const lineGross = Math.max(0, item.quantity * item.unit_price);
+		const capMyr = Math.round(lineGross * capPct) / 100;
+		if (item.discount > capMyr + 0.005) {
+			throw new ValidationError(
+				`Discount on "${item.item_name}" exceeds the ${capPct}% cap (max RM ${capMyr.toFixed(2)}).`,
+			);
+		}
+	}
 }
 
 export async function getSalesOrderForAppointment(

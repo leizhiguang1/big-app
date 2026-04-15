@@ -1,6 +1,6 @@
 import type { Context } from "@/lib/context/types";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
-import { employeeInputSchema } from "@/lib/schemas/employees";
+import { employeeInputSchema, pinField } from "@/lib/schemas/employees";
 import type { Tables } from "@/lib/supabase/types";
 
 export type Employee = Tables<"employees">;
@@ -168,10 +168,24 @@ async function updateAuthUserEmail(
 	}
 }
 
+async function setEmployeePin(
+	ctx: Context,
+	employeeId: string,
+	pinInput: unknown,
+): Promise<void> {
+	const parsed = pinField.parse(pinInput);
+	const { error } = await ctx.db.rpc("set_employee_pin", {
+		p_employee_id: employeeId,
+		p_pin: parsed ?? "",
+	});
+	if (error) throw new ValidationError(error.message);
+}
+
 export async function createEmployee(
 	ctx: Context,
 	input: unknown,
 	password?: string,
+	pin?: string,
 ): Promise<Employee> {
 	const { row, outletIds, primaryOutletId } = normalize(input);
 
@@ -208,6 +222,9 @@ export async function createEmployee(
 
 	try {
 		await replaceEmployeeOutlets(ctx, data.id, outletIds, primaryOutletId);
+		if (pin !== undefined) {
+			await setEmployeePin(ctx, data.id, pin);
+		}
 	} catch (err) {
 		await ctx.db.from("employees").delete().eq("id", data.id);
 		if (authUserId) await deleteAuthUser(ctx, authUserId);
@@ -222,6 +239,7 @@ export async function updateEmployee(
 	id: string,
 	input: unknown,
 	password?: string,
+	pin?: string,
 ): Promise<Employee> {
 	const { row, outletIds, primaryOutletId } = normalize(input);
 
@@ -305,6 +323,10 @@ export async function updateEmployee(
 	if (!data) throw new NotFoundError(`Employee ${id} not found`);
 
 	await replaceEmployeeOutlets(ctx, id, outletIds, primaryOutletId);
+
+	if (pin !== undefined) {
+		await setEmployeePin(ctx, id, pin);
+	}
 
 	return data;
 }
