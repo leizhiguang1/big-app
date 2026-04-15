@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState, useTransition } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
+import { CreateButton } from "@/components/ui/create-button";
 import {
 	Dialog,
 	DialogContent,
@@ -159,8 +160,7 @@ export function RoleFormDialog({ open, value: role, onClose }: Props) {
 	};
 
 	const totalEnabled = PERMISSION_SECTIONS.reduce(
-		(n, s) =>
-			n + countSection(permissions?.[s.key] as Record<string, boolean>),
+		(n, s) => n + countSection(permissions?.[s.key] as Record<string, boolean>),
 		0,
 	);
 
@@ -237,9 +237,7 @@ export function RoleFormDialog({ open, value: role, onClose }: Props) {
 													<button
 														type="button"
 														className="underline-offset-2 hover:underline"
-														onClick={() =>
-															toggleSectionAll(section.key, true)
-														}
+														onClick={() => toggleSectionAll(section.key, true)}
 													>
 														All
 													</button>
@@ -247,9 +245,7 @@ export function RoleFormDialog({ open, value: role, onClose }: Props) {
 													<button
 														type="button"
 														className="underline-offset-2 hover:underline"
-														onClick={() =>
-															toggleSectionAll(section.key, false)
-														}
+														onClick={() => toggleSectionAll(section.key, false)}
 													>
 														None
 													</button>
@@ -311,7 +307,7 @@ export function NewRoleButton() {
 	const [open, setOpen] = useState(false);
 	return (
 		<>
-			<Button onClick={() => setOpen(true)}>New role</Button>
+			<CreateButton onClick={() => setOpen(true)}>New role</CreateButton>
 			<RoleFormDialog open={open} value={null} onClose={() => setOpen(false)} />
 		</>
 	);

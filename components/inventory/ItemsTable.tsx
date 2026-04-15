@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { Package, Pencil, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -20,6 +20,7 @@ import type {
 } from "@/lib/services/inventory";
 import { cn } from "@/lib/utils";
 import { ItemFormDialog } from "./ItemForm";
+import { StockDetailsDialog } from "./StockDetailsDialog";
 
 const priceFormatter = new Intl.NumberFormat("en-MY", {
 	minimumFractionDigits: 2,
@@ -95,6 +96,8 @@ export function ItemsTable({
 	suppliers,
 }: Props) {
 	const [editing, setEditing] = useState<InventoryItemWithRefs | null>(null);
+	const [stockDetails, setStockDetails] =
+		useState<InventoryItemWithRefs | null>(null);
 	const [deleting, setDeleting] = useState<InventoryItemWithRefs | null>(null);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
@@ -105,7 +108,32 @@ export function ItemsTable({
 			header: "Description",
 			sortable: true,
 			sortValue: (i) => i.name,
-			cell: (i) => <div className="font-medium">{i.name}</div>,
+			cell: (i) => (
+				<div className="flex items-center gap-3">
+					<div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
+						{i.image_path ? (
+							// biome-ignore lint/performance/noImgElement: placeholder, Storage upload lands later
+							<img
+								src={i.image_path}
+								alt={i.name}
+								className="size-full object-cover"
+							/>
+						) : (
+							<Package className="size-5 text-muted-foreground" />
+						)}
+					</div>
+					<div className="min-w-0">
+						<div className="truncate font-medium">{i.name}</div>
+						<button
+							type="button"
+							onClick={() => setStockDetails(i)}
+							className="text-primary text-xs underline-offset-2 hover:underline"
+						>
+							Stock Details
+						</button>
+					</div>
+				</div>
+			),
 		},
 		{
 			key: "sku",
@@ -229,7 +257,22 @@ export function ItemsTable({
 			sortable: true,
 			align: "right",
 			sortValue: (i) => Number(i.stock),
-			cell: (i) => <span className="tabular-nums">{stockUom1(i)}</span>,
+			cell: (i) => {
+				const s = (i.stock_status ?? "normal") as InventoryStockStatus;
+				return (
+					<button
+						type="button"
+						onClick={() => setStockDetails(i)}
+						className={cn(
+							"inline-flex items-center gap-1 rounded-full px-3 py-1 font-medium text-xs tabular-nums ring-1 ring-inset transition hover:opacity-80",
+							STATUS_PILL[s],
+						)}
+						aria-label={`View stock details for ${i.name}`}
+					>
+						{stockUom1(i)}
+					</button>
+				);
+			},
 		},
 		{
 			key: "stock_uom_2",
@@ -336,6 +379,11 @@ export function ItemsTable({
 				searchPlaceholder="Search items…"
 				emptyMessage="No inventory items yet. Click “Add item” to create one."
 				minWidth={1900}
+			/>
+			<StockDetailsDialog
+				open={!!stockDetails}
+				item={stockDetails}
+				onClose={() => setStockDetails(null)}
 			/>
 			{editing && (
 				<ItemFormDialog

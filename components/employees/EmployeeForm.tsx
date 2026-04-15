@@ -1,10 +1,11 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mars, ScanLine, Venus } from "lucide-react";
+import { Mars, Venus } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
+import { CreateButton } from "@/components/ui/create-button";
 import {
 	Dialog,
 	DialogContent,
@@ -441,18 +442,7 @@ export function EmployeeFormDialog({
 						{/* Main pane */}
 						<div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
 							<div className="flex flex-col gap-5 p-6">
-								<div className="flex items-center justify-between">
-									<h2 className="font-semibold text-base">Employee Details</h2>
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										className="gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-									>
-										<ScanLine className="size-4" />
-										Add via IC Scanner
-									</Button>
-								</div>
+								<h2 className="font-semibold text-base">Employee Details</h2>
 
 								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 									<Field
@@ -802,7 +792,7 @@ export function NewEmployeeButton({
 	const [open, setOpen] = useState(false);
 	return (
 		<>
-			<Button onClick={() => setOpen(true)}>New employee</Button>
+			<CreateButton onClick={() => setOpen(true)}>New employee</CreateButton>
 			<EmployeeFormDialog
 				open={open}
 				employee={null}

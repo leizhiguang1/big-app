@@ -1,6 +1,5 @@
 "use client";
 
-import { Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
 	useCallback,
@@ -22,7 +21,7 @@ import { ListView } from "@/components/appointments/ListView";
 import { MonthView } from "@/components/appointments/MonthView";
 import { WeekView } from "@/components/appointments/WeekView";
 import { useAppointmentNotifications } from "@/components/notifications/AppointmentNotificationsProvider";
-import { Button } from "@/components/ui/button";
+import { CreateButton } from "@/components/ui/create-button";
 import {
 	deleteAppointmentAction,
 	rescheduleAppointmentAction,
@@ -420,7 +419,7 @@ export function AppointmentsCalendar({
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex justify-end">
-				<Button
+				<CreateButton
 					type="button"
 					size="sm"
 					onClick={() => {
@@ -437,9 +436,8 @@ export function AppointmentsCalendar({
 						});
 					}}
 				>
-					<Plus className="size-4" />
 					New appointment
-				</Button>
+				</CreateButton>
 			</div>
 
 			{renderView()}

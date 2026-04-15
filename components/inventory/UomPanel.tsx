@@ -1,9 +1,10 @@
 "use client";
 
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CreateButton } from "@/components/ui/create-button";
 import {
 	Dialog,
 	DialogContent,
@@ -17,7 +18,10 @@ import {
 	deleteUomAction,
 	updateUomAction,
 } from "@/lib/actions/inventory";
-import { INVENTORY_KIND_LABELS, type InventoryKind } from "@/lib/schemas/inventory";
+import {
+	INVENTORY_KIND_LABELS,
+	type InventoryKind,
+} from "@/lib/schemas/inventory";
 import type {
 	InventoryItemWithRefs,
 	InventoryUom,
@@ -49,9 +53,9 @@ function UomList({ uoms }: { uoms: InventoryUom[] }) {
 		<div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm">
 			<div className="flex items-center justify-between">
 				<h2 className="font-semibold text-sm">UoM List</h2>
-				<Button size="sm" variant="outline" onClick={() => setEditing("new")}>
-					<Plus className="size-3.5" /> Add
-				</Button>
+				<CreateButton size="sm" onClick={() => setEditing("new")}>
+					Add
+				</CreateButton>
 			</div>
 			{uoms.length === 0 ? (
 				<p className="py-6 text-center text-muted-foreground text-sm">
@@ -184,8 +188,7 @@ function ConversionList({ items }: { items: InventoryItemWithRefs[] }) {
 								<div className="min-w-0 flex-1">
 									<div className="truncate font-medium text-sm">{i.name}</div>
 									<div className="font-mono text-muted-foreground text-xs">
-										{i.sku} ·{" "}
-										{INVENTORY_KIND_LABELS[i.kind as InventoryKind]}
+										{i.sku} · {INVENTORY_KIND_LABELS[i.kind as InventoryKind]}
 									</div>
 								</div>
 								<div className="font-mono text-muted-foreground text-xs">

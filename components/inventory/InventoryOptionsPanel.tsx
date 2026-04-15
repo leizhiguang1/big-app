@@ -1,9 +1,11 @@
 "use client";
 
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CreateButton } from "@/components/ui/create-button";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import {
 	Dialog,
 	DialogContent,
@@ -77,9 +79,11 @@ export function InventoryOptionsPanel({
 	supplierCounts,
 }: Props) {
 	return (
-		<div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-			<BrandsPanel brands={brands} counts={brandCounts} />
-			<CategoriesPanel categories={categories} counts={categoryCounts} />
+		<div className="flex flex-col gap-4">
+			<div className="grid gap-4 lg:grid-cols-2">
+				<BrandsPanel brands={brands} counts={brandCounts} />
+				<CategoriesPanel categories={categories} counts={categoryCounts} />
+			</div>
 			<SuppliersPanel suppliers={suppliers} counts={supplierCounts} />
 		</div>
 	);
@@ -262,7 +266,7 @@ function CategoriesPanel({
 
 function SuppliersPanel({
 	suppliers,
-	counts,
+	counts: _counts,
 }: {
 	suppliers: Supplier[];
 	counts: Record<string, number>;
@@ -272,27 +276,134 @@ function SuppliersPanel({
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
 
+	const dash = <span className="text-muted-foreground">—</span>;
+
+	const fullName = (s: Supplier) =>
+		[s.first_name, s.last_name].filter(Boolean).join(" ").trim();
+
+	const formatTerms = (s: Supplier) => {
+		if (s.payment_terms_value == null) return "";
+		const unit = s.payment_terms_unit ?? "days";
+		return `${s.payment_terms_value} ${unit}`;
+	};
+
+	const formatAddress = (s: Supplier) =>
+		[s.address_1, s.address_2, s.city, s.state, s.postcode, s.country]
+			.filter(Boolean)
+			.join(", ");
+
+	const columns: DataTableColumn<Supplier>[] = [
+		{
+			key: "name",
+			header: "NAME",
+			sortable: true,
+			sortValue: (s) => s.name,
+			cell: (s) => <span className="font-medium">{s.name}</span>,
+		},
+		{
+			key: "description",
+			header: "DESCRIPTION",
+			cell: (s) => s.description || dash,
+		},
+		{
+			key: "account_number",
+			header: "ACCOUNT #",
+			cell: (s) => s.account_number || dash,
+		},
+		{
+			key: "terms",
+			header: "TERMS",
+			cell: (s) => formatTerms(s) || dash,
+		},
+		{
+			key: "pic",
+			header: "PIC",
+			cell: (s) => fullName(s) || dash,
+		},
+		{
+			key: "mobile_number",
+			header: "CONTACT #",
+			cell: (s) => s.mobile_number || dash,
+		},
+		{
+			key: "office_phone",
+			header: "OFFICE #",
+			cell: (s) => s.office_phone || dash,
+		},
+		{
+			key: "email",
+			header: "E-MAIL",
+			cell: (s) => s.email || dash,
+		},
+		{
+			key: "website",
+			header: "WEBSITE",
+			cell: (s) => s.website || dash,
+		},
+		{
+			key: "address",
+			header: "ADDRESS",
+			cell: (s) => {
+				const addr = formatAddress(s);
+				return addr ? (
+					<span className="line-clamp-2 max-w-[18rem]">{addr}</span>
+				) : (
+					dash
+				);
+			},
+		},
+		{
+			key: "barcode",
+			header: "BARCODE",
+			cell: () => dash,
+		},
+		{
+			key: "actions",
+			header: "",
+			align: "right",
+			cell: (s) => (
+				<div className="flex justify-end gap-1">
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						onClick={() => setEditing(s)}
+						aria-label="Edit"
+					>
+						<Pencil />
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						onClick={() => {
+							setDeleteError(null);
+							setDeleting(s);
+						}}
+						aria-label="Delete"
+					>
+						<Trash2 />
+					</Button>
+				</div>
+			),
+		},
+	];
+
 	return (
-		<PanelCard
-			title="Suppliers"
-			onAdd={() => setEditing("new")}
-			emptyMessage="No suppliers yet."
-			rows={suppliers}
-			className="xl:col-span-3"
-		>
-			{suppliers.map((s) => (
-				<Row
-					key={s.id}
-					left={s.name}
-					right={`${counts[s.id] ?? 0} items`}
-					sub={s.mobile_number || s.email || s.address_1 || undefined}
-					onEdit={() => setEditing(s)}
-					onDelete={() => {
-						setDeleteError(null);
-						setDeleting(s);
-					}}
-				/>
-			))}
+		<div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm">
+			<div className="flex items-center justify-between">
+				<h2 className="font-semibold text-sm">Suppliers</h2>
+				<CreateButton size="sm" onClick={() => setEditing("new")}>
+					Add
+				</CreateButton>
+			</div>
+			<DataTable
+				data={suppliers}
+				columns={columns}
+				getRowKey={(s) => s.id}
+				searchKeys={["name", "description", "email", "mobile_number"]}
+				searchPlaceholder="Search suppliers…"
+				emptyMessage="No suppliers yet."
+				minWidth={1400}
+			/>
 			{editing && (
 				<SupplierDialog
 					mode={editing === "new" ? "create" : "edit"}
@@ -337,7 +448,7 @@ function SuppliersPanel({
 					});
 				}}
 			/>
-		</PanelCard>
+		</div>
 	);
 }
 
@@ -364,9 +475,9 @@ function PanelCard({
 		>
 			<div className="flex items-center justify-between">
 				<h2 className="font-semibold text-sm">{title}</h2>
-				<Button size="sm" variant="outline" onClick={onAdd}>
-					<Plus className="size-3.5" /> Add
-				</Button>
+				<CreateButton size="sm" onClick={onAdd}>
+					Add
+				</CreateButton>
 			</div>
 			{rows.length === 0 ? (
 				<p className="py-6 text-center text-muted-foreground text-sm">
@@ -659,7 +770,8 @@ function SupplierDialog({
 
 		const payload = {
 			name: state.name.trim(),
-			description: state.description.trim() === "" ? null : state.description.trim(),
+			description:
+				state.description.trim() === "" ? null : state.description.trim(),
 			account_number:
 				state.account_number.trim() === "" ? null : state.account_number.trim(),
 			payment_terms_value:
@@ -667,7 +779,9 @@ function SupplierDialog({
 					? null
 					: Number(state.payment_terms_value),
 			payment_terms_unit:
-				state.payment_terms_value.trim() === "" ? null : state.payment_terms_unit,
+				state.payment_terms_value.trim() === ""
+					? null
+					: state.payment_terms_unit,
 			first_name: state.first_name.trim(),
 			last_name: state.last_name.trim() === "" ? null : state.last_name.trim(),
 			mobile_number:
@@ -711,10 +825,7 @@ function SupplierDialog({
 						{mode === "create" ? "Add Supplier" : "Edit Supplier"}
 					</DialogTitle>
 				</DialogHeader>
-				<form
-					onSubmit={handleSubmit}
-					className="flex min-h-0 flex-1 flex-col"
-				>
+				<form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
 					<div className="flex flex-1 flex-col gap-5 overflow-y-auto p-4">
 						<div className="grid gap-5 lg:grid-cols-2">
 							{/* Left column: Supplier Details + Contact Information */}
@@ -741,7 +852,10 @@ function SupplierDialog({
 											placeholder="EG: SUPPLY LOTION"
 										/>
 									</SField>
-									<SField label="Account Number" error={fieldErrors.account_number}>
+									<SField
+										label="Account Number"
+										error={fieldErrors.account_number}
+									>
 										<Input
 											value={state.account_number}
 											onChange={(e) => set("account_number", e.target.value)}
@@ -830,7 +944,10 @@ function SupplierDialog({
 										</SField>
 									</div>
 									<div className="grid grid-cols-2 gap-3">
-										<SField label="Office Phone" error={fieldErrors.office_phone}>
+										<SField
+											label="Office Phone"
+											error={fieldErrors.office_phone}
+										>
 											<Input
 												type="tel"
 												value={state.office_phone}
@@ -852,7 +969,11 @@ function SupplierDialog({
 							{/* Right column: Address */}
 							<div className="flex flex-col gap-5">
 								<SupplierSection title="Address">
-									<SField label="Address 1" required error={fieldErrors.address_1}>
+									<SField
+										label="Address 1"
+										required
+										error={fieldErrors.address_1}
+									>
 										<Input
 											value={state.address_1}
 											onChange={(e) => set("address_1", e.target.value)}

@@ -2,7 +2,7 @@
 
 import { Package, Pill, Syringe } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { CreateButton } from "@/components/ui/create-button";
 import {
 	Dialog,
 	DialogContent,
@@ -34,8 +34,7 @@ const CARDS: Array<{
 	{
 		kind: "product",
 		title: "Product",
-		description:
-			"Inventory items that you sell exclusively off-the-shelf.",
+		description: "Inventory items that you sell exclusively off-the-shelf.",
 		icon: Package,
 	},
 	{
@@ -60,7 +59,7 @@ export function AddItemButton(props: Props) {
 
 	return (
 		<>
-			<Button onClick={() => setChooserOpen(true)}>Add item</Button>
+			<CreateButton onClick={() => setChooserOpen(true)}>Add item</CreateButton>
 			<Dialog
 				open={chooserOpen}
 				onOpenChange={(o) => {

@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
+import { CreateButton } from "@/components/ui/create-button";
 import {
 	Dialog,
 	DialogContent,
@@ -36,7 +37,12 @@ type Props = {
 	onClose: () => void;
 };
 
-export function PasscodeFormDialog({ open, passcode, outlets, onClose }: Props) {
+export function PasscodeFormDialog({
+	open,
+	passcode,
+	outlets,
+	onClose,
+}: Props) {
 	const [pending, startTransition] = useTransition();
 	const [serverError, setServerError] = useState<string | null>(null);
 	const isEdit = !!passcode;
@@ -53,7 +59,8 @@ export function PasscodeFormDialog({ open, passcode, outlets, onClose }: Props) 
 	useEffect(() => {
 		if (!open) return;
 		form.reset({
-			outlet_id: passcode?.outlet_id ?? (outlets.length === 1 ? outlets[0].id : ""),
+			outlet_id:
+				passcode?.outlet_id ?? (outlets.length === 1 ? outlets[0].id : ""),
 			function:
 				(passcode?.function as PasscodeInput["function"]) ??
 				"VOID_SALES_ORDER_INVOICE",
@@ -72,7 +79,9 @@ export function PasscodeFormDialog({ open, passcode, outlets, onClose }: Props) 
 				}
 				onClose();
 			} catch (err) {
-				setServerError(err instanceof Error ? err.message : "Something went wrong");
+				setServerError(
+					err instanceof Error ? err.message : "Something went wrong",
+				);
 			}
 		});
 	});
@@ -81,7 +90,9 @@ export function PasscodeFormDialog({ open, passcode, outlets, onClose }: Props) 
 		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
 			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-lg">
 				<DialogHeader>
-					<DialogTitle>{isEdit ? "Edit passcode" : "Generate passcode"}</DialogTitle>
+					<DialogTitle>
+						{isEdit ? "Edit passcode" : "Generate passcode"}
+					</DialogTitle>
 					<DialogDescription>
 						{isEdit
 							? "Update the remarks for this passcode."
@@ -163,7 +174,9 @@ export function NewPasscodeButton({ outlets }: { outlets: OutletOption[] }) {
 	const [open, setOpen] = useState(false);
 	return (
 		<>
-			<Button onClick={() => setOpen(true)}>Generate passcode</Button>
+			<CreateButton onClick={() => setOpen(true)}>
+				Generate passcode
+			</CreateButton>
 			<PasscodeFormDialog
 				open={open}
 				passcode={null}

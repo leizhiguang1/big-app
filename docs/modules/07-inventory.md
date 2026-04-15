@@ -34,6 +34,7 @@ all three kinds so forms have something to render.
 |---|-----------|---------------|
 | 1 | `7 - Inventory.png` | Products tab — full item list with all columns |
 | 2 | `7.1.1 Inventory - Add Product.png` | Add Item chooser (Product / Consumable / Medication) |
+| 2.1 | `7.1.2 Inventory Item - Stock Details.png` | Stock Details read-only dialog (item card + batches + movement ledger) |
 | 3 | `7.2 - Inventory - Inventory Options.png` | Brands / Categories / Suppliers config |
 | 4 | `7.3 Inventory - Unit of Measurements.png` | UoM List + UoM Conversion summary |
 | 5 | `7.5 - Inventory - Stock Request.png` | (deferred) Stock Request workflow |
@@ -80,6 +81,14 @@ per-outlet `inventory_stocks(item_id, outlet_id, qty)` table.
 - Single global price + cost (one outlet, no per-outlet override)
 - Single global stock count (no per-outlet stock)
 - Stock alert threshold + computed stock status (`out` / `low` / `normal`)
+- `in_transit` + `locked` bucket columns (placeholder numerics, no workflow
+  writes them yet — see the "Stock buckets" note below)
+- **Stock Details dialog** — opened by clicking the stock cell in the items
+  table. Read-only view showing the item's identity card, brand/supplier/
+  category, stat tiles (on-hand / in-transit / locked / low alert), and a
+  movement ledger placeholder. The movement rows and batch list render an
+  empty state in v1; the shape is wired up so the Phase 2
+  `inventory_movements` ledger drops straight in.
 - Sellable flag (the prototype's R/NR distinction)
 - Discount cap (column exists, not enforced by sales until Phase 2)
 - Active toggle (soft delete escape hatch)
@@ -189,12 +198,51 @@ and image upload):
 
 **Actions:**
 - **+ Add Item** → opens the kind chooser dialog
-- Row click → edit form
+- Edit icon → edit form
+- **Stock cell click** → opens the Stock Details dialog (see below)
 - Search across name, SKU, barcode
 
 The "Discontinued" tab from the services pattern is **not** added here —
 deactivated items are shown in the same table greyed out with a filter
 toggle, since the prototype shows everything in one list.
+
+### Screen: Stock Details dialog
+
+**Entry point:** click the value in the Stock (UoM 1) column on the Products
+tab.
+**Purpose:** read-only drill-down showing an item's current stock position
+and (eventually) its full movement history. Matches the prototype's
+`7.1.2 Inventory Item - Stock Details.png`.
+
+**Layout:**
+
+- **Header**: "<KIND>s / <ITEM NAME>" breadcrumb-style title
+- **Identity row** (4 columns):
+  - Item card: thumbnail placeholder, name, SKU, kind pill, selling price
+  - Brand / Supplier / Category info tiles
+- **Stock stat tiles** (4 columns, all expressed in the stock UoM):
+  - **On Hand** — `inventory_items.stock`, tinted amber if `low`, rose if
+    `out`
+  - **In Transit** — `inventory_items.in_transit`
+  - **Locked** — `inventory_items.locked`
+  - **Low Alert** — `inventory_items.stock_alert_count`
+- **Batches panel** (left): a compact table with Date / Batch # /
+  Transaction # / Balance. Renders an empty state in v1 — batch tracking
+  is a Phase 2 concern (it depends on `inventory_movements`).
+- **Stock Details ledger** (right): the main movement table. Columns:
+  Date, Origin, Target, Transaction #, Batch #, In, Out, Balance, Reserved,
+  Staff Name. Renders an empty state in v1 with copy that explains the
+  table lights up when the Phase 2 inventory lifecycle ships (purchase
+  orders, transfers, receiving, treatment consumption).
+
+**Why we ship the shell now, not later:** the dialog is pure presentation —
+no writes, no service calls — so wiring it up in v1 gives us the right
+drill-down affordance from day 1 and avoids a second "rewire the table
+cell" pass when movements land. The ledger row shape in
+[components/inventory/StockDetailsDialog.tsx](../../components/inventory/StockDetailsDialog.tsx)
+(`MovementRow`) is the exact shape Phase 2 will need from the joined
+`inventory_movements` query, so the Phase 2 work collapses to replacing
+the placeholder arrays with data.
 
 ### Screen: Add Item chooser
 
@@ -355,7 +403,9 @@ Kind, Item Name, SKU, Conversion (formatted as `1 BOX → 100 PCS` or
 | `stock_to_use_factor` | numeric(12,4) | conditional | > 0. Required for consumable + medication, must be NULL for product |
 | `cost_price` | numeric(10,4) | yes | ≥ 0, default 0 |
 | `selling_price` | numeric(10,2) | yes | ≥ 0, default 0 |
-| `stock` | numeric(12,2) | yes | Default 0, single global qty (per stock UoM) |
+| `stock` | numeric(12,2) | yes | Default 0, single global qty (per stock UoM). Treated as "on hand" |
+| `in_transit` | numeric(12,2) | yes | Default 0, ≥ 0. Added in `0036`. Placeholder — Phase 2 PO receiving fills it. No workflow writes it in v1 |
+| `locked` | numeric(12,2) | yes | Default 0, ≥ 0. Added in `0036`. Placeholder — Phase 2 treatment-plan locking fills it. No workflow writes it in v1 |
 | `stock_alert_count` | numeric(12,2) | yes | Default 0 |
 | `discount_cap` | numeric(5,2) | no | 0–100 if set |
 | `location` | text | no | Free-text rack/row label |
@@ -441,13 +491,30 @@ this table.
 active ⇄ inactive (is_active flag only)
 ```
 
-Stock status is computed, not workflowed:
+Stock status is computed, not workflowed. It is based on **on-hand only**
+(`stock`) — `in_transit` and `locked` are intentionally excluded, matching
+the prototype's behaviour (an item with 0 on-hand but 100 in-transit is
+still "out"):
 
 ```
 stock <= 0           → 'out'
 0 < stock <= alert   → 'low'
 stock > alert        → 'normal'
 ```
+
+### Stock buckets
+
+v1 carries three independent numeric buckets on `inventory_items`:
+
+| Bucket | Meaning | Written by |
+|---|---|---|
+| `stock` | On-hand, free to sell / dispense | v1: the edit form. Phase 2: movement ledger |
+| `in_transit` | Ordered but not yet received | Phase 2: PO receiving flow |
+| `locked` | Reserved for an in-progress treatment plan | Phase 2: treatment plan locking |
+
+`in_transit` and `locked` are exposed in the items table and the Stock
+Details dialog so the UI matches the prototype, but nothing mutates them
+in v1 — they sit at 0 until Phase 2 workflows come online.
 
 Hard delete is allowed only when no `sale_items` (Phase 2) or
 `appointment_line_items` reference the item. v1 has no such references
@@ -478,7 +545,7 @@ become meaningful as those modules ship.
 
 | Related Module | Relationship | Details |
 |---|---|---|
-| Services | service ← consumable BOM | Future `service_inventory_items(service_id, item_id, qty_per_use)` junction. **Not in this migration**, lands as a separate `0036_service_inventory_items` once the doc is settled. The current free-text `services.consumables` column stays as legacy fallback during transition. |
+| Services | service ← consumable BOM | Future `service_inventory_items(service_id, item_id, qty_per_use)` junction. **Deferred to Phase 2** — migration number TBD (the originally-earmarked `0036` slot was reused by `0036_inventory_items_in_transit_locked`). The current free-text `services.consumables` column stays as legacy fallback during transition. |
 | Sales | item → sale_items | Phase 2: `sale_items.item_id` FK into `inventory_items` for product/medication line items. |
 | Appointments | item → appointment_line_items | Phase 2: same as sales. |
 | Outlets | item × outlet → stock | Phase 2: `inventory_stocks(item_id, outlet_id, qty)` junction. |
@@ -486,15 +553,21 @@ become meaningful as those modules ship.
 
 ## Schema Notes
 
-Per the per-module migration strategy, this ships as
-**`0034_inventory_rebuild`** (DDL — drops the old flat `inventory_items`
-and creates lookups + new items table) followed by
-**`0035_inventory_seed`** (data — UoMs + brands + categories + suppliers
-+ ~10 sample items spanning all three kinds).
+Per the per-module migration strategy, this module was built as a
+sequence of migrations rather than one big rebuild:
 
-The previous flat-table migrations (`0021_inventory_items` and
-`0022_inventory_items_seed`) are now historical — superseded but not
-deleted from the migration log.
+| Migration | Purpose |
+|---|---|
+| `0021_inventory_items` | Original flat stub (historical, superseded) |
+| `0022_inventory_items_seed` | Seed for the stub (historical, superseded) |
+| `0034_inventory_rebuild` | Drops the flat stub; creates `inventory_uoms`, `inventory_brands`, `inventory_categories`, `suppliers`, and the kind-discriminator `inventory_items` with all per-kind CHECK constraints |
+| `0035_inventory_seed` | UoMs + brands + categories + suppliers + ~10 sample items across all three kinds |
+| `0036_inventory_items_in_transit_locked` | Adds `in_transit` + `locked` numeric columns on `inventory_items` (both `>= 0`, default 0). Placeholders until Phase 2 workflows populate them |
+| `0037_suppliers_match_prototype_form` | Reshapes `suppliers` to mirror the prototype's "Add Supplier" form 1:1 — drops `pic`/`terms`/`address`/`barcode`, renames `account_no`/`contact_no`/`office_no`, adds `payment_terms_value`/`payment_terms_unit`/`first_name`/`last_name`/`address_1`/`address_2`/`postcode`/`country`/`state`/`city`. No rows referenced suppliers yet, so the restructure is in-place with no backfill. |
+
+**The DDL outline below is the post-`0037` shape** — if you're reading
+this doc as a schema reference, trust the outline; the earlier column
+names (`account_no`, `pic`, `address`, etc.) have been replaced.
 
 DDL outline (full SQL is in the migration):
 
@@ -530,17 +603,26 @@ create table public.inventory_categories (
 
 create table public.suppliers (
   id uuid primary key default gen_random_uuid(),
+  -- Supplier Details
   name text not null unique,
   description text,
-  account_no text,
-  terms text,
-  pic text,
-  contact_no text,
-  office_no text,
+  account_number text,
+  payment_terms_value integer check (payment_terms_value is null or payment_terms_value >= 0),
+  payment_terms_unit text check (payment_terms_unit is null or payment_terms_unit in ('days','months')),
+  -- Contact Information
+  first_name text,
+  last_name text,
+  mobile_number text,
   email text,
+  office_phone text,
   website text,
-  address text,
-  barcode text,
+  -- Address
+  address_1 text,
+  address_2 text,
+  postcode text,
+  country text,
+  state text,
+  city text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -568,6 +650,8 @@ create table public.inventory_items (
   cost_price numeric(10,4) not null default 0 check (cost_price >= 0),
   selling_price numeric(10,2) not null default 0 check (selling_price >= 0),
   stock numeric(12,2) not null default 0,
+  in_transit numeric(12,2) not null default 0 check (in_transit >= 0), -- added in 0036
+  locked     numeric(12,2) not null default 0 check (locked >= 0),     -- added in 0036
   stock_alert_count numeric(12,2) not null default 0,
   discount_cap numeric(5,2) check (discount_cap is null or (discount_cap >= 0 and discount_cap <= 100)),
   location text,
@@ -665,7 +749,7 @@ create index inventory_items_supplier_id_idx on public.inventory_items(supplier_
 
 ## File map
 
-- DDL — migration `0034_inventory_rebuild` (cloud)
+- DDL — migrations `0034_inventory_rebuild`, `0036_inventory_items_in_transit_locked`, `0037_suppliers_match_prototype_form` (cloud)
 - Seed — migration `0035_inventory_seed` (cloud)
 - Generated types — [lib/supabase/types.ts](../../lib/supabase/types.ts)
 - Zod schemas — [lib/schemas/inventory.ts](../../lib/schemas/inventory.ts)
@@ -677,5 +761,6 @@ create index inventory_items_supplier_id_idx on public.inventory_items(supplier_
 - Items table — [components/inventory/ItemsTable.tsx](../../components/inventory/ItemsTable.tsx)
 - Add chooser dialog — [components/inventory/AddItemChooser.tsx](../../components/inventory/AddItemChooser.tsx)
 - Item form (kind-aware) — [components/inventory/ItemForm.tsx](../../components/inventory/ItemForm.tsx)
+- Stock Details dialog — [components/inventory/StockDetailsDialog.tsx](../../components/inventory/StockDetailsDialog.tsx)
 - Inventory Options panel — [components/inventory/InventoryOptionsPanel.tsx](../../components/inventory/InventoryOptionsPanel.tsx)
 - UoM panel — [components/inventory/UomPanel.tsx](../../components/inventory/UomPanel.tsx)

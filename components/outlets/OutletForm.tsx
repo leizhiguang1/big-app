@@ -6,6 +6,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CreateButton } from "@/components/ui/create-button";
 import {
 	Dialog,
 	DialogContent,
@@ -104,117 +105,121 @@ export function OutletFormDialog({ open, outlet, onClose }: Props) {
 						Branches are referenced by appointments, customers, and sales.
 					</DialogDescription>
 				</DialogHeader>
-				<form
-					onSubmit={onSubmit}
-					className="flex min-h-0 flex-1 flex-col"
-				>
+				<form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
 					<div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-					<div className="grid grid-cols-2 gap-3">
+						<div className="grid grid-cols-2 gap-3">
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-code" className="font-medium text-sm">
+									Code
+								</label>
+								<Input
+									id="outlet-code"
+									placeholder="BDK"
+									disabled={!!outlet}
+									{...form.register("code")}
+								/>
+								{form.formState.errors.code && (
+									<p className="text-destructive text-xs">
+										{form.formState.errors.code.message}
+									</p>
+								)}
+								{outlet && (
+									<p className="text-muted-foreground text-xs">
+										Code is immutable after create.
+									</p>
+								)}
+							</div>
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-name" className="font-medium text-sm">
+									Name
+								</label>
+								<Input id="outlet-name" {...form.register("name")} />
+								{form.formState.errors.name && (
+									<p className="text-destructive text-xs">
+										{form.formState.errors.name.message}
+									</p>
+								)}
+							</div>
+						</div>
+
 						<div className="flex flex-col gap-1.5">
-							<label htmlFor="outlet-code" className="font-medium text-sm">
-								Code
+							<label htmlFor="outlet-address1" className="font-medium text-sm">
+								Address line 1
+							</label>
+							<Input id="outlet-address1" {...form.register("address1")} />
+						</div>
+						<div className="flex flex-col gap-1.5">
+							<label htmlFor="outlet-address2" className="font-medium text-sm">
+								Address line 2
+							</label>
+							<Input id="outlet-address2" {...form.register("address2")} />
+						</div>
+						<div className="grid grid-cols-3 gap-3">
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-city" className="font-medium text-sm">
+									City
+								</label>
+								<Input id="outlet-city" {...form.register("city")} />
+							</div>
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-state" className="font-medium text-sm">
+									State
+								</label>
+								<Input id="outlet-state" {...form.register("state")} />
+							</div>
+							<div className="flex flex-col gap-1.5">
+								<label
+									htmlFor="outlet-postcode"
+									className="font-medium text-sm"
+								>
+									Postcode
+								</label>
+								<Input id="outlet-postcode" {...form.register("postcode")} />
+							</div>
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-country" className="font-medium text-sm">
+									Country
+								</label>
+								<Input id="outlet-country" {...form.register("country")} />
+							</div>
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-phone" className="font-medium text-sm">
+									Phone
+								</label>
+								<Input id="outlet-phone" {...form.register("phone")} />
+							</div>
+						</div>
+						<div className="flex flex-col gap-1.5">
+							<label htmlFor="outlet-email" className="font-medium text-sm">
+								Email
 							</label>
 							<Input
-								id="outlet-code"
-								placeholder="BDK"
-								disabled={!!outlet}
-								{...form.register("code")}
+								id="outlet-email"
+								type="email"
+								{...form.register("email")}
 							/>
-							{form.formState.errors.code && (
+							{form.formState.errors.email && (
 								<p className="text-destructive text-xs">
-									{form.formState.errors.code.message}
-								</p>
-							)}
-							{outlet && (
-								<p className="text-muted-foreground text-xs">
-									Code is immutable after create.
+									{form.formState.errors.email.message}
 								</p>
 							)}
 						</div>
-						<div className="flex flex-col gap-1.5">
-							<label htmlFor="outlet-name" className="font-medium text-sm">
-								Name
-							</label>
-							<Input id="outlet-name" {...form.register("name")} />
-							{form.formState.errors.name && (
-								<p className="text-destructive text-xs">
-									{form.formState.errors.name.message}
-								</p>
-							)}
-						</div>
-					</div>
+						<label className="flex items-center gap-2 text-sm">
+							<input
+								type="checkbox"
+								{...form.register("is_active")}
+								className="size-4"
+							/>
+							Active
+						</label>
 
-					<div className="flex flex-col gap-1.5">
-						<label htmlFor="outlet-address1" className="font-medium text-sm">
-							Address line 1
-						</label>
-						<Input id="outlet-address1" {...form.register("address1")} />
-					</div>
-					<div className="flex flex-col gap-1.5">
-						<label htmlFor="outlet-address2" className="font-medium text-sm">
-							Address line 2
-						</label>
-						<Input id="outlet-address2" {...form.register("address2")} />
-					</div>
-					<div className="grid grid-cols-3 gap-3">
-						<div className="flex flex-col gap-1.5">
-							<label htmlFor="outlet-city" className="font-medium text-sm">
-								City
-							</label>
-							<Input id="outlet-city" {...form.register("city")} />
-						</div>
-						<div className="flex flex-col gap-1.5">
-							<label htmlFor="outlet-state" className="font-medium text-sm">
-								State
-							</label>
-							<Input id="outlet-state" {...form.register("state")} />
-						</div>
-						<div className="flex flex-col gap-1.5">
-							<label htmlFor="outlet-postcode" className="font-medium text-sm">
-								Postcode
-							</label>
-							<Input id="outlet-postcode" {...form.register("postcode")} />
-						</div>
-					</div>
-					<div className="grid grid-cols-2 gap-3">
-						<div className="flex flex-col gap-1.5">
-							<label htmlFor="outlet-country" className="font-medium text-sm">
-								Country
-							</label>
-							<Input id="outlet-country" {...form.register("country")} />
-						</div>
-						<div className="flex flex-col gap-1.5">
-							<label htmlFor="outlet-phone" className="font-medium text-sm">
-								Phone
-							</label>
-							<Input id="outlet-phone" {...form.register("phone")} />
-						</div>
-					</div>
-					<div className="flex flex-col gap-1.5">
-						<label htmlFor="outlet-email" className="font-medium text-sm">
-							Email
-						</label>
-						<Input id="outlet-email" type="email" {...form.register("email")} />
-						{form.formState.errors.email && (
-							<p className="text-destructive text-xs">
-								{form.formState.errors.email.message}
-							</p>
+						{serverError && (
+							<p className="text-destructive text-sm">{serverError}</p>
 						)}
-					</div>
-					<label className="flex items-center gap-2 text-sm">
-						<input
-							type="checkbox"
-							{...form.register("is_active")}
-							className="size-4"
-						/>
-						Active
-					</label>
 
-					{serverError && (
-						<p className="text-destructive text-sm">{serverError}</p>
-					)}
-
-					{outlet && <RoomsEditor outletId={outlet.id} />}
+						{outlet && <RoomsEditor outletId={outlet.id} />}
 					</div>
 					<DialogFooter className="border-t">
 						<Button type="button" variant="outline" onClick={onClose}>
@@ -234,7 +239,7 @@ export function NewOutletButton() {
 	const [open, setOpen] = useState(false);
 	return (
 		<>
-			<Button onClick={() => setOpen(true)}>New outlet</Button>
+			<CreateButton onClick={() => setOpen(true)}>New outlet</CreateButton>
 			<OutletFormDialog
 				open={open}
 				outlet={null}

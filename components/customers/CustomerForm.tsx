@@ -5,6 +5,7 @@ import { Mars, ScanLine, Star, Venus } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
+import { CreateButton } from "@/components/ui/create-button";
 import {
 	Dialog,
 	DialogContent,
@@ -882,7 +883,7 @@ export function NewCustomerButton({
 	const [open, setOpen] = useState(false);
 	return (
 		<>
-			<Button onClick={() => setOpen(true)}>New customer</Button>
+			<CreateButton onClick={() => setOpen(true)}>New customer</CreateButton>
 			<CustomerFormDialog
 				open={open}
 				customer={null}

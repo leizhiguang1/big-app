@@ -5,6 +5,7 @@ import { ImageIcon } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
+import { CreateButton } from "@/components/ui/create-button";
 import {
 	Dialog,
 	DialogContent,
@@ -19,9 +20,9 @@ import {
 	updateServiceAction,
 } from "@/lib/actions/services";
 import {
-	type ServiceCreateInput,
-	SERVICE_TYPES,
 	SERVICE_TYPE_LABELS,
+	SERVICE_TYPES,
+	type ServiceCreateInput,
 	serviceCreateSchema,
 } from "@/lib/schemas/services";
 import type {
@@ -554,7 +555,7 @@ export function NewServiceButton({
 	const [open, setOpen] = useState(false);
 	return (
 		<>
-			<Button onClick={() => setOpen(true)}>New service</Button>
+			<CreateButton onClick={() => setOpen(true)}>New service</CreateButton>
 			<ServiceFormDialog
 				open={open}
 				service={null}
