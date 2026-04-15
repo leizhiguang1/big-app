@@ -8,46 +8,53 @@ const optionalText = (max: number) =>
 		.optional()
 		.or(z.literal("").transform(() => undefined));
 
-const optionalDate = z
+const requiredDate = z
 	.string()
 	.trim()
-	.regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
-	.optional()
-	.or(z.literal("").transform(() => undefined));
+	.regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 
 export const ID_TYPES = ["ic", "passport"] as const;
 export const GENDERS = ["male", "female", "other"] as const;
+export const SALUTATIONS = ["Dr", "Mr", "Mrs", "Ms"] as const;
+export type Salutation = (typeof SALUTATIONS)[number];
+export type Gender = (typeof GENDERS)[number];
 
 // Malaysian IC: 12 digits, optional dashes YYMMDD-PB-###G
 const IC_REGEX = /^\d{6}-?\d{2}-?\d{4}$/;
 
 const employeeInputBase = z.object({
+	// Client-generated UUID, used on create so image uploads can be
+	// scoped to the row's storage path before the row exists.
+	id: z.string().uuid().optional(),
+
 	// Identity
-	salutation: optionalText(20),
+	salutation: z.enum(SALUTATIONS, {
+		errorMap: () => ({ message: "Salutation is required" }),
+	}),
 	first_name: z.string().trim().min(1, "First name is required").max(80),
 	last_name: z.string().trim().min(1, "Last name is required").max(80),
-	gender: z.enum(GENDERS).nullable().optional(),
-	date_of_birth: optionalDate,
+	gender: z.enum(GENDERS, {
+		errorMap: () => ({ message: "Gender is required" }),
+	}),
+	date_of_birth: requiredDate,
 	profile_image_path: z.string().trim().max(500).nullable().optional(),
 	id_type: z.enum(ID_TYPES),
-	id_number: optionalText(60),
+	id_number: z.string().trim().min(1, "ID number is required").max(60),
 
 	// Contact — email is required (used as login identity)
 	email: z.string().trim().email("Invalid email").min(1, "Email is required"),
-	phone: optionalText(40),
-	phone2: optionalText(40),
+	phone: z.string().trim().min(1, "Contact number 1 is required").max(40),
+	phone2: z.string().trim().min(1, "Contact number 2 is required").max(40),
 
 	// Employment
-	role_id: z.string().uuid().nullable().optional(),
-	position_id: z.string().uuid().nullable().optional(),
-	start_date: optionalDate,
+	role_id: z.string().uuid("Role is required"),
+	position_id: z.string().uuid("Position is required"),
+	start_date: requiredDate,
 	appointment_sequencing: z
-		.number({ invalid_type_error: "Must be a number" })
+		.number({ invalid_type_error: "Appointment sequencing is required" })
 		.int()
 		.min(1)
-		.max(999)
-		.nullable()
-		.optional(),
+		.max(999),
 	monthly_sales_target: z.number().min(0),
 	is_bookable: z.boolean(),
 	is_online_bookable: z.boolean(),
@@ -64,14 +71,14 @@ const employeeInputBase = z.object({
 	postcode: optionalText(20),
 	city: optionalText(80),
 	state: optionalText(80),
-	country: optionalText(80),
+	country: z.string().trim().min(1, "Country is required").max(80),
 	language: optionalText(40),
 
 	is_active: z.boolean(),
 });
 
 const validateIc = (
-	data: { id_type: (typeof ID_TYPES)[number]; id_number?: string },
+	data: { id_type: (typeof ID_TYPES)[number]; id_number?: string | null },
 	ctx: z.RefinementCtx,
 ) => {
 	if (

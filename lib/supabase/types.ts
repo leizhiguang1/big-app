@@ -352,13 +352,13 @@ export type Database = {
         Row: {
           address1: string | null
           address2: string | null
-          allergies: string | null
           city: string | null
           code: string
           consultant_id: string
           country_of_origin: string | null
           created_at: string
           date_of_birth: string | null
+          drug_allergies: string | null
           email: string | null
           external_code: string | null
           first_name: string
@@ -370,6 +370,8 @@ export type Database = {
           is_vip: boolean
           join_date: string
           last_name: string | null
+          medical_alert: string | null
+          medical_conditions: string[]
           opt_in_marketing: boolean
           opt_in_notifications: boolean
           phone: string
@@ -377,20 +379,22 @@ export type Database = {
           postcode: string | null
           profile_image_path: string | null
           salutation: string
+          smoker: string | null
           source: string | null
           state: string | null
+          tag: string | null
           updated_at: string
         }
         Insert: {
           address1?: string | null
           address2?: string | null
-          allergies?: string | null
           city?: string | null
           code?: string
           consultant_id: string
           country_of_origin?: string | null
           created_at?: string
           date_of_birth?: string | null
+          drug_allergies?: string | null
           email?: string | null
           external_code?: string | null
           first_name: string
@@ -402,6 +406,8 @@ export type Database = {
           is_vip?: boolean
           join_date?: string
           last_name?: string | null
+          medical_alert?: string | null
+          medical_conditions?: string[]
           opt_in_marketing?: boolean
           opt_in_notifications?: boolean
           phone: string
@@ -409,20 +415,22 @@ export type Database = {
           postcode?: string | null
           profile_image_path?: string | null
           salutation: string
+          smoker?: string | null
           source?: string | null
           state?: string | null
+          tag?: string | null
           updated_at?: string
         }
         Update: {
           address1?: string | null
           address2?: string | null
-          allergies?: string | null
           city?: string | null
           code?: string
           consultant_id?: string
           country_of_origin?: string | null
           created_at?: string
           date_of_birth?: string | null
+          drug_allergies?: string | null
           email?: string | null
           external_code?: string | null
           first_name?: string
@@ -434,6 +442,8 @@ export type Database = {
           is_vip?: boolean
           join_date?: string
           last_name?: string | null
+          medical_alert?: string | null
+          medical_conditions?: string[]
           opt_in_marketing?: boolean
           opt_in_notifications?: boolean
           phone?: string
@@ -441,8 +451,10 @@ export type Database = {
           postcode?: string | null
           profile_image_path?: string | null
           salutation?: string
+          smoker?: string | null
           source?: string | null
           state?: string | null
+          tag?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1758,4 +1770,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
+import { Suspense, type ReactNode } from 'react'
 import { EmployeesTabs } from '@/components/employees/EmployeesTabs'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 
 export default function EmployeesLayout({ children }: { children: ReactNode }) {
   return (
@@ -11,7 +12,9 @@ export default function EmployeesLayout({ children }: { children: ReactNode }) {
         </p>
       </div>
       <EmployeesTabs />
-      {children}
+      <Suspense fallback={<TableSkeleton columns={5} rows={8} showHeader={false} />}>
+        {children}
+      </Suspense>
     </div>
   )
 }

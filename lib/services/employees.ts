@@ -43,6 +43,7 @@ function normalize(input: unknown) {
 	const p = employeeInputSchema.parse(input);
 	const nz = (v: string | undefined | null) => (v && v.length > 0 ? v : null);
 	return {
+		id: p.id,
 		salutation: nz(p.salutation),
 		first_name: p.first_name,
 		last_name: p.last_name,
@@ -147,9 +148,14 @@ export async function createEmployee(
 		}
 	}
 
+	const insert = { ...row, auth_user_id: authUserId };
+	if (insert.id === undefined) {
+		delete (insert as { id?: string }).id;
+	}
+
 	const { data, error } = await ctx.db
 		.from("employees")
-		.insert({ ...row, auth_user_id: authUserId })
+		.insert(insert)
 		.select("*")
 		.single();
 
@@ -229,9 +235,12 @@ export async function updateEmployee(
 		if (becameActive) await setAuthUserBanned(ctx, authUserId, false);
 	}
 
+	const update = { ...row, auth_user_id: authUserId };
+	delete (update as { id?: string }).id;
+
 	const { data, error } = await ctx.db
 		.from("employees")
-		.update({ ...row, auth_user_id: authUserId })
+		.update(update)
 		.eq("id", id)
 		.select("*")
 		.single();

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MEDICAL_CONDITIONS, SMOKER_OPTIONS } from "@/lib/constants/medical";
 
 const optionalText = (max: number) =>
 	z
@@ -35,6 +36,10 @@ const IC_REGEX = /^\d{6}-?\d{2}-?\d{4}$/;
 
 export const customerInputSchema = z
 	.object({
+		// Client-generated UUID, used on create so image uploads can be
+		// scoped to the row's storage path before the row exists.
+		id: z.string().uuid().optional(),
+
 		// Identity
 		salutation: z.enum(SALUTATIONS, {
 			errorMap: () => ({ message: "Salutation is required" }),
@@ -75,9 +80,13 @@ export const customerInputSchema = z
 
 		// Flags
 		is_vip: z.boolean(),
+		tag: optionalText(80),
 
 		// Medical
-		allergies: optionalText(2000),
+		smoker: z.enum(SMOKER_OPTIONS).nullable().optional(),
+		drug_allergies: optionalText(2000),
+		medical_conditions: z.array(z.enum(MEDICAL_CONDITIONS)).optional(),
+		medical_alert: optionalText(2000),
 
 		// Notifications
 		opt_in_notifications: z.boolean(),

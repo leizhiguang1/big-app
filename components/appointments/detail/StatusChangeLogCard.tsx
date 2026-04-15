@@ -65,12 +65,13 @@ export function StatusChangeLogCard({ entries }: Props) {
 					No status changes recorded
 				</div>
 			) : (
-				<div className="flex flex-col divide-y divide-border/60">
-					<div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 pb-1 text-[9px] text-muted-foreground uppercase tracking-wide">
+				<div className="flex flex-col">
+					<div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 border-b border-border/60 pb-1 text-[9px] text-muted-foreground uppercase tracking-wide">
 						<div>When / Who</div>
 						<div className="text-center">From</div>
 						<div className="text-center">To</div>
 					</div>
+					<div className="flex max-h-64 flex-col divide-y divide-border/60 overflow-y-auto">
 					{entries.map((entry) => {
 						const who = entry.changed_by
 							? `${entry.changed_by.first_name} ${entry.changed_by.last_name}`.trim()
@@ -93,6 +94,7 @@ export function StatusChangeLogCard({ entries }: Props) {
 							</div>
 						);
 					})}
+					</div>
 				</div>
 			)}
 		</div>

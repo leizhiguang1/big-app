@@ -7,7 +7,6 @@ import {
 	CalendarDays,
 	Compass,
 	FileText,
-	Heart,
 	IdCard,
 	Printer,
 	Sparkles,
@@ -161,6 +160,10 @@ export function CustomerCard({
 	const dob = formatDob(customer?.date_of_birth ?? null);
 	const idNumber = customer?.id_number ?? null;
 	const source = customer?.source ?? null;
+	const medicalConditions = customer?.medical_conditions ?? [];
+	const medicalAlert = customer?.medical_alert ?? null;
+	const customerTag = customer?.tag ?? null;
+	const hasMedicalInfo = medicalConditions.length > 0 || Boolean(medicalAlert);
 	const wa1 = phone1 ? whatsAppHref(phone1) : null;
 	const wa2 = phone2 ? whatsAppHref(phone2) : null;
 
@@ -210,190 +213,215 @@ export function CustomerCard({
 
 	return (
 		<TooltipProvider delayDuration={150}>
-		<div
-			className={cn(
-				"flex h-full w-full min-w-0 flex-col gap-2.5 rounded-xl border p-3 shadow-sm sm:p-3.5",
-				isLead ? "border-amber-300 bg-amber-50/40" : "bg-card",
-			)}
-		>
-			<div className="flex items-start gap-2.5">
-				<div className="relative size-12 shrink-0 overflow-hidden rounded-full border bg-muted">
-					{imageUrl ? (
-						// biome-ignore lint/performance/noImgElement: simple avatar, no next/image setup for supabase storage yet
-						<img
-							src={imageUrl}
-							alt={displayName}
-							className="size-full object-cover"
-						/>
-					) : (
-						<div className="flex size-full items-center justify-center font-semibold text-[11px] text-muted-foreground">
-							{customer ? (
-								initials(displayName)
-							) : (
-								<UserRound className="size-5" />
-							)}
-						</div>
-					)}
-				</div>
-				<div className="flex min-w-0 flex-1 flex-col gap-1">
-					<div className="flex items-center justify-between gap-2">
-						<div
-							className="flex items-center gap-0.5 text-muted-foreground"
-							title="No rating"
-						>
-							<Star className="size-3" />
-							<Star className="size-3" />
-							<Star className="size-3" />
-							<Star className="size-3" />
-							<Star className="size-3" />
-						</div>
-						<button
-							type="button"
-							className="shrink-0 text-[10px] text-sky-600 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
-							disabled
-						>
-							Generate link
-						</button>
-					</div>
-					<div className="flex min-h-[14px] items-center gap-1 text-[10px] text-muted-foreground leading-tight">
-						<CalendarClock className="size-3 shrink-0" />
-						{nextAppointmentAt ? (
-							<span className="truncate">
-								Next: {formatNextAppt(nextAppointmentAt)}
-							</span>
+			<div
+				className={cn(
+					"flex h-full w-full min-w-0 flex-col gap-2.5 rounded-xl border p-3 shadow-sm sm:p-3.5",
+					isLead ? "border-amber-300 bg-amber-50/40" : "bg-card",
+				)}
+			>
+				<div className="flex items-start gap-2.5">
+					<div className="relative size-12 shrink-0 overflow-hidden rounded-full border bg-muted">
+						{imageUrl ? (
+							// biome-ignore lint/performance/noImgElement: simple avatar, no next/image setup for supabase storage yet
+							<img
+								src={imageUrl}
+								alt={displayName}
+								className="size-full object-cover"
+							/>
 						) : (
-							<span className="text-muted-foreground/60">No upcoming</span>
+							<div className="flex size-full items-center justify-center font-semibold text-[11px] text-muted-foreground">
+								{customer ? (
+									initials(displayName)
+								) : (
+									<UserRound className="size-5" />
+								)}
+							</div>
 						)}
 					</div>
+					<div className="flex min-w-0 flex-1 flex-col gap-1">
+						<div className="flex items-center justify-between gap-2">
+							<div
+								className="flex items-center gap-0.5 text-muted-foreground"
+								title="No rating"
+							>
+								<Star className="size-3" />
+								<Star className="size-3" />
+								<Star className="size-3" />
+								<Star className="size-3" />
+								<Star className="size-3" />
+							</div>
+							<button
+								type="button"
+								className="shrink-0 text-[10px] text-sky-600 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+								disabled
+							>
+								Generate link
+							</button>
+						</div>
+						<div className="flex min-h-[14px] items-center gap-1 text-[10px] text-muted-foreground leading-tight">
+							<CalendarClock className="size-3 shrink-0" />
+							{nextAppointmentAt ? (
+								<span className="truncate">
+									Next: {formatNextAppt(nextAppointmentAt)}
+								</span>
+							) : (
+								<span className="text-muted-foreground/60">No upcoming</span>
+							)}
+						</div>
+					</div>
 				</div>
-			</div>
 
-			{nameRow}
+				{nameRow}
 
-			{isLead && (
-				<span className="inline-flex w-fit rounded-md bg-amber-200 px-1.5 py-0.5 font-semibold text-[10px] text-amber-900 uppercase tracking-wide">
-					Walk In
-				</span>
-			)}
+				{isLead && (
+					<span className="inline-flex w-fit rounded-md bg-amber-200 px-1.5 py-0.5 font-semibold text-[10px] text-amber-900 uppercase tracking-wide">
+						Walk In
+					</span>
+				)}
 
-			<div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
-				<InfoItem
-					label="No shows"
-					icon={<UserX className="size-3.5" />}
-					value={
-						<span className="font-medium text-rose-600">
-							{stats.noShows} No show{stats.noShows === 1 ? "" : "s"}
+				<div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+					<InfoItem
+						label="No shows"
+						icon={<UserX className="size-3.5" />}
+						value={
+							<span className="font-medium text-rose-600">
+								{stats.noShows} No show{stats.noShows === 1 ? "" : "s"}
+							</span>
+						}
+					/>
+					<InfoItem
+						label="Outstanding balance"
+						icon={<Wallet className="size-3.5" />}
+						value={
+							<span className="font-medium text-rose-600">
+								MYR {stats.outstanding}
+							</span>
+						}
+					/>
+					<InfoItem
+						label="Age"
+						icon={<CakeSlice className="size-3.5" />}
+						value={age ?? <span className="text-muted-foreground/60">—</span>}
+					/>
+					<InfoItem
+						label="Date of birth"
+						icon={<CalendarDays className="size-3.5" />}
+						value={
+							dob ? (
+								<span className="tabular-nums">{dob}</span>
+							) : (
+								<span className="text-muted-foreground/60">—</span>
+							)
+						}
+					/>
+					<InfoItem
+						label="ID number"
+						icon={<IdCard className="size-3.5" />}
+						value={
+							idNumber ? (
+								<span className="tabular-nums">{idNumber}</span>
+							) : (
+								<span className="text-muted-foreground/60">—</span>
+							)
+						}
+					/>
+					<InfoItem
+						label="Source"
+						icon={<Compass className="size-3.5" />}
+						value={
+							source ?? <span className="text-muted-foreground/60">—</span>
+						}
+					/>
+				</div>
+
+				{customerTag && (
+					<div className="flex">
+						<span className="inline-flex items-center gap-1 rounded-md bg-violet-100 px-1.5 py-0.5 font-semibold text-[10px] text-violet-800 uppercase tracking-wide">
+							<Sparkles className="size-3" />
+							{customerTag}
 						</span>
-					}
-				/>
-				<InfoItem
-					label="Outstanding balance"
-					icon={<Wallet className="size-3.5" />}
-					value={
-						<span className="font-medium text-rose-600">
-							MYR {stats.outstanding}
-						</span>
-					}
-				/>
-				<InfoItem
-					label="Age"
-					icon={<CakeSlice className="size-3.5" />}
-					value={age ?? <span className="text-muted-foreground/60">—</span>}
-				/>
-				<InfoItem
-					label="Date of birth"
-					icon={<CalendarDays className="size-3.5" />}
-					value={
-						dob ? (
-							<span className="tabular-nums">{dob}</span>
-						) : (
-							<span className="text-muted-foreground/60">—</span>
-						)
-					}
-				/>
-				<InfoItem
-					label="ID number"
-					icon={<IdCard className="size-3.5" />}
-					value={
-						idNumber ? (
-							<span className="tabular-nums">{idNumber}</span>
-						) : (
-							<span className="text-muted-foreground/60">—</span>
-						)
-					}
-				/>
-				<InfoItem
-					label="Source"
-					icon={<Compass className="size-3.5" />}
-					value={source ?? <span className="text-muted-foreground/60">—</span>}
-				/>
-			</div>
+					</div>
+				)}
 
-			<div className="flex gap-1">
-				<DecoIcon icon={<Heart className="size-3.5" />} label="Allergies" />
-				<DecoIcon icon={<FileText className="size-3.5" />} label="Notes" />
-				<DecoIcon icon={<Sparkles className="size-3.5" />} label="Tags" />
-				<DecoIcon icon={<Bell className="size-3.5" />} label="Alerts" />
-			</div>
+				{hasMedicalInfo && (
+					<div className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-2">
+						<Bell className="size-3.5 shrink-0 text-amber-600" />
+						<div className="flex min-w-0 flex-col gap-0.5 text-[11px] leading-tight">
+							<div className="font-semibold text-amber-900 uppercase tracking-wide">
+								Medical History
+							</div>
+							{medicalConditions.length > 0 && (
+								<div className="text-amber-900/90">
+									{medicalConditions.join(", ")}
+								</div>
+							)}
+							{medicalAlert && (
+								<div className="whitespace-pre-wrap text-amber-800">
+									{medicalAlert}
+								</div>
+							)}
+						</div>
+					</div>
+				)}
 
-			<div className="mt-auto flex flex-wrap gap-1 pt-0.5">
-				<ActionIcon
-					label="Line"
-					disabled
-					className="text-[#06C755] hover:bg-[#06C755]/10"
-				>
-					<LineGlyph className="size-4" />
-				</ActionIcon>
-				{wa1 && (
+				<div className="mt-auto flex flex-wrap gap-1 pt-0.5">
 					<ActionIcon
-						label={phone2 ? `WhatsApp 1 · ${phone1}` : `WhatsApp · ${phone1}`}
-						href={wa1}
-						className="text-emerald-600 hover:bg-emerald-500/10"
+						label="Line"
+						disabled
+						className="text-[#06C755] hover:bg-[#06C755]/10"
 					>
-						<WhatsAppGlyph className="size-4" />
+						<LineGlyph className="size-4" />
 					</ActionIcon>
-				)}
-				{wa2 && (
-					<ActionIcon
-						label={`WhatsApp 2 · ${phone2}`}
-						href={wa2}
-						className="text-emerald-600 hover:bg-emerald-500/10"
-					>
-						<WhatsAppGlyph className="size-4" />
+					{wa1 && (
+						<ActionIcon
+							label={phone2 ? `WhatsApp 1 · ${phone1}` : `WhatsApp · ${phone1}`}
+							href={wa1}
+							className="text-emerald-600 hover:bg-emerald-500/10"
+						>
+							<WhatsAppGlyph className="size-4" />
+						</ActionIcon>
+					)}
+					{wa2 && (
+						<ActionIcon
+							label={`WhatsApp 2 · ${phone2}`}
+							href={wa2}
+							className="text-emerald-600 hover:bg-emerald-500/10"
+						>
+							<WhatsAppGlyph className="size-4" />
+						</ActionIcon>
+					)}
+					<ActionIcon label="Send visuals" disabled>
+						<FileText className="size-4" />
 					</ActionIcon>
-				)}
-				<ActionIcon label="Send visuals" disabled>
-					<FileText className="size-4" />
-				</ActionIcon>
-				{customer ? (
-					<ActionIcon label="Page customer" disabled>
-						<Bell className="size-4" />
-					</ActionIcon>
-				) : (
-					<button
-						type="button"
-						onClick={() => setConvertOpen(true)}
-						className="ml-auto inline-flex h-7 items-center rounded-md border bg-background px-2 font-medium text-[11px] hover:bg-muted"
-					>
-						Register
-					</button>
+					{customer ? (
+						<ActionIcon label="Page customer" disabled>
+							<Bell className="size-4" />
+						</ActionIcon>
+					) : (
+						<button
+							type="button"
+							onClick={() => setConvertOpen(true)}
+							className="ml-auto inline-flex h-7 items-center rounded-md border bg-background px-2 font-medium text-[11px] hover:bg-muted"
+						>
+							Register
+						</button>
+					)}
+				</div>
+
+				{isLead && (
+					<LeadConvertDialog
+						open={convertOpen}
+						onClose={() => setConvertOpen(false)}
+						appointmentId={appointment.id}
+						defaultName={appointment.lead_name ?? ""}
+						defaultPhone={appointment.lead_phone ?? ""}
+						defaultOutletId={appointment.outlet_id}
+						defaultConsultantId={appointment.lead_attended_by_id}
+						outlets={allOutlets}
+						employees={allEmployees}
+					/>
 				)}
 			</div>
-
-			{isLead && (
-				<LeadConvertDialog
-					open={convertOpen}
-					onClose={() => setConvertOpen(false)}
-					appointmentId={appointment.id}
-					defaultName={appointment.lead_name ?? ""}
-					defaultPhone={appointment.lead_phone ?? ""}
-					defaultOutletId={appointment.outlet_id}
-					defaultConsultantId={appointment.lead_attended_by_id}
-					outlets={allOutlets}
-					employees={allEmployees}
-				/>
-			)}
-		</div>
 		</TooltipProvider>
 	);
 }
@@ -416,22 +444,6 @@ function InfoItem({
 					</span>
 					<span className="min-w-0 truncate leading-tight">{value}</span>
 				</div>
-			</TooltipTrigger>
-			<TooltipContent>{label}</TooltipContent>
-		</Tooltip>
-	);
-}
-
-function DecoIcon({ icon, label }: { icon: React.ReactNode; label: string }) {
-	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<span
-					aria-label={label}
-					className="flex size-6 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground"
-				>
-					{icon}
-				</span>
 			</TooltipTrigger>
 			<TooltipContent>{label}</TooltipContent>
 		</Tooltip>

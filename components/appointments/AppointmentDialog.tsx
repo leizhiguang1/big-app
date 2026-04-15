@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarDays, Lock, Trash2, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
+import { CustomerFormDialog } from "@/components/customers/CustomerForm";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -35,7 +36,7 @@ import {
 	type LeadSource,
 } from "@/lib/schemas/appointments";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
-import type { CustomerWithRelations } from "@/lib/services/customers";
+import type { Customer, CustomerWithRelations } from "@/lib/services/customers";
 import type { RosterEmployee } from "@/lib/services/employee-shifts";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
@@ -191,6 +192,15 @@ export function AppointmentDialog({
 	);
 	const [pickerOpen, setPickerOpen] = useState(false);
 	const [convertOpen, setConvertOpen] = useState(false);
+	const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+	const [extraCustomers, setExtraCustomers] = useState<CustomerWithRelations[]>(
+		[],
+	);
+
+	const allCustomers = useMemo(
+		() => [...extraCustomers, ...customers],
+		[extraCustomers, customers],
+	);
 
 	const form = useForm<AppointmentInput>({
 		resolver: zodResolver(appointmentInputSchema),
@@ -238,10 +248,11 @@ export function AppointmentDialog({
 		}
 	};
 
-	const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
+	const selectedCustomer =
+		allCustomers.find((c) => c.id === customerId) ?? null;
 
 	const filteredCustomers = useMemo(() => {
-		const sorted = [...customers].sort((a, b) =>
+		const sorted = [...allCustomers].sort((a, b) =>
 			`${a.first_name} ${a.last_name ?? ""}`.localeCompare(
 				`${b.first_name} ${b.last_name ?? ""}`,
 			),
@@ -258,7 +269,7 @@ export function AppointmentDialog({
 				);
 			})
 			.slice(0, 12);
-	}, [customers, customerSearch]);
+	}, [allCustomers, customerSearch]);
 
 	const pickCustomer = (id: string) => {
 		form.setValue("customer_id", id, { shouldDirty: true });
@@ -448,6 +459,7 @@ export function AppointmentDialog({
 										})
 									}
 									onRegister={() => setConvertOpen(true)}
+									onNewCustomer={() => setNewCustomerOpen(true)}
 								/>
 							)}
 
@@ -709,6 +721,31 @@ export function AppointmentDialog({
 				onConfirm={onDelete}
 			/>
 
+			<CustomerFormDialog
+				open={newCustomerOpen}
+				customer={null}
+				outlets={allOutlets}
+				employees={allEmployees}
+				defaultConsultantId={allEmployees[0]?.id ?? null}
+				onClose={() => setNewCustomerOpen(false)}
+				onCreated={(created) => {
+					const entry: CustomerWithRelations = {
+						...(created as Customer),
+						home_outlet: null,
+						consultant: null,
+					};
+					setExtraCustomers((prev) => [entry, ...prev]);
+					form.setValue("customer_id", created.id, { shouldDirty: true });
+					form.setValue("lead_name", undefined, { shouldDirty: true });
+					form.setValue("lead_phone", undefined, { shouldDirty: true });
+					form.setValue("lead_source", null, { shouldDirty: true });
+					form.setValue("lead_attended_by_id", null, { shouldDirty: true });
+					setCustomerMode("selected-customer");
+					setCustomerSearch("");
+					setPickerOpen(false);
+				}}
+			/>
+
 			{convertOpen && appointment && isLeadAppointment && (
 				<ConvertLeadDialog
 					open={convertOpen}
@@ -766,6 +803,7 @@ function CustomerSection({
 	onLeadSourceChange,
 	onLeadAttendedByChange,
 	onRegister,
+	onNewCustomer,
 }: {
 	mode: CustomerInputMode;
 	error?: string;
@@ -790,6 +828,7 @@ function CustomerSection({
 	onLeadSourceChange: (v: LeadSource) => void;
 	onLeadAttendedByChange: (v: string | null) => void;
 	onRegister: () => void;
+	onNewCustomer: () => void;
 }) {
 	if (mode === "selected-customer" && selectedCustomer) {
 		return (
@@ -890,7 +929,7 @@ function CustomerSection({
 	return (
 		<Field label="Customer" required error={error}>
 			<div
-				className="relative"
+				className="flex items-start gap-2"
 				onBlur={(e) => {
 					if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
 						setPickerOpen(false);
@@ -899,53 +938,66 @@ function CustomerSection({
 					}
 				}}
 			>
-				<Input
-					type="search"
-					autoComplete="off"
-					placeholder="Search customer or type walk-in name…"
-					value={search}
-					onFocus={() => setPickerOpen(true)}
-					onChange={(e) => setSearch(e.target.value)}
-				/>
+				<div className="relative flex-1">
+					<Input
+						type="search"
+						autoComplete="off"
+						placeholder="Search customer or type walk-in name…"
+						value={search}
+						onFocus={() => setPickerOpen(true)}
+						onChange={(e) => setSearch(e.target.value)}
+					/>
 
-				{pickerOpen && (search.trim() || candidates.length > 0) && (
-					<div className="absolute top-full right-0 left-0 z-50 mt-1 max-h-64 overflow-y-auto rounded-md border bg-popover shadow-lg">
-						{search.trim() && (
-							<>
+					{pickerOpen && (search.trim() || candidates.length > 0) && (
+						<div className="absolute top-full right-0 left-0 z-50 mt-1 max-h-64 overflow-y-auto rounded-md border bg-popover shadow-lg">
+							{search.trim() && (
+								<>
+									<button
+										type="button"
+										onMouseDown={(e) => e.preventDefault()}
+										onClick={() => onPickAsLead(search)}
+										className="flex w-full items-center gap-2 border-b bg-amber-50 px-3 py-2 text-left text-amber-900 text-xs font-semibold transition hover:bg-amber-100"
+									>
+										<UserPlus className="size-3.5" />
+										Book &ldquo;{search.trim()}&rdquo; as walk-in lead
+									</button>
+									{candidates.length > 0 && (
+										<div className="border-b bg-muted/40 px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+											Existing customers
+										</div>
+									)}
+								</>
+							)}
+							{candidates.map((c) => (
 								<button
+									key={c.id}
 									type="button"
 									onMouseDown={(e) => e.preventDefault()}
-									onClick={() => onPickAsLead(search)}
-									className="flex w-full items-center gap-2 border-b bg-amber-50 px-3 py-2 text-left text-amber-900 text-xs font-semibold transition hover:bg-amber-100"
+									onClick={() => onPickCustomer(c.id)}
+									className="flex w-full flex-col items-start border-b px-3 py-2 text-left text-sm transition last:border-b-0 hover:bg-muted"
 								>
-									<UserPlus className="size-3.5" />
-									Book &ldquo;{search.trim()}&rdquo; as walk-in lead
+									<span className="font-medium">
+										{c.first_name} {c.last_name ?? ""}
+									</span>
+									<span className="text-muted-foreground text-xs">
+										{c.code} · {c.phone}
+									</span>
 								</button>
-								{candidates.length > 0 && (
-									<div className="border-b bg-muted/40 px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-										Existing customers
-									</div>
-								)}
-							</>
-						)}
-						{candidates.map((c) => (
-							<button
-								key={c.id}
-								type="button"
-								onMouseDown={(e) => e.preventDefault()}
-								onClick={() => onPickCustomer(c.id)}
-								className="flex w-full flex-col items-start border-b px-3 py-2 text-left text-sm transition last:border-b-0 hover:bg-muted"
-							>
-								<span className="font-medium">
-									{c.first_name} {c.last_name ?? ""}
-								</span>
-								<span className="text-muted-foreground text-xs">
-									{c.code} · {c.phone}
-								</span>
-							</button>
-						))}
-					</div>
-				)}
+							))}
+						</div>
+					)}
+				</div>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					className="shrink-0 gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+					onMouseDown={(e) => e.preventDefault()}
+					onClick={onNewCustomer}
+				>
+					<UserPlus className="size-3.5" />
+					New
+				</Button>
 			</div>
 		</Field>
 	);

@@ -1,4 +1,4 @@
-import { LogOut, User } from "lucide-react";
+import { ChevronDown, LogOut, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,60 +9,27 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getServerContext } from "@/lib/context/server";
-import { mediaPublicUrl } from "@/lib/storage/urls";
-
-export async function UserMenuSlot() {
-	const ctx = await getServerContext();
-	const employeeId = ctx.currentUser?.employeeId ?? null;
-	let imagePath: string | null = null;
-	if (employeeId) {
-		const { data } = await ctx.dbAdmin
-			.from("employees")
-			.select("profile_image_path")
-			.eq("id", employeeId)
-			.maybeSingle();
-		imagePath = data?.profile_image_path ?? null;
-	}
-	return (
-		<UserMenu
-			email={ctx.currentUser?.email ?? null}
-			imageUrl={mediaPublicUrl(imagePath)}
-		/>
-	);
-}
-
-export function UserMenuFallback() {
-	return (
-		<Button
-			variant="ghost"
-			size="icon"
-			className="size-9 rounded-full p-0"
-			disabled
-		>
-			<Avatar className="size-8">
-				<AvatarFallback className="bg-muted text-xs">··</AvatarFallback>
-			</Avatar>
-		</Button>
-	);
-}
 
 export function UserMenu({
 	email,
+	name,
+	role,
 	imageUrl,
 }: {
 	email: string | null;
+	name?: string | null;
+	role?: string | null;
 	imageUrl?: string | null;
 }) {
-	const initials = (email ?? "??").split("@")[0].slice(0, 2).toUpperCase();
+	const displayName = name?.trim() || email?.split("@")[0] || "User";
+	const initials = displayName.slice(0, 2).toUpperCase();
 
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button
 					variant="ghost"
-					size="icon"
-					className="size-9 rounded-full p-0 data-[state=open]:bg-accent"
+					className="h-11 cursor-pointer gap-2 px-2 hover:bg-accent data-[state=open]:bg-accent"
 				>
 					<Avatar className="size-8">
 						{imageUrl && <AvatarImage src={imageUrl} alt="" />}
@@ -70,15 +37,33 @@ export function UserMenu({
 							{initials}
 						</AvatarFallback>
 					</Avatar>
+					<div className="hidden min-w-0 flex-col items-start leading-tight sm:flex">
+						<span className="max-w-[140px] truncate font-medium text-sm">
+							{displayName}
+						</span>
+						{role && (
+							<span className="max-w-[140px] truncate text-muted-foreground text-xs uppercase">
+								{role}
+							</span>
+						)}
+					</div>
+					<ChevronDown className="size-4 text-muted-foreground" />
 					<span className="sr-only">Open user menu</span>
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent className="w-56" align="end" sideOffset={8}>
-				<DropdownMenuLabel className="text-muted-foreground text-xs">
-					Signed in as
-				</DropdownMenuLabel>
+			<DropdownMenuContent className="w-60" align="end" sideOffset={8}>
 				<DropdownMenuLabel className="font-normal">
-					{email ?? "—"}
+					<div className="flex flex-col gap-0.5">
+						<span className="font-medium text-sm">{displayName}</span>
+						<span className="text-muted-foreground text-xs">
+							{email ?? "—"}
+						</span>
+						{role && (
+							<span className="text-muted-foreground text-xs uppercase">
+								{role}
+							</span>
+						)}
+					</div>
 				</DropdownMenuLabel>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem disabled>

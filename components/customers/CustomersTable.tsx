@@ -1,6 +1,7 @@
 "use client";
 
 import { Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -35,9 +36,12 @@ export function CustomersTable({
 			header: "Code",
 			sortable: true,
 			cell: (c) => (
-				<span className="font-mono text-muted-foreground text-xs">
+				<Link
+					href={`/customers/${c.id}`}
+					className="font-mono text-muted-foreground text-xs hover:text-sky-600 hover:underline"
+				>
 					{c.code}
-				</span>
+				</Link>
 			),
 		},
 		{
@@ -48,11 +52,14 @@ export function CustomersTable({
 			cell: (c) => (
 				<div className="flex items-center gap-2">
 					<div>
-						<div className="font-medium">
+						<Link
+							href={`/customers/${c.id}`}
+							className="font-medium hover:text-sky-600 hover:underline"
+						>
 							{c.salutation} {c.first_name} {c.last_name ?? ""}
-						</div>
-						{c.allergies && (
-							<div className="text-destructive text-xs">⚠ {c.allergies}</div>
+						</Link>
+						{c.medical_alert && (
+							<div className="text-destructive text-xs">⚠ {c.medical_alert}</div>
 						)}
 					</div>
 					{c.is_vip && (

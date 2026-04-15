@@ -28,6 +28,9 @@ export type AppointmentWithRelations = Appointment & {
 		id_number: string | null;
 		source: string | null;
 		profile_image_path: string | null;
+		tag: string | null;
+		medical_conditions: string[];
+		medical_alert: string | null;
 	} | null;
 	employee: {
 		id: string;
@@ -49,7 +52,7 @@ export type AppointmentWithRelations = Appointment & {
 };
 
 const SELECT_WITH_RELATIONS =
-	"*, customer:customers!appointments_customer_id_fkey(id, code, first_name, last_name, phone, phone2, email, date_of_birth, gender, id_number, source, profile_image_path), employee:employees!appointments_employee_id_fkey(id, code, first_name, last_name), room:rooms!appointments_room_id_fkey(id, name), lead_attended_by:employees!appointments_lead_attended_by_id_fkey(id, first_name, last_name), created_by_employee:employees!appointments_created_by_fkey(id, first_name, last_name)";
+	"*, customer:customers!appointments_customer_id_fkey(id, code, first_name, last_name, phone, phone2, email, date_of_birth, gender, id_number, source, profile_image_path, tag, medical_conditions, medical_alert), employee:employees!appointments_employee_id_fkey(id, code, first_name, last_name), room:rooms!appointments_room_id_fkey(id, name), lead_attended_by:employees!appointments_lead_attended_by_id_fkey(id, first_name, last_name), created_by_employee:employees!appointments_created_by_fkey(id, first_name, last_name)";
 
 function nz<T>(value: T | undefined | null): T | null {
 	return value === undefined || value === null ? null : value;
@@ -329,6 +332,31 @@ export async function listCustomerAppointments(
 		.order("start_at", { ascending: false });
 	if (error) throw new ValidationError(error.message);
 	return data ?? [];
+}
+
+export type CustomerTimelineAppointment = Appointment & {
+	outlet: { id: string; name: string } | null;
+	room: { id: string; name: string } | null;
+	employee: {
+		id: string;
+		first_name: string;
+		last_name: string;
+	} | null;
+};
+
+export async function listCustomerTimeline(
+	ctx: Context,
+	customerId: string,
+): Promise<CustomerTimelineAppointment[]> {
+	const { data, error } = await ctx.db
+		.from("appointments")
+		.select(
+			"*, outlet:outlets!appointments_outlet_id_fkey(id, name), room:rooms!appointments_room_id_fkey(id, name), employee:employees!appointments_employee_id_fkey(id, first_name, last_name)",
+		)
+		.eq("customer_id", customerId)
+		.order("start_at", { ascending: false });
+	if (error) throw new ValidationError(error.message);
+	return (data ?? []) as unknown as CustomerTimelineAppointment[];
 }
 
 export async function deleteAppointment(

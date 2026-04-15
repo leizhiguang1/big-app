@@ -27,6 +27,7 @@ function nz(value: string | undefined | null): string | null {
 function normalize(input: unknown) {
 	const p = customerInputSchema.parse(input);
 	return {
+		id: p.id,
 		salutation: p.salutation,
 		first_name: p.first_name,
 		last_name: nz(p.last_name),
@@ -49,7 +50,11 @@ function normalize(input: unknown) {
 		source: p.source ?? null,
 		external_code: nz(p.external_code),
 		is_vip: p.is_vip,
-		allergies: nz(p.allergies),
+		tag: nz(p.tag),
+		smoker: p.smoker ?? null,
+		drug_allergies: nz(p.drug_allergies),
+		medical_conditions: p.medical_conditions ?? [],
+		medical_alert: nz(p.medical_alert),
 		opt_in_notifications: p.opt_in_notifications,
 		opt_in_marketing: p.opt_in_marketing,
 		join_date: nz(p.join_date) ?? undefined,
@@ -86,6 +91,9 @@ export async function createCustomer(
 ): Promise<Customer> {
 	const row = normalize(input);
 	const insert = { ...row };
+	if (insert.id === undefined) {
+		delete (insert as { id?: string }).id;
+	}
 	if (insert.join_date === undefined) {
 		delete (insert as { join_date?: string }).join_date;
 	}
@@ -109,6 +117,7 @@ export async function updateCustomer(
 ): Promise<Customer> {
 	const row = normalize(input);
 	const update = { ...row };
+	delete (update as { id?: string }).id;
 	if (update.join_date === undefined) {
 		delete (update as { join_date?: string }).join_date;
 	}

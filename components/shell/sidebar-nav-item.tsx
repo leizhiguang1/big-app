@@ -2,7 +2,8 @@
 
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useTransition } from "react";
 import {
 	SidebarMenuButton,
 	SidebarMenuItem,
@@ -16,6 +17,8 @@ export type SidebarNavItemData = {
 
 export function SidebarNavItem({ item }: { item: SidebarNavItemData }) {
 	const pathname = usePathname();
+	const router = useRouter();
+	const [isPending, startTransition] = useTransition();
 	const isActive =
 		pathname === item.href || pathname.startsWith(`${item.href}/`);
 	const Icon = item.icon;
@@ -24,11 +27,21 @@ export function SidebarNavItem({ item }: { item: SidebarNavItemData }) {
 		<SidebarMenuItem>
 			<SidebarMenuButton
 				asChild
-				isActive={isActive}
+				isActive={isActive || isPending}
 				tooltip={item.label}
 				className="gap-3 px-3"
 			>
-				<Link href={item.href}>
+				<Link
+					href={item.href}
+					prefetch
+					onClick={(e) => {
+						if (isActive) return;
+						e.preventDefault();
+						startTransition(() => {
+							router.push(item.href);
+						});
+					}}
+				>
 					<Icon />
 					<span>{item.label}</span>
 				</Link>

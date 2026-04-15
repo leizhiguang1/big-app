@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Mars, ScanLine, Star, Venus } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,13 @@ import {
 	createCustomerAction,
 	updateCustomerAction,
 } from "@/lib/actions/customers";
+import { deleteMediaObjectAction } from "@/lib/actions/storage";
+import {
+	MEDICAL_CONDITIONS,
+	type MedicalCondition,
+	SMOKER_LABELS,
+	SMOKER_OPTIONS,
+} from "@/lib/constants/medical";
 import {
 	type CustomerInput,
 	customerInputSchema,
@@ -26,7 +33,7 @@ import {
 	SALUTATIONS,
 	SOURCES,
 } from "@/lib/schemas/customers";
-import type { CustomerWithRelations } from "@/lib/services/customers";
+import type { Customer, CustomerWithRelations } from "@/lib/services/customers";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { OutletWithRoomCount } from "@/lib/services/outlets";
 import { cn } from "@/lib/utils";
@@ -38,6 +45,7 @@ type Props = {
 	employees: EmployeeWithRelations[];
 	defaultConsultantId: string | null;
 	onClose: () => void;
+	onCreated?: (customer: Customer) => void;
 };
 
 const SELECT_CLASS =
@@ -66,7 +74,11 @@ const EMPTY: CustomerInput = {
 	source: null,
 	external_code: undefined,
 	is_vip: false,
-	allergies: undefined,
+	tag: undefined,
+	smoker: null,
+	drug_allergies: undefined,
+	medical_conditions: [],
+	medical_alert: undefined,
 	opt_in_notifications: true,
 	opt_in_marketing: true,
 	join_date: undefined,
@@ -97,7 +109,12 @@ function fromCustomer(c: CustomerWithRelations | null): CustomerInput {
 		source: (c.source as CustomerInput["source"]) ?? null,
 		external_code: c.external_code ?? undefined,
 		is_vip: c.is_vip,
-		allergies: c.allergies ?? undefined,
+		tag: c.tag ?? undefined,
+		smoker: (c.smoker as CustomerInput["smoker"]) ?? null,
+		drug_allergies: c.drug_allergies ?? undefined,
+		medical_conditions:
+			(c.medical_conditions as MedicalCondition[] | null) ?? [],
+		medical_alert: c.medical_alert ?? undefined,
 		opt_in_notifications: c.opt_in_notifications,
 		opt_in_marketing: c.opt_in_marketing,
 		join_date: c.join_date ?? undefined,
@@ -175,6 +192,45 @@ function Field({
 	);
 }
 
+function MedicalConditionsPicker({
+	value,
+	onChange,
+}: {
+	value: MedicalCondition[];
+	onChange: (v: MedicalCondition[]) => void;
+}) {
+	const selected = new Set(value);
+	const toggle = (c: MedicalCondition) => {
+		const next = new Set(selected);
+		if (next.has(c)) next.delete(c);
+		else next.add(c);
+		onChange(MEDICAL_CONDITIONS.filter((x) => next.has(x)));
+	};
+	return (
+		<div className="flex flex-wrap gap-1.5 rounded-md border bg-background p-2">
+			{MEDICAL_CONDITIONS.map((c) => {
+				const on = selected.has(c);
+				return (
+					<button
+						key={c}
+						type="button"
+						onClick={() => toggle(c)}
+						aria-pressed={on}
+						className={cn(
+							"rounded-full border px-2.5 py-1 font-medium text-[11px] transition",
+							on
+								? "border-amber-300 bg-amber-100 text-amber-900"
+								: "border-border bg-background text-muted-foreground hover:bg-muted",
+						)}
+					>
+						{c}
+					</button>
+				);
+			})}
+		</div>
+	);
+}
+
 function GenderPicker({
 	value,
 	onChange,
@@ -225,10 +281,13 @@ export function CustomerFormDialog({
 	employees,
 	defaultConsultantId,
 	onClose,
+	onCreated,
 }: Props) {
 	const [pending, startTransition] = useTransition();
 	const [serverError, setServerError] = useState<string | null>(null);
 	const [section, setSection] = useState<SectionKey>("personal");
+	const [pendingId, setPendingId] = useState<string | null>(null);
+	const savedRef = useRef(false);
 
 	const form = useForm<CustomerInput>({
 		resolver: zodResolver(customerInputSchema),
@@ -248,7 +307,13 @@ export function CustomerFormDialog({
 			if (!customer) {
 				if (defaultConsultantId) base.consultant_id = defaultConsultantId;
 				if (outlets.length === 1) base.home_outlet_id = outlets[0].id;
+				const id = crypto.randomUUID();
+				base.id = id;
+				setPendingId(id);
+			} else {
+				setPendingId(null);
 			}
+			savedRef.current = false;
 			form.reset(base);
 			setServerError(null);
 			setSection("personal");
@@ -285,8 +350,13 @@ export function CustomerFormDialog({
 				if (customer) {
 					await updateCustomerAction(customer.id, values);
 				} else {
-					await createCustomerAction(values);
+					const created = await createCustomerAction({
+						...values,
+						id: pendingId ?? undefined,
+					});
+					onCreated?.(created);
 				}
+				savedRef.current = true;
 				onClose();
 			} catch (err) {
 				setServerError(
@@ -295,6 +365,20 @@ export function CustomerFormDialog({
 			}
 		});
 	});
+
+	// If the user uploaded a photo on a new-customer form and then closed
+	// without saving, the object is orphaned — clean it up.
+	const handleClose = () => {
+		if (!customer && !savedRef.current) {
+			const path = form.getValues("profile_image_path");
+			if (path) {
+				deleteMediaObjectAction(path).catch(() => {
+					// orphan — not fatal
+				});
+			}
+		}
+		onClose();
+	};
 
 	const errors = form.formState.errors;
 
@@ -309,7 +393,7 @@ export function CustomerFormDialog({
 		[firstName, lastName].filter(Boolean).join(" ") || "New Customer";
 
 	return (
-		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+		<Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
 			<DialogContent className="flex h-[85vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
 				<DialogHeader className="sr-only">
 					<DialogTitle>
@@ -334,7 +418,7 @@ export function CustomerFormDialog({
 										})
 									}
 									entity="customers"
-									entityId={customer?.id ?? null}
+									entityId={customer?.id ?? pendingId}
 									sizeClass="size-20"
 									layout="stacked"
 								/>
@@ -667,21 +751,76 @@ export function CustomerFormDialog({
 							)}
 
 							{section === "medical" && (
-								<div className="p-6">
-									<Field
-										label="Allergies / Alerts"
-										htmlFor="cus-allergies"
-										full
-										error={errors.allergies?.message}
-									>
-										<textarea
-											id="cus-allergies"
-											rows={6}
-											className="min-h-32 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-											{...form.register("allergies")}
+								<div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
+									<Field label="Smoker" htmlFor="cus-smoker">
+										<select
+											id="cus-smoker"
+											className={SELECT_CLASS}
+											value={form.watch("smoker") ?? ""}
+											onChange={(e) =>
+												form.setValue(
+													"smoker",
+													(e.target.value || null) as CustomerInput["smoker"],
+													{ shouldValidate: true },
+												)
+											}
+										>
+											<option value="">— Please choose —</option>
+											{SMOKER_OPTIONS.map((s) => (
+												<option key={s} value={s}>
+													{SMOKER_LABELS[s]}
+												</option>
+											))}
+										</select>
+									</Field>
+
+									<Field label="Customer Tag" htmlFor="cus-tag">
+										<Input
+											id="cus-tag"
+											placeholder="Eg. UNABLE TO WALK"
+											{...form.register("tag")}
 										/>
 									</Field>
-								</div>
+
+									<Field
+										label="Drug Allergies"
+										htmlFor="cus-drug-allergies"
+										full
+									>
+										<Input
+											id="cus-drug-allergies"
+											placeholder="Eg. PENICILLIN, ASPIRIN"
+											{...form.register("drug_allergies")}
+										/>
+									</Field>
+
+									<Field label="Current Illness / Medical Condition" full>
+										<MedicalConditionsPicker
+											value={form.watch("medical_conditions") ?? []}
+											onChange={(v) =>
+												form.setValue("medical_conditions", v, {
+													shouldValidate: true,
+												})
+											}
+										/>
+									</Field>
+
+									<Field
+										label="Alert / Known Allergies"
+										htmlFor="cus-medical-alert"
+										full
+										error={errors.medical_alert?.message}
+									>
+										<textarea
+											id="cus-medical-alert"
+											rows={4}
+											placeholder="Shown as a yellow banner on the appointment detail view"
+											className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+											{...form.register("medical_alert")}
+										/>
+									</Field>
+
+												</div>
 							)}
 
 							{section === "notifications" && (
@@ -714,7 +853,7 @@ export function CustomerFormDialog({
 					</div>
 
 					<DialogFooter className="border-t bg-muted/20 px-4 py-3">
-						<Button type="button" variant="outline" onClick={onClose}>
+						<Button type="button" variant="outline" onClick={handleClose}>
 							Cancel
 						</Button>
 						<Button type="submit" disabled={pending}>
