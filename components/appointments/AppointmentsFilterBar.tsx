@@ -24,6 +24,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
 	type DisplayStyle,
 	type ResourceMode,
 	type TimeScope,
@@ -338,26 +343,29 @@ export function AppointmentsFilterBar({
 			<div className="inline-flex h-8 items-center rounded-md bg-muted p-0.5">
 				{(
 					[
-						{ k: "list", icon: AlignJustify, label: "List" },
-						{ k: "grid", icon: Grid2x2, label: "Grid" },
-						{ k: "calendar", icon: CalendarDays, label: "Calendar" },
+						{ k: "list", icon: AlignJustify, label: "List view" },
+						{ k: "grid", icon: Grid2x2, label: "Grid view" },
+						{ k: "calendar", icon: CalendarDays, label: "Calendar view" },
 					] as const
 				).map(({ k, icon: Icon, label }) => (
-					<button
-						key={k}
-						type="button"
-						onClick={() => onDisplayChange(k)}
-						aria-label={label}
-						title={label}
-						className={cn(
-							"flex size-7 items-center justify-center rounded transition",
-							display === k
-								? "bg-background text-primary shadow-sm"
-								: "text-muted-foreground hover:text-foreground",
-						)}
-					>
-						<Icon className="size-4" />
-					</button>
+					<Tooltip key={k}>
+						<TooltipTrigger asChild>
+							<button
+								type="button"
+								onClick={() => onDisplayChange(k)}
+								aria-label={label}
+								className={cn(
+									"flex size-7 items-center justify-center rounded transition",
+									display === k
+										? "bg-background text-primary shadow-sm"
+										: "text-muted-foreground hover:text-foreground",
+								)}
+							>
+								<Icon className="size-4" />
+							</button>
+						</TooltipTrigger>
+						<TooltipContent>{label}</TooltipContent>
+					</Tooltip>
 				))}
 			</div>
 
@@ -365,30 +373,36 @@ export function AppointmentsFilterBar({
 			<div className="inline-flex h-8 items-center rounded-md bg-muted p-0.5">
 				{(
 					[
-						{ k: "day", label: "D" },
-						{ k: "week", label: "W" },
-						{ k: "month", label: "M" },
+						{ k: "day", label: "D", full: "Day view" },
+						{ k: "week", label: "W", full: "Week view" },
+						{ k: "month", label: "M", full: "Month view" },
 					] as const
-				).map(({ k, label }) => {
+				).map(({ k, label, full }) => {
 					const allowed = VALID_SCOPES[display].includes(k);
 					return (
-						<button
-							key={k}
-							type="button"
-							onClick={() => onScopeChange(k)}
-							disabled={!allowed}
-							aria-label={k}
-							className={cn(
-								"flex size-7 items-center justify-center rounded font-semibold text-[11px] transition",
-								scope === k
-									? "bg-background text-primary shadow-sm"
-									: allowed
-										? "text-muted-foreground hover:text-foreground"
-										: "cursor-not-allowed text-muted-foreground/30",
-							)}
-						>
-							{label}
-						</button>
+						<Tooltip key={k}>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									onClick={() => onScopeChange(k)}
+									disabled={!allowed}
+									aria-label={full}
+									className={cn(
+										"flex size-7 items-center justify-center rounded font-semibold text-[11px] transition",
+										scope === k
+											? "bg-background text-primary shadow-sm"
+											: allowed
+												? "text-muted-foreground hover:text-foreground"
+												: "cursor-not-allowed text-muted-foreground/30",
+									)}
+								>
+									{label}
+								</button>
+							</TooltipTrigger>
+							<TooltipContent>
+								{allowed ? full : `${full} (not available in this layout)`}
+							</TooltipContent>
+						</Tooltip>
 					);
 				})}
 			</div>

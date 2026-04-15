@@ -15,6 +15,11 @@ import { useState, useTransition } from "react";
 import { CollectPaymentDialog } from "@/components/appointments/detail/CollectPaymentDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
 	markAppointmentCompletedAction,
 	revertCompletedAppointmentAction,
 } from "@/lib/actions/appointments";
@@ -101,107 +106,149 @@ export function FloatingActionBar({
 			<div className="pointer-events-none fixed right-4 bottom-4 z-40 flex items-center gap-2">
 				{isCompleted ? (
 					<>
-						<button
-							type="button"
-							title="Schedule next appointment for this customer"
-							className={cn(
-								baseBtn,
-								"pointer-events-auto bg-green-600 text-white",
-							)}
-						>
-							<Plus className="size-5" />
-						</button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									aria-label="Schedule next appointment for this customer"
+									className={cn(
+										baseBtn,
+										"pointer-events-auto bg-green-600 text-white",
+									)}
+								>
+									<Plus className="size-5" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent side="top">
+								Schedule next appointment
+							</TooltipContent>
+						</Tooltip>
 
-						<button
-							type="button"
-							title="Revert to pending"
-							onClick={() => setRevertOpen(true)}
-							disabled={isPending}
-							className={cn(
-								baseBtn,
-								"pointer-events-auto bg-slate-500 text-white",
-							)}
-						>
-							{isPending ? (
-								<Loader2 className="size-5 animate-spin" />
-							) : (
-								<Undo2 className="size-5" />
-							)}
-						</button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									aria-label="Revert to pending"
+									onClick={() => setRevertOpen(true)}
+									disabled={isPending}
+									className={cn(
+										baseBtn,
+										"pointer-events-auto bg-slate-500 text-white",
+									)}
+								>
+									{isPending ? (
+										<Loader2 className="size-5 animate-spin" />
+									) : (
+										<Undo2 className="size-5" />
+									)}
+								</button>
+							</TooltipTrigger>
+							<TooltipContent side="top">Revert to pending</TooltipContent>
+						</Tooltip>
 					</>
 				) : (
 					<>
-						<button
-							type="button"
-							title="Print queue ticket"
-							className={cn(
-								baseBtn,
-								"pointer-events-auto border border-blue-300 bg-white text-blue-700",
-							)}
-						>
-							<Ticket className="size-5" />
-						</button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									aria-label="Print queue ticket"
+									className={cn(
+										baseBtn,
+										"pointer-events-auto border border-blue-300 bg-white text-blue-700",
+									)}
+								>
+									<Ticket className="size-5" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent side="top">Print queue ticket</TooltipContent>
+						</Tooltip>
 
-						<button
-							type="button"
-							title="Create new appointment for this customer"
-							className={cn(
-								baseBtn,
-								"pointer-events-auto bg-green-600 text-white",
-							)}
-						>
-							<Plus className="size-5" />
-						</button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									aria-label="Create new appointment for this customer"
+									className={cn(
+										baseBtn,
+										"pointer-events-auto bg-green-600 text-white",
+									)}
+								>
+									<Plus className="size-5" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent side="top">New appointment</TooltipContent>
+						</Tooltip>
 
-						<button
-							type="button"
-							title="Cancel appointment"
-							className={cn(
-								baseBtn,
-								"pointer-events-auto bg-red-600 text-white",
-							)}
-						>
-							<Ban className="size-5" />
-						</button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									aria-label="Cancel appointment"
+									className={cn(
+										baseBtn,
+										"pointer-events-auto bg-red-600 text-white",
+									)}
+								>
+									<Ban className="size-5" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent side="top">Cancel appointment</TooltipContent>
+						</Tooltip>
 
-						<button
-							type="button"
-							title="Add to queue"
-							className={cn(
-								baseBtn,
-								"pointer-events-auto bg-sky-600 text-white",
-							)}
-						>
-							<ListOrdered className="size-5" />
-						</button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									aria-label="Add to queue"
+									className={cn(
+										baseBtn,
+										"pointer-events-auto bg-sky-600 text-white",
+									)}
+								>
+									<ListOrdered className="size-5" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent side="top">Add to queue</TooltipContent>
+						</Tooltip>
 
-						<button
-							type="button"
-							title="Edit appointment"
-							className={cn(
-								baseBtn,
-								"pointer-events-auto bg-amber-400 text-white",
-							)}
-						>
-							<Pencil className="size-5" />
-						</button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									aria-label="Edit appointment"
+									className={cn(
+										baseBtn,
+										"pointer-events-auto bg-amber-400 text-white",
+									)}
+								>
+									<Pencil className="size-5" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent side="top">Edit appointment</TooltipContent>
+						</Tooltip>
 
-						<button
-							type="button"
-							title="Complete appointment"
-							onClick={() => setConfirmOpen(true)}
-							disabled={isPending}
-							className={cn(
-								baseBtn,
-								"pointer-events-auto bg-emerald-600 text-white",
-							)}
-						>
-							{isPending ? (
-								<Loader2 className="size-5 animate-spin" />
-							) : (
-								<Check className="size-5" />
-							)}
-						</button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									aria-label="Complete appointment"
+									onClick={() => setConfirmOpen(true)}
+									disabled={isPending}
+									className={cn(
+										baseBtn,
+										"pointer-events-auto bg-emerald-600 text-white",
+									)}
+								>
+									{isPending ? (
+										<Loader2 className="size-5 animate-spin" />
+									) : (
+										<Check className="size-5" />
+									)}
+								</button>
+							</TooltipTrigger>
+							<TooltipContent side="top">Complete appointment</TooltipContent>
+						</Tooltip>
 					</>
 				)}
 			</div>
