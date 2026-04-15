@@ -13,6 +13,11 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
 	createCategoryAction,
 	deleteCategoryAction,
 	updateCategoryAction,
@@ -120,16 +125,21 @@ export function ManageCategoriesSheet({
 										className="h-9"
 										onBlur={(e) => rename(category, e.currentTarget.value)}
 									/>
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon-sm"
-										disabled={pending}
-										onClick={() => setRemoving(category)}
-										aria-label="Remove"
-									>
-										<Trash2 />
-									</Button>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon-sm"
+												disabled={pending}
+												onClick={() => setRemoving(category)}
+												aria-label="Remove"
+											>
+												<Trash2 />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>Remove</TooltipContent>
+									</Tooltip>
 								</li>
 							))}
 						</ul>

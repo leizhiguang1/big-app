@@ -1,11 +1,28 @@
 "use client";
 
-import { Pencil, Save, Trash2, X } from "lucide-react";
+import {
+	BookMarked,
+	FileBadge,
+	FileText,
+	Grid3x3,
+	ImagePlus,
+	Pencil,
+	Pill,
+	Save,
+	Trash2,
+	X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
+import { AddMcDialog } from "@/components/medical-certificates/AddMcDialog";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
 	createCaseNoteAction,
 	deleteCaseNoteAction,
@@ -43,6 +60,7 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editContent, setEditContent] = useState("");
 	const [deleteId, setDeleteId] = useState<string | null>(null);
+	const [mcDialogOpen, setMcDialogOpen] = useState(false);
 	const [, startTransition] = useTransition();
 	const [localNotes, setLocalNotes] = useState<CaseNoteWithAuthor[]>(caseNotes);
 
@@ -160,8 +178,11 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="rounded-md border bg-card p-4">
-				<div className="text-muted-foreground text-xs uppercase tracking-wide">
-					New case note
+				<div className="flex items-center justify-between">
+					<div className="text-muted-foreground text-xs uppercase tracking-wide">
+						New case note
+					</div>
+					<CaseNoteToolbar onAddMc={() => setMcDialogOpen(true)} />
 				</div>
 				<textarea
 					value={draft}
@@ -224,7 +245,95 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 				confirmLabel="Delete"
 				onConfirm={handleDelete}
 			/>
+
+			{customerId && (
+				<AddMcDialog
+					open={mcDialogOpen}
+					onClose={() => setMcDialogOpen(false)}
+					appointmentId={appointment.id}
+					customerId={customerId}
+					outletId={appointment.outlet_id}
+					issuingEmployeeId={appointment.employee_id ?? null}
+					defaultStartDate={new Date(appointment.start_at)
+						.toISOString()
+						.slice(0, 10)}
+					onCreated={(result) => {
+						onToast(`Medical certificate ${result.code} saved`, "success");
+						window.open(`/medical-certificates/${result.id}`, "_blank");
+						refresh();
+					}}
+				/>
+			)}
 		</div>
+	);
+}
+
+function CaseNoteToolbar({ onAddMc }: { onAddMc: () => void }) {
+	return (
+		<div className="flex items-center gap-1">
+			<StubButton icon={ImagePlus} label="Annotate image to insert" />
+			<StubButton icon={FileText} label="Templates" />
+			<StubButton icon={Pill} label="Add prescription" />
+			<ToolbarButton
+				icon={FileBadge}
+				label="Add medical certificate"
+				onClick={onAddMc}
+			/>
+			<StubButton icon={BookMarked} label="ICD-10 code lookup" />
+			<StubButton icon={Grid3x3} label="Dental chart" />
+		</div>
+	);
+}
+
+function ToolbarButton({
+	icon: Icon,
+	label,
+	onClick,
+}: {
+	icon: React.ComponentType<{ className?: string }>;
+	label: string;
+	onClick: () => void;
+}) {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					onClick={onClick}
+					aria-label={label}
+					className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+				>
+					<Icon className="size-4" />
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="top">{label}</TooltipContent>
+		</Tooltip>
+	);
+}
+
+function StubButton({
+	icon: Icon,
+	label,
+}: {
+	icon: React.ComponentType<{ className?: string }>;
+	label: string;
+}) {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					aria-label={label}
+					aria-disabled="true"
+					data-stub="true"
+					onClick={() => {}}
+					className="flex size-8 cursor-not-allowed items-center justify-center rounded-md text-muted-foreground/60 transition hover:bg-muted"
+				>
+					<Icon className="size-4" />
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="top">{label}</TooltipContent>
+		</Tooltip>
 	);
 }
 

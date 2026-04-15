@@ -1,13 +1,16 @@
 "use client";
 
 import {
+	BellRing,
 	ChevronDown,
 	ChevronUp,
 	Layers,
 	Maximize2,
+	MessageSquare,
 	Minimize2,
 	PanelLeftClose,
 	Pencil,
+	Phone,
 	Receipt,
 	Save,
 	StickyNote,
@@ -22,6 +25,7 @@ import {
 	deleteCaseNoteAction,
 	updateCaseNoteAction,
 } from "@/lib/actions/case-notes";
+import { deleteFollowUpAction } from "@/lib/actions/follow-ups";
 import {
 	APPOINTMENT_PAYMENT_MODE_LABEL,
 	type AppointmentPaymentMode,
@@ -29,6 +33,7 @@ import {
 import type { CustomerLineItem } from "@/lib/services/appointment-line-items";
 import type { CustomerAppointmentSummary } from "@/lib/services/appointments";
 import type { CaseNoteWithAuthor } from "@/lib/services/case-notes";
+import type { FollowUpWithRefs } from "@/lib/services/follow-ups";
 import { cn } from "@/lib/utils";
 
 type HistoryMode = "all" | "casenotes" | "billing";
@@ -732,6 +737,307 @@ function NoteRow({
 			)}
 			<div className="mt-1.5 text-[9px] text-muted-foreground/80">
 				Last updated by: {authorLabel(item.note)}
+			</div>
+		</div>
+	);
+}
+
+type FollowUpThread = {
+	id: string;
+	date: Date;
+	followUp: FollowUpWithRefs;
+	bookingRef: string | null;
+	appointmentId: string;
+	isCurrent: boolean;
+};
+
+function followUpAuthorLabel(f: FollowUpWithRefs): string {
+	if (!f.author) return "—";
+	return `${f.author.first_name} ${f.author.last_name}`.trim();
+}
+
+function reminderEmployeeLabel(f: FollowUpWithRefs): string | null {
+	if (!f.reminder_employee) return null;
+	return `${f.reminder_employee.first_name} ${f.reminder_employee.last_name}`.trim();
+}
+
+function formatReminderDate(iso: string): string {
+	const [y, m, d] = iso.split("-").map(Number);
+	if (!y || !m || !d) return iso;
+	return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+		day: "2-digit",
+		month: "short",
+		year: "numeric",
+	});
+}
+
+type FollowUpHistoryPanelProps = {
+	currentAppointmentId: string;
+	followUps: FollowUpWithRefs[];
+	customerHistory: CustomerAppointmentSummary[];
+	onClose: () => void;
+	onToast: (message: string, variant?: Toast["variant"]) => void;
+	onEdit: (followUp: FollowUpWithRefs) => void;
+};
+
+export function FollowUpHistoryPanel({
+	currentAppointmentId,
+	followUps,
+	customerHistory,
+	onClose,
+	onToast,
+	onEdit,
+}: FollowUpHistoryPanelProps) {
+	const router = useRouter();
+	const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+	const [deleteId, setDeleteId] = useState<string | null>(null);
+	const [pending, startTransition] = useTransition();
+
+	const threads = useMemo<FollowUpThread[]>(() => {
+		const refByAppointment = new Map<string, string>();
+		for (const a of customerHistory) refByAppointment.set(a.id, a.booking_ref);
+		return followUps
+			.map((f) => ({
+				id: `f-${f.id}`,
+				date: new Date(f.created_at),
+				followUp: f,
+				appointmentId: f.appointment_id,
+				bookingRef: refByAppointment.get(f.appointment_id) ?? null,
+				isCurrent: f.appointment_id === currentAppointmentId,
+			}))
+			.sort((a, b) => b.date.getTime() - a.date.getTime());
+	}, [followUps, customerHistory, currentAppointmentId]);
+
+	const allCollapsed =
+		threads.length > 0 && threads.every((t) => collapsedIds.has(t.id));
+
+	const toggleCollapse = (id: string) =>
+		setCollapsedIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
+
+	const toggleAll = () => {
+		if (allCollapsed) setCollapsedIds(new Set());
+		else setCollapsedIds(new Set(threads.map((t) => t.id)));
+	};
+
+	const handleDelete = () => {
+		if (!deleteId) return;
+		startTransition(async () => {
+			try {
+				await deleteFollowUpAction(currentAppointmentId, deleteId);
+				setDeleteId(null);
+				onToast("Follow-up deleted", "success");
+				router.refresh();
+			} catch (err) {
+				onToast(
+					err instanceof Error ? err.message : "Could not delete follow-up",
+					"error",
+				);
+			}
+		});
+	};
+
+	return (
+		<aside className="sticky top-4 flex h-[calc(100vh-8rem)] w-[340px] shrink-0 flex-col overflow-hidden rounded-md border bg-card">
+			<div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
+				<div className="font-bold text-[12px] text-foreground tracking-wide">
+					FOLLOW-UPS
+				</div>
+				<div className="ml-auto flex items-center gap-1">
+					<div
+						title={`${threads.length} follow-up${threads.length === 1 ? "" : "s"}`}
+						className="flex h-7 items-center gap-1 rounded border border-violet-300 bg-violet-50 px-1.5 font-semibold text-[10px] text-violet-700"
+					>
+						<Layers className="size-[14px]" />
+						<span className="tabular-nums">{threads.length}</span>
+					</div>
+					<button
+						type="button"
+						aria-label={allCollapsed ? "Expand all" : "Collapse all"}
+						title={allCollapsed ? "Expand all" : "Collapse all"}
+						onClick={toggleAll}
+						disabled={threads.length === 0}
+						className="flex size-7 items-center justify-center rounded border border-border bg-muted/40 text-muted-foreground transition disabled:cursor-not-allowed disabled:opacity-40"
+					>
+						{allCollapsed ? (
+							<Maximize2 className="size-[14px]" />
+						) : (
+							<Minimize2 className="size-[14px]" />
+						)}
+					</button>
+					<button
+						type="button"
+						aria-label="Close history panel"
+						onClick={onClose}
+						className="flex size-7 items-center justify-center rounded text-muted-foreground transition hover:bg-muted"
+					>
+						<PanelLeftClose className="size-[14px]" />
+					</button>
+				</div>
+			</div>
+
+			<div className="flex-1 overflow-y-auto">
+				{threads.length === 0 ? (
+					<div className="p-5 text-center text-muted-foreground text-sm">
+						No follow-ups yet
+					</div>
+				) : (
+					threads.map((t) => (
+						<FollowUpRow
+							key={t.id}
+							item={t}
+							collapsed={collapsedIds.has(t.id)}
+							onToggle={() => toggleCollapse(t.id)}
+							onEdit={() => onEdit(t.followUp)}
+							onDelete={() => setDeleteId(t.followUp.id)}
+							onJump={
+								t.isCurrent
+									? undefined
+									: () => router.push(`/appointments/${t.appointmentId}`)
+							}
+						/>
+					))
+				)}
+			</div>
+
+			<ConfirmDialog
+				open={deleteId !== null}
+				onOpenChange={(o) => !o && setDeleteId(null)}
+				title="Delete this follow-up?"
+				description="This removes the follow-up permanently."
+				confirmLabel="Delete"
+				pending={pending}
+				onConfirm={handleDelete}
+			/>
+		</aside>
+	);
+}
+
+function FollowUpRow({
+	item,
+	collapsed,
+	onToggle,
+	onEdit,
+	onDelete,
+	onJump,
+}: {
+	item: FollowUpThread;
+	collapsed: boolean;
+	onToggle: () => void;
+	onEdit: () => void;
+	onDelete: () => void;
+	onJump?: () => void;
+}) {
+	const f = item.followUp;
+	const ReminderIcon = f.reminder_method === "whatsapp" ? MessageSquare : Phone;
+	const reminderLabel = f.reminder_method === "whatsapp" ? "WhatsApp" : "Call";
+	const reminderEmp = reminderEmployeeLabel(f);
+	return (
+		<div
+			className={cn(
+				"border-b border-border/60 px-3.5 py-2.5",
+				item.isCurrent && "border-l-[3px] border-l-violet-600 bg-violet-50/40",
+			)}
+		>
+			<div className="flex items-start justify-between gap-2">
+				<div>
+					<div className="flex items-center gap-1.5">
+						<BellRing className="size-[12px] text-violet-600" />
+						<span className="font-bold text-[12px] text-foreground">
+							{formatDayMonthYear(item.date)}
+						</span>
+						{item.isCurrent && (
+							<span className="rounded bg-violet-600 px-1.5 py-[1px] font-bold text-[9px] text-white">
+								CURRENT
+							</span>
+						)}
+					</div>
+					<div className="mt-0.5 text-[11px] text-muted-foreground">
+						{formatWeekdayTime(item.date)}
+					</div>
+				</div>
+				<div className="flex items-center gap-1">
+					<button
+						type="button"
+						onClick={onEdit}
+						aria-label="Edit follow-up"
+						className="flex size-[22px] items-center justify-center rounded-full bg-emerald-500 text-white transition hover:bg-emerald-600"
+					>
+						<Pencil className="size-[11px]" />
+					</button>
+					<button
+						type="button"
+						onClick={onDelete}
+						aria-label="Delete follow-up"
+						className="flex size-[22px] items-center justify-center rounded-full bg-rose-500 text-white transition hover:bg-rose-600"
+					>
+						<Trash2 className="size-[11px]" />
+					</button>
+				</div>
+			</div>
+			{item.bookingRef && (
+				<button
+					type="button"
+					onClick={onJump}
+					disabled={!onJump}
+					className="mt-1 block text-left font-bold text-[10px] text-foreground tabular-nums hover:underline disabled:cursor-default disabled:no-underline"
+				>
+					{item.bookingRef}
+				</button>
+			)}
+			<button
+				type="button"
+				aria-expanded={!collapsed}
+				onClick={onToggle}
+				className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+			>
+				{collapsed ? (
+					<ChevronDown className="size-[11px]" />
+				) : (
+					<ChevronUp className="size-[11px]" />
+				)}
+				<span>{collapsed ? "Show" : "Hide"} details</span>
+			</button>
+			{!collapsed && (
+				<>
+					<p className="mt-1 whitespace-pre-wrap break-words text-[11px] text-muted-foreground leading-snug">
+						{f.content === "" ? (
+							<span className="text-muted-foreground/50">(empty)</span>
+						) : (
+							f.content
+						)}
+					</p>
+					{f.has_reminder && f.reminder_date && (
+						<div
+							className={cn(
+								"mt-2 flex items-start gap-1.5 rounded border px-2 py-1.5 text-[10px]",
+								f.reminder_done
+									? "border-emerald-200 bg-emerald-50 text-emerald-700"
+									: "border-amber-200 bg-amber-50 text-amber-800",
+							)}
+						>
+							<ReminderIcon className="mt-[1px] size-[11px] shrink-0" />
+							<div className="flex-1">
+								<div className="font-semibold">
+									{reminderLabel} · {formatReminderDate(f.reminder_date)}
+									{f.reminder_done && " · done"}
+								</div>
+								{reminderEmp && (
+									<div className="mt-px text-[9px] opacity-80">
+										Assigned to {reminderEmp}
+									</div>
+								)}
+							</div>
+						</div>
+					)}
+				</>
+			)}
+			<div className="mt-1.5 text-[9px] text-muted-foreground/80">
+				Last updated by: {followUpAuthorLabel(f)}
 			</div>
 		</div>
 	);

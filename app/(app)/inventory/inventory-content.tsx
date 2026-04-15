@@ -8,15 +8,17 @@ import {
 	listSuppliers,
 	listUoms,
 } from "@/lib/services/inventory";
+import { listTaxes } from "@/lib/services/taxes";
 
 export async function InventoryContent() {
 	const ctx = await getServerContext();
-	const [items, uoms, brands, categories, suppliers] = await Promise.all([
+	const [items, uoms, brands, categories, suppliers, taxes] = await Promise.all([
 		listInventoryItems(ctx),
 		listUoms(ctx),
 		listBrands(ctx),
 		listCategories(ctx),
 		listSuppliers(ctx),
+		listTaxes(ctx),
 	]);
 
 	return (
@@ -30,6 +32,7 @@ export async function InventoryContent() {
 					brands={brands}
 					categories={categories}
 					suppliers={suppliers}
+					taxes={taxes}
 				/>
 			</div>
 			<ItemsTable
@@ -38,6 +41,7 @@ export async function InventoryContent() {
 				brands={brands}
 				categories={categories}
 				suppliers={suppliers}
+				taxes={taxes}
 			/>
 		</div>
 	);

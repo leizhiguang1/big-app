@@ -8,7 +8,10 @@ import {
 	listAppointmentsForRange,
 } from "@/lib/services/appointments";
 import { listCustomers } from "@/lib/services/customers";
-import { listBookableEmployeesForOutlet } from "@/lib/services/employee-shifts";
+import {
+	listBookableEmployeesForOutlet,
+	listShiftsForRange,
+} from "@/lib/services/employee-shifts";
 import { listEmployees } from "@/lib/services/employees";
 import { listOutlets, listRooms } from "@/lib/services/outlets";
 import { listServices } from "@/lib/services/services";
@@ -96,19 +99,32 @@ export async function AppointmentsContent({
 
 	const range = monthGridRange(dateStr);
 
-	const [appointmentsRaw, customers, employees, rooms, services, allEmployees] =
-		await Promise.all([
-			listAppointmentsForRange(ctx, {
-				outletId,
-				from: localDateIso(range.from),
-				to: localDateIso(range.to),
-			}),
-			listCustomers(ctx),
-			listBookableEmployeesForOutlet(ctx, outletId),
-			listRooms(ctx, outletId),
-			listServices(ctx),
-			listEmployees(ctx),
-		]);
+	const rangeFromMinus1 = addDays(range.from, -1);
+	const [
+		appointmentsRaw,
+		customers,
+		employees,
+		rooms,
+		services,
+		allEmployees,
+		shifts,
+	] = await Promise.all([
+		listAppointmentsForRange(ctx, {
+			outletId,
+			from: localDateIso(range.from),
+			to: localDateIso(range.to),
+		}),
+		listCustomers(ctx),
+		listBookableEmployeesForOutlet(ctx, outletId),
+		listRooms(ctx, outletId),
+		listServices(ctx),
+		listEmployees(ctx),
+		listShiftsForRange(ctx, {
+			outletId,
+			from: fmtDate(rangeFromMinus1),
+			to: fmtDate(range.to),
+		}),
+	]);
 
 	const activeRooms = rooms.filter((r) => r.is_active);
 	const appointments = applyResourceFilter(appointmentsRaw, resource);
@@ -126,6 +142,7 @@ export async function AppointmentsContent({
 			rooms={activeRooms}
 			services={services.filter((s) => s.is_active)}
 			allEmployees={allEmployees.filter((e) => e.is_active)}
+			shifts={shifts}
 		/>
 	);
 }

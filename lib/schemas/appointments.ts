@@ -190,20 +190,69 @@ export type ConvertLeadInput = z.infer<typeof convertLeadInputSchema>;
 export const LINE_ITEM_TYPES = ["service", "product", "charge"] as const;
 export type LineItemType = (typeof LINE_ITEM_TYPES)[number];
 
-export const lineItemInputSchema = z.object({
-	appointment_id: z.string().uuid(),
-	item_type: z.enum(LINE_ITEM_TYPES),
-	service_id: z.string().uuid("Service is required"),
-	description: z.string().trim().min(1, "Description is required").max(200),
-	quantity: z.coerce.number().positive("Quantity must be > 0"),
-	unit_price: z.coerce.number().min(0, "Price cannot be negative"),
-	notes: z
-		.string()
-		.trim()
-		.max(500)
-		.nullish()
-		.transform((v) => (v && v.length > 0 ? v : null)),
-});
+// Polymorphic by `item_type`:
+//   service → service_id required, product_id must be null
+//   product → product_id required, service_id must be null
+//   charge  → both null (ad-hoc charges like a consultation fee)
+// Matches the DB CHECK constraint `appointment_line_items_type_ref_check`.
+export const lineItemInputSchema = z
+	.object({
+		appointment_id: z.string().uuid(),
+		item_type: z.enum(LINE_ITEM_TYPES),
+		service_id: z.string().uuid().nullish(),
+		product_id: z.string().uuid().nullish(),
+		description: z.string().trim().min(1, "Description is required").max(200),
+		quantity: z.coerce.number().positive("Quantity must be > 0"),
+		unit_price: z.coerce.number().min(0, "Price cannot be negative"),
+		tax_id: z.string().uuid().nullish(),
+		notes: z
+			.string()
+			.trim()
+			.max(500)
+			.nullish()
+			.transform((v) => (v && v.length > 0 ? v : null)),
+	})
+	.superRefine((d, ctx) => {
+		if (d.item_type === "service") {
+			if (!d.service_id) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["service_id"],
+					message: "Service is required",
+				});
+			}
+			if (d.product_id) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["product_id"],
+					message: "Service line items cannot reference a product",
+				});
+			}
+		} else if (d.item_type === "product") {
+			if (!d.product_id) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["product_id"],
+					message: "Product is required",
+				});
+			}
+			if (d.service_id) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["service_id"],
+					message: "Product line items cannot reference a service",
+				});
+			}
+		} else {
+			if (d.service_id || d.product_id) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["item_type"],
+					message: "Charge line items cannot reference a service or product",
+				});
+			}
+		}
+	});
 export type LineItemInput = z.infer<typeof lineItemInputSchema>;
 
 // ─── Line item child records: hands-on incentives ──────────────────────────

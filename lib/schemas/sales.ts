@@ -19,12 +19,14 @@ export const SALES_PAYMENT_MODE_LABEL: Record<SalesPaymentMode, string> = {
 
 export const collectPaymentItemSchema = z.object({
 	service_id: z.string().uuid().nullable(),
+	inventory_item_id: z.string().uuid().nullable(),
 	sku: z.string().nullable(),
 	item_name: z.string().trim().min(1, "Item name is required").max(200),
 	item_type: z.enum(["service", "product", "charge"]).default("service"),
 	quantity: z.coerce.number().positive("Quantity must be > 0"),
 	unit_price: z.coerce.number().min(0, "Price cannot be negative"),
 	discount: z.coerce.number().min(0).default(0),
+	tax_id: z.string().uuid().nullable(),
 });
 export type CollectPaymentItem = z.infer<typeof collectPaymentItemSchema>;
 

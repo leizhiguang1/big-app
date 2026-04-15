@@ -5,6 +5,11 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { deletePasscodeAction } from "@/lib/actions/passcodes";
 import {
 	PASSCODE_FUNCTION_LABELS,
@@ -127,25 +132,35 @@ export function PasscodesTable({
 			align: "right",
 			cell: (p) => (
 				<div className="inline-flex gap-1">
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						onClick={() => setEditing(p)}
-						aria-label="Edit"
-					>
-						<Pencil />
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						onClick={() => {
-							setActionError(null);
-							setDeleting(p);
-						}}
-						aria-label="Delete"
-					>
-						<Trash2 />
-					</Button>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => setEditing(p)}
+								aria-label="Edit"
+							>
+								<Pencil />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Edit</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => {
+									setActionError(null);
+									setDeleting(p);
+								}}
+								aria-label="Delete"
+							>
+								<Trash2 />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Delete</TooltipContent>
+					</Tooltip>
 				</div>
 			),
 		},

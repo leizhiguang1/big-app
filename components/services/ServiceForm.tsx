@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ImageIcon } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { TaxesSelector } from "@/components/taxes/TaxesSelector";
 import { Button } from "@/components/ui/button";
 import { CreateButton } from "@/components/ui/create-button";
 import {
@@ -29,6 +30,7 @@ import type {
 	ServiceCategory,
 	ServiceWithCategory,
 } from "@/lib/services/services";
+import type { Tax } from "@/lib/services/taxes";
 import { DurationInput } from "./DurationInput";
 import { PhaseTwoSection } from "./PhaseTwoSection";
 
@@ -36,6 +38,7 @@ type Props = {
 	open: boolean;
 	service: ServiceWithCategory | null;
 	categories: ServiceCategory[];
+	taxes: Tax[];
 	onClose: () => void;
 };
 
@@ -56,12 +59,14 @@ const EMPTY: ServiceCreateInput = {
 	allow_redemption_without_payment: true,
 	allow_cash_price_range: false,
 	is_active: true,
+	tax_ids: [],
 };
 
 export function ServiceFormDialog({
 	open,
 	service,
 	categories,
+	taxes,
 	onClose,
 }: Props) {
 	const [pending, startTransition] = useTransition();
@@ -77,6 +82,7 @@ export function ServiceFormDialog({
 		if (open) {
 			const nextCap =
 				service?.discount_cap == null ? null : Number(service.discount_cap);
+			const defaultTaxIds = taxes.filter((t) => t.is_active).map((t) => t.id);
 			form.reset({
 				sku: service?.sku ?? "",
 				name: service?.name ?? "",
@@ -95,11 +101,12 @@ export function ServiceFormDialog({
 					service?.allow_redemption_without_payment ?? true,
 				allow_cash_price_range: service?.allow_cash_price_range ?? false,
 				is_active: service?.is_active ?? true,
+				tax_ids: service?.tax_ids ?? defaultTaxIds,
 			});
 			setDiscountCapEnabled(nextCap != null);
 			setServerError(null);
 		}
-	}, [open, service, form]);
+	}, [open, service, form, taxes]);
 
 	const onSubmit = form.handleSubmit((values) => {
 		const sanitized: ServiceCreateInput = {
@@ -425,17 +432,26 @@ export function ServiceFormDialog({
 							</div>
 						</PhaseTwoSection>
 
-						<PhaseTwoSection
-							title="Taxes"
-							hint="Per-outlet tax rules. Wired up with the tax module."
-						>
-							<select
-								disabled
-								className="h-9 w-full rounded-md border bg-background px-2.5 text-sm"
-							>
-								<option>— no tax —</option>
-							</select>
-						</PhaseTwoSection>
+						<section className="flex flex-col gap-3 rounded-md border p-4">
+							<div>
+								<h3 className="font-medium text-sm">Taxes</h3>
+								<p className="text-muted-foreground text-xs">
+									Available taxes for this service. Cashier picks one per line
+									item at billing time.
+								</p>
+							</div>
+							<Controller
+								control={form.control}
+								name="tax_ids"
+								render={({ field }) => (
+									<TaxesSelector
+										taxes={taxes}
+										value={field.value ?? []}
+										onChange={field.onChange}
+									/>
+								)}
+							/>
+						</section>
 
 						<PhaseTwoSection
 							title="Per-Outlet Pricing Overrides"
@@ -549,8 +565,10 @@ export function ServiceFormDialog({
 
 export function NewServiceButton({
 	categories,
+	taxes,
 }: {
 	categories: ServiceCategory[];
+	taxes: Tax[];
 }) {
 	const [open, setOpen] = useState(false);
 	return (
@@ -560,6 +578,7 @@ export function NewServiceButton({
 				open={open}
 				service={null}
 				categories={categories}
+				taxes={taxes}
 				onClose={() => setOpen(false)}
 			/>
 		</>

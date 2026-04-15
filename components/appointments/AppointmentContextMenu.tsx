@@ -116,28 +116,30 @@ export function AppointmentContextMenu({
 							...(subFlip.y ? { bottom: 0 } : { top: 0 }),
 						}}
 					>
-						{APPOINTMENT_STATUSES.map((key) => {
-							const cfg = APPOINTMENT_STATUS_CONFIG[key];
-							const Icon = cfg.Icon;
-							const active = visitKey === key;
-							return (
-								<button
-									key={key}
-									type="button"
-									onClick={() => {
-										onSetStatus(key);
-										onClose();
-									}}
-									className={cn(
-										"flex w-full items-center gap-2 px-3.5 py-1.5 text-left",
-										active ? cn(cfg.badge, "font-bold") : "hover:bg-muted",
-									)}
-								>
-									<Icon className="size-3.5 shrink-0" />
-									<span>{cfg.label}</span>
-								</button>
-							);
-						})}
+						{APPOINTMENT_STATUSES.filter((k) => k !== "completed").map(
+							(key) => {
+								const cfg = APPOINTMENT_STATUS_CONFIG[key];
+								const Icon = cfg.Icon;
+								const active = visitKey === key;
+								return (
+									<button
+										key={key}
+										type="button"
+										onClick={() => {
+											onSetStatus(key);
+											onClose();
+										}}
+										className={cn(
+											"flex w-full items-center gap-2 px-3.5 py-1.5 text-left",
+											active ? cn(cfg.badge, "font-bold") : "hover:bg-muted",
+										)}
+									>
+										<Icon className="size-3.5 shrink-0" />
+										<span>{cfg.label}</span>
+									</button>
+								);
+							},
+						)}
 					</div>
 				)}
 			</div>

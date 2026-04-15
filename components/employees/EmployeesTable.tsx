@@ -6,8 +6,14 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { deleteEmployeeAction } from "@/lib/actions/employees";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
+import type { OutletWithRoomCount } from "@/lib/services/outlets";
 import type { Position } from "@/lib/services/positions";
 import type { Role } from "@/lib/services/roles";
 import { mediaPublicUrl } from "@/lib/storage/urls";
@@ -17,6 +23,7 @@ type Props = {
 	employees: EmployeeWithRelations[];
 	roles: Role[];
 	positions: Position[];
+	outlets: OutletWithRoomCount[];
 };
 
 function FlagBadge({ on, label }: { on: boolean; label: string }) {
@@ -34,7 +41,7 @@ function FlagBadge({ on, label }: { on: boolean; label: string }) {
 	);
 }
 
-export function EmployeesTable({ employees, roles, positions }: Props) {
+export function EmployeesTable({ employees, roles, positions, outlets }: Props) {
 	const [editing, setEditing] = useState<EmployeeWithRelations | null>(null);
 	const [deleting, setDeleting] = useState<EmployeeWithRelations | null>(null);
 	const [actionError, setActionError] = useState<string | null>(null);
@@ -165,25 +172,35 @@ export function EmployeesTable({ employees, roles, positions }: Props) {
 			align: "right",
 			cell: (e) => (
 				<div className="inline-flex gap-1">
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						onClick={() => setEditing(e)}
-						aria-label="Edit"
-					>
-						<Pencil />
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						onClick={() => {
-							setActionError(null);
-							setDeleting(e);
-						}}
-						aria-label="Delete"
-					>
-						<Trash2 />
-					</Button>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => setEditing(e)}
+								aria-label="Edit"
+							>
+								<Pencil />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Edit</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => {
+									setActionError(null);
+									setDeleting(e);
+								}}
+								aria-label="Delete"
+							>
+								<Trash2 />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Delete</TooltipContent>
+					</Tooltip>
 				</div>
 			),
 		},
@@ -205,6 +222,7 @@ export function EmployeesTable({ employees, roles, positions }: Props) {
 				employee={editing}
 				roles={roles}
 				positions={positions}
+				outlets={outlets}
 				onClose={() => setEditing(null)}
 			/>
 			<ConfirmDialog

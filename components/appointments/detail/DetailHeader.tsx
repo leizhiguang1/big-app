@@ -12,6 +12,11 @@ import { useState, useTransition } from "react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { deleteAppointmentAction } from "@/lib/actions/appointments";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 
@@ -84,25 +89,31 @@ export function DetailHeader({
 							</div>
 						</div>
 						{onToggleSummaryCollapse && (
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon"
-								className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
-								onClick={onToggleSummaryCollapse}
-								title={summaryCollapsed ? "Expand" : "Collapse"}
-								aria-label={
-									summaryCollapsed
-										? "Expand customer and appointment summary"
-										: "Collapse customer and appointment summary"
-								}
-							>
-								{summaryCollapsed ? (
-									<ChevronDown className="size-4" />
-								) : (
-									<ChevronUp className="size-4" />
-								)}
-							</Button>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon"
+										className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+										onClick={onToggleSummaryCollapse}
+										aria-label={
+											summaryCollapsed
+												? "Expand customer and appointment summary"
+												: "Collapse customer and appointment summary"
+										}
+									>
+										{summaryCollapsed ? (
+											<ChevronDown className="size-4" />
+										) : (
+											<ChevronUp className="size-4" />
+										)}
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent>
+									{summaryCollapsed ? "Expand summary" : "Collapse summary"}
+								</TooltipContent>
+							</Tooltip>
 						)}
 					</div>
 				</div>

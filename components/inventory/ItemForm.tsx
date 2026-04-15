@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { TaxesSelector } from "@/components/taxes/TaxesSelector";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -17,8 +18,8 @@ import {
 } from "@/lib/actions/inventory";
 import {
 	consumableCreateSchema,
-	type InventoryKind,
 	INVENTORY_KIND_LABELS,
+	type InventoryKind,
 	medicationCreateSchema,
 	productCreateSchema,
 } from "@/lib/schemas/inventory";
@@ -29,6 +30,7 @@ import type {
 	InventoryUom,
 	Supplier,
 } from "@/lib/services/inventory";
+import type { Tax } from "@/lib/services/taxes";
 
 type FormState = {
 	sku: string;
@@ -61,6 +63,7 @@ type FormState = {
 	prescription_reason: string;
 	prescription_notes: string;
 	prescription_default_billing_qty: string;
+	tax_ids: string[];
 };
 
 const EMPTY: FormState = {
@@ -94,6 +97,7 @@ const EMPTY: FormState = {
 	prescription_reason: "",
 	prescription_notes: "",
 	prescription_default_billing_qty: "1",
+	tax_ids: [],
 };
 
 function fromItem(item: InventoryItemWithRefs): FormState {
@@ -133,6 +137,7 @@ function fromItem(item: InventoryItemWithRefs): FormState {
 			item.prescription_default_billing_qty != null
 				? String(item.prescription_default_billing_qty)
 				: "1",
+		tax_ids: item.tax_ids ?? [],
 	};
 }
 
@@ -165,6 +170,7 @@ type Props = {
 	brands: InventoryBrand[];
 	categories: InventoryCategory[];
 	suppliers: Supplier[];
+	taxes: Tax[];
 	onClose: () => void;
 };
 
@@ -177,6 +183,7 @@ export function ItemFormDialog({
 	brands,
 	categories,
 	suppliers,
+	taxes,
 	onClose,
 }: Props) {
 	const [state, setState] = useState<FormState>(EMPTY);
@@ -186,11 +193,12 @@ export function ItemFormDialog({
 
 	useEffect(() => {
 		if (open) {
-			setState(item ? fromItem(item) : EMPTY);
+			const defaultTaxIds = taxes.filter((t) => t.is_active).map((t) => t.id);
+			setState(item ? fromItem(item) : { ...EMPTY, tax_ids: defaultTaxIds });
 			setServerError(null);
 			setFieldErrors({});
 		}
-	}, [open, item]);
+	}, [open, item, taxes]);
 
 	const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
 		setState((s) => ({ ...s, [key]: value }));
@@ -217,6 +225,7 @@ export function ItemFormDialog({
 			stock_alert_count: num(state.stock_alert_count),
 			discount_cap: nullableNum(state.discount_cap),
 			location: nullableStr(state.location),
+			tax_ids: state.tax_ids,
 		};
 
 		if (kind === "product") {
@@ -291,10 +300,8 @@ export function ItemFormDialog({
 		});
 	};
 
-	const stockUomLabel =
-		kind === "medication" ? "Storage UoM" : "Sales UoM";
-	const useUomLabel =
-		kind === "medication" ? "Dispensing UoM" : "Use UoM";
+	const stockUomLabel = kind === "medication" ? "Storage UoM" : "Sales UoM";
+	const useUomLabel = kind === "medication" ? "Dispensing UoM" : "Use UoM";
 
 	return (
 		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -374,7 +381,10 @@ export function ItemFormDialog({
 										value={state.brand_id}
 										onChange={(v) => set("brand_id", v)}
 										placeholder="— None —"
-										options={brands.map((b) => ({ value: b.id, label: b.name }))}
+										options={brands.map((b) => ({
+											value: b.id,
+											label: b.name,
+										}))}
 									/>
 								</Field>
 								<Field label="Category">
@@ -440,10 +450,7 @@ export function ItemFormDialog({
 							</Field>
 							{kind !== "product" && (
 								<>
-									<Field
-										label={useUomLabel}
-										error={fieldErrors.use_uom_id}
-									>
+									<Field label={useUomLabel} error={fieldErrors.use_uom_id}>
 										<SelectInput
 											value={state.use_uom_id}
 											onChange={(v) => set("use_uom_id", v)}
@@ -554,6 +561,18 @@ export function ItemFormDialog({
 							</Field>
 						</Section>
 
+						<Section title="Taxes">
+							<p className="text-muted-foreground text-xs">
+								Available taxes for this item. Cashier picks one per line item
+								at billing time.
+							</p>
+							<TaxesSelector
+								taxes={taxes}
+								value={state.tax_ids}
+								onChange={(next) => set("tax_ids", next)}
+							/>
+						</Section>
+
 						{kind === "medication" && (
 							<Section title="Prescription">
 								<div className="flex gap-6">
@@ -569,10 +588,7 @@ export function ItemFormDialog({
 									/>
 								</div>
 								<Two>
-									<Field
-										label="Dosage"
-										error={fieldErrors.prescription_dosage}
-									>
+									<Field label="Dosage" error={fieldErrors.prescription_dosage}>
 										<Input
 											type="number"
 											min={0.01}
@@ -624,24 +640,17 @@ export function ItemFormDialog({
 										/>
 									</Field>
 								</Two>
-								<Field
-									label="Reason"
-									error={fieldErrors.prescription_reason}
-								>
+								<Field label="Reason" error={fieldErrors.prescription_reason}>
 									<Input
 										value={state.prescription_reason}
-										onChange={(e) =>
-											set("prescription_reason", e.target.value)
-										}
+										onChange={(e) => set("prescription_reason", e.target.value)}
 										placeholder="EG: ANTIBIOTICS"
 									/>
 								</Field>
 								<Field label="Notes">
 									<Input
 										value={state.prescription_notes}
-										onChange={(e) =>
-											set("prescription_notes", e.target.value)
-										}
+										onChange={(e) => set("prescription_notes", e.target.value)}
 									/>
 								</Field>
 								<Field
@@ -654,10 +663,7 @@ export function ItemFormDialog({
 										step="0.01"
 										value={state.prescription_default_billing_qty}
 										onChange={(e) =>
-											set(
-												"prescription_default_billing_qty",
-												e.target.value,
-											)
+											set("prescription_default_billing_qty", e.target.value)
 										}
 									/>
 								</Field>

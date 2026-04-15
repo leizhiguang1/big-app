@@ -2,7 +2,10 @@
 
 import { Plus, Save, Search, X } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
-import { ServicePickerDialog } from "@/components/appointments/ServicePickerDialog";
+import {
+	BillingItemPickerDialog,
+	type BillingItemSelection,
+} from "@/components/appointments/BillingItemPickerDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,24 +13,32 @@ import {
 	deleteLineItemAction,
 	updateLineItemAction,
 } from "@/lib/actions/appointments";
+import type { LineItemType } from "@/lib/schemas/appointments";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
+import type { InventoryItemWithRefs } from "@/lib/services/inventory";
 import type { ServiceWithCategory } from "@/lib/services/services";
+import type { Tax } from "@/lib/services/taxes";
 
 type Props = {
 	appointmentId: string;
 	entries: AppointmentLineItem[];
 	services: ServiceWithCategory[];
+	products: InventoryItemWithRefs[];
+	taxes: Tax[];
 	onChange: () => void;
 };
 
 type Item = {
 	key: string;
 	id: string | null;
-	service_id: string;
+	item_type: LineItemType;
+	service_id: string | null;
+	product_id: string | null;
 	description: string;
 	quantity: number;
 	unit_price: number;
 	discount: number;
+	tax_id: string | null;
 	notes: string;
 };
 
@@ -35,11 +46,14 @@ function toItem(e: AppointmentLineItem): Item {
 	return {
 		key: e.id,
 		id: e.id,
-		service_id: e.service_id ?? "",
+		item_type: (e.item_type as LineItemType) ?? "service",
+		service_id: e.service_id ?? null,
+		product_id: e.product_id ?? null,
 		description: e.description,
 		quantity: Number(e.quantity),
 		unit_price: Number(e.unit_price),
 		discount: 0,
+		tax_id: e.tax_id ?? null,
 		notes: e.notes ?? "",
 	};
 }
@@ -48,13 +62,51 @@ function newDraft(): Item {
 	return {
 		key: crypto.randomUUID(),
 		id: null,
-		service_id: "",
+		item_type: "service",
+		service_id: null,
+		product_id: null,
 		description: "",
 		quantity: 1,
 		unit_price: 0,
 		discount: 0,
+		tax_id: null,
 		notes: "",
 	};
+}
+
+// Pick the default tax for a newly added line item: prefer "Local" when it's
+// in the parent's available list, otherwise the first available active tax.
+function defaultTaxForParent(
+	parentTaxIds: string[],
+	taxes: Tax[],
+): string | null {
+	if (parentTaxIds.length === 0) return null;
+	const available = taxes.filter(
+		(t) => t.is_active && parentTaxIds.includes(t.id),
+	);
+	if (available.length === 0) return null;
+	const local = available.find((t) => t.name.toLowerCase() === "local");
+	return (local ?? available[0]).id;
+}
+
+function computeLineTax(
+	lineAmount: number,
+	taxId: string | null,
+	taxes: Tax[],
+): { rate: number; amount: number } {
+	if (!taxId) return { rate: 0, amount: 0 };
+	const tax = taxes.find((t) => t.id === taxId);
+	if (!tax) return { rate: 0, amount: 0 };
+	const rate = Number(tax.rate_pct);
+	const safe = Math.max(0, lineAmount);
+	return { rate, amount: Math.round(safe * rate) / 100 };
+}
+
+function isReady(item: Item): boolean {
+	if (item.quantity <= 0) return false;
+	if (item.item_type === "service") return !!item.service_id;
+	if (item.item_type === "product") return !!item.product_id;
+	return false;
 }
 
 function isDirty(item: Item, entries: AppointmentLineItem[]): boolean {
@@ -65,7 +117,10 @@ function isDirty(item: Item, entries: AppointmentLineItem[]): boolean {
 		Number(orig.quantity) !== item.quantity ||
 		Number(orig.unit_price) !== item.unit_price ||
 		(orig.notes ?? "") !== item.notes ||
-		(orig.service_id ?? "") !== item.service_id
+		(orig.service_id ?? null) !== item.service_id ||
+		(orig.product_id ?? null) !== item.product_id ||
+		(orig.item_type ?? "service") !== item.item_type ||
+		(orig.tax_id ?? null) !== item.tax_id
 	);
 }
 
@@ -73,6 +128,8 @@ export function BillingSection({
 	appointmentId,
 	entries,
 	services,
+	products,
+	taxes,
 	onChange,
 }: Props) {
 	const [pending, startTransition] = useTransition();
@@ -89,14 +146,28 @@ export function BillingSection({
 	}, [entries]);
 
 	const serviceById = new Map(services.map((s) => [s.id, s]));
+	const productById = new Map(products.map((p) => [p.id, p]));
+
+	function parentTaxIdsFor(item: Item): string[] {
+		if (item.item_type === "service" && item.service_id) {
+			return serviceById.get(item.service_id)?.tax_ids ?? [];
+		}
+		if (item.item_type === "product" && item.product_id) {
+			return productById.get(item.product_id)?.tax_ids ?? [];
+		}
+		return [];
+	}
 
 	const totalQty = items.reduce((s, i) => s + i.quantity, 0);
 	const totalDiscount = items.reduce((s, i) => s + i.discount, 0);
 	const subtotal = items.reduce(
-		(s, i) => s + i.quantity * i.unit_price - i.discount,
+		(s, i) => s + Math.max(0, i.quantity * i.unit_price - i.discount),
 		0,
 	);
-	const totalTax = 0;
+	const totalTax = items.reduce((s, i) => {
+		const lineAmount = i.quantity * i.unit_price - i.discount;
+		return s + computeLineTax(lineAmount, i.tax_id, taxes).amount;
+	}, 0);
 	const total = subtotal + totalTax;
 
 	const update = (key: string, patch: Partial<Item>) =>
@@ -104,12 +175,28 @@ export function BillingSection({
 			rows.map((r) => (r.key === key ? { ...r, ...patch } : r)),
 		);
 
-	const onPickService = (key: string, svc: ServiceWithCategory) => {
-		update(key, {
-			service_id: svc.id,
-			description: svc.name,
-			unit_price: Number(svc.price),
-		});
+	const onPick = (key: string, selection: BillingItemSelection) => {
+		if (selection.type === "service") {
+			const svc = selection.service;
+			update(key, {
+				item_type: "service",
+				service_id: svc.id,
+				product_id: null,
+				description: svc.name,
+				unit_price: Number(svc.price),
+				tax_id: defaultTaxForParent(svc.tax_ids ?? [], taxes),
+			});
+		} else {
+			const prod = selection.product;
+			update(key, {
+				item_type: "product",
+				product_id: prod.id,
+				service_id: null,
+				description: prod.name,
+				unit_price: Number(prod.selling_price ?? 0),
+				tax_id: defaultTaxForParent(prod.tax_ids ?? [], taxes),
+			});
+		}
 	};
 
 	const onAddRow = () => {
@@ -136,38 +223,37 @@ export function BillingSection({
 		});
 	};
 
-	const newCreates = items.filter(
-		(i) => i.id === null && i.service_id && i.quantity > 0,
-	);
+	const newCreates = items.filter((i) => i.id === null && isReady(i));
 	const dirtyEdits = items.filter((i) => isDirty(i, entries));
 	const canSave = (newCreates.length > 0 || dirtyEdits.length > 0) && !pending;
 
 	const onSave = () => {
 		setError(null);
 		const sharedNote = batchNote.trim() || null;
-		const creates = newCreates.map((i) => {
-			const svc = serviceById.get(i.service_id);
-			return {
-				appointment_id: appointmentId,
-				item_type: "service" as const,
-				service_id: i.service_id,
-				description: svc?.name ?? i.description ?? "Service",
-				quantity: i.quantity,
-				unit_price: i.unit_price,
-				notes: i.notes || sharedNote,
-			};
-		});
+		const creates = newCreates.map((i) => ({
+			appointment_id: appointmentId,
+			item_type: i.item_type,
+			service_id: i.item_type === "service" ? i.service_id : null,
+			product_id: i.item_type === "product" ? i.product_id : null,
+			description: i.description || fallbackDescription(i),
+			quantity: i.quantity,
+			unit_price: i.unit_price,
+			tax_id: i.tax_id,
+			notes: i.notes || sharedNote,
+		}));
 
 		startTransition(async () => {
 			try {
 				for (const i of dirtyEdits) {
 					await updateLineItemAction(appointmentId, i.id!, {
 						appointment_id: appointmentId,
-						item_type: "service",
-						service_id: i.service_id,
-						description: i.description || "Service",
+						item_type: i.item_type,
+						service_id: i.item_type === "service" ? i.service_id : null,
+						product_id: i.item_type === "product" ? i.product_id : null,
+						description: i.description || fallbackDescription(i),
 						quantity: i.quantity,
 						unit_price: i.unit_price,
+						tax_id: i.tax_id,
 						notes: i.notes || null,
 					});
 				}
@@ -184,6 +270,15 @@ export function BillingSection({
 	};
 
 	const activePickerItem = items.find((i) => i.key === pickerKey) ?? null;
+	const activePickerSelected: React.ComponentProps<
+		typeof BillingItemPickerDialog
+	>["selected"] = activePickerItem
+		? activePickerItem.item_type === "service" && activePickerItem.service_id
+			? { type: "service", id: activePickerItem.service_id }
+			: activePickerItem.item_type === "product" && activePickerItem.product_id
+				? { type: "product", id: activePickerItem.product_id }
+				: null
+		: null;
 
 	return (
 		<div className="flex flex-col gap-4 rounded-md border bg-card p-4">
@@ -202,20 +297,39 @@ export function BillingSection({
 					disabled={pending}
 				>
 					<Plus className="size-3.5" />
-					Add service
+					Add item
 				</Button>
 			</div>
 
 			<div className="flex flex-col gap-2.5">
 				{items.length === 0 && (
 					<div className="rounded-md border border-dashed p-8 text-center text-muted-foreground text-sm">
-						No billing items yet. Click <b>Add service</b> to start.
+						No billing items yet. Click <b>Add item</b> to start.
 					</div>
 				)}
 
 				{items.map((item) => {
-					const svc = item.service_id ? serviceById.get(item.service_id) : null;
-					const lineTotal = item.quantity * item.unit_price - item.discount;
+					const svc =
+						item.item_type === "service" && item.service_id
+							? serviceById.get(item.service_id)
+							: null;
+					const prod =
+						item.item_type === "product" && item.product_id
+							? productById.get(item.product_id)
+							: null;
+					const lineAmount = item.quantity * item.unit_price - item.discount;
+					const lineTotal = Math.max(0, lineAmount);
+					const lineTaxIds = parentTaxIdsFor(item);
+					const lineTaxes = taxes.filter(
+						(t) => t.is_active && lineTaxIds.includes(t.id),
+					);
+					const currentTax =
+						lineTaxes.find((t) => t.id === item.tax_id) ?? null;
+					const lineTaxAmount = computeLineTax(
+						lineAmount,
+						item.tax_id,
+						taxes,
+					).amount;
 					return (
 						<div
 							key={item.key}
@@ -228,29 +342,51 @@ export function BillingSection({
 									className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left transition hover:bg-muted/60"
 								>
 									{svc ? (
-										<>
-											<div className="flex min-w-0 flex-col">
-												<div className="flex items-center gap-2">
-													<span className="truncate font-semibold text-sm">
-														{svc.name}
-													</span>
-													<span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-														{svc.sku}
-													</span>
-												</div>
-												<div className="flex items-center gap-2 text-muted-foreground text-xs">
-													{svc.category?.name && (
-														<span>{svc.category.name}</span>
-													)}
-													<span>·</span>
-													<span>{svc.duration_min} min</span>
-												</div>
+										<div className="flex min-w-0 flex-col">
+											<div className="flex items-center gap-2">
+												<span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 font-semibold text-[10px] text-primary uppercase">
+													Service
+												</span>
+												<span className="truncate font-semibold text-sm">
+													{svc.name}
+												</span>
+												<span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+													{svc.sku}
+												</span>
 											</div>
-										</>
+											<div className="flex items-center gap-2 text-muted-foreground text-xs">
+												{svc.category?.name && <span>{svc.category.name}</span>}
+												<span>·</span>
+												<span>{svc.duration_min} min</span>
+											</div>
+										</div>
+									) : prod ? (
+										<div className="flex min-w-0 flex-col">
+											<div className="flex items-center gap-2">
+												<span className="shrink-0 rounded bg-emerald-500/10 px-1.5 py-0.5 font-semibold text-[10px] text-emerald-600 uppercase dark:text-emerald-400">
+													Product
+												</span>
+												<span className="truncate font-semibold text-sm">
+													{prod.name}
+												</span>
+												<span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+													{prod.sku}
+												</span>
+											</div>
+											<div className="flex items-center gap-2 text-muted-foreground text-xs">
+												{prod.brand?.name && <span>{prod.brand.name}</span>}
+												{prod.category?.name && (
+													<>
+														<span>·</span>
+														<span>{prod.category.name}</span>
+													</>
+												)}
+											</div>
+										</div>
 									) : (
 										<span className="flex items-center gap-1.5 text-muted-foreground text-sm">
 											<Search className="size-3.5" />
-											Pick a service…
+											Pick a service or product…
 										</span>
 									)}
 								</button>
@@ -314,6 +450,39 @@ export function BillingSection({
 										{lineTotal.toFixed(2)}
 									</div>
 								</Field>
+							</div>
+
+							<div className="flex flex-wrap items-center gap-2 text-xs">
+								<span className="text-muted-foreground">Tax</span>
+								{lineTaxes.length === 0 ? (
+									<span className="text-muted-foreground italic">
+										No taxes configured for this item
+									</span>
+								) : (
+									<select
+										value={item.tax_id ?? ""}
+										onChange={(e) =>
+											update(item.key, {
+												tax_id: e.target.value === "" ? null : e.target.value,
+											})
+										}
+										className="h-7 rounded-full border bg-background px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+										aria-label="Tax for this line item"
+									>
+										<option value="">— No tax —</option>
+										{lineTaxes.map((t) => (
+											<option key={t.id} value={t.id}>
+												({t.name.toUpperCase()}) {Number(t.rate_pct).toFixed(2)}
+												%
+											</option>
+										))}
+									</select>
+								)}
+								{currentTax && (
+									<span className="text-muted-foreground tabular-nums">
+										Tax Amount (MYR): {lineTaxAmount.toFixed(2)}
+									</span>
+								)}
 							</div>
 
 							<Field label="Remarks">
@@ -381,17 +550,24 @@ export function BillingSection({
 
 			{error && <p className="text-destructive text-xs">{error}</p>}
 
-			<ServicePickerDialog
+			<BillingItemPickerDialog
 				open={pickerKey !== null}
 				onOpenChange={(o) => !o && setPickerKey(null)}
 				services={services}
-				selectedId={activePickerItem?.service_id ?? null}
-				onSelect={(svc) => {
-					if (pickerKey) onPickService(pickerKey, svc);
+				products={products}
+				selected={activePickerSelected}
+				onSelect={(sel) => {
+					if (pickerKey) onPick(pickerKey, sel);
 				}}
 			/>
 		</div>
 	);
+}
+
+function fallbackDescription(i: Item): string {
+	if (i.item_type === "service") return "Service";
+	if (i.item_type === "product") return "Product";
+	return "Charge";
 }
 
 function Field({

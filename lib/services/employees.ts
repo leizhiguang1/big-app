@@ -5,13 +5,19 @@ import type { Tables } from "@/lib/supabase/types";
 
 export type Employee = Tables<"employees">;
 
+export type EmployeeOutletLink = {
+	outlet_id: string;
+	is_primary: boolean;
+};
+
 export type EmployeeWithRelations = Employee & {
 	role: { id: string; name: string } | null;
 	position: { id: string; name: string } | null;
+	outlets: EmployeeOutletLink[];
 };
 
 const SELECT_WITH_RELATIONS =
-	"*, role:roles(id, name), position:positions(id, name)";
+	"*, role:roles(id, name), position:positions(id, name), outlets:employee_outlets(outlet_id, is_primary)";
 
 const FOREVER_BAN = "876000h";
 
@@ -42,42 +48,76 @@ export async function getEmployee(
 function normalize(input: unknown) {
 	const p = employeeInputSchema.parse(input);
 	const nz = (v: string | undefined | null) => (v && v.length > 0 ? v : null);
+	const outletIds = Array.from(new Set(p.outlet_ids ?? []));
+	const primaryOutletId =
+		p.primary_outlet_id && outletIds.includes(p.primary_outlet_id)
+			? p.primary_outlet_id
+			: (outletIds[0] ?? null);
 	return {
-		id: p.id,
-		salutation: nz(p.salutation),
-		first_name: p.first_name,
-		last_name: p.last_name,
-		gender: p.gender ?? null,
-		date_of_birth: nz(p.date_of_birth),
-		profile_image_path: p.profile_image_path ?? null,
-		id_type: p.id_type,
-		id_number: nz(p.id_number),
-		email: p.email,
-		phone: nz(p.phone),
-		phone2: nz(p.phone2),
-		role_id: p.role_id || null,
-		position_id: p.position_id || null,
-		start_date: nz(p.start_date),
-		appointment_sequencing:
-			typeof p.appointment_sequencing === "number"
-				? p.appointment_sequencing
-				: null,
-		monthly_sales_target: p.monthly_sales_target,
-		is_bookable: p.is_bookable,
-		is_online_bookable: p.is_online_bookable,
-		web_login_enabled: p.web_login_enabled,
-		mfa_enabled: p.mfa_enabled,
-		mobile_app_enabled: p.mobile_app_enabled,
-		address1: nz(p.address1),
-		address2: nz(p.address2),
-		address3: nz(p.address3),
-		postcode: nz(p.postcode),
-		city: nz(p.city),
-		state: nz(p.state),
-		country: nz(p.country),
-		language: nz(p.language),
-		is_active: p.is_active,
+		row: {
+			id: p.id,
+			salutation: nz(p.salutation),
+			first_name: p.first_name,
+			last_name: p.last_name,
+			gender: p.gender ?? null,
+			date_of_birth: nz(p.date_of_birth),
+			profile_image_path: p.profile_image_path ?? null,
+			id_type: p.id_type,
+			id_number: nz(p.id_number),
+			email: p.email,
+			phone: nz(p.phone),
+			phone2: nz(p.phone2),
+			role_id: p.role_id || null,
+			position_id: p.position_id || null,
+			start_date: nz(p.start_date),
+			appointment_sequencing:
+				typeof p.appointment_sequencing === "number"
+					? p.appointment_sequencing
+					: null,
+			monthly_sales_target: p.monthly_sales_target,
+			is_bookable: p.is_bookable,
+			is_online_bookable: p.is_online_bookable,
+			web_login_enabled: p.web_login_enabled,
+			mfa_enabled: p.mfa_enabled,
+			mobile_app_enabled: p.mobile_app_enabled,
+			address1: nz(p.address1),
+			address2: nz(p.address2),
+			address3: nz(p.address3),
+			postcode: nz(p.postcode),
+			city: nz(p.city),
+			state: nz(p.state),
+			country: nz(p.country),
+			language: nz(p.language),
+			is_active: p.is_active,
+		},
+		outletIds,
+		primaryOutletId,
 	};
+}
+
+async function replaceEmployeeOutlets(
+	ctx: Context,
+	employeeId: string,
+	outletIds: string[],
+	primaryOutletId: string | null,
+): Promise<void> {
+	const { error: delError } = await ctx.db
+		.from("employee_outlets")
+		.delete()
+		.eq("employee_id", employeeId);
+	if (delError) throw new ValidationError(delError.message);
+
+	if (outletIds.length === 0) return;
+
+	const rows = outletIds.map((outlet_id) => ({
+		employee_id: employeeId,
+		outlet_id,
+		is_primary: outlet_id === primaryOutletId,
+	}));
+	const { error: insError } = await ctx.db
+		.from("employee_outlets")
+		.insert(rows);
+	if (insError) throw new ValidationError(insError.message);
 }
 
 async function createAuthUser(
@@ -133,7 +173,7 @@ export async function createEmployee(
 	input: unknown,
 	password?: string,
 ): Promise<Employee> {
-	const row = normalize(input);
+	const { row, outletIds, primaryOutletId } = normalize(input);
 
 	let authUserId: string | null = null;
 	if (row.web_login_enabled) {
@@ -165,6 +205,15 @@ export async function createEmployee(
 			throw new ConflictError("An employee with that email already exists");
 		throw new ValidationError(error.message);
 	}
+
+	try {
+		await replaceEmployeeOutlets(ctx, data.id, outletIds, primaryOutletId);
+	} catch (err) {
+		await ctx.db.from("employees").delete().eq("id", data.id);
+		if (authUserId) await deleteAuthUser(ctx, authUserId);
+		throw err;
+	}
+
 	return data;
 }
 
@@ -174,7 +223,7 @@ export async function updateEmployee(
 	input: unknown,
 	password?: string,
 ): Promise<Employee> {
-	const row = normalize(input);
+	const { row, outletIds, primaryOutletId } = normalize(input);
 
 	const { data: existing, error: fetchError } = await ctx.db
 		.from("employees")
@@ -254,6 +303,9 @@ export async function updateEmployee(
 		throw new ValidationError(error.message);
 	}
 	if (!data) throw new NotFoundError(`Employee ${id} not found`);
+
+	await replaceEmployeeOutlets(ctx, id, outletIds, primaryOutletId);
+
 	return data;
 }
 

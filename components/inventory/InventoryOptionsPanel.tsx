@@ -15,6 +15,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
 	createBrandAction,
 	createCategoryAction,
 	createSupplierAction,
@@ -363,25 +368,35 @@ function SuppliersPanel({
 			align: "right",
 			cell: (s) => (
 				<div className="flex justify-end gap-1">
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						onClick={() => setEditing(s)}
-						aria-label="Edit"
-					>
-						<Pencil />
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						onClick={() => {
-							setDeleteError(null);
-							setDeleting(s);
-						}}
-						aria-label="Delete"
-					>
-						<Trash2 />
-					</Button>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => setEditing(s)}
+								aria-label="Edit"
+							>
+								<Pencil />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Edit</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => {
+									setDeleteError(null);
+									setDeleting(s);
+								}}
+								aria-label="Delete"
+							>
+								<Trash2 />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Delete</TooltipContent>
+					</Tooltip>
 				</div>
 			),
 		},
@@ -513,22 +528,32 @@ function Row({
 			</div>
 			<div className="text-muted-foreground text-xs">{right}</div>
 			<div className="flex gap-1">
-				<Button
-					variant="ghost"
-					size="icon-sm"
-					onClick={onEdit}
-					aria-label="Edit"
-				>
-					<Pencil />
-				</Button>
-				<Button
-					variant="ghost"
-					size="icon-sm"
-					onClick={onDelete}
-					aria-label="Delete"
-				>
-					<Trash2 />
-				</Button>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							onClick={onEdit}
+							aria-label="Edit"
+						>
+							<Pencil />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Edit</TooltipContent>
+				</Tooltip>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							onClick={onDelete}
+							aria-label="Delete"
+						>
+							<Trash2 />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Delete</TooltipContent>
+				</Tooltip>
 			</div>
 		</li>
 	);

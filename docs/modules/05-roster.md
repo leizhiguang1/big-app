@@ -101,7 +101,11 @@ No status machine. A shift either exists or it doesn't. To "cancel" a shift, del
 - **Cell expansion** is client-side: `RosterGrid` calls `shiftCoversDate(shift, date)` for each (employee, day) cell. A weekly shift covers a date iff the date is on or after `shift_date`, on or before `repeat_end` (or `repeat_end IS NULL`), and the day-difference is divisible by 7.
 - An employee who is `is_bookable = false` or `is_active = false` is hidden from the grid entirely.
 - Deleting a shift does not affect already-booked appointments — the appointment row keeps its employee FK; only future bookings respect the updated roster.
-- The appointment calendar reads roster as a **soft filter** — staff can force-book an unrostered employee; the UI just warns.
+- The appointment calendar reads roster as a **soft filter**:
+  - In the **New/Edit Appointment dialog**, the employee picker only lists staff whose shifts cover the proposed `start_at`/`end_at` window. An employee already assigned to the appointment stays in the list with a `(not rostered)` suffix so edits don't silently drop the assignment.
+  - On **calendar drag/drop reschedule**, the action always succeeds — if the new window falls outside the assigned employee's shifts, a toast warns *"Rescheduled — {Name} is not rostered for this time."*
+  - Availability is computed client-side via `isWindowCoveredByShifts` in `lib/roster/week.ts`, against the pre-fetched `employee_shifts` set for the visible range. No extra server round-trip.
+  - Breaks are **not** enforced in v1. `breaks` JSONB is display-only.
 
 ## v1 scope notes
 
@@ -118,7 +122,7 @@ No status machine. A shift either exists or it doesn't. To "cancel" a shift, del
 |---------------|-------------|---------|
 | Employees | shift → employee | `employee_shifts.employee_id` (cascade delete) |
 | Outlets | shift → outlet | `employee_shifts.outlet_id` (cascade delete) |
-| Appointments | shift ← driver for staff picker | Appointments will read `employee_shifts` for a given (outlet, date) to populate the calendar column headers |
+| Appointments | shift ← driver for staff picker | The Appointment dialog filters the employee select to rostered staff for the proposed window; calendar reschedules show a soft-warn toast when dropped outside a shift. Implemented via `isWindowCoveredByShifts`. |
 
 ## Gaps & Improvements Over KumoDent
 

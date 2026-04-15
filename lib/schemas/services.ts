@@ -29,6 +29,7 @@ export const serviceCreateSchema = z.object({
 	allow_redemption_without_payment: z.boolean(),
 	allow_cash_price_range: z.boolean(),
 	is_active: z.boolean(),
+	tax_ids: z.array(z.string().uuid()),
 });
 
 export const serviceUpdateSchema = serviceCreateSchema.omit({ sku: true });

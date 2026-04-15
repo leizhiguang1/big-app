@@ -44,18 +44,34 @@ const employeeInputBase = z.object({
 	// Contact — email is required (used as login identity)
 	email: z.string().trim().email("Invalid email").min(1, "Email is required"),
 	phone: z.string().trim().min(1, "Contact number 1 is required").max(40),
-	phone2: z.string().trim().min(1, "Contact number 2 is required").max(40),
+	phone2: optionalText(40),
 
 	// Employment
 	role_id: z.string().uuid("Role is required"),
 	position_id: z.string().uuid("Position is required"),
-	start_date: requiredDate,
+	start_date: z
+		.string()
+		.trim()
+		.regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+		.optional()
+		.or(z.literal("").transform(() => undefined)),
 	appointment_sequencing: z
-		.number({ invalid_type_error: "Appointment sequencing is required" })
+		.number()
 		.int()
 		.min(1)
-		.max(999),
+		.max(999)
+		.optional()
+		.nullable(),
 	monthly_sales_target: z.number().min(0),
+
+	// Outlets
+	outlet_ids: z.array(z.string().uuid()).default([]),
+	primary_outlet_id: z
+		.string()
+		.uuid()
+		.optional()
+		.nullable()
+		.or(z.literal("").transform(() => null)),
 	is_bookable: z.boolean(),
 	is_online_bookable: z.boolean(),
 

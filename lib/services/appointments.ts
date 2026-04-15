@@ -159,6 +159,11 @@ export async function updateAppointment(
 		.select("status")
 		.eq("id", id)
 		.single();
+	if (row.status === "completed" && prev && prev.status !== "completed") {
+		throw new ValidationError(
+			"Use Mark Complete on the floating action bar to complete an appointment.",
+		);
+	}
 	const { data, error } = await ctx.db
 		.from("appointments")
 		.update(row)
@@ -202,6 +207,11 @@ export async function setAppointmentStatus(
 	input: unknown,
 ): Promise<Appointment> {
 	const p = appointmentStatusSchema.parse(input);
+	if (p.status === "completed") {
+		throw new ValidationError(
+			"Use Mark Complete on the floating action bar to complete an appointment.",
+		);
+	}
 	const { data: prev } = await ctx.db
 		.from("appointments")
 		.select("status")
@@ -218,6 +228,75 @@ export async function setAppointmentStatus(
 	if (prev && prev.status !== data.status) {
 		await logStatusChange(ctx, id, prev.status, data.status);
 	}
+	return data;
+}
+
+// Mark an appointment as completed without going through the Collect Payment
+// RPC. Used by the Floating Action Bar for two cases:
+//   1. No line items at all — nothing to bill, just close the visit.
+//   2. Line items exist and payment_status is already 'paid' — the paid SO
+//      covers the charges (e.g. the appointment was reverted and is now
+//      being re-completed). The RPC path handled the money the first time.
+// Never deducts inventory. Deduction only happens inside
+// collect_appointment_payment, which by construction is not called here.
+export async function markAppointmentCompleted(
+	ctx: Context,
+	id: string,
+): Promise<Appointment> {
+	const { data: prev } = await ctx.db
+		.from("appointments")
+		.select("status")
+		.eq("id", id)
+		.single();
+	if (!prev) throw new NotFoundError(`Appointment ${id} not found`);
+	const { data, error } = await ctx.db
+		.from("appointments")
+		.update({ status: "completed" })
+		.eq("id", id)
+		.select("*")
+		.single();
+	if (error) throw new ValidationError(error.message);
+	if (!data) throw new NotFoundError(`Appointment ${id} not found`);
+	if (prev.status !== "completed") {
+		await logStatusChange(ctx, id, prev.status, "completed");
+	}
+	return data;
+}
+
+// Revert a completed appointment back to 'pending' so staff can reopen the
+// chart for edits. Never touches sales_orders, sale_items, payments,
+// payment_status, or inventory_movements — revert is about unlocking the
+// clinical record, not about unwinding money. Refunds are a separate flow
+// (future cancellation record) and are intentionally out of scope here.
+//
+// Known v1 limitation: if staff reverts a paid appointment and then adds
+// new appointment_line_items, those rows are not in the existing sales
+// order. Re-completing via markAppointmentCompleted() will just flip
+// status (because payment_status is still 'paid') — the new items won't
+// generate a new SO and won't deduct inventory. Accepted for v1; the
+// intended workflow is "revert only to edit clinical data, not to re-charge".
+export async function revertCompletedAppointment(
+	ctx: Context,
+	id: string,
+): Promise<Appointment> {
+	const { data: prev } = await ctx.db
+		.from("appointments")
+		.select("status")
+		.eq("id", id)
+		.single();
+	if (!prev) throw new NotFoundError(`Appointment ${id} not found`);
+	if (prev.status !== "completed") {
+		throw new ValidationError("Only completed appointments can be reverted.");
+	}
+	const { data, error } = await ctx.db
+		.from("appointments")
+		.update({ status: "pending" })
+		.eq("id", id)
+		.select("*")
+		.single();
+	if (error) throw new ValidationError(error.message);
+	if (!data) throw new NotFoundError(`Appointment ${id} not found`);
+	await logStatusChange(ctx, id, "completed", "pending");
 	return data;
 }
 

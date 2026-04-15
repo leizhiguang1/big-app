@@ -32,10 +32,12 @@ function normalize(input: unknown) {
 	return {
 		appointment_id: p.appointment_id,
 		item_type: p.item_type,
-		service_id: p.service_id,
+		service_id: p.service_id ?? null,
+		product_id: p.product_id ?? null,
 		description: p.description,
 		quantity: p.quantity,
 		unit_price: p.unit_price,
+		tax_id: p.tax_id ?? null,
 		notes: p.notes ?? null,
 	};
 }

@@ -22,7 +22,10 @@ import { DocumentsTab } from "@/components/appointments/detail/DocumentsTab";
 import { FloatingActionBar } from "@/components/appointments/detail/FloatingActionBar";
 import { FollowUpTab } from "@/components/appointments/detail/FollowUpTab";
 import { HandsOnIncentivesCard } from "@/components/appointments/detail/HandsOnIncentivesCard";
-import { HistoryPanel } from "@/components/appointments/detail/HistoryPanel";
+import {
+	FollowUpHistoryPanel,
+	HistoryPanel,
+} from "@/components/appointments/detail/HistoryPanel";
 import { PlaceholderPanel } from "@/components/appointments/detail/PlaceholderPanel";
 import { StatusChangeLogCard } from "@/components/appointments/detail/StatusChangeLogCard";
 import type {
@@ -36,11 +39,18 @@ import type {
 	CustomerAppointmentSummary,
 } from "@/lib/services/appointments";
 import type { CaseNoteWithAuthor } from "@/lib/services/case-notes";
+import type { CustomerDocumentWithRefs } from "@/lib/services/customer-documents";
 import type { CustomerWithRelations } from "@/lib/services/customers";
-import type { RosterEmployee } from "@/lib/services/employee-shifts";
+import type {
+	EmployeeShift,
+	RosterEmployee,
+} from "@/lib/services/employee-shifts";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
+import type { FollowUpWithRefs } from "@/lib/services/follow-ups";
+import type { InventoryItemWithRefs } from "@/lib/services/inventory";
 import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
 import type { ServiceWithCategory } from "@/lib/services/services";
+import type { Tax } from "@/lib/services/taxes";
 
 type Props = {
 	appointment: AppointmentWithRelations;
@@ -48,14 +58,19 @@ type Props = {
 	incentives: IncentiveWithEmployee[];
 	customerHistory: CustomerAppointmentSummary[];
 	caseNotes: CaseNoteWithAuthor[];
+	followUps: FollowUpWithRefs[];
+	customerDocuments: CustomerDocumentWithRefs[];
 	customerLineItemsHistory: CustomerLineItem[];
 	customers: CustomerWithRelations[];
 	employees: RosterEmployee[];
 	rooms: Room[];
 	services: ServiceWithCategory[];
+	products: InventoryItemWithRefs[];
+	taxes: Tax[];
 	allOutlets: OutletWithRoomCount[];
 	allEmployees: EmployeeWithRelations[];
 	statusLog: AppointmentStatusLogEntry[];
+	shifts: EmployeeShift[];
 };
 
 export function AppointmentDetailView({
@@ -64,22 +79,32 @@ export function AppointmentDetailView({
 	incentives,
 	customerHistory,
 	caseNotes,
+	followUps,
+	customerDocuments,
 	customerLineItemsHistory,
 	customers,
 	employees,
 	rooms,
 	services,
+	products,
+	taxes,
 	allOutlets,
 	allEmployees,
 	statusLog,
+	shifts,
 }: Props) {
 	const [editOpen, setEditOpen] = useState(false);
 	const [activeTab, setActiveTab] = useState<DetailTabKey>("overview");
 	const [toasts, setToasts] = useState<Toast[]>([]);
 	const [historyOpen, setHistoryOpen] = useState(false);
 	const [headerCollapsed, setHeaderCollapsed] = useState(false);
+	const [editingFollowUpId, setEditingFollowUpId] = useState<string | null>(
+		null,
+	);
 
-	const isHistoryTab = activeTab === "casenotes" || activeTab === "billing";
+	const isCaseBillingTab = activeTab === "casenotes" || activeTab === "billing";
+	const isFollowUpTab = activeTab === "followup";
+	const isHistoryTab = isCaseBillingTab || isFollowUpTab;
 	const canShowHistory =
 		isHistoryTab && !appointment.is_time_block && !!appointment.customer_id;
 
@@ -151,7 +176,7 @@ export function AppointmentDetailView({
 			/>
 
 			<div className="flex gap-3">
-				{canShowHistory && historyOpen && (
+				{canShowHistory && historyOpen && isCaseBillingTab && (
 					<HistoryPanel
 						currentAppointmentId={appointment.id}
 						caseNotes={caseNotes}
@@ -159,6 +184,16 @@ export function AppointmentDetailView({
 						customerHistory={customerHistory}
 						onClose={() => setHistoryOpen(false)}
 						onToast={showToast}
+					/>
+				)}
+				{canShowHistory && historyOpen && isFollowUpTab && (
+					<FollowUpHistoryPanel
+						currentAppointmentId={appointment.id}
+						followUps={followUps}
+						customerHistory={customerHistory}
+						onClose={() => setHistoryOpen(false)}
+						onToast={showToast}
+						onEdit={(f) => setEditingFollowUpId(f.id)}
 					/>
 				)}
 				{canShowHistory && !historyOpen && (
@@ -238,6 +273,8 @@ export function AppointmentDetailView({
 							appointmentId={appointment.id}
 							entries={lineItems}
 							services={services}
+							products={products}
+							taxes={taxes}
 						/>
 					)}
 
@@ -250,14 +287,27 @@ export function AppointmentDetailView({
 					)}
 
 					{activeTab === "followup" && (
-						<FollowUpTab appointment={appointment} onToast={showToast} />
+						<FollowUpTab
+							appointment={appointment}
+							followUps={followUps}
+							allEmployees={allEmployees}
+							editingFollowUpId={editingFollowUpId}
+							onStartEdit={setEditingFollowUpId}
+							onToast={showToast}
+						/>
 					)}
 
 					{activeTab === "camera" && (
 						<PlaceholderPanel title="Camera" variant="tab" />
 					)}
 
-					{activeTab === "documents" && <DocumentsTab />}
+					{activeTab === "documents" && (
+						<DocumentsTab
+							appointment={appointment}
+							documents={customerDocuments}
+							onToast={showToast}
+						/>
+					)}
 				</div>
 			</div>
 
@@ -273,6 +323,7 @@ export function AppointmentDetailView({
 					rooms={rooms}
 					allOutlets={allOutlets}
 					allEmployees={allEmployees}
+					shifts={shifts}
 				/>
 			)}
 
@@ -280,6 +331,7 @@ export function AppointmentDetailView({
 				<FloatingActionBar
 					appointment={appointment}
 					lineItems={lineItems}
+					taxes={taxes}
 					onToast={showToast}
 				/>
 			)}

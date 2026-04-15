@@ -5,6 +5,11 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { deleteInventoryItemAction } from "@/lib/actions/inventory";
 import {
 	type InventoryKind,
@@ -18,6 +23,7 @@ import type {
 	InventoryUom,
 	Supplier,
 } from "@/lib/services/inventory";
+import type { Tax } from "@/lib/services/taxes";
 import { cn } from "@/lib/utils";
 import { ItemFormDialog } from "./ItemForm";
 import { StockDetailsDialog } from "./StockDetailsDialog";
@@ -86,6 +92,7 @@ type Props = {
 	brands: InventoryBrand[];
 	categories: InventoryCategory[];
 	suppliers: Supplier[];
+	taxes: Tax[];
 };
 
 export function ItemsTable({
@@ -94,6 +101,7 @@ export function ItemsTable({
 	brands,
 	categories,
 	suppliers,
+	taxes,
 }: Props) {
 	const [editing, setEditing] = useState<InventoryItemWithRefs | null>(null);
 	const [stockDetails, setStockDetails] =
@@ -345,25 +353,35 @@ export function ItemsTable({
 			align: "right",
 			cell: (i) => (
 				<div className="inline-flex gap-1">
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						onClick={() => setEditing(i)}
-						aria-label="Edit"
-					>
-						<Pencil />
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						onClick={() => {
-							setDeleteError(null);
-							setDeleting(i);
-						}}
-						aria-label="Delete"
-					>
-						<Trash2 />
-					</Button>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => setEditing(i)}
+								aria-label="Edit"
+							>
+								<Pencil />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Edit</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => {
+									setDeleteError(null);
+									setDeleting(i);
+								}}
+								aria-label="Delete"
+							>
+								<Trash2 />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Delete</TooltipContent>
+					</Tooltip>
 				</div>
 			),
 		},
@@ -395,6 +413,7 @@ export function ItemsTable({
 					brands={brands}
 					categories={categories}
 					suppliers={suppliers}
+					taxes={taxes}
 					onClose={() => setEditing(null)}
 				/>
 			)}

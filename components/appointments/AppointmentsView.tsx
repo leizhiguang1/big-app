@@ -14,7 +14,10 @@ import {
 } from "@/lib/calendar/layout";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 import type { CustomerWithRelations } from "@/lib/services/customers";
-import type { RosterEmployee } from "@/lib/services/employee-shifts";
+import type {
+	EmployeeShift,
+	RosterEmployee,
+} from "@/lib/services/employee-shifts";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
 import type { ServiceWithCategory } from "@/lib/services/services";
@@ -31,6 +34,7 @@ type Props = {
 	rooms: Room[];
 	services: ServiceWithCategory[];
 	allEmployees: EmployeeWithRelations[];
+	shifts: EmployeeShift[];
 };
 
 const DEFAULT_PREFS = {
@@ -50,6 +54,7 @@ export function AppointmentsView({
 	rooms,
 	services,
 	allEmployees,
+	shifts,
 }: Props) {
 	const [display, setDisplay] = useState<DisplayStyle>(DEFAULT_PREFS.display);
 	const [scope, setScope] = useState<TimeScope>(DEFAULT_PREFS.scope);
@@ -109,6 +114,7 @@ export function AppointmentsView({
 				services={services}
 				allOutlets={outlets}
 				allEmployees={allEmployees}
+				shifts={shifts}
 				onDrillInToDay={handleDrillInToDay}
 			/>
 		</div>

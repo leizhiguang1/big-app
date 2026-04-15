@@ -407,6 +407,10 @@ CREATE TABLE appointment_line_items (
   item_type      TEXT NOT NULL DEFAULT 'service'
                  CHECK (item_type IN ('service', 'product', 'charge')),
   service_id     UUID REFERENCES services(id) ON DELETE SET NULL,
+  -- product_id added in migration `appointment_line_items_add_product_id`
+  -- (2026-04-15) so the Billing tab can bill sellable inventory products
+  -- alongside services. See docs/modules/02-appointments.md.
+  product_id     UUID REFERENCES inventory_items(id) ON DELETE SET NULL,
   description    TEXT NOT NULL,
   quantity       NUMERIC(10,2) NOT NULL DEFAULT 1
                  CHECK (quantity > 0),
@@ -416,7 +420,13 @@ CREATE TABLE appointment_line_items (
   notes          TEXT,
   created_by     UUID REFERENCES employees(id) ON DELETE SET NULL,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Polymorphic reference: the FK that must be set is driven by item_type.
+  CONSTRAINT appointment_line_items_type_ref_check CHECK (
+    (item_type = 'service' AND service_id IS NOT NULL AND product_id IS NULL)
+    OR (item_type = 'product' AND product_id IS NOT NULL AND service_id IS NULL)
+    OR (item_type = 'charge'  AND service_id IS NULL     AND product_id IS NULL)
+  )
 );
 
 -- 7.3 Hands-on incentives per line item — employee attribution, no commission fields.
@@ -567,6 +577,7 @@ CREATE INDEX idx_appointments_employee     ON appointments (employee_id);
 
 -- Billing entries
 CREATE INDEX idx_appointment_line_items_appointment ON appointment_line_items (appointment_id);
+CREATE INDEX idx_appointment_line_items_product     ON appointment_line_items (product_id);
 CREATE INDEX idx_alii_line_item ON appointment_line_item_incentives (line_item_id);
 CREATE INDEX idx_alii_employee  ON appointment_line_item_incentives (employee_id);
 

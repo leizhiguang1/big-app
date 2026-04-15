@@ -13,6 +13,10 @@ import {
 	supplierInputSchema,
 	uomInputSchema,
 } from "@/lib/schemas/inventory";
+import {
+	listTaxIdsForInventoryItem,
+	setTaxesForInventoryItem,
+} from "@/lib/services/taxes";
 import type { Tables } from "@/lib/supabase/types";
 
 export type InventoryItem = Tables<"inventory_items">;
@@ -28,6 +32,7 @@ export type InventoryItemWithRefs = InventoryItem & {
 	purchasing_uom: { id: string; name: string } | null;
 	stock_uom: { id: string; name: string } | null;
 	use_uom: { id: string; name: string } | null;
+	tax_ids: string[];
 };
 
 const SELECT_WITH_REFS = `
@@ -37,8 +42,20 @@ const SELECT_WITH_REFS = `
 	supplier:suppliers!inventory_items_supplier_id_fkey(id, name),
 	purchasing_uom:inventory_uoms!inventory_items_purchasing_uom_id_fkey(id, name),
 	stock_uom:inventory_uoms!inventory_items_stock_uom_id_fkey(id, name),
-	use_uom:inventory_uoms!inventory_items_use_uom_id_fkey(id, name)
+	use_uom:inventory_uoms!inventory_items_use_uom_id_fkey(id, name),
+	inventory_item_taxes(tax_id)
 ` as const;
+
+function attachTaxIds(row: unknown): InventoryItemWithRefs {
+	const r = row as InventoryItemWithRefs & {
+		inventory_item_taxes: { tax_id: string }[] | null;
+	};
+	const { inventory_item_taxes, ...rest } = r;
+	return {
+		...rest,
+		tax_ids: (inventory_item_taxes ?? []).map((t) => t.tax_id),
+	} as InventoryItemWithRefs;
+}
 
 // ---------- Items ----------
 
@@ -50,7 +67,23 @@ export async function listInventoryItems(
 		.select(SELECT_WITH_REFS)
 		.order("name", { ascending: true });
 	if (error) throw new ValidationError(error.message);
-	return (data ?? []) as InventoryItemWithRefs[];
+	return (data ?? []).map((row) => attachTaxIds(row));
+}
+
+// Sellable products only — used by the appointment billing item picker.
+// Filters: kind='product', is_sellable=true, is_active=true.
+export async function listSellableProducts(
+	ctx: Context,
+): Promise<InventoryItemWithRefs[]> {
+	const { data, error } = await ctx.db
+		.from("inventory_items")
+		.select(SELECT_WITH_REFS)
+		.eq("kind", "product")
+		.eq("is_sellable", true)
+		.eq("is_active", true)
+		.order("name", { ascending: true });
+	if (error) throw new ValidationError(error.message);
+	return (data ?? []).map((row) => attachTaxIds(row));
 }
 
 export async function getInventoryItem(
@@ -62,9 +95,8 @@ export async function getInventoryItem(
 		.select(SELECT_WITH_REFS)
 		.eq("id", id)
 		.single();
-	if (error || !data)
-		throw new NotFoundError(`Inventory item ${id} not found`);
-	return data as InventoryItemWithRefs;
+	if (error || !data) throw new NotFoundError(`Inventory item ${id} not found`);
+	return attachTaxIds(data);
 }
 
 function buildItemRow(parsed: InventoryItemCreateInput) {
@@ -156,6 +188,7 @@ export async function createInventoryItem(
 			throw new ConflictError("An inventory item with that SKU already exists");
 		throw new ValidationError(error.message);
 	}
+	await setTaxesForInventoryItem(ctx, data.id, parsed.tax_ids);
 	return data;
 }
 
@@ -181,6 +214,7 @@ export async function updateInventoryItem(
 		.single();
 	if (error) throw new ValidationError(error.message);
 	if (!data) throw new NotFoundError(`Inventory item ${id} not found`);
+	await setTaxesForInventoryItem(ctx, id, parsed.tax_ids);
 	return data;
 }
 
@@ -199,11 +233,7 @@ export async function deleteInventoryItem(
 }
 
 function parseCreate(input: unknown): InventoryItemCreateInput {
-	if (
-		typeof input !== "object" ||
-		input === null ||
-		!("kind" in input)
-	) {
+	if (typeof input !== "object" || input === null || !("kind" in input)) {
 		throw new ValidationError("Inventory item kind is required");
 	}
 	const kind = (input as { kind: string }).kind;

@@ -69,9 +69,12 @@ them in v1:
    stock
 7. **Returned Stock** — supplier returns, depends on PO history
 
-All four ship together as **inventory lifecycle (Phase 2)**. They share
-the same prerequisite: a `inventory_movements` append-only ledger and a
-per-outlet `inventory_stocks(item_id, outlet_id, qty)` table.
+All four ship together as **inventory lifecycle (Phase 2)**. Their
+shared prerequisite — a per-outlet `inventory_stocks(item_id, outlet_id, qty)`
+table — is still Phase 2. The `inventory_movements` ledger **shipped in
+Phase 1** (2026-04-15) alongside the Collect Payment inventory deduction
+path, but the Phase 1 ledger is global (no `outlet_id`); Phase 2 will
+extend it with a per-outlet column when `inventory_stocks` lands.
 
 ### Item-level features we ship
 
@@ -536,10 +539,94 @@ become meaningful as those modules ship.
   `ConflictError` and explains which items still reference the lookup.
 - `discount_cap` exists but is **not enforced** by sales until Phase 2.
   The column is reserved.
-- Stock mutations in v1 happen **directly via the edit form** —
-  there is no audit ledger. Phase 2 introduces `inventory_movements`
-  and the form's stock field becomes read-only (only movements
-  mutate stock).
+- **Stock mutations happen via two paths in v1** (changed 2026-04-15):
+  1. **Manual edit form** — staff can still edit the `stock` column
+     directly on the item form. These writes do not currently log a
+     movement row (TODO: wrap the form write in a service method that
+     also inserts an `inventory_movements` row with `reason =
+     'adjustment'`; v1 ships without this to keep the edit UI simple).
+  2. **Collect Payment RPC** — `collect_appointment_payment` decrements
+     `inventory_items.stock` and inserts an `inventory_movements` row
+     (`reason = 'sale'`, `ref_type = 'sales_order'`) for every sale line
+     carrying `inventory_item_id`. This is the primary deduction path
+     and is transactionally tied to the SO insert — a rollback anywhere
+     in the payment flow rolls back the deduction too. See
+     [04-sales.md](./04-sales.md) §Implementation status for the RPC
+     spec.
+
+  The edit form remains writable on purpose in v1: we don't have
+  purchase orders yet, so there's no non-manual way to *increase*
+  stock. Once Phase 2 ships PO receiving, the form's stock field
+  becomes read-only and every mutation flows through the ledger.
+
+### Stock ledger (`inventory_movements`, Phase 1)
+
+Originally scoped as Phase 2 alongside per-outlet stock. **Pulled
+forward to Phase 1 on 2026-04-15** when the Collect Payment flow
+needed a deduction path — without the ledger, the RPC would silently
+mutate `stock` with no replayable audit, which is the worst possible
+failure mode for a money-adjacent column.
+
+The v1 ledger is **global, not per-outlet** — `inventory_items.stock`
+is still a single global column, so movements are global too. Phase 2
+adds `outlet_id` to movements alongside the `inventory_stocks`
+per-outlet table.
+
+Shape:
+
+```sql
+create table inventory_movements (
+  id          uuid primary key default gen_random_uuid(),
+  item_id     uuid not null references inventory_items(id) on delete restrict,
+  delta       numeric(12,3) not null,                  -- signed: - for sale, + for restock
+  reason      text not null check (reason in (
+                'sale',        -- from collect_appointment_payment RPC
+                'adjustment',  -- manual correction (future)
+                'initial',     -- seed / opening balance (future)
+                'restock'      -- PO receive (Phase 2)
+              )),
+  ref_type    text check (ref_type in ('sales_order', 'manual')),
+  ref_id      uuid,                                    -- sales_orders.id when reason='sale'
+  notes       text,
+  created_at  timestamptz not null default now(),
+  created_by  uuid references employees(id) on delete set null
+);
+create index on inventory_movements (item_id, created_at desc);
+create index on inventory_movements (ref_type, ref_id);
+```
+
+**Design notes:**
+- **`delta` is signed, not `in`/`out`.** Keeps the math trivial
+  (`sum(delta)` gives current balance from movements alone) and
+  matches every general-ledger pattern.
+- **No `updated_at`.** Movements are append-only by design — adjustments
+  are *new rows*, never edits. Hence also no `set_updated_at` trigger.
+- **`ON DELETE RESTRICT` on `item_id`.** You cannot delete an inventory
+  item that still has movement history. If an item is truly obsolete,
+  mark it inactive; deletion is for mistakes caught immediately, before
+  any movements land.
+- **`ref_id` is nullable uuid, not a FK.** The movements ledger
+  references multiple tables over time (sales_orders, future purchase
+  orders, future transfer orders), and a real polymorphic FK is more
+  pain than it's worth. The `ref_type` + `ref_id` pair is the
+  convention; joins pick the target based on `ref_type`.
+- **Why not immutable-by-trigger?** Postgres lets you put an `INSTEAD
+  OF UPDATE` rule to block updates, but the append-only discipline is
+  already enforced in the service layer (there's no
+  `updateInventoryMovement`). A DB-level block is belt-and-braces we
+  can add later if we find the service layer isn't tight enough.
+
+**Reports that read this table:**
+- The empty-state "Stock Details" dialog ledger (today's placeholder)
+  becomes a real query once the Phase 1 ledger ships: `select ... from
+  inventory_movements where item_id = $1 order by created_at desc`. The
+  `MovementRow` shape in
+  [StockDetailsDialog.tsx](../../components/inventory/StockDetailsDialog.tsx)
+  is already the target shape — the Phase 2 "read this table instead
+  of mock arrays" swap is now a Phase 1 swap, still queued.
+- Inventory-side reports ("what left the shelf this week") read from
+  this table, not from `sale_items`, because the ledger catches future
+  non-sale mutations (adjustments, restocks) in the same query.
 
 ## Relationships to Other Modules
 
@@ -731,8 +818,12 @@ create index inventory_items_supplier_id_idx on public.inventory_items(supplier_
 
 ### Phase 2 migration checklist (when we revisit)
 
-1. New table `inventory_movements (id, item_id, outlet_id, kind, qty,
-   ref_type, ref_id, performed_by, performed_at)` — append-only ledger.
+1. ~~New table `inventory_movements`~~ — **shipped in Phase 1** on
+   2026-04-15 as a global (no `outlet_id`) append-only ledger, driven
+   by the Collect Payment RPC deduction path. See §Stock ledger above
+   for the shipped shape. **Phase 2 extension:** add `outlet_id`
+   column + migrate existing rows to "global outlet" or the active
+   outlet at deduction time, once `inventory_stocks` lands.
 2. New table `inventory_stocks (item_id, outlet_id, qty, primary key
    (item_id, outlet_id))` — derived from movements OR maintained by
    trigger.

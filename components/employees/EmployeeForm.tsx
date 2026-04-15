@@ -28,6 +28,7 @@ import {
 	SALUTATIONS,
 } from "@/lib/schemas/employees";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
+import type { OutletWithRoomCount } from "@/lib/services/outlets";
 import type { Position } from "@/lib/services/positions";
 import type { Role } from "@/lib/services/roles";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ type Props = {
 	employee: EmployeeWithRelations | null;
 	roles: Role[];
 	positions: Position[];
+	outlets: OutletWithRoomCount[];
 	onClose: () => void;
 };
 
@@ -77,10 +79,16 @@ const EMPTY: EmployeeFormInput = {
 	country: "Malaysia",
 	language: undefined,
 	is_active: true,
+	outlet_ids: [],
+	primary_outlet_id: null,
 };
 
 function fromEmployee(e: EmployeeWithRelations | null): EmployeeFormInput {
 	if (!e) return EMPTY;
+	const links = e.outlets ?? [];
+	const outlet_ids = links.map((l) => l.outlet_id);
+	const primary_outlet_id =
+		links.find((l) => l.is_primary)?.outlet_id ?? outlet_ids[0] ?? null;
 	return {
 		salutation: (e.salutation as EmployeeFormInput["salutation"]) ?? "Mr",
 		first_name: e.first_name,
@@ -116,6 +124,8 @@ function fromEmployee(e: EmployeeWithRelations | null): EmployeeFormInput {
 		country: e.country ?? "Malaysia",
 		language: e.language ?? undefined,
 		is_active: e.is_active,
+		outlet_ids,
+		primary_outlet_id,
 	};
 }
 
@@ -256,6 +266,7 @@ export function EmployeeFormDialog({
 	employee,
 	roles,
 	positions,
+	outlets,
 	onClose,
 }: Props) {
 	const [pending, startTransition] = useTransition();
@@ -277,6 +288,8 @@ export function EmployeeFormDialog({
 	const isBookable = form.watch("is_bookable");
 	const isOnlineBookable = form.watch("is_online_bookable");
 	const mobileAppEnabled = form.watch("mobile_app_enabled");
+	const selectedOutletIds = form.watch("outlet_ids") ?? [];
+	const primaryOutletId = form.watch("primary_outlet_id") ?? null;
 
 	useEffect(() => {
 		if (open) {
@@ -601,7 +614,6 @@ export function EmployeeFormDialog({
 									<Field
 										label="Contact Number 2"
 										htmlFor="emp-phone2"
-										required
 										error={errors.phone2?.message}
 									>
 										<Input
@@ -614,7 +626,6 @@ export function EmployeeFormDialog({
 									<Field
 										label="Appointment Sequencing"
 										htmlFor="emp-seq"
-										required
 										full
 										error={errors.appointment_sequencing?.message}
 									>
@@ -675,7 +686,6 @@ export function EmployeeFormDialog({
 									<Field
 										label="Start Date"
 										htmlFor="emp-start"
-										required
 										full
 										error={errors.start_date?.message}
 									>
@@ -720,41 +730,137 @@ export function EmployeeFormDialog({
 											</Field>
 										</>
 									)}
+								</div>
 
-									<Field
-										label="Country"
-										htmlFor="emp-country"
-										required
-										full
-										error={errors.country?.message}
-									>
-										<Input id="emp-country" {...form.register("country")} />
-									</Field>
-									<Field label="Address Line 1" htmlFor="emp-addr1" full>
-										<Input id="emp-addr1" {...form.register("address1")} />
-									</Field>
-									<Field label="Address Line 2" htmlFor="emp-addr2" full>
-										<Input id="emp-addr2" {...form.register("address2")} />
-									</Field>
-									<Field label="Address Line 3" htmlFor="emp-addr3" full>
-										<Input id="emp-addr3" {...form.register("address3")} />
-									</Field>
-									<Field label="Postcode" htmlFor="emp-postcode">
-										<Input id="emp-postcode" {...form.register("postcode")} />
-									</Field>
-									<Field label="City" htmlFor="emp-city">
-										<Input id="emp-city" {...form.register("city")} />
-									</Field>
-									<Field label="State" htmlFor="emp-state" full>
-										<Input id="emp-state" {...form.register("state")} />
-									</Field>
-									<Field label="Language" htmlFor="emp-language" full>
-										<Input
-											id="emp-language"
-											placeholder="English"
-											{...form.register("language")}
-										/>
-									</Field>
+								<div className="flex flex-col gap-3 border-t pt-5">
+									<h3 className="font-semibold text-sm">Outlets</h3>
+									<p className="text-muted-foreground text-xs">
+										Pick the outlets this employee works at, then mark one as
+										primary.
+									</p>
+									{outlets.length === 0 ? (
+										<p className="text-muted-foreground text-xs">
+											No outlets yet — create one in Config → Outlets first.
+										</p>
+									) : (
+										<div className="flex flex-col gap-1.5">
+											{outlets.map((o) => {
+												const checked = selectedOutletIds.includes(o.id);
+												const isPrimary = primaryOutletId === o.id;
+												return (
+													<div
+														key={o.id}
+														className={cn(
+															"flex items-center justify-between gap-3 rounded-md border px-3 py-2 transition",
+															checked ? "bg-muted/40" : "bg-background",
+														)}
+													>
+														<label className="flex min-w-0 flex-1 items-center gap-2.5 text-sm">
+															<input
+																type="checkbox"
+																className="size-4 accent-emerald-500"
+																checked={checked}
+																onChange={(e) => {
+																	const next = e.target.checked
+																		? [...selectedOutletIds, o.id]
+																		: selectedOutletIds.filter(
+																				(id) => id !== o.id,
+																			);
+																	form.setValue("outlet_ids", next, {
+																		shouldDirty: true,
+																	});
+																	if (
+																		!e.target.checked &&
+																		primaryOutletId === o.id
+																	) {
+																		form.setValue(
+																			"primary_outlet_id",
+																			next[0] ?? null,
+																			{ shouldDirty: true },
+																		);
+																	} else if (
+																		e.target.checked &&
+																		!primaryOutletId
+																	) {
+																		form.setValue("primary_outlet_id", o.id, {
+																			shouldDirty: true,
+																		});
+																	}
+																}}
+															/>
+															<span className="truncate">{o.name}</span>
+														</label>
+														<button
+															type="button"
+															disabled={!checked}
+															onClick={() =>
+																form.setValue("primary_outlet_id", o.id, {
+																	shouldDirty: true,
+																})
+															}
+															className={cn(
+																"rounded-full px-2.5 py-0.5 text-xs font-medium transition",
+																isPrimary
+																	? "bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-300"
+																	: "text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50",
+															)}
+														>
+															{isPrimary ? "Primary" : "Set primary"}
+														</button>
+													</div>
+												);
+											})}
+										</div>
+									)}
+								</div>
+
+								<div className="flex flex-col gap-3 border-t pt-5">
+									<h3 className="font-semibold text-sm">Address</h3>
+									<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+										<Field
+											label="Country"
+											htmlFor="emp-country"
+											required
+											full
+											error={errors.country?.message}
+										>
+											<Input id="emp-country" {...form.register("country")} />
+										</Field>
+										<Field label="Address Line 1" htmlFor="emp-addr1" full>
+											<Input id="emp-addr1" {...form.register("address1")} />
+										</Field>
+										<Field label="Address Line 2" htmlFor="emp-addr2" full>
+											<Input id="emp-addr2" {...form.register("address2")} />
+										</Field>
+										<Field label="Address Line 3" htmlFor="emp-addr3" full>
+											<Input id="emp-addr3" {...form.register("address3")} />
+										</Field>
+										<Field label="Postcode" htmlFor="emp-postcode">
+											<Input
+												id="emp-postcode"
+												{...form.register("postcode")}
+											/>
+										</Field>
+										<Field label="City" htmlFor="emp-city">
+											<Input id="emp-city" {...form.register("city")} />
+										</Field>
+										<Field label="State" htmlFor="emp-state" full>
+											<Input id="emp-state" {...form.register("state")} />
+										</Field>
+									</div>
+								</div>
+
+								<div className="flex flex-col gap-3 border-t pt-5">
+									<h3 className="font-semibold text-sm">Language</h3>
+									<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+										<Field label="Language" htmlFor="emp-language" full>
+											<Input
+												id="emp-language"
+												placeholder="English"
+												{...form.register("language")}
+											/>
+										</Field>
+									</div>
 								</div>
 
 								{serverError && (
@@ -785,9 +891,11 @@ export function EmployeeFormDialog({
 export function NewEmployeeButton({
 	roles,
 	positions,
+	outlets,
 }: {
 	roles: Role[];
 	positions: Position[];
+	outlets: OutletWithRoomCount[];
 }) {
 	const [open, setOpen] = useState(false);
 	return (
@@ -798,6 +906,7 @@ export function NewEmployeeButton({
 				employee={null}
 				roles={roles}
 				positions={positions}
+				outlets={outlets}
 				onClose={() => setOpen(false)}
 			/>
 		</>

@@ -18,6 +18,16 @@ type Props = {
 	onToast: (message: string, variant?: Toast["variant"]) => void;
 };
 
+// `completed` is excluded from the progression pills. Completion is only
+// reachable via the Mark Complete FAB (which routes through the Collect
+// Payment RPC or markAppointmentCompleted). When the appointment is already
+// completed, the whole row is replaced with a static "Completed" indicator
+// — the progression is terminal and the FAB's Revert button is the escape.
+// See docs/modules/02-appointments.md §Complete appointment workflow.
+const PROGRESSION_STATUSES = APPOINTMENT_STATUSES.filter(
+	(s) => s !== "completed",
+);
+
 export function StatusProgressionRow({ appointment, onToast }: Props) {
 	const initial = (appointment.status as AppointmentStatus) ?? "pending";
 	const [optimistic, setOptimistic] = useOptimistic<
@@ -67,9 +77,24 @@ export function StatusProgressionRow({ appointment, onToast }: Props) {
 
 	if (appointment.is_time_block) return null;
 
+	// Terminal state — show a static indicator, not a clickable journey.
+	if (optimistic === "completed") {
+		const config = APPOINTMENT_STATUS_CONFIG.completed;
+		const Icon = config.Icon;
+		return (
+			<div
+				className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-transparent px-3 py-1 font-semibold text-[11px] text-white uppercase tracking-wide shadow-sm sm:text-xs"
+				style={{ backgroundColor: config.solidHex }}
+			>
+				<Icon className="size-3 shrink-0 sm:size-3.5" aria-hidden />
+				{config.label}
+			</div>
+		);
+	}
+
 	return (
 		<div className="flex flex-wrap gap-1.5 sm:gap-2">
-			{APPOINTMENT_STATUSES.map((s) => {
+			{PROGRESSION_STATUSES.map((s) => {
 				const config = APPOINTMENT_STATUS_CONFIG[s];
 				const Icon = config.Icon;
 				const isActive = optimistic === s;

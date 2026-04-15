@@ -5,6 +5,7 @@ import {
 	serviceCreateSchema,
 	serviceUpdateSchema,
 } from "@/lib/schemas/services";
+import { listTaxIdsForService, setTaxesForService } from "@/lib/services/taxes";
 import type { Tables } from "@/lib/supabase/types";
 
 export type Service = Tables<"services">;
@@ -12,6 +13,7 @@ export type ServiceCategory = Tables<"service_categories">;
 
 export type ServiceWithCategory = Service & {
 	category: { id: string; name: string } | null;
+	tax_ids: string[];
 };
 
 export async function listServices(
@@ -19,20 +21,32 @@ export async function listServices(
 ): Promise<ServiceWithCategory[]> {
 	const { data, error } = await ctx.db
 		.from("services")
-		.select("*, category:service_categories(id, name)")
+		.select("*, category:service_categories(id, name), service_taxes(tax_id)")
 		.order("name", { ascending: true });
 	if (error) throw new ValidationError(error.message);
-	return (data ?? []) as ServiceWithCategory[];
+	return (data ?? []).map((row) => {
+		const { service_taxes, ...rest } = row as typeof row & {
+			service_taxes: { tax_id: string }[] | null;
+		};
+		return {
+			...rest,
+			tax_ids: (service_taxes ?? []).map((t) => t.tax_id),
+		} as ServiceWithCategory;
+	});
 }
 
-export async function getService(ctx: Context, id: string): Promise<Service> {
+export async function getService(
+	ctx: Context,
+	id: string,
+): Promise<Service & { tax_ids: string[] }> {
 	const { data, error } = await ctx.db
 		.from("services")
 		.select("*")
 		.eq("id", id)
 		.single();
 	if (error || !data) throw new NotFoundError(`Service ${id} not found`);
-	return data;
+	const tax_ids = await listTaxIdsForService(ctx, id);
+	return { ...data, tax_ids };
 }
 
 export async function createService(
@@ -67,6 +81,7 @@ export async function createService(
 			throw new ConflictError("A service with that SKU already exists");
 		throw new ValidationError(error.message);
 	}
+	await setTaxesForService(ctx, data.id, parsed.tax_ids);
 	return data;
 }
 
@@ -100,6 +115,7 @@ export async function updateService(
 		.single();
 	if (error) throw new ValidationError(error.message);
 	if (!data) throw new NotFoundError(`Service ${id} not found`);
+	await setTaxesForService(ctx, id, parsed.tax_ids);
 	return data;
 }
 

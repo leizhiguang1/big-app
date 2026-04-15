@@ -47,6 +47,28 @@ export async function setAppointmentStatusAction(id: string, input: unknown) {
 	return appointment;
 }
 
+export async function markAppointmentCompletedAction(id: string) {
+	const ctx = await getServerContext();
+	const appointment = await appointmentsService.markAppointmentCompleted(
+		ctx,
+		id,
+	);
+	revalidatePath("/appointments");
+	revalidatePath(`/appointments/${id}`);
+	return appointment;
+}
+
+export async function revertCompletedAppointmentAction(id: string) {
+	const ctx = await getServerContext();
+	const appointment = await appointmentsService.revertCompletedAppointment(
+		ctx,
+		id,
+	);
+	revalidatePath("/appointments");
+	revalidatePath(`/appointments/${id}`);
+	return appointment;
+}
+
 export async function setAppointmentTagsAction(id: string, input: unknown) {
 	const ctx = await getServerContext();
 	const appointment = await appointmentsService.setAppointmentTags(

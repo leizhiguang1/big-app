@@ -38,10 +38,19 @@ import {
 	APPOINTMENT_STATUS_CONFIG,
 	type AppointmentStatus,
 } from "@/lib/constants/appointment-status";
-import { addDays, fmtDate, getWeekStart, parseDate } from "@/lib/roster/week";
+import {
+	addDays,
+	fmtDate,
+	getWeekStart,
+	isWindowCoveredByShifts,
+	parseDate,
+} from "@/lib/roster/week";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 import type { CustomerWithRelations } from "@/lib/services/customers";
-import type { RosterEmployee } from "@/lib/services/employee-shifts";
+import type {
+	EmployeeShift,
+	RosterEmployee,
+} from "@/lib/services/employee-shifts";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
 import type { ServiceWithCategory } from "@/lib/services/services";
@@ -63,6 +72,7 @@ type Props = {
 	services: ServiceWithCategory[];
 	allOutlets: OutletWithRoomCount[];
 	allEmployees: EmployeeWithRelations[];
+	shifts: EmployeeShift[];
 	onDrillInToDay: (dateStr: string) => void;
 };
 
@@ -97,6 +107,7 @@ export function AppointmentsCalendar({
 	services,
 	allOutlets,
 	allEmployees,
+	shifts,
 	onDrillInToDay,
 }: Props) {
 	const [dialog, setDialog] = useState<DialogState>(null);
@@ -325,7 +336,24 @@ export function AppointmentsCalendar({
 			});
 			try {
 				await rescheduleAppointmentAction(id, input);
-				showToast("Rescheduled", "success");
+				const nextEmployeeId =
+					target.employeeId !== undefined ? target.employeeId : apt.employee_id;
+				if (nextEmployeeId) {
+					const empShifts = shifts.filter(
+						(s) => s.employee_id === nextEmployeeId,
+					);
+					if (!isWindowCoveredByShifts(empShifts, startIso, endIso)) {
+						const emp = employees.find((e) => e.id === nextEmployeeId);
+						const name = emp
+							? `${emp.first_name} ${emp.last_name}`.trim()
+							: "Employee";
+						showToast(`Rescheduled — ${name} is not rostered for this time.`);
+					} else {
+						showToast("Rescheduled", "success");
+					}
+				} else {
+					showToast("Rescheduled", "success");
+				}
 			} catch (err) {
 				showToast(
 					err instanceof Error ? err.message : "Reschedule failed",
@@ -463,6 +491,7 @@ export function AppointmentsCalendar({
 					rooms={rooms}
 					allOutlets={allOutlets}
 					allEmployees={allEmployees}
+					shifts={shifts}
 				/>
 			)}
 

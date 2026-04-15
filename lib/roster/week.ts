@@ -102,6 +102,63 @@ export function shiftOverlapsRange(
 	return shift.shift_date >= rangeStart && shift.shift_date <= rangeEnd;
 }
 
+export type ShiftWithTimes = ShiftLike & {
+	start_time: string;
+	end_time: string;
+	is_overnight: boolean;
+};
+
+function timeToMin(t: string): number {
+	const [h, m] = t.slice(0, 5).split(":").map(Number);
+	return h * 60 + m;
+}
+
+// Does at least one shift fully cover the [startAtIso, endAtIso] window?
+// Times are compared in wall-clock local time — the same assumption the rest
+// of the app uses when round-tripping appointment times.
+export function isWindowCoveredByShifts(
+	shifts: ShiftWithTimes[],
+	startAtIso: string,
+	endAtIso: string,
+): boolean {
+	if (!startAtIso || !endAtIso) return false;
+	const start = new Date(startAtIso);
+	const end = new Date(endAtIso);
+	if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
+		return false;
+	}
+	const apptDate = fmtDate(start);
+	const apptStartMin = start.getHours() * 60 + start.getMinutes();
+	let apptEndMin = end.getHours() * 60 + end.getMinutes();
+	const endDate = fmtDate(end);
+	if (endDate !== apptDate) {
+		apptEndMin += diffInDays(endDate, apptDate) * 1440;
+	}
+
+	for (const shift of shifts) {
+		const covers = shiftCoversDate(shift, apptDate);
+		if (covers) {
+			const shiftStartMin = timeToMin(shift.start_time);
+			const shiftEndMin = timeToMin(shift.end_time);
+			const effectiveEnd = shift.is_overnight
+				? shiftEndMin + 1440
+				: shiftEndMin;
+			if (apptStartMin >= shiftStartMin && apptEndMin <= effectiveEnd) {
+				return true;
+			}
+		}
+		// Overnight shift from the previous calendar day spilling into apptDate.
+		if (shift.is_overnight) {
+			const prevDate = fmtDate(addDays(parseDate(apptDate), -1));
+			if (shiftCoversDate(shift, prevDate)) {
+				const shiftEndMin = timeToMin(shift.end_time);
+				if (apptStartMin >= 0 && apptEndMin <= shiftEndMin) return true;
+			}
+		}
+	}
+	return false;
+}
+
 // Do two shifts ever land on the same date?
 export function shiftsConflict(a: ShiftLike, b: ShiftLike): boolean {
 	const aWeekly = a.repeat_type === "weekly";

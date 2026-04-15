@@ -5,6 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
 	addDays,
 	fmtDate,
 	fmtWeekRange,
@@ -65,15 +70,20 @@ export function RosterFilters({
 			</select>
 
 			<div className="flex items-center gap-2">
-				<Button
-					type="button"
-					variant="outline"
-					size="icon"
-					onClick={() => shiftWeek(-7)}
-					aria-label="Previous week"
-				>
-					<ChevronLeft className="size-4" />
-				</Button>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							type="button"
+							variant="outline"
+							size="icon"
+							onClick={() => shiftWeek(-7)}
+							aria-label="Previous week"
+						>
+							<ChevronLeft className="size-4" />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Previous week</TooltipContent>
+				</Tooltip>
 				<Button
 					type="button"
 					variant={isCurrentWeek ? "default" : "outline"}
@@ -85,15 +95,20 @@ export function RosterFilters({
 				<span className="min-w-44 text-center font-medium text-sm">
 					{fmtWeekRange(weekStartDate)}
 				</span>
-				<Button
-					type="button"
-					variant="outline"
-					size="icon"
-					onClick={() => shiftWeek(7)}
-					aria-label="Next week"
-				>
-					<ChevronRight className="size-4" />
-				</Button>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							type="button"
+							variant="outline"
+							size="icon"
+							onClick={() => shiftWeek(7)}
+							aria-label="Next week"
+						>
+							<ChevronRight className="size-4" />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Next week</TooltipContent>
+				</Tooltip>
 			</div>
 		</div>
 	);

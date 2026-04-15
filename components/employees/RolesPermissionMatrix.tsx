@@ -4,6 +4,11 @@ import { ArrowDownUp, Check, Pencil, Trash2, X } from "lucide-react";
 import { useOptimistic, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { deleteRoleAction, updateRoleAction } from "@/lib/actions/roles";
 import {
 	PERMISSION_SECTIONS,
@@ -316,25 +321,35 @@ export function RolesPermissionMatrix({ roles }: { roles: Role[] }) {
 								})}
 								<td className="border-b px-2 py-1 text-center">
 									<div className="inline-flex gap-0.5">
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											onClick={() => setEditing(role)}
-											aria-label={`Edit ${role.name}`}
-										>
-											<Pencil />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											onClick={() => {
-												setActionError(null);
-												setDeleting(role);
-											}}
-											aria-label={`Delete ${role.name}`}
-										>
-											<Trash2 />
-										</Button>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													onClick={() => setEditing(role)}
+													aria-label={`Edit ${role.name}`}
+												>
+													<Pencil />
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>Edit role</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													onClick={() => {
+														setActionError(null);
+														setDeleting(role);
+													}}
+													aria-label={`Delete ${role.name}`}
+												>
+													<Trash2 />
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>Delete role</TooltipContent>
+										</Tooltip>
 									</div>
 								</td>
 							</tr>

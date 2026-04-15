@@ -60,6 +60,7 @@ const sharedBase = z.object({
 	stock_alert_count: z.number().min(0, "Must be ≥ 0"),
 	discount_cap: z.number().min(0).max(100).nullable(),
 	location: trimmedNullable(120),
+	tax_ids: z.array(z.string().uuid()),
 });
 
 export const productCreateSchema = sharedBase.extend({

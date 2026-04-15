@@ -15,6 +15,8 @@
 - **Consumables card (Overview tab)** — read-only display of each service line's consumables, sourced from `services.consumables` (free-text on the service catalog). Nothing to add or edit on the appointment side — consumables are a property of the service, not per-visit.
 - **Hands-on Incentives card (Overview tab)** — per-line employee attribution. Each service line has a persistent empty select; picking an employee creates an `appointment_line_item_incentives` row. Multiple employees per line allowed (unique on `(line_item_id, employee_id)`). No commission calculation — v1 just records who did what.
 - Case Notes tab with CRUD.
+- **Case Notes quick-action toolbar (partial).** A six-icon row sits above the editor: Annotate image, Templates, Add prescription, Add MC, ICD-10, Dental chart. Only **Add MC** is wired — the rest are visual stubs with hover tooltips, marked `aria-disabled` and `data-stub="true"` for when we wire them. See §Medical Certificates below.
+- **Medical Certificates (MC).** Issued from the Case Notes toolbar. Dialog captures slip type / start date / duration (0.5 steps) / half-day toggle / reason; server derives `end_date` and `half_day_period` (`AM` if the run ends on a half day) and inserts a `medical_certificates` row. On save, a new tab opens `/medical-certificates/[id]` — a server-rendered print view styled for A4 with a `window.print()` button. **No PDF library** — browsers handle "save as PDF" via the native print dialog. See §Medical Certificates below.
 - Follow Up tab wired to `appointments.follow_up` via `setAppointmentFollowUp()` (v1 = freeform textarea).
 - History panel (shared between Case Notes + Billing tabs): reverse-chronological timeline merging every past receipt and note for the same customer, receipt-card styling for billing threads, inline edit/delete for notes, filter chip, collapse-all, close.
 - Realtime status-change toasts via `AppointmentNotificationsProvider` (live Supabase subscription on the active outlet).
@@ -139,12 +141,12 @@ Full-page route reached by clicking any appointment card on the calendar. Layout
 |-----|--------|---------|
 | **Overview** | ✅ live | Two-column grid — left: `BookingInfoCard` + Status Change Log (placeholder) · right: `ConsumablesCard` + `HandsOnIncentivesCard` (both live). See screenshot `2.1 - Appointment Detail -  Overview.png`. |
 | **Case Notes** | ✅ live | `CaseNotesTab` — add/edit/delete notes for the current appointment. Sticky History panel on the left (see below). |
-| **Billing** | ✅ live | `BillingTab` wraps `BillingSection` — inline line-item editor (add, edit, delete) writing to `appointment_line_items`. Sticky History panel on the left. |
+| **Billing** | ✅ live | `BillingTab` wraps `BillingSection` — inline line-item editor (add, edit, delete) writing to `appointment_line_items`. Each row can be a **service** (from the services catalog) or a **product** (from sellable inventory items). The picker is `BillingItemPickerDialog`, a tabbed modal with Services / Products tabs (Laboratory / Vaccinations / Other Charges tabs are rendered disabled as "coming soon" placeholders). Sticky History panel on the left. |
 | **Dental Assessment** | ⏳ placeholder | Phase 2 clinical sub-module. |
 | **Periodontal Charting** | ⏳ placeholder | Phase 2 clinical sub-module. |
-| **Follow Up** | ✅ live (v1) / 🔜 v2 planned | See "Follow Up tab" below. v1 is a single freeform textarea on `appointments.follow_up`; v2 reshapes it into its own table with a reminder sub-record and a dedicated sidepanel. |
+| **Follow Up** | ✅ live (v2) | See "Follow Up tab" below. Structured `appointment_follow_ups` table with optional reminder sub-record and a dedicated follow-ups-only sidepanel. The v1 `appointments.follow_up` column is now legacy and unused by the UI. |
 | **Camera** | ⏳ placeholder | Phase 2 clinical sub-module. |
-| **Documents** | ⏳ placeholder | `DocumentsTab` renders a static stub — real file storage integration deferred. |
+| **Documents** | ✅ live (v1) | `DocumentsTab` — upload / list / view / download / delete files attached to the **customer**, with an optional `appointment_id` link so the tab defaults to "This visit" but can toggle to "All for customer". Images (JPG/PNG/WebP) + PDFs, max 20 MB. Uses the private `documents` Supabase Storage bucket; reads go via short-lived signed URLs. Landed with migration `0042_customer_documents`. See "Documents tab" below. |
 
 #### Overview tab cards
 
@@ -160,23 +162,24 @@ Full-page route reached by clicking any appointment card on the calendar. Layout
 
 #### Follow Up tab
 
-**v1 (shipped, not the end state).** A single `FollowUpTab` with one freeform textarea, writing `appointments.follow_up` via `setAppointmentFollowUp()`. Works, but doesn't match the screen design or the way users think about follow-ups (one appointment can need multiple follow-ups over time; a reminder is a first-class concept).
-
-**v2 (planned — target shape, matches `2.6 - Appointment - Follow Up.png`).**
+**v2 (shipped — matches `2.6 - Appointment - Follow Up.png`).** Structured entries in a dedicated `appointment_follow_ups` table, one appointment → many follow-ups, each optionally carrying a reminder sub-record.
 
 Layout — two columns inside the tab:
 
-- **Left sidepanel (sticky):** a follow-ups-only timeline scoped to the current customer. Same visual language as the Case Notes / Billing history panel (note-style cards with weekday + time, author, content preview, reminder badge if set), but **separate** — follow-ups do not mix with case notes or billing receipts. Each card is collapsible; the current appointment's follow-ups get a coloured left border and `CURRENT` badge.
-- **Right main area:**
-  - A **basic rich text editor** for the follow-up content. v2 can ship with plain-text-only (no formatting toolbar wired) if that's faster — the field stays `text`, and rich-text formatting gets turned on later without a schema change.
-  - A **Reminder** toggle below the editor. When off, that's the whole form.
+- **Left sidepanel (sticky):** a follow-ups-only timeline scoped to the current customer. Rendered by `FollowUpHistoryPanel`, a sibling component to `HistoryPanel` exported from the same file so both share visual language (sticky 340px aside, collapsible cards, weekday + time header, author line, current-visit coloured left border + `CURRENT` badge). The two panels are **deliberately separate** — follow-ups do not mix with case notes or billing receipts, so there is no filter toggle in follow-up mode. Each card shows the follow-up body plus a coloured reminder badge (amber when pending, emerald once `reminder_done = true`) with method icon (`Phone` or `MessageSquare`) and assignee. Edit and delete live on each card and both jump the composer on the right into the right mode.
+- **Right main area (`FollowUpTab`):**
+  - A plain-text `textarea` for the follow-up content. v2 ships without a rich-text toolbar — the underlying column is `text`, so turning on formatting later is UI-only.
+  - A **Set a reminder** checkbox below the editor. When off, that's the whole form.
   - When on, three fields appear:
-    - `reminder_date` — date picker (not time-of-day; day-level is enough for "remind me to call this customer next week")
-    - `reminder_method` — enum: `call`, `whatsapp`. Extendable later (sms, email).
-    - `reminder_employee_id` — FK to `employees`. Who's on the hook to action the reminder.
-  - Submit button (green circle, bottom right) creates a new follow-up row.
+    - `reminder_date` — native date picker (day-level; no time-of-day — "remind me to call this customer next week" is enough resolution).
+    - `reminder_method` — `<select>` with `call` / `whatsapp`. Extendable later (sms, email).
+    - `reminder_employee_id` — `<select>` over `allEmployees`. "Unassigned" (empty string → `NULL`) is the default.
+  - Save button at the bottom right. In create mode it inserts a new row; in edit mode it updates the row whose id is `editingFollowUpId` (lifted to `AppointmentDetailView` so the sidepanel's **Edit** button can jump the composer into edit mode on an existing entry).
+  - Below the composer: a **Follow-ups on this visit** list mirroring `CaseNotesTab`'s "notes on this visit" card. Entries from other appointments show up in the left sidepanel only.
 
-**Storage (v2 schema target):**
+**State ownership.** `editingFollowUpId` lives on `AppointmentDetailView` (not `FollowUpTab`) because both `FollowUpHistoryPanel` (clicking an edit button on a past-visit row) and the tab's own list need to drive the composer. The tab receives `editingFollowUpId` + `onStartEdit` as props.
+
+**Storage (v2 schema, shipped in `0041_appointment_follow_ups`):**
 
 ```sql
 create table appointment_follow_ups (
@@ -191,15 +194,93 @@ create table appointment_follow_ups (
   reminder_employee_id uuid references employees(id) on delete set null,
   reminder_done boolean not null default false,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint reminder_fields_consistency check (
+    (has_reminder = false
+      and reminder_date is null
+      and reminder_method is null
+      and reminder_employee_id is null)
+    or (has_reminder = true and reminder_date is not null and reminder_method is not null)
+  )
 );
 ```
 
-Keeping `customer_id` alongside `appointment_id` mirrors the `case_notes` pattern — follow-ups show up on the customer detail page and survive appointment deletion (via `set null`). `reminder_*` fields are `NULL` unless `has_reminder = true`; enforce with a CHECK when the migration is written.
+The `reminder_fields_consistency` CHECK is the key safety net: it guarantees a follow-up row is either "plain note" (all reminder columns `NULL`) or "reminder with date + method" (employee can still be `NULL` = unassigned). That matches the Zod discriminated union in [`lib/schemas/follow-ups.ts`](../../lib/schemas/follow-ups.ts) — the schema layer and the DB layer agree, so if you bypass the service the database still rejects an inconsistent row.
 
-**Migration path from v1.** `appointments.follow_up` becomes a read-only legacy column. On first write to the new tab for an appointment that has a legacy `follow_up` value, back-fill it into `appointment_follow_ups` as an author-unknown row dated to the appointment's `updated_at`, then clear the legacy column. Old rows keep working; new rows live in the new table.
+**Indexes:**
+- `appointment_follow_ups_appointment_id_idx` — for the "follow-ups on this visit" list in the tab.
+- `appointment_follow_ups_customer_id_idx` — for the sticky sidepanel timeline (`listFollowUpsForCustomer`).
+- `appointment_follow_ups_reminder_pending_idx` — **partial index** `WHERE has_reminder = true AND reminder_done = false`, built for the future reminder dispatcher so it can `SELECT ... WHERE reminder_date <= today` without scanning the whole table.
 
-**Reminder delivery is out of scope for Phase 1.** The data shape is built so a future reminder dispatcher (Phase 3, alongside WhatsApp via wa-connector) can run a daily job that reads `WHERE reminder_done = false AND reminder_date <= today` and sends notifications. v1/v2 just stores the data.
+Keeping `customer_id` alongside `appointment_id` mirrors the `case_notes` pattern — follow-ups show up on the customer detail page and survive appointment deletion (via `ON DELETE SET NULL`). `author_id` captures who *wrote* the follow-up; `reminder_employee_id` captures who is expected to *action* the reminder — these are different roles and intentionally two columns.
+
+**Legacy `appointments.follow_up`.** v1 shipped with a single freeform textarea writing `appointments.follow_up`. The column still exists (kept for data preservation, not queried by the UI), and `setAppointmentFollowUpAction` / `setAppointmentFollowUp()` remain in the codebase but are no longer wired into any tab. If an appointment has a legacy value there, you won't see it in the new tab — a one-shot backfill to `appointment_follow_ups` can happen in a later migration once we confirm nobody cares about the handful of v1-era rows.
+
+**File map for the v2 slice:**
+
+| Concern | Path |
+|---|---|
+| Table migration | `0041_appointment_follow_ups` (via Supabase MCP, also documented in [`docs/schema/initial_schema.sql`](../schema/initial_schema.sql)) |
+| Generated types | [`lib/supabase/types.ts`](../../lib/supabase/types.ts) — `appointment_follow_ups` row |
+| Zod input schemas | [`lib/schemas/follow-ups.ts`](../../lib/schemas/follow-ups.ts) — `followUpInputSchema` (create), `followUpUpdateSchema` (edit), `followUpReminderDoneSchema` (flip done bit), plus exported `FOLLOW_UP_REMINDER_METHODS` const for the UI `<select>` |
+| Service layer | [`lib/services/follow-ups.ts`](../../lib/services/follow-ups.ts) — `listFollowUpsForCustomer`, `listFollowUpsForAppointment`, `createFollowUp`, `updateFollowUp`, `setFollowUpReminderDone`, `deleteFollowUp`. Framework-free, takes a `Context`. |
+| Server actions | [`lib/actions/follow-ups.ts`](../../lib/actions/follow-ups.ts) — `createFollowUpAction`, `updateFollowUpAction`, `setFollowUpReminderDoneAction`, `deleteFollowUpAction`. Each builds a `Context`, calls the service, revalidates `/appointments/[id]`. |
+| Data fetching | [`app/(app)/appointments/[id]/appointment-detail-content.tsx`](../../app/(app)/appointments/[id]/appointment-detail-content.tsx) — added `followUpsPromise` to the parallel `Promise.all`, scoped by `customer_id` (empty array for leads and time blocks). |
+| View orchestrator | [`components/appointments/AppointmentDetailView.tsx`](../../components/appointments/AppointmentDetailView.tsx) — lifts `editingFollowUpId`, renders `FollowUpHistoryPanel` on the followup tab (instead of `HistoryPanel`), passes `followUps` + `allEmployees` into `FollowUpTab`. |
+| Composer + this-visit list | [`components/appointments/detail/FollowUpTab.tsx`](../../components/appointments/detail/FollowUpTab.tsx) — full-rewrite from the v1 single-textarea; create + edit + delete in one component. |
+| Sticky sidepanel | [`components/appointments/detail/HistoryPanel.tsx`](../../components/appointments/detail/HistoryPanel.tsx) — now exports **two** components: the original `HistoryPanel` (case notes + billing) and a new `FollowUpHistoryPanel`. They share helpers (`formatDayMonthYear`, `formatWeekdayTime`) and the shell classes so both look identical side-by-side. |
+
+**Reminder delivery is out of scope for Phase 1.** The data shape is built so a future reminder dispatcher (Phase 3, alongside WhatsApp via wa-connector) can run a daily job backed by the partial index: `SELECT ... WHERE has_reminder = true AND reminder_done = false AND reminder_date <= current_date`. v2 just stores the data; marking a reminder `done` today requires hitting `setFollowUpReminderDoneAction` directly (no UI for it yet — planned as a one-click tick inside the sidepanel card once the dispatcher lands).
+
+**Intentional v2 non-goals.** No rich-text toolbar, no attachments, no threading (reply-to-follow-up), no cross-appointment "next action" linking. All of those fit the shipped schema without migration — add them in later PRs if the business actually asks.
+
+#### Documents tab
+
+**Why customer-owned, not appointment-owned.** A dental x-ray, ID scan, or signed consent form belongs to the *patient*, not a single visit — the next visit will want to see it, and the clinic might pull all of a customer's docs in one place from the customer detail page. We still want to know *which* visit captured a given file (for audit and for the default-filter on the tab), so the model is: **file is attached to the customer, with an optional `appointment_id` back-link**. Deleting a visit un-links the file (`ON DELETE SET NULL`) — the doc survives. Deleting the customer cascades everything (`ON DELETE CASCADE`).
+
+**Scope (v1).** Upload + list + view + download + delete. No categories/tags, no forms-based letters/collages/assessments — those are the later tabs in the KumoDent ribbon (Files / Forms / Letters / Collages / Upload) and are out of scope for now. Only the "Files" bucket is shipped.
+
+**Supported file types.** `image/jpeg`, `image/png`, `image/webp`, `application/pdf` — the same set the private `documents` Storage bucket allows. 20 MB max per file (bucket-enforced and Zod-enforced in [`lib/schemas/customer-documents.ts`](../../lib/schemas/customer-documents.ts)).
+
+**Layout inside the tab:**
+
+- **Toolbar row:** `Upload file` button, a short help-text line (allowed types + size limit), and a segmented toggle on the right: **This visit (N)** / **All for customer (M)**. Defaults to `This visit` — because the user is on an appointment page, what they usually want is "what did we capture today".
+- **List:** rows with a file-type icon (image vs PDF), click-the-filename to open in a new tab, a metadata line (size · upload timestamp · uploader name · booking ref when showing other visits), and a trailing action cluster: **View** (signed URL, opens new tab), **Download** (signed URL → `<a download>`), **Delete** (ConfirmDialog → DB row delete + storage blob delete).
+- **Empty state:** context-sensitive copy — "No documents on this visit yet." in the default view, "No documents for this customer yet." when scope is `all`.
+
+**Storage flow.** Same two-step dance as `components/ui/image-upload.tsx`, but pointed at the `documents` bucket:
+
+1. Client calls `requestCustomerDocumentUploadUrlAction({ customerId, filename, mime })` — the server builds a path via `buildCustomerDocumentPath` (`customers/<customer_id>/<yyyymmdd>-<uuid>.<ext>`) and mints a signed upload URL against the `documents` bucket.
+2. Client PUTs the file directly to Supabase Storage via `supabase.storage.from('documents').uploadToSignedUrl(...)`. Bytes never traverse the Next server.
+3. On success, client calls `createCustomerDocumentAction(appointmentId, { customer_id, appointment_id, storage_path, file_name, mime_type, size_bytes })` to insert the row.
+
+Reads use `getCustomerDocumentSignedUrlAction(id)` — a service fetches the row, then mints a 10-minute signed read URL against the path. Delete reverses the flow: DB row delete first (source of truth), then storage blob delete; if blob delete fails we log and move on — better an orphan blob than a dangling DB reference. A sweeper can reconcile later.
+
+**Why `storage_path` is `UNIQUE`.** Path collisions would let two DB rows reference the same blob, which would turn deletes into dangling-reference bugs. The path helper already includes a UUID so real collisions are impossible — the uniqueness constraint is belt-and-braces against a bad insert.
+
+**Indexes:**
+- `customer_documents_customer_id_idx` on `(customer_id, created_at desc)` — every list query scopes by `customer_id` and orders newest-first; this index serves both.
+- `customer_documents_appointment_id_idx` — **partial** `WHERE appointment_id is not null` so it's tiny and only indexes rows that were actually captured during a visit.
+
+**File map:**
+
+| Concern | Path |
+|---|---|
+| Table migration | `0042_customer_documents` (applied via Supabase MCP) |
+| Generated types | [`lib/supabase/types.ts`](../../lib/supabase/types.ts) — `customer_documents` row |
+| Zod input schema + constants | [`lib/schemas/customer-documents.ts`](../../lib/schemas/customer-documents.ts) — exports `customerDocumentInputSchema`, `CUSTOMER_DOCUMENT_MIME_TYPES`, `CUSTOMER_DOCUMENT_MAX_BYTES` |
+| Service layer | [`lib/services/customer-documents.ts`](../../lib/services/customer-documents.ts) — `listCustomerDocuments`, `createCustomerDocument`, `getCustomerDocument`, `deleteCustomerDocument` (returns `storage_path` so the action can cascade the blob delete). Framework-free; NestJS-portable. |
+| Storage path helper | [`lib/services/storage.ts`](../../lib/services/storage.ts) — new `buildCustomerDocumentPath({ customerId, filename, mime })` sibling to `buildEntityPath` |
+| Server actions | [`lib/actions/customer-documents.ts`](../../lib/actions/customer-documents.ts) — `requestCustomerDocumentUploadUrlAction` (step 1 of the upload dance), `createCustomerDocumentAction` (step 3), `getCustomerDocumentSignedUrlAction` (signed read URL), `deleteCustomerDocumentAction` (DB row + blob) |
+| Data fetching | [`app/(app)/appointments/[id]/appointment-detail-content.tsx`](../../app/(app)/appointments/[id]/appointment-detail-content.tsx) — `customerDocumentsPromise` added to the parallel `Promise.all`, scoped by `customer_id` (empty for leads and time blocks) |
+| View orchestrator | [`components/appointments/AppointmentDetailView.tsx`](../../components/appointments/AppointmentDetailView.tsx) — passes `documents={customerDocuments}` to `DocumentsTab` |
+| UI | [`components/appointments/detail/DocumentsTab.tsx`](../../components/appointments/detail/DocumentsTab.tsx) — toolbar + scope toggle + list with per-row view/download/delete |
+
+**Graceful degradation.**
+- **Time blocks:** tab shows "Documents don't apply to time blocks." (same pattern as Case Notes / Follow Up).
+- **Walk-in leads without a customer record:** tab shows "Register this walk-in lead as a customer to attach documents." — because we need a `customer_id` to attach to.
+
+**Intentional v1 non-goals.** No folders / categories / tags, no bulk upload (one file at a time), no drag-and-drop, no inline image thumbnails (click to open instead — keeps the list cheap to render), no reordering, no edit-metadata (you delete and re-upload), no sharing / signed URL copy-button. The table shape is flexible enough to add any of these without another migration.
 
 #### History panel (shared between Case Notes and Billing tabs)
 
@@ -221,7 +302,9 @@ When either Case Notes or Billing is active and the appointment has a linked cus
 
 #### Floating Action Bar (bottom-right)
 
-Six circular icon buttons pinned to `fixed right-4 bottom-4`. Only **Complete** is wired; the rest are placeholders that will be wired next.
+Six circular icon buttons pinned to `fixed right-4 bottom-4` while the appointment is not yet `completed`; the bar swaps to a two-icon post-completion view once status is `completed` (see "Post-completion FAB" below). Only **Complete** and **Revert** are wired; the rest are placeholders.
+
+**Pre-completion (status ≠ `completed`):**
 
 | Icon | Colour | Action | Status |
 |------|--------|--------|--------|
@@ -230,15 +313,87 @@ Six circular icon buttons pinned to `fixed right-4 bottom-4`. Only **Complete** 
 | 🚫 Ban | red | **Cancel appointment** → see "Cancel appointment" workflow below | ⏳ planned |
 | 📋 ListOrdered | sky | Add to queue | ⏳ placeholder |
 | ✏️ Pencil | amber | Edit appointment | ⏳ placeholder (Edit also reachable via header dialog state) |
-| ✅ Check | emerald | **Complete appointment** → see "Complete appointment" workflow below | ✅ wired |
+| ✅ Check | emerald | **Complete appointment** → branches on line items + payment state, see "Complete appointment workflow" below | ✅ wired |
 
 **Complete is gated by Hands-on Incentives.** The button is disabled (with tooltip "Every service line needs an employee assigned") until every `appointment_line_items` row where `item_type = 'service'` has at least one `appointment_line_item_incentives` row. This is how v1 guarantees attribution data exists by the time a sale is committed — the Billing tab is the last place incentives can be edited, so gating the Complete button is the natural checkpoint.
 
-**Complete always routes through `CollectPaymentDialog`**, even in edge cases:
-- **No line items at all.** The dialog opens with an empty cart and a `0.00` total. Staff submits a zero-total sale and the appointment flips to `completed` + `payment_status = paid`. This is the path for free consults, cancelled-mid-treatment visits, and anything billed externally.
-- **Service lines with `unit_price = 0`.** Same path — the dialog shows the 0-priced line, the total is whatever it is (possibly zero), and the payment is recorded. The zero line items are still snapshotted to `sale_items`, so the clinical record survives in the sales history.
+**Complete branches on line items + payment state** (redesigned 2026-04-15 — see "Complete appointment workflow" below). The three paths:
 
-The status pill row on the Summary card is the *other* way to reach `completed`, for manual corrections. The Complete button is the "happy path, goes via payment" route; the pill row is the escape hatch.
+| State | What happens on click |
+|---|---|
+| **No line items** | `markAppointmentCompleted()` action → appointment flips straight to `completed`. No dialog. Used for free consults, cancelled-mid-treatment visits, anything billed externally. |
+| **Has line items, unpaid** | Existing `CollectPaymentDialog` flow. The `collect_appointment_payment` RPC already flips `appointments.status = 'completed'` as part of its transaction, so completion is a side-effect of the payment. |
+| **Has line items, already paid** | `markAppointmentCompleted()` action → flips status directly, no dialog. This path exists for reverted-then-recompleted appointments (see Revert below). |
+
+**`markAppointmentCompleted()` is deliberately separate from the payment RPC** — not a zero-amount collect-payment call. An earlier draft suggested routing the "no line items" case through the same dialog with a `0.00` total, but the dialog and RPC both validate `amount > 0`, so that path was always theoretical. A dedicated mark-complete action is cleaner: one plain `UPDATE appointments SET status = 'completed'`, no SO/payment rows created, clinical record (line items) untouched.
+
+**Status pill row no longer allows `completed`.** Previously the `StatusProgressionRow` on the Summary card was an escape hatch — clicking the Completed pill would manually flip status without going through the FAB. That's removed completely: the Completed pill is **not rendered** in the progression row at all, the right-click status submenu hides it, and the Appointment create/edit dialog's status picker hides it. When an appointment's status is `completed` the whole pill row is replaced with a static "Completed" indicator (coloured badge, non-clickable), because the progression is terminal and there's nothing for the user to pick. The FAB's Revert button is the only way out of the terminal state.
+
+Service-layer guards back it up: `setAppointmentStatus()` rejects `completed` as a target, and `updateAppointment()` rejects a *transition* from non-completed → completed (while still allowing edits to an already-completed row for the other fields). The *only* paths to `completed` are now the `collect_appointment_payment` RPC and `markAppointmentCompleted()`. This matches KumoDent: staff can't accidentally mark a visit done without routing through the mark-complete button, so the "reach completed without collecting money" failure mode can only happen via the deliberate no-line-items path.
+
+#### Complete appointment workflow
+
+The FAB's Mark Complete button drives one of three branches. All three converge on `appointments.status = 'completed'`, and from there the FAB itself re-renders in the post-completion state (see "Post-completion FAB" below).
+
+```
+    ┌─ click Mark Complete (FAB) ─┐
+    ▼                             ▼
+incentives gate? ──no──▶ disabled (tooltip)
+    │ yes
+    ▼
+line items count?
+    │
+    ├─ 0 ──────────────▶ markAppointmentCompleted() ──▶ status = completed
+    │
+    └─ ≥1
+        │
+        ▼
+    payment_status?
+        │
+        ├─ paid ───────▶ markAppointmentCompleted() ──▶ status = completed
+        │
+        └─ unpaid/partial ─▶ CollectPaymentDialog ──▶ collect_appointment_payment RPC
+                                                      ├─ INSERT sales_orders + sale_items + payments
+                                                      ├─ UPDATE inventory_items.stock (per product line)
+                                                      ├─ INSERT inventory_movements (per deduction)
+                                                      └─ UPDATE appointments SET status = completed,
+                                                                                payment_status = paid
+```
+
+**Inventory deduction timing — decided 2026-04-15.** Stock decrements fire inside the `collect_appointment_payment` RPC, *not* on line-item add, *not* on mark-done, *not* on appointment completion in the general sense. Reasoning:
+
+- **Add-line-item is too early.** Staff edit the cart freely during the visit (add, remove, change qty). Deducting on every add-line would produce phantom movements for stuff that never actually leaves the shelf.
+- **Mark-done-only is too late.** Since completion is now gated on payment (the `markAppointmentCompleted` path only fires when there are no line items to deduct), the payment-collection moment is the unambiguous "money changed hands, product left the shelf" instant. Attaching deduction to payment makes the invariant trivial to reason about.
+- **The `markAppointmentCompleted` path never deducts** — by construction it only fires when there are no line items or the sale has already been paid (deduction already happened). So the rule "deduction happens exactly once, inside the payment RPC" holds universally.
+
+Each deduction writes one `inventory_movements` row (`reason = 'sale'`, `ref_type = 'sales_order'`, `ref_id = sales_order_id`) for audit. The movement rows are how reports reconstruct "what left inventory and why" — the mutation on `inventory_items.stock` alone is not a replayable record. See [07-inventory.md](./07-inventory.md) §Stock ledger.
+
+**`sale_items.inventory_item_id` FK** (added in the same 2026-04-15 migration) records which inventory row a product line was deducted against. It's SET NULL on inventory_items delete so historical sales survive catalog pruning, and it's `NULL` for service / charge lines.
+
+#### Revert appointment workflow
+
+Once `status = completed`, the FAB swaps: most icons disappear and a **Revert** button takes over (plus the Schedule Next Appointment stub, which is visible but not yet wired).
+
+**Revert rules — decided 2026-04-15:**
+
+- **Allowed only when `status = completed`.** Service-layer guard; UI hides the button otherwise.
+- **Flips `status` back to `pending`.** Semantically "reopened for edits", not "customer hasn't confirmed yet". Staff learns the convention.
+- **Does NOT touch `sales_orders`, `sale_items`, `payments`, or `inventory_movements`.** Reverting is about unlocking the chart (so staff can fix notes, add or correct clinical details, swap incentive attribution), not about unwinding money. Refunds are a separate flow (cancellation record, not reverting an appointment).
+- **Does NOT touch `payment_status`.** If the appointment was paid, it stays `paid` after revert. The Mark Complete button will then take the "already paid" branch on re-completion, flipping status straight back to `completed` with no new payment.
+- **Does NOT touch `inventory_items.stock`.** Same logic — product already left the shelf and the ledger row is immutable.
+
+**Known limitation: billing changes after revert.** If staff reverts a paid appointment and then *adds* new `appointment_line_items`, those new rows are not in the existing sales order. Re-completing via the FAB takes the "already paid" branch and just flips status — the new items don't generate a new SO and don't deduct inventory. This is accepted for v1; the intended workflow is "revert only to edit clinical data, not to re-charge". A future cancellation/amend flow will handle the "charge more after the fact" case properly. When that lands, the "has unbilled items after a paid SO" detection will be added as a guard on Mark Complete.
+
+#### Post-completion FAB
+
+When `appointment.status === 'completed'`, the FAB hides Print Ticket / Cancel / Add to Queue / Edit / Mark Complete and shows only:
+
+| Icon | Colour | Action | Status |
+|------|--------|--------|--------|
+| ➕ Plus | green | Schedule next appointment for this customer | ⏳ placeholder (stub, not wired) |
+| ↩️ Undo2 | slate | **Revert** → see "Revert appointment workflow" above | ✅ wired |
+
+The Schedule Next button is kept visible in v1 so the shape of the post-completion bar matches the reference prototype, even though clicking it does nothing yet.
 
 #### Collect Payment Dialog
 
@@ -276,7 +431,7 @@ Centered modal (`components/ui/dialog.tsx`), not a side sheet.
   2. *Selected customer* — muted chip with name + code + phone and a `Change` button.
   3. *Selected lead* — amber chip with the lead's name, a `Walk-in lead` badge, `Change` button, and extra fields `Contact number` (required), `Source` (required — walk_in / referral / ads / online_booking), and `Lead attended by`. On an existing lead appointment, a `Register as Customer` button opens `LeadConvertDialog`.
 - **Start / End** — `datetime-local` inputs; if end is moved before start, end jumps forward 30 min.
-- **Employee** — optional dropdown of bookable employees rostered at the outlet. Planned: the KumoDent "intended positions" warning popup (see Hands-on Incentives note above) — not built yet.
+- **Employee** — optional dropdown of bookable employees rostered at the outlet. The list is **filtered to staff whose shifts cover the proposed `start_at`/`end_at`** via `isWindowCoveredByShifts` ([lib/roster/week.ts](../../lib/roster/week.ts)). When editing, an already-assigned employee whose shift no longer covers the window is kept in the list with a `(not rostered)` suffix so the edit doesn't silently strip them. Breaks are not enforced in v1.
 - **Room** — required dropdown for non-block appointments (Zod enforces `room_id` non-null). Optional for time blocks.
 - **Status** — pill picker (8 values, see below).
 - **Payment status** — `unpaid` / `partial` / `paid`. Normally driven by the Collect Payment flow; the dialog exposes it for manual correction.
@@ -288,6 +443,65 @@ Centered modal (`components/ui/dialog.tsx`), not a side sheet.
 - Start / End, Employee, Room, Notes.
 
 **Billing section is NOT shown in the Create / Edit Dialog.** Billing lives only on the full-page detail route (`/appointments/[id]` → Billing tab). The dialog stays focused on scheduling. `BillingSection` is the inline component used by `BillingTab` — doctor picks a service from the catalog (auto-fills name + price), or types a custom description, sets quantity + unit price (override allowed), optionally types a note for frontdesk, and clicks Add. Each row's price is editable in place; delete via trash icon. See `ServicePickerDialog.tsx` for the picker UX.
+
+## Medical Certificates
+
+**Purpose.** Dentist or clinic admin issues an MC from inside an open appointment's Case Notes tab. The saved row lives forever (hard-delete blocked by `ON DELETE RESTRICT` on all FKs — MCs are legal records). The printed slip is served by a dedicated route that renders HTML and uses the browser's native print dialog.
+
+**Entry point.** Case Notes tab → quick-action toolbar → `Add medical certificate` button (`FileBadge` icon). Opens `AddMcDialog`.
+
+**Dialog form (mirrors `2.2.4.1 Add MC Form.png`):**
+- **Slip type** — `Day-Off Slip` / `Time-Off Slip` radio. v1 renders both identically; `Time-Off Slip` is stored for future differentiation.
+- **Start date** — defaults to the appointment's `start_at` date.
+- **Duration** — number input, 0.5 step. The dialog shows a derived `End` read-only field that updates as you type, formatted `DD/MM/YYYY` or `DD/MM/YYYY (AM)` when a half day is in play. The label under the input spells the duration out ("2 days and a half") so there's no ambiguity.
+- **Add on half day?** — reveals the Half Day checkbox. Checking it adds 0.5 to the stored `duration_days` and flags `has_half_day = true`. The derived `half_day_period` is always `AM` in v1 (the run ends in the morning of the final day).
+- **Reason** — optional textarea.
+
+**Derivation rule.** `lib/services/medical-certificates.ts` computes `end_date` on the server:
+- integer `N` days → `end_date = start + (N - 1)`
+- half-day `N.5` days → `end_date = start + N` with `half_day_period = 'AM'`
+
+Examples: 1 day → start=end. 2.5 days starting 15/04 → end 17/04 (AM). 3 days starting 15/04 → end 17/04.
+
+**Print view.** `/medical-certificates/[id]` is outside the `(app)` route group, so no sidebar/topbar. Layout copies `2.2.4.2 sample MC.png`: clinic header (logo + outlet name + group company + reg number + address + phone/email), centered `MEDICAL CERTIFICATE` banner, ref number (`MC-000001`…), body paragraph with substituted fields, optional reason, "Doctor Signature" block. A `@media print` CSS block hides the top action bar and sets A4 margins. The only JS is a `window.print()` Print button — **no jsPDF, puppeteer, or react-pdf in the dependency tree.**
+
+**Letterhead constants.** Group company name, company registration number, and logo live in `lib/medical-certificates/template.ts` as `CLINIC_HEADER`. The logo file is `public/mc-logo.svg` (placeholder). These are **hardcoded on purpose** — see "What we need from the clinic" below.
+
+**Schema (`0043_medical_certificates_initial`):**
+- `code text` — auto `MC-000001`, `gen_code('MC', 'public.medical_certificates_code_seq', 6)`
+- `appointment_id`, `customer_id`, `outlet_id` — RESTRICT
+- `issuing_employee_id` — nullable, RESTRICT
+- `slip_type` ∈ `day_off` / `time_off`
+- `start_date`, `end_date` (date)
+- `duration_days numeric(4,1)` with a `> 0` check
+- `has_half_day bool`
+- `half_day_period` ∈ `AM` / `PM` (only set when `has_half_day = true`)
+- `reason text` (optional)
+- `pdf_path text` — reserved for a future "capture rendered PDF into `documents` bucket" pass; **unused in v1**
+- RLS on, temp permissive policies for anon + authenticated.
+
+**Files:**
+- `lib/schemas/medical-certificates.ts`, `lib/services/medical-certificates.ts`, `lib/actions/medical-certificates.ts`
+- `lib/medical-certificates/template.ts` (letterhead constants)
+- `components/medical-certificates/AddMcDialog.tsx`
+- `app/medical-certificates/[id]/page.tsx` + `print-button.tsx`
+- `public/mc-logo.svg` (placeholder)
+
+**What we need from the clinic before go-live.** The following are hardcoded placeholders — replace when you have the real values.
+1. **Real clinic logo** — a 512×512 PNG or SVG dropped at `public/mc-logo.svg` (or .png — update `CLINIC_HEADER.logoPath`).
+2. **Group / parent company name** — currently `BIG DENTAL GROUP SDN BHD`. Edit `CLINIC_HEADER.groupName` in `lib/medical-certificates/template.ts`.
+3. **Company registration number** — currently `(1632410-U)`. Edit `CLINIC_HEADER.registrationNumber` in the same file.
+4. **Outlet-level fields already editable in Config → Outlets** that feed the header directly: `name`, `address1`, `address2`, `city`, `state`, `postcode`, `country`, `phone`, `email`. Make sure these are filled in for every outlet that will issue MCs.
+5. **Doctor / issuing employee name** — comes from `employees.first_name` + `last_name`. The issuing employee defaults to the appointment's assigned employee, or `ctx.currentUser.employeeId` if the appointment has none. Verify roster data is in.
+
+**Explicitly deferred (noted on the plan):**
+- Wiring the other five toolbar stub buttons (annotate image, templates, prescription, ICD-10, dental chart).
+- Config → Letterhead editor (UI to change group name / reg number / logo per outlet without a code change — will migrate `CLINIC_HEADER` to a `outlets.letterhead` JSONB column).
+- Digital signature image (currently a blank line with the doctor's name typed underneath).
+- Capturing the rendered MC to the `documents` bucket (`pdf_path` column exists for this).
+- Differentiated rendering for `time_off` slips.
+- Voiding / editing an issued MC.
+- Customer-detail tab listing past MCs (the `listMedicalCertificatesForCustomer` service method exists but is unused).
 
 ## Realtime status-change toasts
 
@@ -313,6 +527,8 @@ pending → confirmed → arrived → started → billing → completed
 | `noshow` | No Show | 🚫 | Didn't turn up |
 
 **No `cancelled` status** — it was removed in migration `appointments_drop_cancelled_status`. Cancellation is a hard delete with a recorded reason (see "Cancel appointment" workflow below). Transitions are manual (staff clicks a status pill); no auto-advance from time elapsing. Colours live in `lib/constants/appointment-status.ts` as Tailwind classes.
+
+**`completed` is write-locked from the status pill row and right-click submenu** (decided 2026-04-15). The only paths to `completed` are the `collect_appointment_payment` RPC (payment-driven) and the `markAppointmentCompleted()` service (line-items-empty or already-paid). The status pill for `completed` renders read-only — clicking it is a no-op. See "Complete appointment workflow" below.
 
 **`noshow` is not cancellation.** No-show means "booking was valid, customer didn't turn up" — the row stays, the booking ref stays, the history stays. Cancellation means "this booking should never have existed (or shouldn't now exist)" and the row goes away. Two different operations with two different UX entry points (status pill vs floating-bar Cancel).
 
@@ -408,9 +624,10 @@ One row per line item — flattened, not grouped. Maps 1:1 to `sale_items` when 
 |-------|------|----------|-------|
 | id | uuid | Yes | PK |
 | appointment_id | uuid (FK appointments) | Yes | CASCADE |
-| item_type | text | Yes | CHECK `service / product / charge`, default `service` |
-| service_id | uuid (FK services) | No | SET NULL — snapshot, not source of truth |
-| description | text | Yes | Snapshot of service name at time of entry |
+| item_type | text | Yes | CHECK `service / product / charge`, default `service`. Drives which of the two FKs below must be set. |
+| service_id | uuid (FK services) | Cond. | ON DELETE SET NULL. Required when `item_type='service'`, must be NULL otherwise. Snapshot, not source of truth. |
+| product_id | uuid (FK inventory_items) | Cond. | ON DELETE SET NULL. Required when `item_type='product'`, must be NULL otherwise. Added in migration `appointment_line_items_add_product_id` (2026-04-15) so the billing cart can hold sellable inventory products (masks, fluoride gel, whitening kits) alongside services. |
+| description | text | Yes | Snapshot of service or product name at time of entry |
 | quantity | numeric(10,2) | Yes | CHECK `> 0`, default 1 |
 | unit_price | numeric(10,2) | Yes | CHECK `>= 0`, **editable per row** (price override) |
 | total | numeric(12,2) | — | GENERATED `quantity * unit_price` STORED |
@@ -418,7 +635,17 @@ One row per line item — flattened, not grouped. Maps 1:1 to `sale_items` when 
 | created_by | uuid (FK employees) | No | SET NULL |
 | created_at, updated_at | timestamptz | Yes | |
 
-Index: `(appointment_id)`.
+Indexes: `(appointment_id)`, `(product_id)`.
+
+**CHECK `appointment_line_items_type_ref_check`** — enforces the `item_type` ↔ FK invariant at the database level so the schema can't drift out of sync with the Zod layer:
+
+```
+(item_type='service' AND service_id IS NOT NULL AND product_id IS NULL)
+OR (item_type='product' AND product_id IS NOT NULL AND service_id IS NULL)
+OR (item_type='charge'  AND service_id IS NULL     AND product_id IS NULL)
+```
+
+`charge` is reserved for ad-hoc line items (consultation fees, write-offs) that don't reference a catalog row. The UI does not expose it yet — v1 only ships the Services and Products tabs of the billing picker. Laboratory / Vaccinations / Other Charges are placeholder tabs.
 
 ### Consumables — no table
 
@@ -465,10 +692,11 @@ Service: `lib/services/case-notes.ts`. Actions: `lib/actions/case-notes.ts`. UI 
 |---------------|-------------|---------|
 | Customers | appointment → customer | `customer_id` (optional; nullable for blocks and leads) |
 | Employees | appointment → employee | `employee_id` (performer), `lead_attended_by_id`, `created_by` |
-| Services | line item → service | **No `service_id` on appointments.** Services appear only via `appointment_line_items.service_id`. |
+| Services | line item → service | **No `service_id` on appointments.** Services appear only via `appointment_line_items.service_id` on rows where `item_type='service'`. |
+| Inventory | line item → inventory item | Product line items (`item_type='product'`) reference `inventory_items.id` via `appointment_line_items.product_id`. The Billing tab picker fetches `listSellableProducts()` — filtered to `kind='product' AND is_sellable=true AND is_active=true`. Consumables and medications are NOT pickable from Billing. |
 | Outlets | appointment → outlet | `outlet_id` (required, RESTRICT) |
 | Rooms | appointment → room | `room_id` (optional at schema, required by Zod for non-blocks) |
-| Roster | roster drives staff availability | `listBookableEmployeesForOutlet` reads roster to gate the staff picker |
+| Roster | roster drives staff availability | `listBookableEmployeesForOutlet` provides the base set; `isWindowCoveredByShifts` filters the appointment dialog's employee picker to staff whose shifts cover the proposed window, and powers the calendar drag/drop soft-warn toast. Enforced as a soft filter only — no server-side hard block. |
 | Line items (`appointment_line_items`) | appointment → line items | One appointment, many line items (one per line, not per batch). Dual role — clinical record AND billing cart. |
 | Consumables | line item → service.consumables | Read-only from `services.consumables` free-text. No child table on the appointment side. |
 | Incentives (`appointment_line_item_incentives`) | line item → employees | CASCADE from line item. Multiple employees per line; unique on `(line_item_id, employee_id)`. |
@@ -506,7 +734,7 @@ app/(app)/appointments/
   appointments-content.tsx            (RSC: resolve outlet/date/resource from URL, load month-grid data, pass into AppointmentsView)
   [id]/
     page.tsx                          (Suspense shell for detail route)
-    appointment-detail-content.tsx    (RSC: load appointment + customer history + billing history + case notes + lookup data)
+    appointment-detail-content.tsx    (RSC: load appointment + customer history + billing history + case notes + follow-ups + customer documents + lookup data)
 
 components/appointments/
   AppointmentsView.tsx                (NEW — client shell: owns display/scope state, persists to localStorage, hosts FilterBar + Calendar)
@@ -523,8 +751,8 @@ components/appointments/
   AppointmentToastStack.tsx           (per-page toast stack used by the detail view)
   AppointmentStatusToastStack.tsx     (realtime status-change toast stack used by the global AppointmentNotificationsProvider)
   AppointmentDialog.tsx               (Dialog form — scheduling only)
-  BillingSection.tsx                  (post-treatment line-item editor, used by BillingTab)
-  ServicePickerDialog.tsx             (service catalog picker inside BillingSection)
+  BillingSection.tsx                  (post-treatment line-item editor, used by BillingTab — handles service + product lines)
+  BillingItemPickerDialog.tsx         (tabbed picker inside BillingSection: Services + Products live, Laboratory / Vaccinations / Other Charges disabled)
   AppointmentDetailView.tsx           (full-page client view, coordinates tabs + edit dialog + floating action bar + history panel + toasts)
   detail/
     DetailHeader.tsx                  (back, title, collapse toggle, delete)
@@ -537,9 +765,9 @@ components/appointments/
     ConsumablesCard.tsx               (Overview tab: read-only per-line consumables from services.consumables free-text)
     HandsOnIncentivesCard.tsx         (Overview tab: per-line employee attribution; writes appointment_line_item_incentives)
     CaseNotesTab.tsx                  (add/edit/delete case notes)
-    FollowUpTab.tsx                   (single freeform textarea writing appointments.follow_up)
-    DocumentsTab.tsx                  (static stub)
-    HistoryPanel.tsx                  (sticky left timeline: receipt cards + note cards, filter + collapse + close)
+    FollowUpTab.tsx                   (composer + this-visit list: content + optional reminder toggle, create/edit/delete on appointment_follow_ups)
+    DocumentsTab.tsx                  (upload + list + view/download + delete customer_documents; This visit / All for customer toggle)
+    HistoryPanel.tsx                  (sticky left timeline — exports HistoryPanel [case notes + billing] AND FollowUpHistoryPanel [follow-ups only])
     PlaceholderPanel.tsx              (reusable placeholder card — now used only by clinical/Camera tabs and the Status Change Log overview sub-card)
     FloatingActionBar.tsx             (fixed bottom-right: 5 placeholders + wired Complete → ConfirmDialog → CollectPaymentDialog)
     CollectPaymentDialog.tsx          (two-column POS-style dialog calling collectAppointmentPaymentAction)
@@ -555,8 +783,14 @@ lib/schemas/appointments.ts           (Zod input schemas: input / reschedule / s
 lib/services/appointments.ts          (list/get/create/update/reschedule/setStatus/setPayment/setTags/setFollowUp/delete/convertLead/findOverlapping)
 lib/services/appointment-line-items.ts (line-item CRUD + CustomerLineItem joined rows for receipt cards + incentives CRUD with assertServiceLineItem invariant)
 lib/services/case-notes.ts            (CRUD)
+lib/services/follow-ups.ts            (CRUD — list-by-customer / list-by-appointment / create / update / setReminderDone / delete)
+lib/services/customer-documents.ts    (CRUD — list-by-customer / create / get / delete; delete returns storage_path so the action can cascade the blob delete)
+lib/schemas/customer-documents.ts     (Zod input + CUSTOMER_DOCUMENT_MIME_TYPES const + CUSTOMER_DOCUMENT_MAX_BYTES)
+lib/schemas/follow-ups.ts             (Zod discriminated union on has_reminder — mirrors the DB CHECK constraint)
 lib/actions/appointments.ts           (server actions — wrappers)
 lib/actions/case-notes.ts             (server actions — wrappers)
+lib/actions/follow-ups.ts             (server actions — wrappers)
+lib/actions/customer-documents.ts     (server actions: requestUploadUrl / create / getSignedUrl / delete [+ blob cleanup])
 lib/actions/sales.ts                  (collectAppointmentPaymentAction — used by CollectPaymentDialog)
 ```
 
@@ -573,8 +807,11 @@ lib/actions/sales.ts                  (collectAppointmentPaymentAction — used 
 - **Walk-in customer create-inline** shortcut from inside `AppointmentDialog`.
 - **Recurring / repeat appointments** — net-new feature.
 - **Sound effects on status change** — behind a user-preference toggle.
-- **Dental Assessment / Periodontal Charting / Camera / Documents tab content** — Phase 2 clinical sub-modules.
-- **Follow Up tab v2** — build `appointment_follow_ups` table, dedicated sidepanel, basic rich-text editor, Reminder toggle with date + method + employee fields. Shape committed (see "Follow Up tab" section).
+- **Dental Assessment / Periodontal Charting / Camera tab content** — Phase 2 clinical sub-modules.
+- **Documents tab polish** — folders / categories / tags, bulk upload, drag-and-drop, inline image thumbnails (lazy-loaded via signed URLs), share-link button, edit-metadata, KumoDent-style Forms / Letters / Collages / Upload sibling tabs. Base v1 shipped (see "Documents tab" section).
+- **Customer detail Documents section** — reuse `listCustomerDocuments` and the same row layout on the customer detail page so staff don't have to open a specific appointment to see all docs for a patient.
+- **Follow Up tab polish** — optional rich-text toolbar on the composer textarea, a one-click "mark reminder done" affordance on `FollowUpHistoryPanel` cards (action already exists: `setFollowUpReminderDoneAction`), and a one-shot migration to backfill legacy `appointments.follow_up` rows into `appointment_follow_ups`. Base v2 shipped (see "Follow Up tab" section).
+- **Phase 3 reminder dispatcher** — worker that reads `appointment_follow_ups WHERE has_reminder = true AND reminder_done = false AND reminder_date <= current_date` (partial index already in place) and routes each row to the right channel (`call` → surfaced in a daily queue; `whatsapp` → hand off to wa-connector). Updates `reminder_done = true` on success.
 - **Case notes improvements** — linkage to billing lines, multi-author edit history, reuse on the customer detail page.
 - **Service employee-picker "intended positions" popup** — matches KumoDent UX; needs a `services.intended_positions text[]` field first.
 - **Collect Payment dialog v2** — wire Itemised Allocation, secondary staff avatars, Add Item to Cart, Repeat Previous Items, Apply Auto Discount, Attachments, Backdate, Add Payment Type, frontdesk message plumbing.

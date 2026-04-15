@@ -96,6 +96,17 @@ export async function listShiftsForWeek(
 	);
 }
 
+export async function listShiftsForRange(
+	ctx: Context,
+	args: { outletId: string; from: string; to: string },
+): Promise<EmployeeShift[]> {
+	return listShiftsForWeek(ctx, {
+		outletId: args.outletId,
+		weekStart: args.from,
+		weekEnd: args.to,
+	});
+}
+
 export async function createShift(
 	ctx: Context,
 	input: unknown,

@@ -14,6 +14,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
 	createUomAction,
 	deleteUomAction,
 	updateUomAction,
@@ -77,25 +82,35 @@ function UomList({ uoms }: { uoms: InventoryUom[] }) {
 								)}
 							</div>
 							<div className="flex gap-1">
-								<Button
-									variant="ghost"
-									size="icon-sm"
-									onClick={() => setEditing(u)}
-									aria-label="Edit"
-								>
-									<Pencil />
-								</Button>
-								<Button
-									variant="ghost"
-									size="icon-sm"
-									onClick={() => {
-										setDeleteError(null);
-										setDeleting(u);
-									}}
-									aria-label="Delete"
-								>
-									<Trash2 />
-								</Button>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant="ghost"
+											size="icon-sm"
+											onClick={() => setEditing(u)}
+											aria-label="Edit"
+										>
+											<Pencil />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>Edit</TooltipContent>
+								</Tooltip>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant="ghost"
+											size="icon-sm"
+											onClick={() => {
+												setDeleteError(null);
+												setDeleting(u);
+											}}
+											aria-label="Delete"
+										>
+											<Trash2 />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>Delete</TooltipContent>
+								</Tooltip>
 							</div>
 						</li>
 					))}

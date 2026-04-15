@@ -3,6 +3,7 @@ import { AppointmentDetailView } from "@/components/appointments/AppointmentDeta
 import { Button } from "@/components/ui/button";
 import { getServerContext } from "@/lib/context/server";
 import { NotFoundError } from "@/lib/errors";
+import { addDays, fmtDate } from "@/lib/roster/week";
 import {
 	type CustomerLineItem,
 	listIncentivesForAppointment,
@@ -20,11 +21,24 @@ import {
 	type CaseNoteWithAuthor,
 	listCaseNotesForCustomer,
 } from "@/lib/services/case-notes";
+import {
+	type CustomerDocumentWithRefs,
+	listCustomerDocuments,
+} from "@/lib/services/customer-documents";
 import { listCustomers } from "@/lib/services/customers";
-import { listBookableEmployeesForOutlet } from "@/lib/services/employee-shifts";
+import {
+	listBookableEmployeesForOutlet,
+	listShiftsForRange,
+} from "@/lib/services/employee-shifts";
 import { listEmployees } from "@/lib/services/employees";
+import {
+	type FollowUpWithRefs,
+	listFollowUpsForCustomer,
+} from "@/lib/services/follow-ups";
+import { listSellableProducts } from "@/lib/services/inventory";
 import { listOutlets, listRooms } from "@/lib/services/outlets";
 import { listServices } from "@/lib/services/services";
+import { listTaxes } from "@/lib/services/taxes";
 
 export async function AppointmentDetailContent({ id }: { id: string }) {
 	const ctx = await getServerContext();
@@ -49,37 +63,64 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 			? listCaseNotesForCustomer(ctx, appointment.customer_id)
 			: Promise.resolve([]);
 
+	const followUpsPromise: Promise<FollowUpWithRefs[]> = appointment.customer_id
+		? listFollowUpsForCustomer(ctx, appointment.customer_id)
+		: Promise.resolve([]);
+
+	const customerDocumentsPromise: Promise<CustomerDocumentWithRefs[]> =
+		appointment.customer_id
+			? listCustomerDocuments(ctx, appointment.customer_id)
+			: Promise.resolve([]);
+
 	const customerLineItemsPromise: Promise<CustomerLineItem[]> =
 		appointment.customer_id
 			? listLineItemsForCustomer(ctx, appointment.customer_id)
 			: Promise.resolve([]);
+
+	const apptLocal = new Date(appointment.start_at);
+	const prevDateStr = fmtDate(addDays(apptLocal, -1));
+	const nextDateStr = fmtDate(addDays(apptLocal, 1));
 
 	const [
 		lineItems,
 		incentives,
 		customerHistory,
 		caseNotes,
+		followUps,
+		customerDocuments,
 		customerLineItemsHistory,
 		customers,
 		employees,
 		rooms,
 		services,
+		products,
 		outlets,
 		allEmployees,
 		statusLog,
+		shifts,
+		taxes,
 	] = await Promise.all([
 		listLineItemsForAppointment(ctx, id),
 		listIncentivesForAppointment(ctx, id),
 		customerHistoryPromise,
 		caseNotesPromise,
+		followUpsPromise,
+		customerDocumentsPromise,
 		customerLineItemsPromise,
 		listCustomers(ctx),
 		listBookableEmployeesForOutlet(ctx, appointment.outlet_id),
 		listRooms(ctx, appointment.outlet_id),
 		listServices(ctx),
+		listSellableProducts(ctx),
 		listOutlets(ctx),
 		listEmployees(ctx),
 		listAppointmentStatusLog(ctx, id),
+		listShiftsForRange(ctx, {
+			outletId: appointment.outlet_id,
+			from: prevDateStr,
+			to: nextDateStr,
+		}),
+		listTaxes(ctx),
 	]);
 
 	const activeOutlets = outlets.filter((o) => o.is_active);
@@ -94,14 +135,19 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 			incentives={incentives}
 			customerHistory={customerHistory}
 			caseNotes={caseNotes}
+			followUps={followUps}
+			customerDocuments={customerDocuments}
 			customerLineItemsHistory={customerLineItemsHistory}
 			customers={customers}
 			employees={employees}
 			rooms={activeRooms}
 			services={activeServices}
+			products={products}
+			taxes={taxes}
 			allOutlets={activeOutlets}
 			allEmployees={activeAllEmployees}
 			statusLog={statusLog}
+			shifts={shifts}
 		/>
 	);
 }

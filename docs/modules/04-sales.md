@@ -11,7 +11,9 @@ What actually exists in code as of migration `0029_sales`:
 - `sale_items` — normalized rows with generated `total` column, item_type CHECK `service / product / charge`.
 - `payments` — `invoice_no` auto-generated `INV000001` from `payments_code_seq`, payment_mode CHECK `cash / card / bank_transfer / e_wallet / other`.
 - RLS on all three tables with temp `anon` + `authenticated` permissive policies (pre-auth tightening).
-- **RPC `collect_appointment_payment(p_appointment_id, p_items jsonb, p_discount, p_tax, p_rounding, p_payment_mode, p_amount, p_remarks, p_processed_by)`** — wraps the whole SO + sale_items + payment insert + `appointments.payment_status = 'paid'` update in a single transaction. Returns `{ sales_order_id, so_number, invoice_no, subtotal, total }`.
+- **RPC `collect_appointment_payment(p_appointment_id, p_items jsonb, p_discount, p_tax, p_rounding, p_payment_mode, p_amount, p_remarks, p_processed_by)`** — wraps the whole SO + sale_items + payment insert in a single transaction, then (a) flips `appointments.payment_status` to `paid` / `partial`, (b) flips `appointments.status` to `completed`, and (c) decrements inventory for every line where `inventory_item_id` is present. Returns `{ sales_order_id, so_number, invoice_no, subtotal, total_tax, total }`.
+- **Inventory side-effect (added 2026-04-15).** For each `p_items[i]` carrying `inventory_item_id`, the RPC does `UPDATE inventory_items SET stock = stock - quantity WHERE id = inventory_item_id` AND inserts one `inventory_movements` row (`reason = 'sale'`, `ref_type = 'sales_order'`, `ref_id = sales_order_id`, `delta = -quantity`, `created_by = p_processed_by`). Both run inside the same transaction as the SO insert, so a rollback on any step rolls back the deduction too. The movement row is the replayable audit trail; the `stock` column alone is not (it's a running sum that can't answer "who did this"). See [07-inventory.md](./07-inventory.md) §Stock ledger.
+- **`sale_items.inventory_item_id` FK** (added in the same 2026-04-15 migration) — `NULL` for service / charge lines, set for product lines. `ON DELETE SET NULL` so historical sales survive catalog pruning. This is the column the deduction loop reads.
 - **NOT yet built:** `cancellations` table, void flow, petty cash, self-bill, payor/insurance.
 
 **Service layer — [lib/services/sales.ts](../../lib/services/sales.ts):**
@@ -259,6 +261,7 @@ Child table (`appointment_line_item_incentives`) is documented in [02-appointmen
 | id | uuid | Yes | PK |
 | sales_order_id | uuid (FK) | Yes | CASCADE |
 | service_id | uuid (FK) | No | SET NULL |
+| inventory_item_id | uuid (FK) | No | SET NULL — populated when `item_type = 'product'`; the deduction loop in `collect_appointment_payment` reads this column |
 | sku | text | No | Snapshot from service at sale time |
 | item_name | text | Yes | Snapshot from service/billing entry |
 | item_type | text | Yes | `service` / `product`; default `service` |
@@ -266,6 +269,7 @@ Child table (`appointment_line_item_incentives`) is documented in [02-appointmen
 | unit_price | numeric(10,2) | Yes | CHECK ≥ 0 |
 | discount | numeric(10,2) | Yes | Line-level, default 0 |
 | total | numeric(10,2) | Yes | Generated `qty * unit_price - discount` |
+| tax_id / tax_name / tax_rate_pct / tax_amount | — | — | Tax snapshot at sale time (line-level) |
 | created_at | timestamptz | Yes | |
 
 ### `payments`

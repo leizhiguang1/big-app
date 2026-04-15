@@ -13,7 +13,7 @@ import {
 	X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { collectAppointmentPaymentAction } from "@/lib/actions/sales";
@@ -24,6 +24,7 @@ import {
 } from "@/lib/schemas/sales";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
+import type { Tax } from "@/lib/services/taxes";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -31,6 +32,7 @@ type Props = {
 	onOpenChange: (open: boolean) => void;
 	appointment: AppointmentWithRelations;
 	entries: AppointmentLineItem[];
+	taxes: Tax[];
 	onSuccess?: (result: { so_number: string; invoice_no: string }) => void;
 	onError?: (message: string) => void;
 };
@@ -38,19 +40,33 @@ type Props = {
 type Line = {
 	id: string;
 	service_id: string | null;
+	inventory_item_id: string | null;
+	item_type: "service" | "product" | "charge";
 	item_name: string;
 	quantity: number;
 	unit_price: number;
+	tax_id: string | null;
 };
 
 function toLine(e: AppointmentLineItem): Line {
 	return {
 		id: e.id,
 		service_id: e.service_id,
+		inventory_item_id: e.product_id ?? null,
+		item_type: (e.item_type as Line["item_type"]) ?? "service",
 		item_name: e.description,
 		quantity: Number(e.quantity),
 		unit_price: Number(e.unit_price),
+		tax_id: e.tax_id ?? null,
 	};
+}
+
+function lineTaxAmount(line: Line, taxes: Tax[]): number {
+	if (!line.tax_id) return 0;
+	const tax = taxes.find((t) => t.id === line.tax_id);
+	if (!tax) return 0;
+	const base = Math.max(0, line.quantity * line.unit_price);
+	return Math.round(base * Number(tax.rate_pct)) / 100;
 }
 
 function money(n: number) {
@@ -78,12 +94,20 @@ export function CollectPaymentDialog({
 	onOpenChange,
 	appointment,
 	entries,
+	taxes,
 	onSuccess,
 	onError,
 }: Props) {
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
-	const lines = useMemo<Line[]>(() => entries.map(toLine), [entries]);
+	const [lines, setLines] = useState<Line[]>(() => entries.map(toLine));
+	useEffect(() => {
+		setLines(entries.map(toLine));
+	}, [entries]);
+	const setLineTax = (id: string, taxId: string | null) =>
+		setLines((rows) =>
+			rows.map((r) => (r.id === id ? { ...r, tax_id: taxId } : r)),
+		);
 	const [discount, setDiscount] = useState(0);
 	const [rounding, setRounding] = useState(0);
 	const [requireRounding, setRequireRounding] = useState(false);
@@ -105,7 +129,11 @@ export function CollectPaymentDialog({
 		() => lines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0),
 		[lines],
 	);
-	const total = Math.max(0, subtotal - discount + rounding);
+	const totalTax = useMemo(
+		() => lines.reduce((sum, l) => sum + lineTaxAmount(l, taxes), 0),
+		[lines, taxes],
+	);
+	const total = Math.max(0, subtotal - discount + totalTax + rounding);
 
 	const parsedAmount = Number(amount);
 	const amountValid =
@@ -128,12 +156,14 @@ export function CollectPaymentDialog({
 				const result = await collectAppointmentPaymentAction(appointment.id, {
 					items: lines.map((l) => ({
 						service_id: l.service_id,
+						inventory_item_id: l.inventory_item_id,
 						sku: null,
 						item_name: l.item_name,
-						item_type: "service",
+						item_type: l.item_type,
 						quantity: l.quantity,
 						unit_price: l.unit_price,
 						discount: 0,
+						tax_id: l.tax_id,
 					})),
 					discount,
 					tax: 0,
@@ -252,34 +282,59 @@ export function CollectPaymentDialog({
 								</div>
 							) : (
 								<ul className="divide-y">
-									{lines.map((l) => (
-										<li key={l.id} className="px-3 py-3">
-											<div className="grid grid-cols-[1fr_60px_110px_110px_24px] items-center gap-2 text-sm">
-												<div>
-													<div className="font-medium text-blue-600">
-														(SVC) {l.item_name}
+									{lines.map((l) => {
+										const taxAmt = lineTaxAmount(l, taxes);
+										const activeTaxes = taxes.filter((t) => t.is_active);
+										return (
+											<li key={l.id} className="px-3 py-3">
+												<div className="grid grid-cols-[1fr_60px_110px_110px_24px] items-center gap-2 text-sm">
+													<div>
+														<div className="font-medium text-blue-600">
+															({l.item_type === "product" ? "PRD" : "SVC"}){" "}
+															{l.item_name}
+														</div>
+														<div className="text-xs text-muted-foreground">
+															{l.id.slice(0, 6).toUpperCase()}
+														</div>
 													</div>
-													<div className="text-xs text-muted-foreground">
-														TRT-{l.id.slice(0, 3).toUpperCase()}
+													<div className="text-right tabular-nums">
+														{l.quantity}
 													</div>
+													<div className="text-right tabular-nums">
+														{money(l.unit_price)}
+													</div>
+													<div className="text-right font-medium tabular-nums">
+														{money(l.quantity * l.unit_price)}
+													</div>
+													<ChevronDown className="size-4 text-muted-foreground" />
 												</div>
-												<div className="text-right tabular-nums">
-													{l.quantity}
+												<div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+													<select
+														value={l.tax_id ?? ""}
+														onChange={(e) =>
+															setLineTax(
+																l.id,
+																e.target.value === "" ? null : e.target.value,
+															)
+														}
+														className="h-6 rounded-full border bg-background px-2 text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+														aria-label="Tax for this line item"
+													>
+														<option value="">— No tax —</option>
+														{activeTaxes.map((t) => (
+															<option key={t.id} value={t.id}>
+																({t.name.toUpperCase()}){" "}
+																{Number(t.rate_pct).toFixed(2)}%
+															</option>
+														))}
+													</select>
+													<span className="text-muted-foreground tabular-nums">
+														Tax Amount (MYR): {money(taxAmt)}
+													</span>
 												</div>
-												<div className="text-right tabular-nums">
-													{money(l.unit_price)}
-												</div>
-												<div className="text-right font-medium tabular-nums">
-													{money(l.quantity * l.unit_price)}
-												</div>
-												<ChevronDown className="size-4 text-muted-foreground" />
-											</div>
-											<div className="mt-1 text-[11px] text-muted-foreground">
-												LOCALIZATION
-												<span className="ml-3">Tax Amount (MYR): 0.00</span>
-											</div>
-										</li>
-									))}
+											</li>
+										);
+									})}
 								</ul>
 							)}
 						</div>
@@ -315,6 +370,12 @@ export function CollectPaymentDialog({
 
 							<div className="space-y-1 text-sm">
 								<Row
+									label="Subtotal (MYR)"
+									value={
+										<span className="tabular-nums">{money(subtotal)}</span>
+									}
+								/>
+								<Row
 									label="Discount"
 									value={
 										<Input
@@ -325,6 +386,12 @@ export function CollectPaymentDialog({
 											onChange={(e) => setDiscount(Number(e.target.value) || 0)}
 											className="h-7 w-24 text-right"
 										/>
+									}
+								/>
+								<Row
+									label="Tax (MYR)"
+									value={
+										<span className="tabular-nums">{money(totalTax)}</span>
 									}
 								/>
 								<Row

@@ -11,6 +11,7 @@ import type {
 	ServiceCategory,
 	ServiceWithCategory,
 } from "@/lib/services/services";
+import type { Tax } from "@/lib/services/taxes";
 import { ManageCategoriesSheet } from "./ManageCategoriesSheet";
 import { ServiceFormDialog } from "./ServiceForm";
 
@@ -35,9 +36,11 @@ function formatDuration(minutes: number): string {
 export function ServicesTable({
 	services,
 	categories,
+	taxes,
 }: {
 	services: ServiceWithCategory[];
 	categories: ServiceCategory[];
+	taxes: Tax[];
 }) {
 	const [editing, setEditing] = useState<ServiceWithCategory | null>(null);
 	const [deleting, setDeleting] = useState<ServiceWithCategory | null>(null);
@@ -238,6 +241,7 @@ export function ServicesTable({
 				open={!!editing}
 				service={editing}
 				categories={categories}
+				taxes={taxes}
 				onClose={() => setEditing(null)}
 			/>
 			<ManageCategoriesSheet

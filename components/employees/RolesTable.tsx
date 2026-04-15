@@ -5,6 +5,11 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { deleteRoleAction } from "@/lib/actions/roles";
 import {
 	countEnabledFlags,
@@ -76,25 +81,35 @@ export function RolesTable({ roles }: { roles: Role[] }) {
 			align: "right",
 			cell: (r) => (
 				<div className="inline-flex gap-1">
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						onClick={() => setEditing(r)}
-						aria-label="Edit"
-					>
-						<Pencil />
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						onClick={() => {
-							setActionError(null);
-							setDeleting(r);
-						}}
-						aria-label="Delete"
-					>
-						<Trash2 />
-					</Button>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => setEditing(r)}
+								aria-label="Edit"
+							>
+								<Pencil />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Edit</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => {
+									setActionError(null);
+									setDeleting(r);
+								}}
+								aria-label="Delete"
+							>
+								<Trash2 />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Delete</TooltipContent>
+					</Tooltip>
 				</div>
 			),
 		},

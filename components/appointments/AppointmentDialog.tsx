@@ -28,6 +28,7 @@ import {
 	APPOINTMENT_TAG_CONFIG,
 	APPOINTMENT_TAG_KEYS,
 } from "@/lib/constants/appointment-status";
+import { isWindowCoveredByShifts } from "@/lib/roster/week";
 import {
 	type AppointmentInput,
 	appointmentInputSchema,
@@ -37,7 +38,10 @@ import {
 } from "@/lib/schemas/appointments";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 import type { Customer, CustomerWithRelations } from "@/lib/services/customers";
-import type { RosterEmployee } from "@/lib/services/employee-shifts";
+import type {
+	EmployeeShift,
+	RosterEmployee,
+} from "@/lib/services/employee-shifts";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
 import { cn } from "@/lib/utils";
@@ -89,6 +93,7 @@ type Props = {
 	rooms: Room[];
 	allOutlets: OutletWithRoomCount[];
 	allEmployees: EmployeeWithRelations[];
+	shifts?: EmployeeShift[];
 };
 
 function isoToLocalInputValue(iso: string): string {
@@ -182,6 +187,7 @@ export function AppointmentDialog({
 	rooms,
 	allOutlets,
 	allEmployees,
+	shifts = [],
 }: Props) {
 	const [pending, startTransition] = useTransition();
 	const [serverError, setServerError] = useState<string | null>(null);
@@ -231,6 +237,30 @@ export function AppointmentDialog({
 	const errors = form.formState.errors;
 
 	const bookingMode: BookingMode = isBlock ? "block" : "appointment";
+
+	const availableEmployeeIds = useMemo(() => {
+		const ids = new Set<string>();
+		if (!startAt || !endAt) return ids;
+		for (const emp of employees) {
+			const empShifts = shifts.filter((s) => s.employee_id === emp.id);
+			if (isWindowCoveredByShifts(empShifts, startAt, endAt)) {
+				ids.add(emp.id);
+			}
+		}
+		return ids;
+	}, [employees, shifts, startAt, endAt]);
+
+	const selectedEmployeeId = form.watch("employee_id");
+	const employeeOptions = useMemo(() => {
+		return employees
+			.map((emp) => ({
+				emp,
+				available: availableEmployeeIds.has(emp.id),
+			}))
+			.filter(
+				({ emp, available }) => available || emp.id === selectedEmployeeId,
+			);
+	}, [employees, availableEmployeeIds, selectedEmployeeId]);
 
 	const setBookingMode = (mode: BookingMode) => {
 		const next = mode === "block";
@@ -549,9 +579,10 @@ export function AppointmentDialog({
 										}
 									>
 										<option value="">— Unassigned —</option>
-										{employees.map((emp) => (
+										{employeeOptions.map(({ emp, available }) => (
 											<option key={emp.id} value={emp.id}>
 												{emp.first_name} {emp.last_name}
+												{available ? "" : " (not rostered)"}
 											</option>
 										))}
 									</select>
@@ -585,10 +616,14 @@ export function AppointmentDialog({
 
 							{!isBlock && (
 								<>
-									{/* Status */}
+									{/* Status — 'completed' is excluded here. Completion only
+									    happens via the Mark Complete FAB or the Collect Payment
+									    RPC. See docs/modules/02-appointments.md. */}
 									<Field label="Status">
 										<div className="flex flex-wrap gap-1.5">
-											{APPOINTMENT_STATUSES.map((s) => {
+											{APPOINTMENT_STATUSES.filter(
+												(s) => s !== "completed",
+											).map((s) => {
 												const cfg = APPOINTMENT_STATUS_CONFIG[s];
 												const Icon = cfg.Icon;
 												const active = status === s;

@@ -53,6 +53,19 @@ export function buildEntityPath(args: {
 	return `${entity}/${entityId}/${yyyymmdd(new Date())}-${uuid}.${ext}`;
 }
 
+export function buildCustomerDocumentPath(args: {
+	customerId: string;
+	filename: string;
+	mime?: string;
+}): string {
+	const { customerId, filename, mime } = args;
+	const ext = sanitizeExt(
+		(mime && EXT_FROM_MIME[mime]) ?? extFromFilename(filename),
+	);
+	const uuid = crypto.randomUUID();
+	return `customers/${customerId}/${yyyymmdd(new Date())}-${uuid}.${ext}`;
+}
+
 export function getPublicUrl(
 	ctx: Context,
 	bucket: BucketId,
