@@ -632,7 +632,7 @@ create index on inventory_movements (ref_type, ref_id);
 
 | Related Module | Relationship | Details |
 |---|---|---|
-| Services | service ← consumable BOM | Future `service_inventory_items(service_id, item_id, qty_per_use)` junction. **Deferred to Phase 2** — migration number TBD (the originally-earmarked `0036` slot was reused by `0036_inventory_items_in_transit_locked`). The current free-text `services.consumables` column stays as legacy fallback during transition. |
+| Services | service ← consumable BOM | **Live (2026-04-17).** `service_inventory_items(service_id, inventory_item_id, default_quantity)` junction with `UNIQUE (service_id, inventory_item_id)`, CASCADE from services, RESTRICT from inventory_items. Edited via the Consumables & Medications section of `ServiceForm`. Read by `collect_appointment_payment` to deduct `default_quantity × line_qty` per service sale item, emitting `service_use` rows into `inventory_movements`. The former free-text `services.consumables` column was dropped in the same migration. |
 | Sales | item → sale_items | Phase 2: `sale_items.item_id` FK into `inventory_items` for product/medication line items. |
 | Appointments | item → appointment_line_items | Phase 2: same as sales. |
 | Outlets | item × outlet → stock | Phase 2: `inventory_stocks(item_id, outlet_id, qty)` junction. |
@@ -831,8 +831,11 @@ create index inventory_items_supplier_id_idx on public.inventory_items(supplier_
 4. Per-outlet pricing: split `cost_price` / `selling_price` / `location`
    off into `inventory_item_outlet_pricing(item_id, outlet_id, ...)`.
 5. Wire `discount_cap` into `collectPayment`.
-6. Service ↔ inventory BOM: `service_inventory_items` junction with
-   `qty_per_use`, replaces the free-text `services.consumables` column.
+6. ~~Service ↔ inventory BOM~~ — **shipped 2026-04-17** as
+   `service_inventory_items (service_id, inventory_item_id,
+   default_quantity)`. Free-text `services.consumables` column dropped
+   in the same migration. Collect Payment emits `service_use` movements
+   per linked item.
 7. Replace temp RLS pair with per-role policies.
 8. Coverage Payor module + per-item insurance panel linkage.
 9. e-Invoice classification code dropdown (46 LHDN codes).

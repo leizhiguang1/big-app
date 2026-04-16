@@ -54,6 +54,34 @@ export async function updateCustomerCaseNoteAction(
 	return note;
 }
 
+export async function cancelCaseNoteAction(
+	appointmentId: string,
+	id: string,
+) {
+	const ctx = await getServerContext();
+	await caseNotesService.cancelCaseNote(ctx, id);
+	revalidatePath(`/appointments/${appointmentId}`);
+}
+
+export async function revertCaseNoteAction(
+	appointmentId: string,
+	id: string,
+) {
+	const ctx = await getServerContext();
+	await caseNotesService.revertCaseNote(ctx, id);
+	revalidatePath(`/appointments/${appointmentId}`);
+}
+
+export async function setCaseNotePinAction(
+	appointmentId: string,
+	id: string,
+	pinned: boolean,
+) {
+	const ctx = await getServerContext();
+	await caseNotesService.setCaseNotePin(ctx, id, pinned);
+	revalidatePath(`/appointments/${appointmentId}`);
+}
+
 export async function deleteCustomerCaseNoteAction(
 	customerId: string,
 	id: string,

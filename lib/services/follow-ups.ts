@@ -115,6 +115,22 @@ export async function setFollowUpReminderDone(
 	return data;
 }
 
+export async function setFollowUpPin(
+	ctx: Context,
+	id: string,
+	pinned: boolean,
+): Promise<FollowUp> {
+	const { data, error } = await ctx.db
+		.from("appointment_follow_ups")
+		.update({ is_pinned: pinned })
+		.eq("id", id)
+		.select("*")
+		.single();
+	if (error) throw new ValidationError(error.message);
+	if (!data) throw new NotFoundError(`Follow-up ${id} not found`);
+	return data;
+}
+
 export async function deleteFollowUp(ctx: Context, id: string): Promise<void> {
 	const { error } = await ctx.db
 		.from("appointment_follow_ups")

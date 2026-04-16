@@ -1,6 +1,7 @@
 import type { Context } from "@/lib/context/types";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import {
+	type ServiceInventoryLinkInput,
 	serviceCategoryInputSchema,
 	serviceCreateSchema,
 	serviceUpdateSchema,
@@ -11,26 +12,67 @@ import type { Tables } from "@/lib/supabase/types";
 export type Service = Tables<"services">;
 export type ServiceCategory = Tables<"service_categories">;
 
+export type ServiceInventoryLink = {
+	inventory_item_id: string;
+	default_quantity: number;
+	item: {
+		id: string;
+		sku: string;
+		name: string;
+		kind: "product" | "consumable" | "medication";
+	} | null;
+};
+
 export type ServiceWithCategory = Service & {
 	category: { id: string; name: string } | null;
 	tax_ids: string[];
+	inventory_links: ServiceInventoryLink[];
 };
+
+const LIST_SELECT =
+	"*, category:service_categories(id, name), service_taxes(tax_id), service_inventory_items(inventory_item_id, default_quantity, item:inventory_items!service_inventory_items_inventory_item_id_fkey(id, sku, name, kind))";
+
+type RawLinkRow = {
+	inventory_item_id: string;
+	default_quantity: number | string;
+	item?: { id: string; sku: string; name: string; kind: string } | null;
+};
+
+function normalizeLinks(rows: RawLinkRow[] | null): ServiceInventoryLink[] {
+	return (rows ?? []).map((r) => ({
+		inventory_item_id: r.inventory_item_id,
+		default_quantity: Number(r.default_quantity),
+		item: r.item
+			? {
+					id: r.item.id,
+					sku: r.item.sku,
+					name: r.item.name,
+					kind: r.item.kind as "product" | "consumable" | "medication",
+				}
+			: null,
+	}));
+}
 
 export async function listServices(
 	ctx: Context,
 ): Promise<ServiceWithCategory[]> {
 	const { data, error } = await ctx.db
 		.from("services")
-		.select("*, category:service_categories(id, name), service_taxes(tax_id)")
+		.select(LIST_SELECT)
 		.order("name", { ascending: true });
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []).map((row) => {
-		const { service_taxes, ...rest } = row as typeof row & {
+		const r = row as typeof row & {
 			service_taxes: { tax_id: string }[] | null;
+			service_inventory_items:
+				| { inventory_item_id: string; default_quantity: number | string }[]
+				| null;
 		};
+		const { service_taxes, service_inventory_items, ...rest } = r;
 		return {
 			...rest,
 			tax_ids: (service_taxes ?? []).map((t) => t.tax_id),
+			inventory_links: normalizeLinks(service_inventory_items),
 		} as ServiceWithCategory;
 	});
 }
@@ -38,7 +80,9 @@ export async function listServices(
 export async function getService(
 	ctx: Context,
 	id: string,
-): Promise<Service & { tax_ids: string[] }> {
+): Promise<
+	Service & { tax_ids: string[]; inventory_links: ServiceInventoryLink[] }
+> {
 	const { data, error } = await ctx.db
 		.from("services")
 		.select("*")
@@ -46,7 +90,45 @@ export async function getService(
 		.single();
 	if (error || !data) throw new NotFoundError(`Service ${id} not found`);
 	const tax_ids = await listTaxIdsForService(ctx, id);
-	return { ...data, tax_ids };
+	const inventory_links = await listInventoryLinksForService(ctx, id);
+	return { ...data, tax_ids, inventory_links };
+}
+
+export async function listInventoryLinksForService(
+	ctx: Context,
+	serviceId: string,
+): Promise<ServiceInventoryLink[]> {
+	const { data, error } = await ctx.db
+		.from("service_inventory_items")
+		.select(
+			"inventory_item_id, default_quantity, item:inventory_items!service_inventory_items_inventory_item_id_fkey(id, sku, name, kind)",
+		)
+		.eq("service_id", serviceId);
+	if (error) throw new ValidationError(error.message);
+	return normalizeLinks(data as RawLinkRow[] | null);
+}
+
+async function setInventoryLinksForService(
+	ctx: Context,
+	serviceId: string,
+	links: ServiceInventoryLinkInput[],
+): Promise<void> {
+	const { error: delErr } = await ctx.db
+		.from("service_inventory_items")
+		.delete()
+		.eq("service_id", serviceId);
+	if (delErr) throw new ValidationError(delErr.message);
+	if (links.length === 0) return;
+
+	const rows = links.map((l) => ({
+		service_id: serviceId,
+		inventory_item_id: l.inventory_item_id,
+		default_quantity: l.default_quantity,
+	}));
+	const { error: insErr } = await ctx.db
+		.from("service_inventory_items")
+		.insert(rows);
+	if (insErr) throw new ValidationError(insErr.message);
 }
 
 export async function createService(
@@ -70,7 +152,6 @@ export async function createService(
 			price_max: parsed.price_max,
 			other_fees: parsed.other_fees,
 			incentive_type: parsed.incentive_type,
-			consumables: parsed.consumables,
 			discount_cap: parsed.discount_cap,
 			full_payment: parsed.full_payment,
 			allow_redemption_without_payment: parsed.allow_redemption_without_payment,
@@ -85,6 +166,7 @@ export async function createService(
 		throw new ValidationError(error.message);
 	}
 	await setTaxesForService(ctx, data.id, parsed.tax_ids);
+	await setInventoryLinksForService(ctx, data.id, parsed.inventory_links);
 	return data;
 }
 
@@ -108,7 +190,6 @@ export async function updateService(
 			price_max: parsed.price_max,
 			other_fees: parsed.other_fees,
 			incentive_type: parsed.incentive_type,
-			consumables: parsed.consumables,
 			discount_cap: parsed.discount_cap,
 			full_payment: parsed.full_payment,
 			allow_redemption_without_payment: parsed.allow_redemption_without_payment,
@@ -121,6 +202,7 @@ export async function updateService(
 	if (error) throw new ValidationError(error.message);
 	if (!data) throw new NotFoundError(`Service ${id} not found`);
 	await setTaxesForService(ctx, id, parsed.tax_ids);
+	await setInventoryLinksForService(ctx, id, parsed.inventory_links);
 	return data;
 }
 

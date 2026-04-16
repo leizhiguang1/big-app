@@ -64,12 +64,19 @@ export function MonthView({
 					const isToday = ds === today;
 					const list = aptsByDay.get(ds) ?? [];
 					return (
-						<button
+						<div
 							key={ds}
-							type="button"
+							role="button"
+							tabIndex={0}
 							onClick={() => onDayClick(ds)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									onDayClick(ds);
+								}
+							}}
 							className={cn(
-								"flex min-h-28 flex-col gap-1 border-r border-b p-1.5 text-left transition hover:bg-muted/40",
+								"flex min-h-28 cursor-pointer flex-col gap-1 border-r border-b p-1.5 text-left transition hover:bg-muted/40",
 								!inMonth && "bg-muted/20 text-muted-foreground/60",
 							)}
 						>
@@ -119,7 +126,7 @@ export function MonthView({
 									</span>
 								)}
 							</div>
-						</button>
+						</div>
 					);
 				})}
 			</div>

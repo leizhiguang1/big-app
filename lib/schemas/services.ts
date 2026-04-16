@@ -8,6 +8,18 @@ export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
 	non_retail: "Non-Retail",
 };
 
+export const serviceInventoryLinkSchema = z.object({
+	inventory_item_id: z.string().uuid(),
+	default_quantity: z
+		.number()
+		.positive("Quantity must be greater than 0")
+		.max(999_999, "Quantity too large"),
+});
+
+export type ServiceInventoryLinkInput = z.infer<
+	typeof serviceInventoryLinkSchema
+>;
+
 const serviceBaseShape = z.object({
 	id: z.string().uuid().optional(),
 	sku: z.string().trim().min(1, "SKU is required").max(40),
@@ -26,13 +38,13 @@ const serviceBaseShape = z.object({
 	price_max: z.number().min(0, "Max price must be ≥ 0").nullable(),
 	other_fees: z.number().min(0, "Other fees must be ≥ 0"),
 	incentive_type: z.string().trim().max(80).nullable(),
-	consumables: z.string().trim().max(500).nullable(),
 	discount_cap: z.number().min(0, "Min 0").max(100, "Max 100").nullable(),
 	full_payment: z.boolean(),
 	allow_redemption_without_payment: z.boolean(),
 	allow_cash_price_range: z.boolean(),
 	is_active: z.boolean(),
 	tax_ids: z.array(z.string().uuid()),
+	inventory_links: z.array(serviceInventoryLinkSchema),
 });
 
 type ServiceRangeFields = {

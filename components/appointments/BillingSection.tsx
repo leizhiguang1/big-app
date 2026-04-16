@@ -1,7 +1,7 @@
 "use client";
 
-import { Plus, Save, Search, X } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { Check, Loader2, Plus, Save, Search, X } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
 	BillingItemPickerDialog,
 	type BillingItemSelection,
@@ -140,12 +140,29 @@ export function BillingSection({
 	const [batchNote, setBatchNote] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [pickerKey, setPickerKey] = useState<string | null>(null);
+	const [savingKeys, setSavingKeys] = useState<ReadonlySet<string>>(
+		() => new Set(),
+	);
+	const savingKeysRef = useRef<ReadonlySet<string>>(new Set());
+	savingKeysRef.current = savingKeys;
+	const [justSaved, setJustSaved] = useState(false);
+	const justSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(() => {
+		return () => {
+			if (justSavedTimerRef.current) clearTimeout(justSavedTimerRef.current);
+		};
+	}, []);
 
 	useEffect(() => {
 		setItems((prev) => {
-			const keptDrafts = prev.filter((i) => i.id === null);
+			const saving = savingKeysRef.current;
+			const keptDrafts = prev.filter(
+				(i) => i.id === null && !saving.has(i.key),
+			);
 			return [...entries.map(toItem), ...keptDrafts];
 		});
+		if (savingKeysRef.current.size > 0) setSavingKeys(new Set());
 	}, [entries]);
 
 	const serviceById = new Map(services.map((s) => [s.id, s]));
@@ -233,6 +250,7 @@ export function BillingSection({
 	const onSave = () => {
 		setError(null);
 		const sharedNote = batchNote.trim() || null;
+		const createdKeys = new Set(newCreates.map((i) => i.key));
 		const creates = newCreates.map((i) => ({
 			appointment_id: appointmentId,
 			item_type: i.item_type,
@@ -244,6 +262,13 @@ export function BillingSection({
 			tax_id: i.tax_id,
 			notes: i.notes || sharedNote,
 		}));
+
+		if (createdKeys.size > 0) setSavingKeys(createdKeys);
+		if (justSavedTimerRef.current) {
+			clearTimeout(justSavedTimerRef.current);
+			justSavedTimerRef.current = null;
+		}
+		setJustSaved(false);
 
 		startTransition(async () => {
 			try {
@@ -264,9 +289,15 @@ export function BillingSection({
 					await createLineItemsBulkAction(appointmentId, creates);
 				}
 				setBatchNote("");
+				setJustSaved(true);
+				justSavedTimerRef.current = setTimeout(() => {
+					setJustSaved(false);
+					justSavedTimerRef.current = null;
+				}, 2000);
 				onChange();
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Save failed");
+				setSavingKeys(new Set());
 				onChange();
 			}
 		});
@@ -348,11 +379,12 @@ export function BillingSection({
 								taxes,
 							).amount;
 							const isEven = idx % 2 === 0;
+							const isSaving = savingKeys.has(item.key);
 
 							return (
 								<div
 									key={item.key}
-									className={`rounded-sm py-2 ${isEven ? "" : "bg-muted/30"}`}
+									className={`rounded-sm py-2 transition-opacity ${isEven ? "" : "bg-muted/30"} ${isSaving ? "pointer-events-none opacity-60" : ""}`}
 								>
 									{/* ── Desktop row ── */}
 									<div
@@ -694,15 +726,27 @@ export function BillingSection({
 						<span>Total</span>
 						<span className="tabular-nums">RM {total.toFixed(2)}</span>
 					</div>
-					<div className="mt-2 flex justify-end">
+					<div className="mt-2 flex items-center justify-end gap-2">
+						{justSaved && !pending && (
+							<span className="flex items-center gap-1 text-emerald-600 text-xs dark:text-emerald-400">
+								<Check className="size-3.5" />
+								Saved
+							</span>
+						)}
 						<Button
 							type="button"
 							size="sm"
 							onClick={onSave}
 							disabled={!canSave}
 						>
-							<Save className="size-3.5" />
-							Save billing
+							{pending ? (
+								<Loader2 className="size-3.5 animate-spin" />
+							) : justSaved ? (
+								<Check className="size-3.5" />
+							) : (
+								<Save className="size-3.5" />
+							)}
+							{pending ? "Saving…" : justSaved ? "Saved" : "Save billing"}
 						</Button>
 					</div>
 				</div>

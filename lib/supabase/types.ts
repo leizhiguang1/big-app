@@ -23,6 +23,7 @@ export type Database = {
           customer_id: string | null
           has_reminder: boolean
           id: string
+          is_pinned: boolean
           reminder_date: string | null
           reminder_done: boolean
           reminder_employee_id: string | null
@@ -37,6 +38,7 @@ export type Database = {
           customer_id?: string | null
           has_reminder?: boolean
           id?: string
+          is_pinned?: boolean
           reminder_date?: string | null
           reminder_done?: boolean
           reminder_employee_id?: string | null
@@ -51,6 +53,7 @@ export type Database = {
           customer_id?: string | null
           has_reminder?: boolean
           id?: string
+          is_pinned?: boolean
           reminder_date?: string | null
           reminder_done?: boolean
           reminder_employee_id?: string | null
@@ -144,6 +147,7 @@ export type Database = {
           created_by: string | null
           description: string
           id: string
+          is_cancelled: boolean
           item_type: string
           notes: string | null
           product_id: string | null
@@ -160,6 +164,7 @@ export type Database = {
           created_by?: string | null
           description: string
           id?: string
+          is_cancelled?: boolean
           item_type?: string
           notes?: string | null
           product_id?: string | null
@@ -176,6 +181,7 @@ export type Database = {
           created_by?: string | null
           description?: string
           id?: string
+          is_cancelled?: boolean
           item_type?: string
           notes?: string | null
           product_id?: string | null
@@ -462,6 +468,8 @@ export type Database = {
           customer_id: string
           employee_id: string | null
           id: string
+          is_cancelled: boolean
+          is_pinned: boolean
           updated_at: string
         }
         Insert: {
@@ -471,6 +479,8 @@ export type Database = {
           customer_id: string
           employee_id?: string | null
           id?: string
+          is_cancelled?: boolean
+          is_pinned?: boolean
           updated_at?: string
         }
         Update: {
@@ -480,6 +490,8 @@ export type Database = {
           customer_id?: string
           employee_id?: string | null
           id?: string
+          is_cancelled?: boolean
+          is_pinned?: boolean
           updated_at?: string
         }
         Relationships: [
@@ -1876,6 +1888,48 @@ export type Database = {
         }
         Relationships: []
       }
+      service_inventory_items: {
+        Row: {
+          created_at: string
+          default_quantity: number
+          id: string
+          inventory_item_id: string
+          service_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_quantity?: number
+          id?: string
+          inventory_item_id: string
+          service_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_quantity?: number
+          id?: string
+          inventory_item_id?: string
+          service_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_inventory_items_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_inventory_items_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_taxes: {
         Row: {
           created_at: string
@@ -1914,7 +1968,6 @@ export type Database = {
           allow_cash_price_range: boolean
           allow_redemption_without_payment: boolean
           category_id: string | null
-          consumables: string | null
           created_at: string
           discount_cap: number | null
           duration_min: number
@@ -1937,7 +1990,6 @@ export type Database = {
           allow_cash_price_range?: boolean
           allow_redemption_without_payment?: boolean
           category_id?: string | null
-          consumables?: string | null
           created_at?: string
           discount_cap?: number | null
           duration_min?: number
@@ -1960,7 +2012,6 @@ export type Database = {
           allow_cash_price_range?: boolean
           allow_redemption_without_payment?: boolean
           category_id?: string | null
-          consumables?: string | null
           created_at?: string
           discount_cap?: number | null
           duration_min?: number

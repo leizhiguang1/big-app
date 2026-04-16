@@ -6,7 +6,6 @@ import {
 	AppointmentToastStack,
 	type Toast,
 } from "@/components/appointments/AppointmentToastStack";
-import { playGeneralToastSound } from "@/lib/appointments/play-status-sound";
 import { AppointmentSummaryCard } from "@/components/appointments/detail/AppointmentSummaryCard";
 import { BillingTab } from "@/components/appointments/detail/BillingTab";
 import { BookingInfoCard } from "@/components/appointments/detail/BookingInfoCard";
@@ -102,6 +101,10 @@ export function AppointmentDetailView({
 	const [editingFollowUpId, setEditingFollowUpId] = useState<string | null>(
 		null,
 	);
+	const [pendingEdit, setPendingEdit] = useState<{
+		noteId: string;
+		content: string;
+	} | null>(null);
 
 	const hasCustomer = !appointment.is_time_block && !!appointment.customer_id;
 	const isCaseBillingTab = activeTab === "casenotes" || activeTab === "billing";
@@ -111,13 +114,11 @@ export function AppointmentDetailView({
 
 	const showToast = useCallback(
 		(message: string, variant: Toast["variant"] = "default") => {
-			const sound = variant === "success" ? "success" : variant === "error" ? "error" : "info";
-			playGeneralToastSound(sound);
 			const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 			setToasts((prev) => [...prev, { id, message, variant }]);
 			setTimeout(() => {
 				setToasts((prev) => prev.filter((t) => t.id !== id));
-			}, 3000);
+			}, 2000);
 		},
 		[],
 	);
@@ -234,6 +235,8 @@ export function AppointmentDetailView({
 							appointment={appointment}
 							caseNotes={caseNotes}
 							onToast={showToast}
+							pendingEdit={pendingEdit}
+							onPendingEditHandled={() => setPendingEdit(null)}
 						/>
 					)}
 
@@ -288,6 +291,10 @@ export function AppointmentDetailView({
 							customerBillingHistory={customerLineItemsHistory}
 							customerHistory={customerHistory}
 							onToast={showToast}
+							onEditNote={(noteId, content) => {
+								setActiveTab("casenotes");
+								setPendingEdit({ noteId, content });
+							}}
 						/>
 					) : showFollowUpPanel ? (
 						<FollowUpHistoryPanel

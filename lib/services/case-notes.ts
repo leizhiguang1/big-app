@@ -92,6 +92,52 @@ export async function updateCaseNote(
 	return data;
 }
 
+export async function setCaseNotePin(
+	ctx: Context,
+	id: string,
+	pinned: boolean,
+): Promise<CaseNote> {
+	const { data, error } = await ctx.db
+		.from("case_notes")
+		.update({ is_pinned: pinned })
+		.eq("id", id)
+		.select("*")
+		.single();
+	if (error) throw new ValidationError(error.message);
+	if (!data) throw new NotFoundError(`Case note ${id} not found`);
+	return data;
+}
+
+export async function cancelCaseNote(
+	ctx: Context,
+	id: string,
+): Promise<CaseNote> {
+	const { data, error } = await ctx.db
+		.from("case_notes")
+		.update({ is_cancelled: true })
+		.eq("id", id)
+		.select("*")
+		.single();
+	if (error) throw new ValidationError(error.message);
+	if (!data) throw new NotFoundError(`Case note ${id} not found`);
+	return data;
+}
+
+export async function revertCaseNote(
+	ctx: Context,
+	id: string,
+): Promise<CaseNote> {
+	const { data, error } = await ctx.db
+		.from("case_notes")
+		.update({ is_cancelled: false })
+		.eq("id", id)
+		.select("*")
+		.single();
+	if (error) throw new ValidationError(error.message);
+	if (!data) throw new NotFoundError(`Case note ${id} not found`);
+	return data;
+}
+
 export async function deleteCaseNote(ctx: Context, id: string): Promise<void> {
 	const { error } = await ctx.db.from("case_notes").delete().eq("id", id);
 	if (error) throw new ValidationError(error.message);

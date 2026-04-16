@@ -13,7 +13,7 @@ Services are the treatment catalog — anything the clinic bills for. In v1 the 
 - A service's `duration_min` is **informational only** in v1 — it does not influence appointment slot length. Staff set appointment duration directly on the calendar, independent of any service.
 - This means there is **no `appointments.service_id` column** and no autocomplete from service into the appointment form. If you see those in older drafts (including [02-appointments.md](./02-appointments.md)), that doc needs to be revised when the Appointments module is built.
 
-v1 keeps the data model deliberately simple: **one price per service, same across all outlets.** Per-outlet pricing, incentive/commission rules, consumable BOMs, discount caps, and "full payment required" flags are all Phase 2 — these were visible columns in the prototype's services list (Incentive Type, Consumables, Discount Cap, Full Payment?) and are deliberately deferred until the modules that consume them are built.
+v1 keeps the data model deliberately simple: **one price per service, same across all outlets.** Per-outlet pricing, incentive/commission rules, discount caps, and "full payment required" flags are all Phase 2 — these were visible columns in the prototype's services list (Incentive Type, Discount Cap, Full Payment?) and are deliberately deferred until the modules that consume them are built. **Consumables** shipped in v1 as the structured `service_inventory_items` junction (2026-04-17).
 
 ## Screenshots
 
@@ -106,8 +106,7 @@ Bulk activate/deactivate is **not** in v1.
 - ~~**Allow cash selling price range**~~ — shipped (creation side). Billing-time override UI still deferred.
 - **Allow Redemption Without Payment** — per-service flag; when off the service is implicitly Non-Retail (S(NR)) and sold only as part of a promo/package. In v1 we store `type` directly instead.
 - **Hands-On Incentive** — the real commission model: radio with three modes (`Positions` / `Points` / `Position & Points`) and per-position male/female rate inputs. Phase 2 commissions owns this.
-- **Consumables** — structured repeating list with "Add New" (not the free-text column the old doc drafts assumed). Phase 2 inventory BOM.
-- **Medications** — parallel structured list alongside Consumables. Phase 2 inventory / pharmacy.
+- **Consumables & Medications** — **live (2026-04-17).** Structured section in `ServiceForm` where staff adds inventory items + a `default_quantity` per use. Writes to the `service_inventory_items` junction (unique on `(service_id, inventory_item_id)`). Read at Collect Payment time to auto-deduct stock (see Appointments module). Replaces the former free-text `services.consumables` column, which was dropped.
 - **Coverage Payor** — insurance/third-party payer linkage. Phase 3+.
 - **Tax multi-select** — per-outlet tax rule assignment. Deferred with tax module.
 - **Case Note Template FK** — clinical templates attached per service; deferred with clinical sub-modules.
@@ -144,7 +143,7 @@ Inline CRUD list opened from a "Manage Categories" button on the services page. 
 | allow_redemption_without_payment | bool | Yes | Default true. |
 | allow_cash_price_range | bool | Yes | Default false. |
 | incentive_type | text | No | Holdover free-text column; not referenced by new code. |
-| consumables | text | No | Legacy free-text column still read by the appointments Overview `ConsumablesCard`. Replaced by a structured junction table when Inventory ships. |
+| ~~consumables~~ | ~~text~~ | — | **Dropped 2026-04-17.** Replaced by the `service_inventory_items` junction (service_id, inventory_item_id, default_quantity). Edited via the Consumables & Medications section of `ServiceForm`. |
 | is_active | bool | Yes | Default true. Unchecking moves rows to the Discontinued tab. |
 | created_at, updated_at | timestamptz | Yes | |
 
@@ -189,8 +188,8 @@ Deactivation:
 
 - **One price, not per-outlet** — deferred until real customer demand for different pricing per branch (see Open Question in PRD §10). The prototype also effectively uses a single price.
 - **Type uses `retail` / `non_retail`** (matching the prototype's `S(R)` / `S(NR)` shorthand) instead of `standard` / `laboratory`. Laboratory isn't a separate type in v1; if labs become a real workflow we add it as a third value or a separate module.
-- **Dropped from Phase 1:** Incentive Type, Consumables, Discount Cap, Full Payment?, tax per service, frequency, vendor, per-outlet availability toggle, sell_product / BOM. All recoverable without schema churn — they become new columns or junction tables when the consuming module is built.
-- **`services.consumables` is now live (again).** The column was a nullable free-text holdover from the prototype port and sat unused for a while. As of 2026-04-15 it is read by the Appointments Overview tab's `ConsumablesCard` — for each service line item on an appointment, the card displays this text verbatim. Consumables are a catalog-level decision (what materials a procedure uses), not a per-visit one. There is not yet a UI to edit this column from the Services admin — that's a pending item; for now, seed data or direct DB edits populate it. When Inventory ships in Phase 2, this free-text column will be replaced by a structured `service_consumable_items` junction table, but the appointment-side card stays read-only.
+- **Dropped from Phase 1:** Incentive Type, Discount Cap, Full Payment?, tax per service, frequency, vendor, per-outlet availability toggle, sell_product / BOM. All recoverable without schema churn — they become new columns or junction tables when the consuming module is built. (**Consumables** shipped 2026-04-17 as a structured junction — see below.)
+- **Consumables are live and structured.** As of 2026-04-17 `ServiceForm` has a Consumables & Medications section that writes the `service_inventory_items` junction (`service_id`, `inventory_item_id`, `default_quantity`). Each row picks an inventory item and a default per-use quantity. Collect Payment reads the junction per service line and deducts `default_quantity × line_qty` from `inventory_items.stock`, writing a `service_use` row to `inventory_movements`. The Appointments Overview `ConsumablesCard` renders the same junction read-only with the computed deduction per line. The former free-text `services.consumables` column was dropped in the same migration.
 - **`services.incentive_type` is still unused.** Kept around as a prototype holdover. A future Commission module (Phase 2) may repurpose it or drop it in favour of a dedicated rules table. Don't reference it from new code.
 - **Categories seeded only from observed prototype data** (7 entries). The prototype's full category dropdown has 15 entries — we only seed the 7 the sample rows actually use. The remaining 8 (Consultation, Endodontics, Implant, Medication, Orthodontic Treatment (Braces), Pedodontics Treatment (Child), Prosthodontics, Whitening) get added through the Manage Categories sheet if the clinic needs them.
 - **"Category" vs "Service Type" naming:** the prototype labels the category field "Service Type" in its edit form (`select[name="svctype"]`), which collides with the actual service type (retail/non-retail, derived from a checkbox). We normalize to `category_id` + `type` and never surface "Service Type" as a label in v1. If a migration script ports prototype data, map `svctype` → `category_id`.
@@ -205,6 +204,7 @@ Migrations shipped against the live schema:
 1. **`0014_services`** — initial `services` + `service_categories` tables (DDL).
 2. **`0015_services_seed`** — seven categories + sample row seed (data).
 3. **`services_prototype_parity`** (2026-04-15) — additive: `image_url`, `external_code`, `other_fees`, `allow_redemption_without_payment`, `allow_cash_price_range`. Brings the schema in line with the kumoDent source of truth for the fields we ship in v1.
+4. **`service_inventory_items`** (2026-04-17) — drops the free-text `services.consumables` column and adds the `service_inventory_items` junction (`service_id`, `inventory_item_id`, `default_quantity numeric(12,3)`; unique on `(service_id, inventory_item_id)`; FK to services CASCADE, FK to inventory_items RESTRICT; standard RLS temp anon+authenticated pair). Also extends `collect_appointment_payment` to deduct stock and emit `service_use` movements per linked item.
 
 No reference to `initial_schema.sql` is binding — it's a target sketch only.
 

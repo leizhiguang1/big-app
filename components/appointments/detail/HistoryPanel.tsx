@@ -4,27 +4,43 @@ import {
 	BellRing,
 	ChevronDown,
 	ChevronUp,
+	ExternalLink,
 	Layers,
 	Maximize2,
 	MessageSquare,
 	Minimize2,
 	Pencil,
 	Phone,
+	Pin,
+	PinOff,
 	Receipt,
-	Save,
+	RotateCcw,
 	StickyNote,
 	Trash2,
-	X,
+	XCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
-	deleteCaseNoteAction,
-	updateCaseNoteAction,
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+	cancelBillingForAppointmentAction,
+	revertBillingForAppointmentAction,
+} from "@/lib/actions/appointments";
+import {
+	cancelCaseNoteAction,
+	revertCaseNoteAction,
+	setCaseNotePinAction,
 } from "@/lib/actions/case-notes";
-import { deleteFollowUpAction } from "@/lib/actions/follow-ups";
+import {
+	deleteFollowUpAction,
+	setFollowUpPinAction,
+} from "@/lib/actions/follow-ups";
 import {
 	APPOINTMENT_PAYMENT_MODE_LABEL,
 	type AppointmentPaymentMode,
@@ -34,6 +50,48 @@ import type { CustomerAppointmentSummary } from "@/lib/services/appointments";
 import type { CaseNoteWithContext } from "@/lib/services/case-notes";
 import type { FollowUpWithRefs } from "@/lib/services/follow-ups";
 import { cn } from "@/lib/utils";
+
+/* ------------------------------------------------------------------ */
+/*  Shared tiny tooltip-wrapped icon button                           */
+/* ------------------------------------------------------------------ */
+
+function IconBtn({
+	label,
+	onClick,
+	className,
+	disabled,
+	children,
+}: {
+	label: string;
+	onClick: () => void;
+	className: string;
+	disabled?: boolean;
+	children: React.ReactNode;
+}) {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					onClick={onClick}
+					disabled={disabled}
+					aria-label={label}
+					className={cn(
+						"flex size-[22px] items-center justify-center rounded-full transition disabled:opacity-50",
+						className,
+					)}
+				>
+					{children}
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="top">{label}</TooltipContent>
+		</Tooltip>
+	);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                             */
+/* ------------------------------------------------------------------ */
 
 type HistoryMode = "all" | "casenotes" | "billing";
 
@@ -49,6 +107,7 @@ type BillingThread = {
 	items: CustomerLineItem[];
 	total: number;
 	isCurrent: boolean;
+	isCancelled: boolean;
 };
 
 type NoteThread = {
@@ -59,6 +118,8 @@ type NoteThread = {
 	bookingRef: string | null;
 	appointmentId: string | null;
 	isCurrent: boolean;
+	isPinned: boolean;
+	isCancelled: boolean;
 };
 
 type Thread = BillingThread | NoteThread;
@@ -69,7 +130,12 @@ type Props = {
 	customerBillingHistory: CustomerLineItem[];
 	customerHistory: CustomerAppointmentSummary[];
 	onToast: (message: string, variant?: Toast["variant"]) => void;
+	onEditNote?: (noteId: string, content: string) => void;
 };
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                           */
+/* ------------------------------------------------------------------ */
 
 function formatDayMonthYear(d: Date) {
 	return d.toLocaleDateString(undefined, {
@@ -96,6 +162,7 @@ function buildThreads(
 	billing: CustomerLineItem[],
 	customerHistory: CustomerAppointmentSummary[],
 	currentAppointmentId: string,
+	pinnedBillingIds: Set<string>,
 ): { threads: Thread[]; noteCount: number; billingCount: number } {
 	const refByAppointment = new Map<string, string>();
 	for (const a of customerHistory) refByAppointment.set(a.id, a.booking_ref);
@@ -110,6 +177,7 @@ function buildThreads(
 			servedBy: string | null;
 			items: CustomerLineItem[];
 			total: number;
+			allCancelled: boolean;
 		}
 	>();
 	for (const b of billing) {
@@ -120,6 +188,7 @@ function buildThreads(
 		if (existing) {
 			existing.items.push(b);
 			existing.total += total;
+			if (!b.is_cancelled) existing.allCancelled = false;
 		} else {
 			const emp = b.appointment.employee;
 			byAppointment.set(aptId, {
@@ -130,6 +199,7 @@ function buildThreads(
 				servedBy: emp ? `${emp.first_name} ${emp.last_name}`.trim() : null,
 				items: [b],
 				total,
+				allCancelled: b.is_cancelled,
 			});
 		}
 	}
@@ -148,6 +218,7 @@ function buildThreads(
 			items: g.items,
 			total: g.total,
 			isCurrent: appointmentId === currentAppointmentId,
+			isCancelled: g.allCancelled,
 		});
 	}
 
@@ -162,10 +233,25 @@ function buildThreads(
 				? (refByAppointment.get(n.appointment_id) ?? null)
 				: null,
 			isCurrent: n.appointment_id === currentAppointmentId,
+			isPinned: n.is_pinned,
+			isCancelled: n.is_cancelled,
 		});
 	}
 
-	threads.sort((a, b) => b.date.getTime() - a.date.getTime());
+	threads.sort((a, b) => {
+		const aPinned =
+			(a.kind === "note" && a.isPinned) ||
+			(a.kind === "billing" && pinnedBillingIds.has(a.id))
+				? 1
+				: 0;
+		const bPinned =
+			(b.kind === "note" && b.isPinned) ||
+			(b.kind === "billing" && pinnedBillingIds.has(b.id))
+				? 1
+				: 0;
+		if (aPinned !== bPinned) return bPinned - aPinned;
+		return b.date.getTime() - a.date.getTime();
+	});
 	return {
 		threads,
 		noteCount: caseNotes.length,
@@ -173,20 +259,33 @@ function buildThreads(
 	};
 }
 
+/* ------------------------------------------------------------------ */
+/*  HistoryPanel (case notes + billing)                               */
+/* ------------------------------------------------------------------ */
+
 export function HistoryPanel({
 	currentAppointmentId,
 	caseNotes,
 	customerBillingHistory,
 	customerHistory,
 	onToast,
+	onEditNote,
 }: Props) {
 	const router = useRouter();
 	const [mode, setMode] = useState<HistoryMode>("all");
 	const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
-	const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-	const [editContent, setEditContent] = useState("");
-	const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null);
+	const [pinnedBillingIds, setPinnedBillingIds] = useState<Set<string>>(
+		new Set(),
+	);
 	const [pending, startTransition] = useTransition();
+
+	const toggleBillingPin = (id: string) =>
+		setPinnedBillingIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
 
 	const { threads, noteCount, billingCount } = useMemo(
 		() =>
@@ -195,19 +294,24 @@ export function HistoryPanel({
 				customerBillingHistory,
 				customerHistory,
 				currentAppointmentId,
+				pinnedBillingIds,
 			),
-		[caseNotes, customerBillingHistory, customerHistory, currentAppointmentId],
+		[
+			caseNotes,
+			customerBillingHistory,
+			customerHistory,
+			currentAppointmentId,
+			pinnedBillingIds,
+		],
 	);
 
-	const visible = useMemo(
-		() =>
-			threads.filter((t) => {
-				if (mode === "casenotes") return t.kind === "note";
-				if (mode === "billing") return t.kind === "billing";
-				return true;
-			}),
-		[threads, mode],
-	);
+	const visible = useMemo(() => {
+		return threads.filter((t) => {
+			if (mode === "casenotes") return t.kind === "note";
+			if (mode === "billing") return t.kind === "billing";
+			return true;
+		});
+	}, [threads, mode]);
 
 	const allCollapsed =
 		visible.length > 0 && visible.every((t) => collapsedIds.has(t.id));
@@ -230,37 +334,85 @@ export function HistoryPanel({
 		else setCollapsedIds(new Set(visible.map((v) => v.id)));
 	};
 
-	const handleUpdate = () => {
-		if (!editingNoteId || !editContent.trim()) return;
+	const handleToggleNotePin = (noteId: string, currentPinned: boolean) => {
 		startTransition(async () => {
 			try {
-				await updateCaseNoteAction(currentAppointmentId, editingNoteId, {
-					content: editContent.trim(),
-				});
-				setEditingNoteId(null);
-				setEditContent("");
-				onToast("Note updated", "success");
+				await setCaseNotePinAction(
+					currentAppointmentId,
+					noteId,
+					!currentPinned,
+				);
+				onToast(currentPinned ? "Unpinned" : "Pinned to top", "success");
 				router.refresh();
 			} catch (err) {
 				onToast(
-					err instanceof Error ? err.message : "Could not update note",
+					err instanceof Error ? err.message : "Could not update pin",
 					"error",
 				);
 			}
 		});
 	};
 
-	const handleDelete = () => {
-		if (!deleteNoteId) return;
+	const handleCancelNote = (noteId: string) => {
 		startTransition(async () => {
 			try {
-				await deleteCaseNoteAction(currentAppointmentId, deleteNoteId);
-				setDeleteNoteId(null);
-				onToast("Note deleted", "success");
+				await cancelCaseNoteAction(currentAppointmentId, noteId);
+				onToast("Note cancelled", "success");
 				router.refresh();
 			} catch (err) {
 				onToast(
-					err instanceof Error ? err.message : "Could not delete note",
+					err instanceof Error ? err.message : "Could not cancel note",
+					"error",
+				);
+			}
+		});
+	};
+
+	const handleRevertNote = (noteId: string) => {
+		startTransition(async () => {
+			try {
+				await revertCaseNoteAction(currentAppointmentId, noteId);
+				onToast("Note restored", "success");
+				router.refresh();
+			} catch (err) {
+				onToast(
+					err instanceof Error ? err.message : "Could not restore note",
+					"error",
+				);
+			}
+		});
+	};
+
+	const handleCancelBilling = (targetAppointmentId: string) => {
+		startTransition(async () => {
+			try {
+				await cancelBillingForAppointmentAction(
+					currentAppointmentId,
+					targetAppointmentId,
+				);
+				onToast("Billing cancelled", "success");
+				router.refresh();
+			} catch (err) {
+				onToast(
+					err instanceof Error ? err.message : "Could not cancel billing",
+					"error",
+				);
+			}
+		});
+	};
+
+	const handleRevertBilling = (targetAppointmentId: string) => {
+		startTransition(async () => {
+			try {
+				await revertBillingForAppointmentAction(
+					currentAppointmentId,
+					targetAppointmentId,
+				);
+				onToast("Billing restored", "success");
+				router.refresh();
+			} catch (err) {
+				onToast(
+					err instanceof Error ? err.message : "Could not restore billing",
 					"error",
 				);
 			}
@@ -349,7 +501,11 @@ export function HistoryPanel({
 								key={t.id}
 								item={t}
 								collapsed={collapsedIds.has(t.id)}
+								pinned={pinnedBillingIds.has(t.id)}
 								onToggle={() => toggleCollapse(t.id)}
+								onTogglePin={() => toggleBillingPin(t.id)}
+								onCancel={() => handleCancelBilling(t.appointmentId)}
+								onRevert={() => handleRevertBilling(t.appointmentId)}
 								onJump={
 									t.isCurrent
 										? undefined
@@ -361,26 +517,17 @@ export function HistoryPanel({
 								key={t.id}
 								item={t}
 								collapsed={collapsedIds.has(t.id)}
-								isEditing={editingNoteId === t.note.id}
-								editContent={editContent}
-								pending={pending}
 								onToggle={() => toggleCollapse(t.id)}
-								onEditStart={() => {
-									setEditingNoteId(t.note.id);
-									setEditContent(t.note.content);
-									setCollapsedIds((prev) => {
-										const next = new Set(prev);
-										next.delete(t.id);
-										return next;
-									});
-								}}
-								onEditCancel={() => {
-									setEditingNoteId(null);
-									setEditContent("");
-								}}
-								onEditChange={setEditContent}
-								onEditSave={handleUpdate}
-								onDelete={() => setDeleteNoteId(t.note.id)}
+								onTogglePin={() =>
+									handleToggleNotePin(t.note.id, t.isPinned)
+								}
+								onEdit={
+									onEditNote && !t.isCancelled
+										? () => onEditNote(t.note.id, t.note.content)
+										: undefined
+								}
+								onCancel={() => handleCancelNote(t.note.id)}
+								onRevert={() => handleRevertNote(t.note.id)}
 								onJump={
 									t.appointmentId && !t.isCurrent
 										? () =>
@@ -392,19 +539,13 @@ export function HistoryPanel({
 					)
 				)}
 			</div>
-
-			<ConfirmDialog
-				open={deleteNoteId !== null}
-				onOpenChange={(o) => !o && setDeleteNoteId(null)}
-				title="Delete this case note?"
-				description="This removes the note permanently."
-				confirmLabel="Delete"
-				pending={pending}
-				onConfirm={handleDelete}
-			/>
 		</div>
 	);
 }
+
+/* ------------------------------------------------------------------ */
+/*  BillingRow                                                        */
+/* ------------------------------------------------------------------ */
 
 const PAYMENT_STATUS_STYLES: Record<string, string> = {
 	paid: "bg-emerald-600 text-white",
@@ -420,17 +561,26 @@ function paymentModeLabel(mode: string | null): string | null {
 function BillingRow({
 	item,
 	collapsed,
+	pinned,
 	onToggle,
+	onTogglePin,
+	onCancel,
+	onRevert,
 	onJump,
 }: {
 	item: BillingThread;
 	collapsed: boolean;
+	pinned: boolean;
 	onToggle: () => void;
+	onTogglePin: () => void;
+	onCancel: () => void;
+	onRevert: () => void;
 	onJump?: () => void;
 }) {
 	const paymentStatusClass =
 		PAYMENT_STATUS_STYLES[item.paymentStatus] ?? "bg-slate-400 text-white";
 	const payMode = paymentModeLabel(item.paidVia);
+	const cancelled = item.isCancelled;
 
 	return (
 		<div
@@ -438,9 +588,16 @@ function BillingRow({
 				"border-b border-border/60 bg-muted/10 px-2 py-2",
 				item.isCurrent &&
 					"border-l-[3px] border-l-emerald-600 bg-emerald-50/40",
+				pinned && !cancelled && "bg-amber-50/50",
+				cancelled && "opacity-60",
 			)}
 		>
-			<div className="rounded-sm border border-dashed border-border bg-background px-3 py-2.5 font-mono text-[11px] text-foreground shadow-sm">
+			<div
+				className={cn(
+					"rounded-sm border border-dashed border-border bg-background px-3 py-2.5 font-mono text-[11px] text-foreground shadow-sm",
+					cancelled && "bg-muted/30",
+				)}
+			>
 				<div className="flex items-start gap-1.5">
 					<button
 						type="button"
@@ -458,22 +615,78 @@ function BillingRow({
 					<div className="flex-1">
 						<div className="flex items-center gap-1.5">
 							<Receipt className="size-[12px] text-emerald-600" />
-							<span className="font-bold text-[11px] uppercase tracking-wide">
+							<span
+								className={cn(
+									"font-bold text-[11px] uppercase tracking-wide",
+									cancelled && "line-through",
+								)}
+							>
 								Receipt
 							</span>
-							{item.isCurrent && (
+							{pinned && <Pin className="size-[10px] text-amber-600" />}
+							{cancelled && (
+								<span className="rounded bg-slate-400 px-1.5 py-px font-bold text-[9px] text-white">
+									CANCELLED
+								</span>
+							)}
+							{item.isCurrent && !cancelled && (
 								<span className="rounded bg-emerald-600 px-1.5 py-px font-bold text-[9px] text-white">
 									CURRENT
 								</span>
 							)}
-							<span
-								className={cn(
-									"ml-auto rounded px-1.5 py-px font-bold text-[9px] uppercase tracking-wide",
-									paymentStatusClass,
+							<div className="ml-auto flex items-center gap-1">
+								<IconBtn
+									label={pinned ? "Unpin" : "Pin to top"}
+									onClick={onTogglePin}
+									className={
+										pinned
+											? "bg-amber-500 text-white hover:bg-amber-600"
+											: "border border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100"
+									}
+								>
+									{pinned ? (
+										<PinOff className="size-[11px]" />
+									) : (
+										<Pin className="size-[11px]" />
+									)}
+								</IconBtn>
+								{onJump && (
+									<IconBtn
+										label="Go to appointment"
+										onClick={onJump}
+										className="bg-emerald-500 text-white hover:bg-emerald-600"
+									>
+										<ExternalLink className="size-[11px]" />
+									</IconBtn>
 								)}
-							>
-								{item.paymentStatus}
-							</span>
+								{cancelled ? (
+									<IconBtn
+										label="Restore billing"
+										onClick={onRevert}
+																			className="bg-blue-500 text-white hover:bg-blue-600"
+									>
+										<RotateCcw className="size-[11px]" />
+									</IconBtn>
+								) : (
+									<IconBtn
+										label="Cancel billing"
+										onClick={onCancel}
+																			className="bg-rose-500 text-white hover:bg-rose-600"
+									>
+										<XCircle className="size-[11px]" />
+									</IconBtn>
+								)}
+								{!cancelled && (
+									<span
+										className={cn(
+											"rounded px-1.5 py-px font-bold text-[9px] uppercase tracking-wide",
+											paymentStatusClass,
+										)}
+									>
+										{item.paymentStatus}
+									</span>
+								)}
+							</div>
 						</div>
 						<div className="mt-[2px] text-[10px] text-muted-foreground">
 							{formatDayMonthYear(item.date)} · {formatWeekdayTime(item.date)}
@@ -522,8 +735,15 @@ function BillingRow({
 									);
 									const qty = Number(bi.quantity);
 									const price = Number(bi.unit_price);
+									const itemCancelled = bi.is_cancelled;
 									return (
-										<div key={bi.id} className="flex gap-1 text-[10px]">
+										<div
+											key={bi.id}
+											className={cn(
+												"flex gap-1 text-[10px]",
+												itemCancelled && "line-through opacity-50",
+											)}
+										>
 											<div className="flex-1 min-w-0">
 												<div className="truncate">{bi.description}</div>
 												{bi.service?.sku && (
@@ -548,15 +768,27 @@ function BillingRow({
 						<div className="mt-2 border-border/70 border-t border-dashed pt-1.5">
 							<div className="flex justify-between text-[10px] text-muted-foreground">
 								<span>Sub Total (MYR)</span>
-								<span className="tabular-nums">{item.total.toFixed(2)}</span>
+								<span
+									className={cn(
+										"tabular-nums",
+										cancelled && "line-through",
+									)}
+								>
+									{item.total.toFixed(2)}
+								</span>
 							</div>
-							<div className="mt-0.5 flex justify-between font-bold text-[11px]">
+							<div
+								className={cn(
+									"mt-0.5 flex justify-between font-bold text-[11px]",
+									cancelled && "line-through",
+								)}
+							>
 								<span>TOTAL (MYR)</span>
 								<span className="tabular-nums">{item.total.toFixed(2)}</span>
 							</div>
 						</div>
 
-						{payMode && (
+						{payMode && !cancelled && (
 							<div className="mt-2 border-border/70 border-t border-dashed pt-1.5">
 								<div className="flex justify-between text-[10px]">
 									<span className="text-muted-foreground uppercase tracking-wide text-[9px]">
@@ -573,9 +805,14 @@ function BillingRow({
 					<div className="mt-2 flex justify-between border-border/70 border-t border-dashed pt-1.5 text-[10px]">
 						<span className="text-muted-foreground">
 							{item.items.length} line{item.items.length !== 1 ? "s" : ""}
-							{payMode && ` · ${payMode}`}
+							{payMode && !cancelled && ` · ${payMode}`}
 						</span>
-						<span className="font-bold tabular-nums">
+						<span
+							className={cn(
+								"font-bold tabular-nums",
+								cancelled && "line-through",
+							)}
+						>
 							RM {item.total.toFixed(2)}
 						</span>
 					</div>
@@ -585,50 +822,60 @@ function BillingRow({
 	);
 }
 
+/* ------------------------------------------------------------------ */
+/*  NoteRow                                                           */
+/* ------------------------------------------------------------------ */
+
 function NoteRow({
 	item,
 	collapsed,
-	isEditing,
-	editContent,
-	pending,
 	onToggle,
-	onEditStart,
-	onEditCancel,
-	onEditChange,
-	onEditSave,
-	onDelete,
+	onTogglePin,
+	onEdit,
+	onCancel,
+	onRevert,
 	onJump,
 }: {
 	item: NoteThread;
 	collapsed: boolean;
-	isEditing: boolean;
-	editContent: string;
-	pending: boolean;
 	onToggle: () => void;
-	onEditStart: () => void;
-	onEditCancel: () => void;
-	onEditChange: (v: string) => void;
-	onEditSave: () => void;
-	onDelete: () => void;
+	onTogglePin: () => void;
+	onEdit?: () => void;
+	onCancel: () => void;
+	onRevert: () => void;
 	onJump?: () => void;
 }) {
 	const content = item.note.content ?? "";
+	const pinned = item.isPinned;
+	const cancelled = item.isCancelled;
 	return (
 		<div
 			className={cn(
 				"border-b border-border/60 px-3.5 py-2.5",
 				item.isCurrent && "border-l-[3px] border-l-blue-600 bg-blue-50/50",
-				isEditing && "bg-amber-50",
+				pinned && !cancelled && "bg-amber-50/50",
+				cancelled && "opacity-60",
 			)}
 		>
 			<div className="flex items-start justify-between gap-2">
 				<div>
 					<div className="flex items-center gap-1.5">
 						<StickyNote className="size-[12px] text-blue-600" />
-						<span className="font-bold text-[12px] text-foreground">
+						<span
+							className={cn(
+								"font-bold text-[12px] text-foreground",
+								cancelled && "line-through",
+							)}
+						>
 							{formatDayMonthYear(item.date)}
 						</span>
-						{item.isCurrent && (
+						{pinned && <Pin className="size-[10px] text-amber-600" />}
+						{cancelled && (
+							<span className="rounded bg-slate-400 px-1.5 py-px font-bold text-[9px] text-white">
+								CANCELLED
+							</span>
+						)}
+						{item.isCurrent && !cancelled && (
 							<span className="rounded bg-blue-600 px-1.5 py-px font-bold text-[9px] text-white">
 								CURRENT
 							</span>
@@ -639,44 +886,56 @@ function NoteRow({
 					</div>
 				</div>
 				<div className="flex items-center gap-1">
-					{!isEditing ? (
-						<>
-							<button
-								type="button"
-								onClick={onEditStart}
-								aria-label="Edit note"
-								className="flex size-[22px] items-center justify-center rounded-full bg-emerald-500 text-white transition hover:bg-emerald-600"
-							>
-								<Pencil className="size-[11px]" />
-							</button>
-							<button
-								type="button"
-								onClick={onDelete}
-								aria-label="Delete note"
-								className="flex size-[22px] items-center justify-center rounded-full bg-rose-500 text-white transition hover:bg-rose-600"
-							>
-								<Trash2 className="size-[11px]" />
-							</button>
-						</>
+					{cancelled ? (
+						<IconBtn
+							label="Restore note"
+							onClick={onRevert}
+													className="bg-blue-500 text-white hover:bg-blue-600"
+						>
+							<RotateCcw className="size-[11px]" />
+						</IconBtn>
 					) : (
 						<>
-							<button
-								type="button"
-								onClick={onEditSave}
-								disabled={pending || !editContent.trim()}
-								aria-label="Save"
-								className="flex size-[22px] items-center justify-center rounded-full bg-emerald-500 text-white transition hover:bg-emerald-600 disabled:opacity-50"
+							<IconBtn
+								label={pinned ? "Unpin" : "Pin to top"}
+								onClick={onTogglePin}
+															className={
+									pinned
+										? "bg-amber-500 text-white hover:bg-amber-600"
+										: "border border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100"
+								}
 							>
-								<Save className="size-[11px]" />
-							</button>
-							<button
-								type="button"
-								onClick={onEditCancel}
-								aria-label="Cancel"
-								className="flex size-[22px] items-center justify-center rounded-full bg-slate-400 text-white transition hover:bg-slate-500"
+								{pinned ? (
+									<PinOff className="size-[11px]" />
+								) : (
+									<Pin className="size-[11px]" />
+								)}
+							</IconBtn>
+							{onJump && (
+								<IconBtn
+									label="Go to appointment"
+									onClick={onJump}
+									className="bg-blue-500 text-white hover:bg-blue-600"
+								>
+									<ExternalLink className="size-[11px]" />
+								</IconBtn>
+							)}
+							{onEdit && (
+								<IconBtn
+									label="Edit"
+									onClick={onEdit}
+									className="bg-emerald-500 text-white hover:bg-emerald-600"
+								>
+									<Pencil className="size-[11px]" />
+								</IconBtn>
+							)}
+							<IconBtn
+								label="Cancel note"
+								onClick={onCancel}
+															className="bg-rose-500 text-white hover:bg-rose-600"
 							>
-								<X className="size-[11px]" />
-							</button>
+								<XCircle className="size-[11px]" />
+							</IconBtn>
 						</>
 					)}
 				</div>
@@ -691,38 +950,32 @@ function NoteRow({
 					{item.bookingRef}
 				</button>
 			)}
-			{!isEditing && (
-				<button
-					type="button"
-					aria-expanded={!collapsed}
-					onClick={onToggle}
-					className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
-				>
-					{collapsed ? (
-						<ChevronDown className="size-[11px]" />
-					) : (
-						<ChevronUp className="size-[11px]" />
+			<button
+				type="button"
+				aria-expanded={!collapsed}
+				onClick={onToggle}
+				className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+			>
+				{collapsed ? (
+					<ChevronDown className="size-[11px]" />
+				) : (
+					<ChevronUp className="size-[11px]" />
+				)}
+				<span>{collapsed ? "Show" : "Hide"} note</span>
+			</button>
+			{!collapsed && (
+				<p
+					className={cn(
+						"mt-1 whitespace-pre-wrap wrap-break-word text-[11px] text-muted-foreground leading-snug",
+						cancelled && "line-through",
 					)}
-					<span>{collapsed ? "Show" : "Hide"} note</span>
-				</button>
-			)}
-			{isEditing ? (
-				<textarea
-					value={editContent}
-					onChange={(e) => onEditChange(e.target.value)}
-					rows={4}
-					className="mt-2 w-full resize-y rounded-md border bg-background p-2 text-[12px] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-				/>
-			) : (
-				!collapsed && (
-					<p className="mt-1 whitespace-pre-wrap wrap-break-word text-[11px] text-muted-foreground leading-snug">
-						{content === "" ? (
-							<span className="text-muted-foreground/50">(empty note)</span>
-						) : (
-							content
-						)}
-					</p>
-				)
+				>
+					{content === "" ? (
+						<span className="text-muted-foreground/50">(empty note)</span>
+					) : (
+						content
+					)}
+				</p>
 			)}
 			<div className="mt-1.5 text-[9px] text-muted-foreground/80">
 				Last updated by: {authorLabel(item.note)}
@@ -731,6 +984,10 @@ function NoteRow({
 	);
 }
 
+/* ------------------------------------------------------------------ */
+/*  FollowUpHistoryPanel                                              */
+/* ------------------------------------------------------------------ */
+
 type FollowUpThread = {
 	id: string;
 	date: Date;
@@ -738,6 +995,7 @@ type FollowUpThread = {
 	bookingRef: string | null;
 	appointmentId: string;
 	isCurrent: boolean;
+	isPinned: boolean;
 };
 
 function followUpAuthorLabel(f: FollowUpWithRefs): string {
@@ -791,8 +1049,14 @@ export function FollowUpHistoryPanel({
 				appointmentId: f.appointment_id,
 				bookingRef: refByAppointment.get(f.appointment_id) ?? null,
 				isCurrent: f.appointment_id === currentAppointmentId,
+				isPinned: f.is_pinned,
 			}))
-			.sort((a, b) => b.date.getTime() - a.date.getTime());
+			.sort((a, b) => {
+				const aPinned = a.isPinned ? 1 : 0;
+				const bPinned = b.isPinned ? 1 : 0;
+				if (aPinned !== bPinned) return bPinned - aPinned;
+				return b.date.getTime() - a.date.getTime();
+			});
 	}, [followUps, customerHistory, currentAppointmentId]);
 
 	const allCollapsed =
@@ -809,6 +1073,25 @@ export function FollowUpHistoryPanel({
 	const toggleAll = () => {
 		if (allCollapsed) setCollapsedIds(new Set());
 		else setCollapsedIds(new Set(threads.map((t) => t.id)));
+	};
+
+	const handleTogglePin = (followUpId: string, currentPinned: boolean) => {
+		startTransition(async () => {
+			try {
+				await setFollowUpPinAction(
+					currentAppointmentId,
+					followUpId,
+					!currentPinned,
+				);
+				onToast(currentPinned ? "Unpinned" : "Pinned to top", "success");
+				router.refresh();
+			} catch (err) {
+				onToast(
+					err instanceof Error ? err.message : "Could not update pin",
+					"error",
+				);
+			}
+		});
 	};
 
 	const handleDelete = () => {
@@ -871,6 +1154,9 @@ export function FollowUpHistoryPanel({
 							item={t}
 							collapsed={collapsedIds.has(t.id)}
 							onToggle={() => toggleCollapse(t.id)}
+							onTogglePin={() =>
+								handleTogglePin(t.followUp.id, t.isPinned)
+							}
 							onEdit={() => onEdit(t.followUp)}
 							onDelete={() => setDeleteId(t.followUp.id)}
 							onJump={
@@ -896,10 +1182,15 @@ export function FollowUpHistoryPanel({
 	);
 }
 
+/* ------------------------------------------------------------------ */
+/*  FollowUpRow                                                       */
+/* ------------------------------------------------------------------ */
+
 function FollowUpRow({
 	item,
 	collapsed,
 	onToggle,
+	onTogglePin,
 	onEdit,
 	onDelete,
 	onJump,
@@ -907,11 +1198,13 @@ function FollowUpRow({
 	item: FollowUpThread;
 	collapsed: boolean;
 	onToggle: () => void;
+	onTogglePin: () => void;
 	onEdit: () => void;
 	onDelete: () => void;
 	onJump?: () => void;
 }) {
 	const f = item.followUp;
+	const pinned = item.isPinned;
 	const ReminderIcon = f.reminder_method === "whatsapp" ? MessageSquare : Phone;
 	const reminderLabel = f.reminder_method === "whatsapp" ? "WhatsApp" : "Call";
 	const reminderEmp = reminderEmployeeLabel(f);
@@ -920,6 +1213,7 @@ function FollowUpRow({
 			className={cn(
 				"border-b border-border/60 px-3.5 py-2.5",
 				item.isCurrent && "border-l-[3px] border-l-violet-600 bg-violet-50/40",
+				pinned && "bg-amber-50/50",
 			)}
 		>
 			<div className="flex items-start justify-between gap-2">
@@ -929,6 +1223,7 @@ function FollowUpRow({
 						<span className="font-bold text-[12px] text-foreground">
 							{formatDayMonthYear(item.date)}
 						</span>
+						{pinned && <Pin className="size-[10px] text-amber-600" />}
 						{item.isCurrent && (
 							<span className="rounded bg-violet-600 px-1.5 py-px font-bold text-[9px] text-white">
 								CURRENT
@@ -940,22 +1235,44 @@ function FollowUpRow({
 					</div>
 				</div>
 				<div className="flex items-center gap-1">
-					<button
-						type="button"
+					<IconBtn
+						label={pinned ? "Unpin" : "Pin to top"}
+						onClick={onTogglePin}
+											className={
+							pinned
+								? "bg-amber-500 text-white hover:bg-amber-600"
+								: "border border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100"
+						}
+					>
+						{pinned ? (
+							<PinOff className="size-[11px]" />
+						) : (
+							<Pin className="size-[11px]" />
+						)}
+					</IconBtn>
+					{onJump && (
+						<IconBtn
+							label="Go to appointment"
+							onClick={onJump}
+							className="bg-violet-500 text-white hover:bg-violet-600"
+						>
+							<ExternalLink className="size-[11px]" />
+						</IconBtn>
+					)}
+					<IconBtn
+						label="Edit follow-up"
 						onClick={onEdit}
-						aria-label="Edit follow-up"
-						className="flex size-[22px] items-center justify-center rounded-full bg-emerald-500 text-white transition hover:bg-emerald-600"
+						className="bg-emerald-500 text-white hover:bg-emerald-600"
 					>
 						<Pencil className="size-[11px]" />
-					</button>
-					<button
-						type="button"
+					</IconBtn>
+					<IconBtn
+						label="Delete follow-up"
 						onClick={onDelete}
-						aria-label="Delete follow-up"
-						className="flex size-[22px] items-center justify-center rounded-full bg-rose-500 text-white transition hover:bg-rose-600"
+						className="bg-rose-500 text-white hover:bg-rose-600"
 					>
 						<Trash2 className="size-[11px]" />
-					</button>
+					</IconBtn>
 				</div>
 			</div>
 			{item.bookingRef && (

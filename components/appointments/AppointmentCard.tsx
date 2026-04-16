@@ -65,6 +65,8 @@ export function AppointmentCard({
 		<>
 			<button
 				type="button"
+				data-appt-card
+				data-dragging={isDragging ? "true" : undefined}
 				draggable={draggable}
 				onDragStart={(e) => {
 					e.stopPropagation();
@@ -72,8 +74,19 @@ export function AppointmentCard({
 					e.dataTransfer.effectAllowed = "move";
 					setHoverAnchor(null);
 					setIsDragging(true);
+					document.body.classList.add("dragging-appt");
+					const cleanup = () => {
+						document.body.classList.remove("dragging-appt");
+						document.removeEventListener("dragend", cleanup, true);
+						document.removeEventListener("drop", cleanup, true);
+					};
+					document.addEventListener("dragend", cleanup, true);
+					document.addEventListener("drop", cleanup, true);
 				}}
-				onDragEnd={() => setIsDragging(false)}
+				onDragEnd={() => {
+					setIsDragging(false);
+					document.body.classList.remove("dragging-appt");
+				}}
 				onClick={(e) => {
 					e.stopPropagation();
 					setHoverAnchor(null);

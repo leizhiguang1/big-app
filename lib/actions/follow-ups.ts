@@ -38,6 +38,16 @@ export async function setFollowUpReminderDoneAction(
 	return followUp;
 }
 
+export async function setFollowUpPinAction(
+	appointmentId: string,
+	id: string,
+	pinned: boolean,
+) {
+	const ctx = await getServerContext();
+	await followUpsService.setFollowUpPin(ctx, id, pinned);
+	revalidatePath(`/appointments/${appointmentId}`);
+}
+
 export async function deleteFollowUpAction(appointmentId: string, id: string) {
 	const ctx = await getServerContext();
 	await followUpsService.deleteFollowUp(ctx, id);

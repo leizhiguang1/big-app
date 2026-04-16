@@ -5,7 +5,6 @@ import {
 	ArrowLeft,
 	Bell,
 	CalendarDays,
-	ChevronLeft,
 	ChevronRight,
 	Cigarette,
 	Crown,
@@ -22,7 +21,7 @@ import {
 	Wallet,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { CustomerLineItem } from "@/lib/services/appointment-line-items";
 import type { CustomerTimelineAppointment } from "@/lib/services/appointments";
 import type { CaseNoteWithContext } from "@/lib/services/case-notes";
@@ -30,6 +29,7 @@ import type { CustomerWithRelations } from "@/lib/services/customers";
 import { mediaPublicUrl } from "@/lib/storage/urls";
 import { cn } from "@/lib/utils";
 import { CustomerCaseNotesTab } from "@/components/customers/CustomerCaseNotesTab";
+import { SegmentedTabs } from "@/components/ui/segmented-tabs";
 
 type Props = {
 	customer: CustomerWithRelations;
@@ -186,10 +186,12 @@ export function CustomerDetailView({ customer, timeline, lineItems, caseNotes }:
 
 	return (
 		<div className="flex flex-col gap-3">
-			<CustomerTabBar
+			<SegmentedTabs
 				tabs={TABS}
 				active={activeTab}
 				onChange={(key) => setActiveTab(key as TabKey)}
+				size="sm"
+				aria-label="Customer sections"
 			/>
 			<div className="flex min-h-[calc(100vh-12rem)] flex-col gap-4 lg:flex-row">
 			<aside className="flex w-full shrink-0 flex-col gap-3 lg:w-[320px]">
@@ -778,99 +780,6 @@ function MedicalInfoCard({ customer }: { customer: CustomerWithRelations }) {
 					</div>
 				</div>
 			)}
-		</div>
-	);
-}
-
-function CustomerTabBar({
-	tabs,
-	active,
-	onChange,
-}: {
-	tabs: { key: string; label: string }[];
-	active: string;
-	onChange: (key: string) => void;
-}) {
-	const scrollRef = useRef<HTMLDivElement>(null);
-	const [canScrollLeft, setCanScrollLeft] = useState(false);
-	const [canScrollRight, setCanScrollRight] = useState(false);
-
-	function checkScroll() {
-		const el = scrollRef.current;
-		if (!el) return;
-		setCanScrollLeft(el.scrollLeft > 4);
-		setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
-	}
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: recheck on tab count change
-	useEffect(() => {
-		checkScroll();
-		const el = scrollRef.current;
-		if (!el) return;
-		const ro = new ResizeObserver(checkScroll);
-		ro.observe(el);
-		return () => ro.disconnect();
-	}, [tabs.length]);
-
-	function scrollBy(amount: number) {
-		scrollRef.current?.scrollBy({ left: amount, behavior: "smooth" });
-	}
-
-	const navBtn = "flex shrink-0 size-7 items-center justify-center rounded-full border bg-background shadow-sm transition hover:bg-muted disabled:pointer-events-none disabled:opacity-30";
-
-	return (
-		<div className="flex items-center gap-2 rounded-xl border bg-card px-3 py-2 shadow-sm">
-			<button
-				type="button"
-				aria-label="Scroll tabs left"
-				disabled={!canScrollLeft}
-				onClick={() => scrollBy(-200)}
-				className={navBtn}
-			>
-				<ChevronLeft className="size-3.5" />
-			</button>
-
-			<div
-				ref={scrollRef}
-				className="flex-1 overflow-x-auto scrollbar-none"
-				onScroll={checkScroll}
-				onWheel={(e) => {
-					if (e.deltaY === 0) return;
-					e.preventDefault();
-					scrollRef.current?.scrollBy({ left: e.deltaY });
-				}}
-			>
-				<div className="inline-flex min-w-max items-center gap-0.5">
-					{tabs.map((tab) => {
-						const isActive = tab.key === active;
-						return (
-							<button
-								key={tab.key}
-								type="button"
-								onClick={() => onChange(tab.key)}
-								className={cn(
-									"whitespace-nowrap rounded-full px-4 py-1.5 font-semibold text-[11px] uppercase tracking-wide transition",
-									isActive
-										? "bg-primary text-primary-foreground shadow-sm"
-										: "text-muted-foreground hover:bg-muted hover:text-foreground",
-								)}
-							>
-								{tab.label}
-							</button>
-						);
-					})}
-				</div>
-			</div>
-
-			<button
-				type="button"
-				aria-label="Scroll tabs right"
-				disabled={!canScrollRight}
-				onClick={() => scrollBy(200)}
-				className={navBtn}
-			>
-				<ChevronRight className="size-3.5" />
-			</button>
 		</div>
 	);
 }

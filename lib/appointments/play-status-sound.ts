@@ -1,7 +1,4 @@
-import type {
-	GeneralToastSound,
-	StatusSound,
-} from "@/lib/constants/appointment-notifications";
+import type { StatusSound } from "@/lib/constants/appointment-notifications";
 
 let ctx: AudioContext | null = null;
 
@@ -132,38 +129,8 @@ const STATUS_PATTERNS: Record<NonNullable<StatusSound>, Tone[]> = {
 	completed: COMPLETED,
 };
 
-// --- General toast sounds ---
-
-// Quick bright pop — confirmation
-const SUCCESS: Tone[] = [
-	{ freq: 880, startOffset: 0, duration: 0.1, type: "sine", gain: 0.12 },
-	{ freq: 1175, startOffset: 0.08, duration: 0.16, type: "sine", gain: 0.11, fadeRatio: 0.5 },
-];
-
-// Gentle low double-tap — attention without panic
-const ERROR: Tone[] = [
-	{ freq: 440, startOffset: 0, duration: 0.12, type: "sine", gain: 0.12 },
-	{ freq: 349, startOffset: 0.14, duration: 0.18, type: "sine", gain: 0.11, fadeRatio: 0.5 },
-];
-
-// Subtle single pop — "something happened"
-const INFO: Tone[] = [
-	{ freq: 740, startOffset: 0, duration: 0.14, type: "sine", gain: 0.1, fadeRatio: 0.5 },
-];
-
-const GENERAL_PATTERNS: Record<GeneralToastSound, Tone[]> = {
-	success: SUCCESS,
-	error: ERROR,
-	info: INFO,
-};
-
 export function playStatusSound(sound: StatusSound) {
 	if (!sound) return;
 	const pattern = STATUS_PATTERNS[sound];
-	if (pattern) playTones(pattern);
-}
-
-export function playGeneralToastSound(sound: GeneralToastSound) {
-	const pattern = GENERAL_PATTERNS[sound];
 	if (pattern) playTones(pattern);
 }

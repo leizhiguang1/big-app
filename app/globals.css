@@ -148,3 +148,7 @@
 		display: none;
 	}
 }
+
+body.dragging-appt [data-appt-card]:not([data-dragging="true"]) {
+	pointer-events: none;
+}

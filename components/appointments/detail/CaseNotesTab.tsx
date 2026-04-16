@@ -28,21 +28,36 @@ import {
 } from "@/lib/actions/case-notes";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 import type { CaseNoteWithContext } from "@/lib/services/case-notes";
+import { cn } from "@/lib/utils";
+
+type PendingEdit = { noteId: string; content: string };
 
 type Props = {
 	appointment: AppointmentWithRelations;
 	caseNotes: CaseNoteWithContext[];
 	onToast: (message: string, variant?: Toast["variant"]) => void;
+	pendingEdit?: PendingEdit | null;
+	onPendingEditHandled?: () => void;
 };
 
-export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
+export function CaseNotesTab({
+	appointment,
+	caseNotes,
+	onToast,
+	pendingEdit,
+	onPendingEditHandled,
+}: Props) {
 	const router = useRouter();
 	const [draft, setDraft] = useState("");
+	const [editingFromHistoryId, setEditingFromHistoryId] = useState<
+		string | null
+	>(null);
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editContent, setEditContent] = useState("");
 	const [deleteId, setDeleteId] = useState<string | null>(null);
 	const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 	const [mcDialogOpen, setMcDialogOpen] = useState(false);
+	const [overwriteConfirmOpen, setOverwriteConfirmOpen] = useState(false);
 	const [pending, startTransition] = useTransition();
 	const [localNotes, setLocalNotes] = useState<CaseNoteWithContext[]>(caseNotes);
 
@@ -50,15 +65,55 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 		setLocalNotes(caseNotes);
 	}, [caseNotes]);
 
+	useEffect(() => {
+		if (pendingEdit == null) return;
+		if (draft.trim()) {
+			setOverwriteConfirmOpen(true);
+		} else {
+			setDraft(pendingEdit.content);
+			setEditingFromHistoryId(pendingEdit.noteId);
+			onPendingEditHandled?.();
+		}
+	}, [pendingEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+
 	const isLead = !appointment.is_time_block && !appointment.customer_id;
 	const isBlock = appointment.is_time_block;
 	const customerId = appointment.customer_id;
 
 	const refresh = () => startTransition(() => router.refresh());
 
-	const handleAdd = () => {
-		if (!customerId || !draft.trim()) return;
+	const clearDraft = () => {
+		setDraft("");
+		setEditingFromHistoryId(null);
+	};
+
+	const handleSave = () => {
+		if (!draft.trim()) return;
 		const content = draft.trim();
+
+		if (editingFromHistoryId) {
+			const id = editingFromHistoryId;
+			setLocalNotes((prev) =>
+				prev.map((n) => (n.id === id ? { ...n, content } : n)),
+			);
+			clearDraft();
+			startTransition(async () => {
+				try {
+					await updateCaseNoteAction(appointment.id, id, { content });
+					onToast("Note updated", "success");
+					refresh();
+				} catch (err) {
+					onToast(
+						err instanceof Error ? err.message : "Could not update note",
+						"error",
+					);
+					refresh();
+				}
+			});
+			return;
+		}
+
+		if (!customerId) return;
 		const tempId = `temp-${crypto.randomUUID()}`;
 		const optimistic: CaseNoteWithContext = {
 			id: tempId,
@@ -66,13 +121,15 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 			customer_id: customerId,
 			employee_id: appointment.employee_id ?? null,
 			content,
+			is_pinned: false,
+			is_cancelled: false,
 			created_at: new Date().toISOString(),
 			updated_at: new Date().toISOString(),
 			employee: null,
 			appointment: null,
 		};
 		setLocalNotes((prev) => [...prev, optimistic]);
-		setDraft("");
+		clearDraft();
 		startTransition(async () => {
 			try {
 				await createCaseNoteAction(appointment.id, {
@@ -168,10 +225,15 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 
 	return (
 		<div className="flex flex-col gap-4">
-			<div className="rounded-md border bg-card p-4">
+			<div
+				className={cn(
+					"rounded-md border bg-card p-4",
+					editingFromHistoryId && "border-amber-300 bg-amber-50/30",
+				)}
+			>
 				<div className="flex items-center justify-between">
 					<div className="text-muted-foreground text-xs uppercase tracking-wide">
-						New case note
+						{editingFromHistoryId ? "Editing note" : "New case note"}
 					</div>
 					<CaseNoteToolbar onAddMc={() => setMcDialogOpen(true)} />
 				</div>
@@ -182,15 +244,25 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 					placeholder="Chief complaint, findings, procedure details, medication…"
 					className="mt-3 w-full resize-y rounded-md border bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 				/>
-				<div className="mt-3 flex justify-end">
+				<div className="mt-3 flex items-center justify-end gap-2">
+					{editingFromHistoryId && (
+						<Button
+							type="button"
+							size="sm"
+							variant="ghost"
+							onClick={clearDraft}
+						>
+							Cancel
+						</Button>
+					)}
 					<Button
 						type="button"
 						size="sm"
-						onClick={handleAdd}
+						onClick={handleSave}
 						disabled={!draft.trim()}
 					>
 						<Save className="size-3.5" />
-						Save note
+						{editingFromHistoryId ? "Update note" : "Save note"}
 					</Button>
 				</div>
 			</div>
@@ -257,6 +329,25 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 					}}
 				/>
 			)}
+
+			<ConfirmDialog
+				open={overwriteConfirmOpen}
+				onOpenChange={(o) => {
+					if (!o) {
+						setOverwriteConfirmOpen(false);
+						onPendingEditHandled?.();
+					}
+				}}
+				title="Overwrite current draft?"
+				description="The editor already has text. Loading this note will replace it."
+				confirmLabel="Replace"
+				onConfirm={() => {
+					setDraft(pendingEdit?.content ?? "");
+					setEditingFromHistoryId(pendingEdit?.noteId ?? null);
+					setOverwriteConfirmOpen(false);
+					onPendingEditHandled?.();
+				}}
+			/>
 		</div>
 	);
 }

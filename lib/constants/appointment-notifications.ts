@@ -10,8 +10,6 @@ export type StatusSound =
 	| "completed"
 	| null;
 
-export type GeneralToastSound = "success" | "error" | "info";
-
 export type AppointmentStatusNotification = {
 	enabled: boolean;
 	sound: StatusSound;

@@ -12,7 +12,7 @@
 - Hover popup card, right-click context menu, status-change toast stack.
 - Full-page detail route `/appointments/[id]` with eight tabs: Overview, Case Notes, Billing, Dental Assessment, Periodontal Charting, Follow Up, Camera, Documents.
 - Billing tab with inline add/edit/delete of `appointment_line_items`.
-- **Consumables card (Overview tab)** — read-only display of each service line's consumables, sourced from `services.consumables` (free-text on the service catalog). Nothing to add or edit on the appointment side — consumables are a property of the service, not per-visit.
+- **Consumables card (Overview tab)** — read-only display of each service line's consumables, sourced from the `service_inventory_items` junction on the service catalog. Each linked inventory item is listed with its computed deduction quantity (`default_quantity × billed_qty`). Nothing to add or edit on the appointment side — consumables are a property of the service, not per-visit. Stock is deducted on Collect Payment (see below).
 - **Hands-on Incentives card (Overview tab)** — per-line employee attribution. Each service line has a persistent empty select; picking an employee creates an `appointment_line_item_incentives` row. Multiple employees per line allowed (unique on `(line_item_id, employee_id)`). No commission calculation — v1 just records who did what.
 - Case Notes tab with CRUD.
 - **Case Notes quick-action toolbar (partial).** A six-icon row sits above the editor: Annotate image, Templates, Add prescription, Add MC, ICD-10, Dental chart. Only **Add MC** is wired — the rest are visual stubs with hover tooltips, marked `aria-disabled` and `data-stub="true"` for when we wire them. See §Medical Certificates below.
@@ -53,7 +53,7 @@ Services and appointments are still related — line items join back to the serv
 
 1. **The UI adds them in one place.** Staff uses the Billing tab to record services as they go — the cart *is* the treatment record. Splitting would force a two-place-of-truth reconciliation with no user-facing benefit.
 2. **Stable FK target for child records.** `appointment_line_item_consumables` and `appointment_line_item_incentives` both hang off `appointment_line_items.id` with `ON DELETE CASCADE`. If services lived in a different table from the cart, either the child tables would need dual foreign keys or the merge step would have to re-link them at payment time.
-3. **Collect Payment stays simple.** The `collect_appointment_payment` RPC snapshots line items into `sale_items` and commits the SO. The child consumables/incentives tables are NOT copied over — they remain attached to the line item as a historical record and can be re-read via the appointment relationship.
+3. **Collect Payment stays simple.** The `collect_appointment_payment` RPC snapshots line items into `sale_items` and commits the SO. The `appointment_line_item_incentives` child rows are NOT copied over — they remain attached to the line item as a historical record and can be re-read via the appointment relationship. Consumables deduction happens at the same time but reads the service-catalog `service_inventory_items` junction, not a child of the line item.
 
 The UI-facing labels (`BillingTab`, `BillingSection`, the "Billing" tab) still say "Billing" because that's the word staff use for it. Only the data layer got renamed.
 
@@ -647,11 +647,11 @@ OR (item_type='charge'  AND service_id IS NULL     AND product_id IS NULL)
 
 `charge` is reserved for ad-hoc line items (consultation fees, write-offs) that don't reference a catalog row. The UI does not expose it yet — v1 only ships the Services and Products tabs of the billing picker. Laboratory / Vaccinations / Other Charges are placeholder tabs.
 
-### Consumables — no table
+### Consumables — no per-appointment table
 
-Consumables live on the service catalog as `services.consumables` (free-text). The Overview tab's `ConsumablesCard` reads this field for each service line item; there is no per-appointment child table.
+Consumables live on the service catalog as the `service_inventory_items` junction (service → inventory item + `default_quantity`). The Overview tab's `ConsumablesCard` reads this junction for each service line item and shows every linked item with its computed deduction (`default_quantity × billed_qty`); there is no per-appointment child table.
 
-A previous revision introduced `appointment_line_item_consumables` and was dropped in migration `drop_appointment_line_item_consumables` after a reread of the requirements — consumables are a catalog-level decision, not a per-visit one. When Inventory ships in Phase 2, this will evolve into a `service_consumable_items` junction table on the Services side, feeding stock movements on Collect Payment. The appointment side remains a read-only consumer.
+A previous revision introduced `appointment_line_item_consumables` and was dropped in migration `drop_appointment_line_item_consumables` after a reread of the requirements — consumables are a catalog-level decision, not a per-visit one. The former free-text `services.consumables` column was also dropped (2026-04-17) when the junction shipped. Stock deduction happens on Collect Payment: the `collect_appointment_payment` RPC reads the junction for each service sale item and writes a negative `inventory_movements` row (`reason='service_use'`, `ref_type='sale_item'`, `ref_id=<sale_item.id>`) in addition to the existing direct-sale deduction for product line items. The appointment side remains a read-only consumer; per-visit override is intentionally not offered.
 
 ### `appointment_line_item_incentives` (migration `rename_billing_entries_and_add_consumables_incentives`)
 
@@ -698,11 +698,11 @@ Service: `lib/services/case-notes.ts`. Actions: `lib/actions/case-notes.ts`. UI 
 | Rooms | appointment → room | `room_id` (optional at schema, required by Zod for non-blocks) |
 | Roster | roster drives staff availability | `listBookableEmployeesForOutlet` provides the base set; `isWindowCoveredByShifts` filters the appointment dialog's employee picker to staff whose shifts cover the proposed window, and powers the calendar drag/drop soft-warn toast. Enforced as a soft filter only — no server-side hard block. |
 | Line items (`appointment_line_items`) | appointment → line items | One appointment, many line items (one per line, not per batch). Dual role — clinical record AND billing cart. |
-| Consumables | line item → service.consumables | Read-only from `services.consumables` free-text. No child table on the appointment side. |
+| Consumables | service → inventory items | Read-only on the appointment side: the `ConsumablesCard` joins through `service_inventory_items` for each service line. Stock deduction happens on Collect Payment (RPC writes `inventory_movements` rows with `reason='service_use'`). No child table on the appointment side. |
 | Incentives (`appointment_line_item_incentives`) | line item → employees | CASCADE from line item. Multiple employees per line; unique on `(line_item_id, employee_id)`. |
 | Case Notes (`case_notes`) | appointment → notes | CASCADE from appointment, customer kept on SET NULL for reusability |
 | Sales | appointment → sales orders | `sales_orders.appointment_id` (created by `collect_appointment_payment` RPC). Line items are snapshot-copied into `sale_items` at commit time; incentives stay attached to the line item (not copied). |
-| Inventory (future) | Consumables → inventory items | Phase 2. Replace `services.consumables text` with a `service_consumable_items` junction table; the appointment-side card still reads through the service. Feeds stock movements. |
+| Inventory | Consumables → inventory items | **Live.** `service_inventory_items` junction holds `(service_id, inventory_item_id, default_quantity)`. Collect Payment deducts `default_quantity × line_qty` per linked item and appends a `service_use` row to `inventory_movements`. Appointment-side card reads through the service and is display-only. |
 | Commission (future) | Incentives → commission engine | Phase 2. Reads `appointment_line_item_incentives` to calculate per-employee payouts. |
 
 ## Improvements Over KumoDent
@@ -722,7 +722,7 @@ These are risks we know about and are not fixing in Phase 1. Listed here so nobo
 - **Concurrent edits: last write wins.** Two staff opening the same appointment in different tabs and both hitting save will silently overwrite each other. Realtime broadcasts status changes (for the notification toasts) but not field-level updates. Acceptable for Phase 1; revisit with optimistic locking (`updated_at` as version) if we see real incidents.
 - **No authorisation on delete.** Any authenticated employee can hard-delete any appointment at any outlet. This is the general "permission gating is deferred" story from [01-auth.md](./01-auth.md) — not appointment-specific — but deletion has the highest blast radius of any action on this screen, so it's worth naming explicitly here. Will land with the permission-enforcement pass after all features are built.
 - **Cross-outlet access on the detail route.** Today any employee with a URL can open any appointment's detail page regardless of outlet. When `ctx.outletIds` starts being populated, the detail RSC should return a 404 (not redirect, not 403 — 404 avoids leaking existence) for appointments outside the user's outlets. Track this as part of the outlet-scoping pass.
-- **`services.consumables` is free-text, read-only, decorative.** The ConsumablesCard prints the string as-is. No parsing, no links to inventory items, no per-visit editing. This is fine for v1 — when Inventory lands in Phase 2, this becomes a structured junction and the card upgrades automatically.
+- **No per-visit consumables override.** Consumables are defined per service via the `service_inventory_items` junction and auto-deducted on Collect Payment. If a procedure actually used a different quantity (or a different item) than the template says, v1 has no way to record that — the deduction reflects the template. Acceptable for v1; a per-visit override table can land later if clinics complain.
 - **`appointments.follow_up` legacy column.** v1 shipped with a single freeform textarea stored on the appointment row. v2 will migrate this to `appointment_follow_ups` (see Follow Up tab above); until the migration runs, any old data stays in the legacy column and the new tab won't see it. Acceptable because v1 usage is expected to be thin.
 
 ## File map
@@ -762,7 +762,7 @@ components/appointments/
     BookingInfoCard.tsx               (Overview left column: time, employee, room, ref)
     StatusProgressionRow.tsx          (8 pills, optimistic)
     BillingTab.tsx                    (wraps BillingSection inside the Billing tab)
-    ConsumablesCard.tsx               (Overview tab: read-only per-line consumables from services.consumables free-text)
+    ConsumablesCard.tsx               (Overview tab: read-only per-line consumables from the service_inventory_items junction, shows default_quantity × billed_qty per linked item)
     HandsOnIncentivesCard.tsx         (Overview tab: per-line employee attribution; writes appointment_line_item_incentives)
     CaseNotesTab.tsx                  (add/edit/delete case notes)
     FollowUpTab.tsx                   (composer + this-visit list: content + optional reminder toggle, create/edit/delete on appointment_follow_ups)
@@ -799,7 +799,7 @@ lib/actions/sales.ts                  (collectAppointmentPaymentAction — used 
 - **Wire the Floating Action Bar placeholders** — queue ticket, new appointment, add to queue, edit.
 - **Build the Cancel appointment flow** — reschedule-or-delete branch, cancel-reason select, `appointment_cancellations` audit table (see "Cancel appointment" workflow). Wire the floating-bar Cancel button to this.
 - **Gate the Complete button on incentives coverage** — disable until every service line has ≥1 incentive assigned. See Floating Action Bar section.
-- **Consumables (v2)** — replace the free-text `services.consumables` column with a structured `service_consumable_items` junction on the Services side. Build item-picker UI in the services admin, feed stock movements on Collect Payment. The appointment-side `ConsumablesCard` stays a read-only consumer. Gated on Inventory module landing (Phase 2).
+- ~~**Consumables (v2)**~~ — **shipped 2026-04-17.** Free-text `services.consumables` column dropped; replaced by the `service_inventory_items` junction on the Services side. Service form has an item-picker + default-quantity editor; Collect Payment deducts stock per service line. Appointment-side `ConsumablesCard` is a read-only consumer.
 - **Hands-on Incentives (v2)** — auto-default the employee selection to the appointment's assigned employee (or `lead_attended_by`) so staff only has to touch it when it differs. Add the KumoDent "intended positions" advisory popup once `services.intended_positions text[]` exists. Wire to a Commission engine in Phase 2. **Complete-button gating is decided: the button is disabled until every service line has at least one incentive assigned** (see Floating Action Bar section above) — wire this as part of the Complete flow hardening.
 - **Status Change Log** — build the `appointment_status_events` table + trigger and wire the Overview card. Shape committed (see Overview cards section).
 - **Drag-to-reschedule** — service has `rescheduleAppointment()` ready; needs HTML5 drag wiring on `AppointmentCard` + drop targets in `DayView` / `WeekView`.

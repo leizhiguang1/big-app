@@ -79,6 +79,8 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 			customer_id: customerId,
 			employee_id: null,
 			content,
+			is_pinned: false,
+			is_cancelled: false,
 			created_at: new Date().toISOString(),
 			updated_at: new Date().toISOString(),
 			employee: null,

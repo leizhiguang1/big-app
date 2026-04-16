@@ -12,7 +12,7 @@ import type {
 	ServiceWithCategory,
 } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
-import { ServiceFormDialog } from "./ServiceForm";
+import { type InventoryItemChoice, ServiceFormDialog } from "./ServiceForm";
 
 const priceFormatter = new Intl.NumberFormat("en-MY", {
 	minimumFractionDigits: 2,
@@ -36,10 +36,12 @@ export function ServicesTable({
 	services,
 	categories,
 	taxes,
+	inventoryItems,
 }: {
 	services: ServiceWithCategory[];
 	categories: ServiceCategory[];
 	taxes: Tax[];
+	inventoryItems: InventoryItemChoice[];
 }) {
 	const [editing, setEditing] = useState<ServiceWithCategory | null>(null);
 	const [deleting, setDeleting] = useState<ServiceWithCategory | null>(null);
@@ -135,13 +137,18 @@ export function ServicesTable({
 			),
 		},
 		{
-			key: "consumables",
+			key: "inventory_links",
 			header: "Consumables",
-			cell: (s) => (
-				<span className="text-muted-foreground">
-					{s.consumables && s.consumables.trim() !== "" ? s.consumables : dash}
-				</span>
-			),
+			align: "center",
+			cell: (s) => {
+				const n = s.inventory_links?.length ?? 0;
+				if (n === 0) return dash;
+				return (
+					<span className="text-muted-foreground text-xs">
+						{n} item{n === 1 ? "" : "s"}
+					</span>
+				);
+			},
 		},
 		{
 			key: "discount_cap",
@@ -240,6 +247,7 @@ export function ServicesTable({
 				service={editing}
 				categories={categories}
 				taxes={taxes}
+				inventoryItems={inventoryItems}
 				onClose={() => setEditing(null)}
 			/>
 			<ConfirmDialog

@@ -257,8 +257,9 @@ export type LineItemInput = z.infer<typeof lineItemInputSchema>;
 
 // ─── Line item child records: hands-on incentives ──────────────────────────
 // Consumables intentionally have no schema here — they are a property of the
-// service catalog (`services.consumables` free-text), read-only on the
-// appointment side. See docs/modules/02-appointments.md.
+// service catalog (see `service_inventory_items` junction) and are read-only
+// on the appointment side. Deduction happens inside collect_appointment_payment
+// per service line. See docs/modules/02-appointments.md.
 
 export const lineItemIncentiveInputSchema = z.object({
 	line_item_id: z.string().uuid(),

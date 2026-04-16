@@ -127,6 +127,28 @@ export async function updateLineItem(
 	return data;
 }
 
+export async function cancelLineItemsForAppointment(
+	ctx: Context,
+	appointmentId: string,
+): Promise<void> {
+	const { error } = await ctx.db
+		.from("appointment_line_items")
+		.update({ is_cancelled: true })
+		.eq("appointment_id", appointmentId);
+	if (error) throw new ValidationError(error.message);
+}
+
+export async function revertLineItemsForAppointment(
+	ctx: Context,
+	appointmentId: string,
+): Promise<void> {
+	const { error } = await ctx.db
+		.from("appointment_line_items")
+		.update({ is_cancelled: false })
+		.eq("appointment_id", appointmentId);
+	if (error) throw new ValidationError(error.message);
+}
+
 export async function deleteLineItem(ctx: Context, id: string): Promise<void> {
 	const { error } = await ctx.db
 		.from("appointment_line_items")

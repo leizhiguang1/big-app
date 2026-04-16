@@ -200,6 +200,24 @@ export async function deleteLineItemAction(appointmentId: string, id: string) {
 	revalidatePath(`/appointments/${appointmentId}`);
 }
 
+export async function cancelBillingForAppointmentAction(
+	currentAppointmentId: string,
+	targetAppointmentId: string,
+) {
+	const ctx = await getServerContext();
+	await lineItemsService.cancelLineItemsForAppointment(ctx, targetAppointmentId);
+	revalidatePath(`/appointments/${currentAppointmentId}`);
+}
+
+export async function revertBillingForAppointmentAction(
+	currentAppointmentId: string,
+	targetAppointmentId: string,
+) {
+	const ctx = await getServerContext();
+	await lineItemsService.revertLineItemsForAppointment(ctx, targetAppointmentId);
+	revalidatePath(`/appointments/${currentAppointmentId}`);
+}
+
 // ─── Incentives (hands-on attribution) ──────────────────────────────────────
 
 export async function createLineItemIncentiveAction(

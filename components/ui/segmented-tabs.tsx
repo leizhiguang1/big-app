@@ -37,12 +37,71 @@ export function SegmentedTabs({
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const [canScrollLeft, setCanScrollLeft] = useState(false);
 	const [canScrollRight, setCanScrollRight] = useState(false);
+	const [isDragging, setIsDragging] = useState(false);
+	const dragStateRef = useRef<{
+		pointerId: number;
+		startX: number;
+		startScrollLeft: number;
+		moved: boolean;
+	} | null>(null);
+	const justDraggedRef = useRef(false);
 
 	function checkScroll() {
 		const el = scrollRef.current;
 		if (!el) return;
 		setCanScrollLeft(el.scrollLeft > 4);
 		setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+	}
+
+	function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+		if (e.pointerType !== "mouse") return;
+		if (e.button !== 0) return;
+		const el = scrollRef.current;
+		if (!el) return;
+		dragStateRef.current = {
+			pointerId: e.pointerId,
+			startX: e.clientX,
+			startScrollLeft: el.scrollLeft,
+			moved: false,
+		};
+	}
+
+	function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+		const state = dragStateRef.current;
+		if (!state || state.pointerId !== e.pointerId) return;
+		const dx = e.clientX - state.startX;
+		if (!state.moved && Math.abs(dx) > 4) {
+			state.moved = true;
+			setIsDragging(true);
+			try {
+				e.currentTarget.setPointerCapture(e.pointerId);
+			} catch {}
+		}
+		if (state.moved) {
+			const el = scrollRef.current;
+			if (el) el.scrollLeft = state.startScrollLeft - dx;
+		}
+	}
+
+	function endDrag(e: React.PointerEvent<HTMLDivElement>) {
+		const state = dragStateRef.current;
+		if (!state || state.pointerId !== e.pointerId) return;
+		if (state.moved) {
+			justDraggedRef.current = true;
+			setIsDragging(false);
+			try {
+				e.currentTarget.releasePointerCapture(e.pointerId);
+			} catch {}
+		}
+		dragStateRef.current = null;
+	}
+
+	function handleClickCapture(e: React.MouseEvent) {
+		if (justDraggedRef.current) {
+			justDraggedRef.current = false;
+			e.preventDefault();
+			e.stopPropagation();
+		}
 	}
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: tabs length change should recheck
@@ -83,13 +142,21 @@ export function SegmentedTabs({
 
 			<div
 				ref={scrollRef}
-				className="overflow-x-auto scrollbar-none flex-1"
+				className={cn(
+					"overflow-x-auto scrollbar-none flex-1 select-none touch-pan-y",
+					isDragging ? "cursor-grabbing" : "cursor-grab",
+				)}
 				onScroll={checkScroll}
 				onWheel={(e) => {
 					if (e.deltaY === 0) return;
 					e.preventDefault();
 					scrollRef.current?.scrollBy({ left: e.deltaY });
 				}}
+				onPointerDown={handlePointerDown}
+				onPointerMove={handlePointerMove}
+				onPointerUp={endDrag}
+				onPointerCancel={endDrag}
+				onClickCapture={handleClickCapture}
 			>
 				<div
 					role="tablist"
