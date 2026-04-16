@@ -28,7 +28,7 @@ function MaskedInput(props: ComponentProps<typeof Input>) {
 			autoCorrect="off"
 			autoCapitalize="off"
 			spellCheck={false}
-			style={{ WebkitTextSecurity: "disc", ...props.style }}
+			style={{ WebkitTextSecurity: "disc", ...props.style } as React.CSSProperties}
 		/>
 	);
 }

@@ -8,7 +8,6 @@ import {
 	Maximize2,
 	MessageSquare,
 	Minimize2,
-	PanelLeftClose,
 	Pencil,
 	Phone,
 	Receipt,
@@ -69,7 +68,6 @@ type Props = {
 	caseNotes: CaseNoteWithContext[];
 	customerBillingHistory: CustomerLineItem[];
 	customerHistory: CustomerAppointmentSummary[];
-	onClose: () => void;
 	onToast: (message: string, variant?: Toast["variant"]) => void;
 };
 
@@ -180,7 +178,6 @@ export function HistoryPanel({
 	caseNotes,
 	customerBillingHistory,
 	customerHistory,
-	onClose,
 	onToast,
 }: Props) {
 	const router = useRouter();
@@ -271,7 +268,7 @@ export function HistoryPanel({
 	};
 
 	return (
-		<aside className="sticky top-4 hidden h-[calc(100vh-8rem)] w-[340px] shrink-0 flex-col overflow-hidden rounded-md border bg-card lg:flex">
+		<div className="flex h-full w-full flex-col overflow-hidden rounded-md border bg-card">
 			<div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
 				<div className="font-bold text-[12px] text-foreground tracking-wide">
 					HISTORY
@@ -329,14 +326,6 @@ export function HistoryPanel({
 						) : (
 							<Minimize2 className="size-[14px]" />
 						)}
-					</button>
-					<button
-						type="button"
-						aria-label="Close history panel"
-						onClick={onClose}
-						className="flex size-7 items-center justify-center rounded text-muted-foreground transition hover:bg-muted"
-					>
-						<PanelLeftClose className="size-[14px]" />
 					</button>
 				</div>
 			</div>
@@ -413,7 +402,7 @@ export function HistoryPanel({
 				pending={pending}
 				onConfirm={handleDelete}
 			/>
-		</aside>
+		</div>
 	);
 }
 
@@ -775,7 +764,6 @@ type FollowUpHistoryPanelProps = {
 	currentAppointmentId: string;
 	followUps: FollowUpWithRefs[];
 	customerHistory: CustomerAppointmentSummary[];
-	onClose: () => void;
 	onToast: (message: string, variant?: Toast["variant"]) => void;
 	onEdit: (followUp: FollowUpWithRefs) => void;
 };
@@ -784,7 +772,6 @@ export function FollowUpHistoryPanel({
 	currentAppointmentId,
 	followUps,
 	customerHistory,
-	onClose,
 	onToast,
 	onEdit,
 }: FollowUpHistoryPanelProps) {
@@ -842,7 +829,7 @@ export function FollowUpHistoryPanel({
 	};
 
 	return (
-		<aside className="sticky top-4 hidden h-[calc(100vh-8rem)] w-[340px] shrink-0 flex-col overflow-hidden rounded-md border bg-card lg:flex">
+		<div className="flex h-full w-full flex-col overflow-hidden rounded-md border bg-card">
 			<div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
 				<div className="font-bold text-[12px] text-foreground tracking-wide">
 					FOLLOW-UPS
@@ -868,14 +855,6 @@ export function FollowUpHistoryPanel({
 						) : (
 							<Minimize2 className="size-[14px]" />
 						)}
-					</button>
-					<button
-						type="button"
-						aria-label="Close history panel"
-						onClick={onClose}
-						className="flex size-7 items-center justify-center rounded text-muted-foreground transition hover:bg-muted"
-					>
-						<PanelLeftClose className="size-[14px]" />
 					</button>
 				</div>
 			</div>
@@ -913,7 +892,7 @@ export function FollowUpHistoryPanel({
 				pending={pending}
 				onConfirm={handleDelete}
 			/>
-		</aside>
+		</div>
 	);
 }
 

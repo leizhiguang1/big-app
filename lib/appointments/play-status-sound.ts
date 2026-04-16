@@ -95,17 +95,17 @@ const STARTED: Tone[] = [
 // Option B: "do re mi · so so so"
 const BILLING: Tone[] = [
 	// do (C5)
-	{ freq: 1047, startOffset: 0, duration: 0.18, type: "triangle", gain: 0.16, fadeRatio: 0.3 },
+	{ freq: 1047, startOffset: 0, duration: 0.14, type: "triangle", gain: 0.16, fadeRatio: 0.3 },
 	// re (D5)
-	{ freq: 1175, startOffset: 0.16, duration: 0.18, type: "triangle", gain: 0.16, fadeRatio: 0.3 },
+	{ freq: 1175, startOffset: 0.12, duration: 0.14, type: "triangle", gain: 0.16, fadeRatio: 0.3 },
 	// mi (E5)
-	{ freq: 1319, startOffset: 0.32, duration: 0.22, type: "triangle", gain: 0.16, fadeRatio: 0.3 },
+	{ freq: 1319, startOffset: 0.24, duration: 0.16, type: "triangle", gain: 0.16, fadeRatio: 0.3 },
 	// so (G5, quick)
-	{ freq: 1568, startOffset: 0.58, duration: 0.12, type: "sine", gain: 0.15, fadeRatio: 0.3 },
+	{ freq: 1568, startOffset: 0.44, duration: 0.1, type: "sine", gain: 0.15, fadeRatio: 0.3 },
 	// so (G5, quick)
-	{ freq: 1568, startOffset: 0.72, duration: 0.12, type: "sine", gain: 0.15, fadeRatio: 0.3 },
+	{ freq: 1568, startOffset: 0.56, duration: 0.1, type: "sine", gain: 0.15, fadeRatio: 0.3 },
 	// so (G5, ring out)
-	{ freq: 1568, startOffset: 0.86, duration: 0.32, type: "sine", gain: 0.15, fadeRatio: 0.4 },
+	{ freq: 1568, startOffset: 0.68, duration: 0.28, type: "sine", gain: 0.15, fadeRatio: 0.4 },
 ];
 
 // Subdued low two-tone — "missed" feeling, not alarming

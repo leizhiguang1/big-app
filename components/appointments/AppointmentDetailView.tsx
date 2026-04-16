@@ -1,7 +1,6 @@
 "use client";
 
-import { PanelLeftOpen } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import {
 	AppointmentToastStack,
@@ -99,21 +98,16 @@ export function AppointmentDetailView({
 	const [editOpen, setEditOpen] = useState(false);
 	const [activeTab, setActiveTab] = useState<DetailTabKey>("overview");
 	const [toasts, setToasts] = useState<Toast[]>([]);
-	const [historyOpen, setHistoryOpen] = useState(false);
 	const [headerCollapsed, setHeaderCollapsed] = useState(false);
 	const [editingFollowUpId, setEditingFollowUpId] = useState<string | null>(
 		null,
 	);
 
+	const hasCustomer = !appointment.is_time_block && !!appointment.customer_id;
 	const isCaseBillingTab = activeTab === "casenotes" || activeTab === "billing";
 	const isFollowUpTab = activeTab === "followup";
-	const isHistoryTab = isCaseBillingTab || isFollowUpTab;
-	const canShowHistory =
-		isHistoryTab && !appointment.is_time_block && !!appointment.customer_id;
-
-	useEffect(() => {
-		setHistoryOpen(isHistoryTab);
-	}, [isHistoryTab]);
+	const showHistoryPanel = isCaseBillingTab && hasCustomer;
+	const showFollowUpPanel = isFollowUpTab && hasCustomer;
 
 	const showToast = useCallback(
 		(message: string, variant: Toast["variant"] = "default") => {
@@ -181,37 +175,6 @@ export function AppointmentDetailView({
 			/>
 
 			<div className="flex gap-3">
-				{canShowHistory && historyOpen && isCaseBillingTab && (
-					<HistoryPanel
-						currentAppointmentId={appointment.id}
-						caseNotes={caseNotes}
-						customerBillingHistory={customerLineItemsHistory}
-						customerHistory={customerHistory}
-						onClose={() => setHistoryOpen(false)}
-						onToast={showToast}
-					/>
-				)}
-				{canShowHistory && historyOpen && isFollowUpTab && (
-					<FollowUpHistoryPanel
-						currentAppointmentId={appointment.id}
-						followUps={followUps}
-						customerHistory={customerHistory}
-						onClose={() => setHistoryOpen(false)}
-						onToast={showToast}
-						onEdit={(f) => setEditingFollowUpId(f.id)}
-					/>
-				)}
-				{canShowHistory && !historyOpen && (
-					<button
-						type="button"
-						onClick={() => setHistoryOpen(true)}
-						aria-label="Open history panel"
-						title="Open history"
-						className="flex h-9 shrink-0 items-center justify-center self-start rounded-lg border bg-card px-2 text-muted-foreground shadow-sm transition hover:text-foreground"
-					>
-						<PanelLeftOpen className="size-4" />
-					</button>
-				)}
 				<div className="flex min-w-0 flex-1 flex-col gap-3">
 					<div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
 						<div
@@ -315,6 +278,36 @@ export function AppointmentDetailView({
 						/>
 					)}
 				</div>
+
+				{/* Right context panel — always present on lg+ */}
+				<aside className="sticky top-4 hidden h-[calc(100vh-8rem)] w-[340px] shrink-0 lg:block">
+					{showHistoryPanel ? (
+						<HistoryPanel
+							currentAppointmentId={appointment.id}
+							caseNotes={caseNotes}
+							customerBillingHistory={customerLineItemsHistory}
+							customerHistory={customerHistory}
+							onToast={showToast}
+						/>
+					) : showFollowUpPanel ? (
+						<FollowUpHistoryPanel
+							currentAppointmentId={appointment.id}
+							followUps={followUps}
+							customerHistory={customerHistory}
+							onToast={showToast}
+							onEdit={(f) => setEditingFollowUpId(f.id)}
+						/>
+					) : (
+						<div className="flex h-full flex-col gap-3 overflow-y-auto">
+							<BookingInfoCard
+								appointment={appointment}
+								lineItems={lineItems}
+								salesOrderId={salesOrderId}
+							/>
+							<StatusChangeLogCard entries={statusLog} />
+						</div>
+					)}
+				</aside>
 			</div>
 
 			{editOpen && (

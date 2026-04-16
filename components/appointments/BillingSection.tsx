@@ -124,6 +124,9 @@ function isDirty(item: Item, entries: AppointmentLineItem[]): boolean {
 	);
 }
 
+const COL =
+	"md:grid-cols-[1fr_56px_100px_100px_130px_100px_28px]" as const;
+
 export function BillingSection({
 	appointmentId,
 	entries,
@@ -281,7 +284,7 @@ export function BillingSection({
 		: null;
 
 	return (
-		<div className="flex flex-col gap-4 rounded-md border bg-card p-4">
+		<div className="flex flex-col gap-3 rounded-md border bg-card p-4">
 			<div className="flex items-center justify-between">
 				<div>
 					<h3 className="font-semibold text-sm">Billing</h3>
@@ -301,207 +304,356 @@ export function BillingSection({
 				</Button>
 			</div>
 
-			<div className="flex flex-col gap-2.5">
-				{items.length === 0 && (
-					<div className="rounded-md border border-dashed p-8 text-center text-muted-foreground text-sm">
-						No billing items yet. Click <b>Add item</b> to start.
+			{items.length === 0 ? (
+				<div className="rounded-md border border-dashed p-6 text-center text-muted-foreground text-sm">
+					No billing items yet. Click <b>Add item</b> to start.
+				</div>
+			) : (
+				<div className="-mx-4 overflow-x-auto px-4">
+					{/* Column headers — desktop only */}
+					<div
+						className={`hidden border-b pb-1.5 text-[10px] text-muted-foreground uppercase tracking-wide md:grid ${COL} md:items-end md:gap-2 md:px-2`}
+					>
+						<span>Item</span>
+						<span className="text-right">Qty</span>
+						<span className="text-right">Price (RM)</span>
+						<span className="text-right">Discount (RM)</span>
+						<span>Tax</span>
+						<span className="text-right">Total (RM)</span>
+						<span />
 					</div>
-				)}
 
-				{items.map((item) => {
-					const svc =
-						item.item_type === "service" && item.service_id
-							? serviceById.get(item.service_id)
-							: null;
-					const prod =
-						item.item_type === "product" && item.product_id
-							? productById.get(item.product_id)
-							: null;
-					const lineAmount = item.quantity * item.unit_price - item.discount;
-					const lineTotal = Math.max(0, lineAmount);
-					const lineTaxIds = parentTaxIdsFor(item);
-					const lineTaxes = taxes.filter(
-						(t) => t.is_active && lineTaxIds.includes(t.id),
-					);
-					const currentTax =
-						lineTaxes.find((t) => t.id === item.tax_id) ?? null;
-					const lineTaxAmount = computeLineTax(
-						lineAmount,
-						item.tax_id,
-						taxes,
-					).amount;
-					return (
-						<div
-							key={item.key}
-							className="flex flex-col gap-3 rounded-md border bg-background p-3"
-						>
-							<div className="flex items-start justify-between gap-3">
-								<button
-									type="button"
-									onClick={() => setPickerKey(item.key)}
-									className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left transition hover:bg-muted/60"
+					<div className="flex flex-col">
+						{items.map((item, idx) => {
+							const svc =
+								item.item_type === "service" && item.service_id
+									? serviceById.get(item.service_id)
+									: null;
+							const prod =
+								item.item_type === "product" && item.product_id
+									? productById.get(item.product_id)
+									: null;
+							const lineAmount =
+								item.quantity * item.unit_price - item.discount;
+							const lineTotal = Math.max(0, lineAmount);
+							const lineTaxIds = parentTaxIdsFor(item);
+							const lineTaxes = taxes.filter(
+								(t) => t.is_active && lineTaxIds.includes(t.id),
+							);
+							const currentTax =
+								lineTaxes.find((t) => t.id === item.tax_id) ?? null;
+							const lineTaxAmount = computeLineTax(
+								lineAmount,
+								item.tax_id,
+								taxes,
+							).amount;
+							const isEven = idx % 2 === 0;
+
+							return (
+								<div
+									key={item.key}
+									className={`rounded-sm py-2 ${isEven ? "" : "bg-muted/30"}`}
 								>
-									{svc ? (
-										<div className="flex min-w-0 flex-col">
-											<div className="flex items-center gap-2">
-												<span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 font-semibold text-[10px] text-primary uppercase">
-													Service
+									{/* ── Desktop row ── */}
+									<div
+										className={`hidden md:grid ${COL} md:items-center md:gap-2 md:px-2`}
+									>
+										<button
+											type="button"
+											onClick={() => setPickerKey(item.key)}
+											className="flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left transition hover:bg-muted/60"
+										>
+											{svc ? (
+												<>
+													<span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 font-semibold text-[9px] text-primary uppercase">
+														Service
+													</span>
+													<span className="truncate text-sm">
+														{svc.name}
+													</span>
+												</>
+											) : prod ? (
+												<>
+													<span className="shrink-0 rounded bg-emerald-500/10 px-1.5 py-0.5 font-semibold text-[9px] text-emerald-600 uppercase dark:text-emerald-400">
+														Product
+													</span>
+													<span className="truncate text-sm">
+														{prod.name}
+													</span>
+												</>
+											) : (
+												<span className="flex items-center gap-1 text-muted-foreground text-sm">
+													<Search className="size-3" />
+													Select item…
 												</span>
-												<span className="truncate font-semibold text-sm">
-													{svc.name}
-												</span>
-												<span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+											)}
+										</button>
+
+										<Input
+											type="number"
+											min={1}
+											step="1"
+											value={item.quantity}
+											onChange={(e) =>
+												update(item.key, {
+													quantity: Number(e.target.value) || 0,
+												})
+											}
+											className="h-7 text-right text-xs tabular-nums"
+											aria-label="Quantity"
+										/>
+										<Input
+											type="number"
+											step="0.01"
+											value={item.unit_price}
+											onChange={(e) =>
+												update(item.key, {
+													unit_price: Number(e.target.value) || 0,
+												})
+											}
+											className="h-7 text-right text-xs tabular-nums"
+											aria-label="Unit price"
+										/>
+										<Input
+											type="number"
+											step="0.01"
+											value={item.discount}
+											onChange={(e) =>
+												update(item.key, {
+													discount: Number(e.target.value) || 0,
+												})
+											}
+											className="h-7 text-right text-xs tabular-nums"
+											aria-label="Discount"
+										/>
+
+										<select
+											value={item.tax_id ?? ""}
+											onChange={(e) =>
+												update(item.key, {
+													tax_id:
+														e.target.value === ""
+															? null
+															: e.target.value,
+												})
+											}
+											disabled={lineTaxes.length === 0}
+											className="h-7 rounded border bg-background px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+											aria-label="Tax for this line item"
+										>
+											<option value="">No tax</option>
+											{lineTaxes.map((t) => (
+												<option key={t.id} value={t.id}>
+													{t.name} {Number(t.rate_pct).toFixed(0)}%
+												</option>
+											))}
+										</select>
+
+										<div className="text-right font-semibold text-sm tabular-nums">
+											{lineTotal.toFixed(2)}
+											{currentTax && (
+												<div className="font-normal text-[10px] text-muted-foreground">
+													+RM {lineTaxAmount.toFixed(2)} tax
+												</div>
+											)}
+										</div>
+
+										<button
+											type="button"
+											onClick={() => onRemove(item)}
+											disabled={pending}
+											className="flex size-6 items-center justify-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+											aria-label="Remove line"
+										>
+											<X className="size-3.5" />
+										</button>
+									</div>
+
+									{/* Desktop: details sub-row */}
+									<div className="hidden md:flex md:items-center md:gap-2 md:px-2 md:pt-1 text-[11px] text-muted-foreground">
+										{svc && (
+											<>
+												<span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
 													{svc.sku}
 												</span>
-											</div>
-											<div className="flex items-center gap-2 text-muted-foreground text-xs">
-												{svc.category?.name && <span>{svc.category.name}</span>}
-												<span>·</span>
+												{svc.category?.name && (
+													<span>{svc.category.name}</span>
+												)}
 												<span>{svc.duration_min} min</span>
-											</div>
-										</div>
-									) : prod ? (
-										<div className="flex min-w-0 flex-col">
-											<div className="flex items-center gap-2">
-												<span className="shrink-0 rounded bg-emerald-500/10 px-1.5 py-0.5 font-semibold text-[10px] text-emerald-600 uppercase dark:text-emerald-400">
-													Product
-												</span>
-												<span className="truncate font-semibold text-sm">
-													{prod.name}
-												</span>
-												<span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+											</>
+										)}
+										{prod && (
+											<>
+												<span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
 													{prod.sku}
 												</span>
-											</div>
-											<div className="flex items-center gap-2 text-muted-foreground text-xs">
-												{prod.brand?.name && <span>{prod.brand.name}</span>}
-												{prod.category?.name && (
-													<>
-														<span>·</span>
-														<span>{prod.category.name}</span>
-													</>
+												{prod.brand?.name && (
+													<span>{prod.brand.name}</span>
 												)}
+												{prod.category?.name && (
+													<span>{prod.category.name}</span>
+												)}
+											</>
+										)}
+										{!svc && !prod && (
+											<span className="italic text-muted-foreground/50">
+												No item selected
+											</span>
+										)}
+										<div className="ml-auto flex items-center gap-1.5">
+											<Input
+												type="text"
+												placeholder="Remarks…"
+												value={item.notes}
+												onChange={(e) =>
+													update(item.key, { notes: e.target.value })
+												}
+												className="h-6 w-48 text-xs"
+												aria-label="Remarks"
+											/>
+										</div>
+									</div>
+
+									{/* ── Mobile layout ── */}
+									<div className="flex flex-col gap-2 px-1 md:hidden">
+										<div className="flex items-start justify-between gap-2">
+											<button
+												type="button"
+												onClick={() => setPickerKey(item.key)}
+												className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left transition hover:bg-muted/60"
+											>
+												{svc ? (
+													<>
+														<span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 font-semibold text-[9px] text-primary uppercase">
+															Service
+														</span>
+														<span className="truncate text-sm">
+															{svc.name}
+														</span>
+													</>
+												) : prod ? (
+													<>
+														<span className="shrink-0 rounded bg-emerald-500/10 px-1.5 py-0.5 font-semibold text-[9px] text-emerald-600 uppercase dark:text-emerald-400">
+															Product
+														</span>
+														<span className="truncate text-sm">
+															{prod.name}
+														</span>
+													</>
+												) : (
+													<span className="flex items-center gap-1 text-muted-foreground text-sm">
+														<Search className="size-3" />
+														Select item…
+													</span>
+												)}
+											</button>
+											<button
+												type="button"
+												onClick={() => onRemove(item)}
+												disabled={pending}
+												className="flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+												aria-label="Remove line"
+											>
+												<X className="size-3.5" />
+											</button>
+										</div>
+										<div className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2">
+											<Field label="Qty">
+												<Input
+													type="number"
+													min={1}
+													step="1"
+													value={item.quantity}
+													onChange={(e) =>
+														update(item.key, {
+															quantity: Number(e.target.value) || 0,
+														})
+													}
+													className="h-7 text-right text-xs tabular-nums"
+													aria-label="Quantity"
+												/>
+											</Field>
+											<Field label="Price (RM)">
+												<Input
+													type="number"
+													step="0.01"
+													value={item.unit_price}
+													onChange={(e) =>
+														update(item.key, {
+															unit_price: Number(e.target.value) || 0,
+														})
+													}
+													className="h-7 text-right text-xs tabular-nums"
+													aria-label="Unit price"
+												/>
+											</Field>
+											<Field label="Discount (RM)">
+												<Input
+													type="number"
+													step="0.01"
+													value={item.discount}
+													onChange={(e) =>
+														update(item.key, {
+															discount: Number(e.target.value) || 0,
+														})
+													}
+													className="h-7 text-right text-xs tabular-nums"
+													aria-label="Discount"
+												/>
+											</Field>
+											<div className="pb-0.5 text-right font-semibold text-sm tabular-nums">
+												{lineTotal.toFixed(2)}
 											</div>
 										</div>
-									) : (
-										<span className="flex items-center gap-1.5 text-muted-foreground text-sm">
-											<Search className="size-3.5" />
-											Pick a service or product…
-										</span>
-									)}
-								</button>
-								<button
-									type="button"
-									onClick={() => onRemove(item)}
-									disabled={pending}
-									className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-destructive hover:text-destructive disabled:opacity-50"
-									aria-label="Remove line"
-								>
-									<X className="size-3.5" />
-								</button>
-							</div>
-
-							<div className="grid grid-cols-2 gap-3 md:grid-cols-[80px_120px_120px_1fr]">
-								<Field label="Qty">
-									<Input
-										type="number"
-										min={1}
-										step="1"
-										value={item.quantity}
-										onChange={(e) =>
-											update(item.key, {
-												quantity: Number(e.target.value) || 0,
-											})
-										}
-										className="h-8 text-right text-sm tabular-nums"
-										aria-label="Quantity"
-									/>
-								</Field>
-								<Field label="Unit Price (MYR)">
-									<Input
-										type="number"
-										step="0.01"
-										value={item.unit_price}
-										onChange={(e) =>
-											update(item.key, {
-												unit_price: Number(e.target.value) || 0,
-											})
-										}
-										className="h-8 text-right text-sm tabular-nums"
-										aria-label="Unit price"
-									/>
-								</Field>
-								<Field label="Discount (MYR)">
-									<Input
-										type="number"
-										step="0.01"
-										value={item.discount}
-										onChange={(e) =>
-											update(item.key, {
-												discount: Number(e.target.value) || 0,
-											})
-										}
-										className="h-8 text-right text-sm tabular-nums"
-										aria-label="Discount"
-									/>
-								</Field>
-								<Field label="Line Total (MYR)">
-									<div className="flex h-8 items-center justify-end rounded-md border border-transparent bg-muted/40 px-2 font-semibold text-sm tabular-nums">
-										{lineTotal.toFixed(2)}
+										<div className="flex items-center gap-2 text-xs">
+											<select
+												value={item.tax_id ?? ""}
+												onChange={(e) =>
+													update(item.key, {
+														tax_id:
+															e.target.value === ""
+																? null
+																: e.target.value,
+													})
+												}
+												disabled={lineTaxes.length === 0}
+												className="h-6 rounded border bg-background px-1.5 text-xs outline-none disabled:cursor-not-allowed disabled:opacity-50"
+												aria-label="Tax"
+											>
+												<option value="">No tax</option>
+												{lineTaxes.map((t) => (
+													<option key={t.id} value={t.id}>
+														{t.name} {Number(t.rate_pct).toFixed(0)}%
+													</option>
+												))}
+											</select>
+											{currentTax && (
+												<span className="tabular-nums text-[11px] text-muted-foreground">
+													+RM {lineTaxAmount.toFixed(2)} tax
+												</span>
+											)}
+											<Input
+												type="text"
+												placeholder="Remarks…"
+												value={item.notes}
+												onChange={(e) =>
+													update(item.key, { notes: e.target.value })
+												}
+												className="ml-auto h-6 max-w-[140px] text-xs"
+												aria-label="Remarks"
+											/>
+										</div>
 									</div>
-								</Field>
-							</div>
+								</div>
+							);
+						})}
+					</div>
+				</div>
+			)}
 
-							<div className="flex flex-wrap items-center gap-2 text-xs">
-								<span className="text-muted-foreground">Tax</span>
-								{lineTaxes.length === 0 ? (
-									<span className="text-muted-foreground italic">
-										No taxes configured for this item
-									</span>
-								) : (
-									<select
-										value={item.tax_id ?? ""}
-										onChange={(e) =>
-											update(item.key, {
-												tax_id: e.target.value === "" ? null : e.target.value,
-											})
-										}
-										className="h-7 rounded-full border bg-background px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-										aria-label="Tax for this line item"
-									>
-										<option value="">— No tax —</option>
-										{lineTaxes.map((t) => (
-											<option key={t.id} value={t.id}>
-												({t.name.toUpperCase()}) {Number(t.rate_pct).toFixed(2)}
-												%
-											</option>
-										))}
-									</select>
-								)}
-								{currentTax && (
-									<span className="text-muted-foreground tabular-nums">
-										Tax Amount (MYR): {lineTaxAmount.toFixed(2)}
-									</span>
-								)}
-							</div>
-
-							<Field label="Remarks">
-								<Input
-									type="text"
-									placeholder="Optional — e.g. left upper molar, numbing cream applied"
-									value={item.notes}
-									onChange={(e) => update(item.key, { notes: e.target.value })}
-									className="h-8 text-sm"
-									aria-label="Remarks"
-								/>
-							</Field>
-						</div>
-					);
-				})}
-			</div>
-
-			<div className="flex flex-col gap-4 border-t pt-4 md:flex-row md:items-start md:justify-between md:gap-8">
-				<div className="flex w-full flex-col gap-1 md:max-w-[280px]">
+			{/* Footer: batch note + summary */}
+			<div className="flex flex-col gap-3 border-t pt-3 md:flex-row md:items-start md:justify-between md:gap-6">
+				<div className="flex w-full flex-col gap-1 md:max-w-[260px]">
 					<label
 						htmlFor="billing-batch-note"
 						className="text-muted-foreground text-xs"
@@ -513,28 +665,36 @@ export function BillingSection({
 						placeholder="Optional — e.g. waive deposit, follow-up call needed"
 						value={batchNote}
 						onChange={(e) => setBatchNote(e.target.value)}
-						rows={3}
+						rows={2}
 						className="w-full resize-y rounded-md border bg-background px-2 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 					/>
 				</div>
 
-				<div className="flex min-w-[260px] flex-col gap-1.5 text-sm md:ml-auto">
-					<SummaryRow label="Total Qty">
-						<span className="font-semibold text-foreground tabular-nums">
-							{totalQty.toFixed(2)}
+				<div className="flex min-w-[240px] flex-col gap-1 text-xs md:ml-auto">
+					<SummaryRow label="Subtotal">
+						<span className="tabular-nums">
+							RM {subtotal.toFixed(2)}
 						</span>
 					</SummaryRow>
-					<SummaryRow label="Total Tax Amount (MYR)">
-						<span className="tabular-nums">{totalTax.toFixed(2)}</span>
-					</SummaryRow>
-					<SummaryRow label="Discount">
-						<span className="tabular-nums">({totalDiscount.toFixed(2)})</span>
-					</SummaryRow>
-					<div className="mt-1 flex items-center justify-between border-t pt-1.5 font-semibold text-foreground">
-						<span>Total (MYR)</span>
-						<span className="text-base tabular-nums">{total.toFixed(2)}</span>
+					{totalDiscount > 0 && (
+						<SummaryRow label="Discount">
+							<span className="tabular-nums text-destructive">
+								- RM {totalDiscount.toFixed(2)}
+							</span>
+						</SummaryRow>
+					)}
+					{totalTax > 0 && (
+						<SummaryRow label="Tax">
+							<span className="tabular-nums">
+								RM {totalTax.toFixed(2)}
+							</span>
+						</SummaryRow>
+					)}
+					<div className="mt-1 flex items-center justify-between border-t pt-2 font-semibold text-sm text-foreground">
+						<span>Total</span>
+						<span className="tabular-nums">RM {total.toFixed(2)}</span>
 					</div>
-					<div className="mt-3 flex justify-end">
+					<div className="mt-2 flex justify-end">
 						<Button
 							type="button"
 							size="sm"
