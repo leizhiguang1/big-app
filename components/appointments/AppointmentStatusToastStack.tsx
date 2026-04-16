@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 
 export type StatusToast = {
 	id: string;
+	/** Used to coalesce rapid clicks on the same appointment into one toast. */
+	appointmentId?: string;
 	status: AppointmentStatus;
 	title: string;
 	subtitle: string;

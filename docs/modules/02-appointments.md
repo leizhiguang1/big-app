@@ -25,8 +25,9 @@
 - `AppointmentsView` client shell owns display/scope state (persisted in `localStorage`); `monthGridRange` pre-fetch so scope/display switches are instant.
 
 **UI parked — intentional placeholders, not wired**
-- Floating action bar right-side icons: queue ticket, create-new-for-customer, add-to-queue, edit. (**Complete** *is* wired — it opens the confirm dialog → `CollectPaymentDialog`. **Cancel** is a planned flow — see "Cancel appointment" workflow below.)
-- Overview tab: **Status Change Log** remains a placeholder (no audit storage yet). Consumables and Hands-on Incentives are **live** — see §Overview tab cards below.
+- Floating action bar right-side icons: queue ticket, create-new-for-customer, add-to-queue, edit. (**Complete** *is* wired — it opens the confirm dialog → `CollectPaymentDialog`. **Cancel** is wired — hard-deletes the appointment with a confirmation dialog. **Revert** is wired — reverts a completed appointment back to pending.)
+- Overview tab: **Status Change Log** is live — displays the `appointment_status_log` entries as a formatted timeline. Consumables and Hands-on Incentives are **live** — see §Overview tab cards below.
+- **BookingInfoCard** shows a "Sales Order → View invoice" link when the appointment has a linked SO (via `getSalesOrderForAppointment()`), linking to `/sales/[id]`.
 - `CollectPaymentDialog` parked controls: Itemised Allocation toggle, secondary staff avatars, Repeat Previous Items, Apply Auto Discount, Attachments card, Backdate Invoice toggle, Add Payment Type row, Reference / Tag fields, message-to-frontdesk textarea. The dialog collects payments end-to-end today — these are UI-first stubs to be wired later.
 
 **Still pending**
@@ -35,7 +36,6 @@
 - Recurring / repeat appointments.
 - Sound effects on status change.
 - Dental Assessment, Periodontal Charting, Camera tab content — Phase 2 clinical sub-modules.
-- Status Change Log content (the stored audit trail doesn't exist yet — planned).
 
 ## Key shape rule — services don't drive the booking
 

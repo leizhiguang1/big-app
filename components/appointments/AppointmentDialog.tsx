@@ -125,7 +125,7 @@ function buildDefaults(args: {
 			customer_id: a.customer_id,
 			employee_id: a.employee_id,
 			outlet_id: a.outlet_id,
-			room_id: a.room_id,
+			room_id: a.room_id ?? (a.is_time_block ? null : defaultRoomId),
 			start_at: a.start_at,
 			end_at: a.end_at,
 			status: (a.status as AppointmentInput["status"]) ?? "pending",

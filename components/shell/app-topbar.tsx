@@ -2,6 +2,7 @@
 
 import { Clock, Receipt, ShoppingCart, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
 	Tooltip,
 	TooltipContent,
@@ -15,14 +16,18 @@ export function AppTopbar({
 	name,
 	role,
 	imageUrl,
+	hasPin,
 }: {
 	email: string | null;
 	name: string | null;
 	role: string | null;
 	imageUrl: string | null;
+	hasPin: boolean;
 }) {
 	return (
 		<header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-1 border-b bg-background/80 px-3 backdrop-blur">
+			<SidebarTrigger className="size-9 shrink-0" />
+			<div className="mx-1 h-6 w-px bg-border" />
 			<TooltipProvider delayDuration={200}>
 				<div className="ml-auto flex items-center gap-2">
 					<Tooltip>
@@ -83,6 +88,7 @@ export function AppTopbar({
 						name={name}
 						role={role}
 						imageUrl={imageUrl}
+						hasPin={hasPin}
 					/>
 				</div>
 			</TooltipProvider>

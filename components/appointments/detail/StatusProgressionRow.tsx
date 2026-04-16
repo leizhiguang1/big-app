@@ -4,7 +4,6 @@ import { useOptimistic, useTransition } from "react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
 import { useAppointmentNotifications } from "@/components/notifications/AppointmentNotificationsProvider";
 import { setAppointmentStatusAction } from "@/lib/actions/appointments";
-import { APPOINTMENT_STATUS_NOTIFICATIONS } from "@/lib/constants/appointment-notifications";
 import {
 	APPOINTMENT_STATUS_CONFIG,
 	APPOINTMENT_STATUSES,
@@ -40,32 +39,24 @@ export function StatusProgressionRow({ appointment, onToast }: Props) {
 
 	const handleClick = (status: AppointmentStatus) => {
 		if (status === optimistic) return;
-		const notif = APPOINTMENT_STATUS_NOTIFICATIONS[status];
-		suppressNextRealtime(appointment.id, status);
-		if (notif.enabled) {
-			showStatusToast(
-				{
-					customerName: appointment.customer
-						? `${appointment.customer.first_name} ${appointment.customer.last_name ?? ""}`.trim()
-						: (appointment.lead_name ?? "Customer"),
-					employeeName: appointment.employee
-						? `${appointment.employee.first_name} ${appointment.employee.last_name}`.trim()
-						: null,
-					roomName: appointment.room?.name ?? null,
-				},
-				status,
-			);
-		}
+		suppressNextRealtime(appointment.id);
+		showStatusToast(
+			{
+				appointmentId: appointment.id,
+				customerName: appointment.customer
+					? `${appointment.customer.first_name} ${appointment.customer.last_name ?? ""}`.trim()
+					: (appointment.lead_name ?? "Customer"),
+				employeeName: appointment.employee
+					? `${appointment.employee.first_name} ${appointment.employee.last_name}`.trim()
+					: null,
+				roomName: appointment.room?.name ?? null,
+			},
+			status,
+		);
 		startTransition(async () => {
 			setOptimistic(status);
 			try {
 				await setAppointmentStatusAction(appointment.id, { status });
-				if (!notif.enabled) {
-					onToast(
-						`Marked ${APPOINTMENT_STATUS_CONFIG[status].label}`,
-						"success",
-					);
-				}
 			} catch (err) {
 				onToast(
 					err instanceof Error ? err.message : "Status update failed",

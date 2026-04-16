@@ -1,12 +1,16 @@
 import type { AppointmentStatus } from "@/lib/constants/appointment-status";
 
 export type StatusSound =
+	| "pending"
+	| "confirmed"
 	| "arrived"
 	| "started"
 	| "billing"
 	| "noshow"
 	| "completed"
 	| null;
+
+export type GeneralToastSound = "success" | "error" | "info";
 
 export type AppointmentStatusNotification = {
 	enabled: boolean;
@@ -19,13 +23,13 @@ export const APPOINTMENT_STATUS_NOTIFICATIONS: Record<
 	AppointmentStatusNotification
 > = {
 	pending: {
-		enabled: false,
-		sound: null,
+		enabled: true,
+		sound: "pending",
 		toastTitle: (n) => `${n} — pending`,
 	},
 	confirmed: {
-		enabled: false,
-		sound: null,
+		enabled: true,
+		sound: "confirmed",
 		toastTitle: (n) => `${n} — confirmed`,
 	},
 	arrived: {

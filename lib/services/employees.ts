@@ -1,5 +1,10 @@
 import type { Context } from "@/lib/context/types";
-import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
+import {
+	ConflictError,
+	NotFoundError,
+	UnauthorizedError,
+	ValidationError,
+} from "@/lib/errors";
 import { employeeInputSchema, pinField } from "@/lib/schemas/employees";
 import type { Tables } from "@/lib/supabase/types";
 
@@ -15,6 +20,14 @@ export type EmployeeWithRelations = Employee & {
 	position: { id: string; name: string } | null;
 	outlets: EmployeeOutletLink[];
 };
+
+function describeUniqueViolation(error: { message?: string; details?: string }): string {
+	const detail = error.details ?? error.message ?? "";
+	if (detail.includes("id_number")) return "An employee with that ID number already exists";
+	if (detail.includes("auth_user_id")) return "This login account is already linked to another employee";
+	if (detail.includes("code")) return "Employee code conflict — please retry";
+	return "A duplicate value conflicts with an existing employee record";
+}
 
 const SELECT_WITH_RELATIONS =
 	"*, role:roles(id, name), position:positions(id, name), outlets:employee_outlets(outlet_id, is_primary)";
@@ -215,8 +228,7 @@ export async function createEmployee(
 
 	if (error) {
 		if (authUserId) await deleteAuthUser(ctx, authUserId);
-		if (error.code === "23505")
-			throw new ConflictError("An employee with that email already exists");
+		if (error.code === "23505") throw new ConflictError(describeUniqueViolation(error));
 		throw new ValidationError(error.message);
 	}
 
@@ -316,8 +328,7 @@ export async function updateEmployee(
 		if (createdAuthUserHere && authUserId) {
 			await deleteAuthUser(ctx, authUserId);
 		}
-		if (error.code === "23505")
-			throw new ConflictError("An employee with that email already exists");
+		if (error.code === "23505") throw new ConflictError(describeUniqueViolation(error));
 		throw new ValidationError(error.message);
 	}
 	if (!data) throw new NotFoundError(`Employee ${id} not found`);
@@ -329,6 +340,107 @@ export async function updateEmployee(
 	}
 
 	return data;
+}
+
+/**
+ * Admin-initiated password reset: generates a recovery link the admin can
+ * copy and share (WhatsApp, in person, etc.). Does NOT send an email — no
+ * SMTP dependency.
+ */
+export async function generatePasswordResetLink(
+	ctx: Context,
+	employeeId: string,
+	siteUrl: string,
+): Promise<string> {
+	const { data: emp, error } = await ctx.db
+		.from("employees")
+		.select("email, auth_user_id")
+		.eq("id", employeeId)
+		.single();
+	if (error || !emp) throw new NotFoundError(`Employee ${employeeId} not found`);
+	if (!emp.auth_user_id || !emp.email)
+		throw new ValidationError(
+			"This employee does not have web login enabled",
+		);
+
+	const { data, error: linkError } =
+		await ctx.dbAdmin.auth.admin.generateLink({
+			type: "recovery",
+			email: emp.email,
+			options: {
+				redirectTo: `${siteUrl}/auth/callback?type=recovery`,
+			},
+		});
+
+	if (linkError || !data.properties?.action_link) {
+		throw new ValidationError(
+			linkError?.message ?? "Failed to generate reset link",
+		);
+	}
+
+	return data.properties.action_link;
+}
+
+/**
+ * Self-serve password change. User is already authenticated via session.
+ */
+export async function changeOwnPassword(
+	ctx: Context,
+	newPassword: string,
+): Promise<void> {
+	if (!ctx.currentUser) throw new UnauthorizedError("Not logged in");
+	const { error } = await ctx.db.auth.updateUser({ password: newPassword });
+	if (error) throw new ValidationError(error.message);
+}
+
+/**
+ * Self-serve email change. User is already authenticated via session.
+ * Updates both auth email (immediate via admin API) and profile email.
+ */
+export async function changeOwnEmail(
+	ctx: Context,
+	newEmail: string,
+): Promise<void> {
+	if (!ctx.currentUser) throw new UnauthorizedError("Not logged in");
+	if (!ctx.currentUser.employeeId)
+		throw new UnauthorizedError("No employee profile linked");
+
+	await updateAuthUserEmail(ctx, ctx.currentUser.id, newEmail);
+
+	const { error } = await ctx.db
+		.from("employees")
+		.update({ email: newEmail })
+		.eq("id", ctx.currentUser.employeeId);
+	if (error) throw new ValidationError(error.message);
+}
+
+/**
+ * Self-serve PIN change. User is already authenticated via session.
+ */
+export async function changeOwnPin(
+	ctx: Context,
+	newPin: string,
+): Promise<void> {
+	if (!ctx.currentUser?.employeeId)
+		throw new UnauthorizedError("Not logged in");
+
+	const parsed = pinField.parse(newPin);
+	if (!parsed) throw new ValidationError("PIN must be exactly 6 digits");
+
+	await setEmployeePin(ctx, ctx.currentUser.employeeId, parsed);
+}
+
+export async function verifyPin(
+	ctx: Context,
+	employeeId: string,
+	pin: string,
+): Promise<boolean> {
+	const { data, error } = await ctx.db.rpc("verify_employee_pin", {
+		p_employee_id: employeeId,
+		p_pin: pin,
+	});
+	if (error) return false;
+	return data === true;
 }
 
 export async function deleteEmployee(ctx: Context, id: string): Promise<void> {

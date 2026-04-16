@@ -390,6 +390,70 @@ export type Database = {
           },
         ]
       }
+      cancellations: {
+        Row: {
+          amount: number
+          cancelled_at: string
+          cn_number: string
+          created_at: string
+          id: string
+          outlet_id: string
+          processed_by: string | null
+          reason: string | null
+          sales_order_id: string
+          tax: number
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          cancelled_at?: string
+          cn_number: string
+          created_at?: string
+          id?: string
+          outlet_id: string
+          processed_by?: string | null
+          reason?: string | null
+          sales_order_id: string
+          tax?: number
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          cancelled_at?: string
+          cn_number?: string
+          created_at?: string
+          id?: string
+          outlet_id?: string
+          processed_by?: string | null
+          reason?: string | null
+          sales_order_id?: string
+          tax?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cancellations_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cancellations_processed_by_fkey"
+            columns: ["processed_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cancellations_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_notes: {
         Row: {
           appointment_id: string | null

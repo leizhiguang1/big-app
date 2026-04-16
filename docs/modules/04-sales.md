@@ -1,46 +1,78 @@
 # Module: Sales
 
-> Status: v1 collect-payment flow shipped (SO + sale_items + payment in one RPC). Sales dashboard / SO list / cancellations UI not built yet.
+> Status: v1 complete — Collect Payment RPC, Sales dashboard (Summary + Sales + Payment + Cancelled tabs), SO detail view, cancellation flow, and bidirectional appointment↔sales linking all shipped.
 
 ## Implementation status (Phase 1)
 
-What actually exists in code as of migration `0029_sales`:
+What actually exists in code as of migration `0048_cancellations`:
 
-**Database (migration `0029_sales`):**
+**Database (migrations `0029_sales` through `0048_cancellations`):**
 - `sales_orders` — all columns per the spec below, `so_number` auto-generated `SO000001` from `sales_orders_code_seq` via a `BEFORE INSERT` trigger, generated column `outstanding = total - amount_paid`, status CHECK `draft / completed / cancelled / void`, default `completed`.
 - `sale_items` — normalized rows with generated `total` column, item_type CHECK `service / product / charge`.
 - `payments` — `invoice_no` auto-generated `INV000001` from `payments_code_seq`, payment_mode CHECK `cash / card / bank_transfer / e_wallet / other`.
-- RLS on all three tables with temp `anon` + `authenticated` permissive policies (pre-auth tightening).
+- `cancellations` — `cn_number` auto-generated `CN000001` from `cancellations_code_seq` via a `BEFORE INSERT` trigger. Links to `sales_orders` (CASCADE), `outlets` (RESTRICT), `employees` (SET NULL). Stores amount, tax, reason, processed_by, cancelled_at.
+- RLS on all four tables with temp `anon` + `authenticated` permissive policies (pre-auth tightening).
 - **RPC `collect_appointment_payment(p_appointment_id, p_items jsonb, p_discount, p_tax, p_rounding, p_payment_mode, p_amount, p_remarks, p_processed_by)`** — wraps the whole SO + sale_items + payment insert in a single transaction, then (a) flips `appointments.payment_status` to `paid` / `partial`, (b) flips `appointments.status` to `completed`, and (c) decrements inventory for every line where `inventory_item_id` is present. Returns `{ sales_order_id, so_number, invoice_no, subtotal, total_tax, total }`.
 - **Inventory side-effect (added 2026-04-15).** For each `p_items[i]` carrying `inventory_item_id`, the RPC does `UPDATE inventory_items SET stock = stock - quantity WHERE id = inventory_item_id` AND inserts one `inventory_movements` row (`reason = 'sale'`, `ref_type = 'sales_order'`, `ref_id = sales_order_id`, `delta = -quantity`, `created_by = p_processed_by`). Both run inside the same transaction as the SO insert, so a rollback on any step rolls back the deduction too. The movement row is the replayable audit trail; the `stock` column alone is not (it's a running sum that can't answer "who did this"). See [07-inventory.md](./07-inventory.md) §Stock ledger.
 - **`sale_items.inventory_item_id` FK** (added in the same 2026-04-15 migration) — `NULL` for service / charge lines, set for product lines. `ON DELETE SET NULL` so historical sales survive catalog pruning. This is the column the deduction loop reads.
-- **NOT yet built:** `cancellations` table, void flow, petty cash, self-bill, payor/insurance.
+- **NOT yet built:** void flow, petty cash, self-bill, payor/insurance.
 
 **Service layer — [lib/services/sales.ts](../../lib/services/sales.ts):**
 - `collectAppointmentPayment(ctx, appointmentId, input)` — Zod-validates input, calls the RPC, maps errors to `ValidationError`. Pure TS, no framework imports.
 - `getSalesOrderForAppointment(ctx, appointmentId)` — fetches the latest SO for an appointment.
+- `getSalesOrder(ctx, id)` — single SO with full relations (customer, consultant, outlet, created_by).
+- `listSalesOrders(ctx, opts)` — all orders with relations, optional outlet filter.
+- `listSaleItems(ctx, salesOrderId)` — line items for a specific SO.
+- `listPaymentsForOrder(ctx, salesOrderId)` — payments for a specific SO with processed_by join.
+- `listPayments(ctx, opts)` — all payment records across orders with nested SO→customer→consultant relations. Powers the Payment tab.
+- `cancelSalesOrder(ctx, salesOrderId, input)` — validates the SO is cancellable, inserts a `cancellations` row (CN auto-number), flips SO status to `cancelled`.
+- `listCancellations(ctx, opts)` — all cancellation records with SO→customer and processed_by relations.
+- `getSalesSummary(ctx, opts)` — daily totals (total sales MYR, total payments MYR, order count, payment count) for the Summary tab.
 
 **Schemas — [lib/schemas/sales.ts](../../lib/schemas/sales.ts):**
 - `SALES_PAYMENT_MODES` const tuple + `SALES_PAYMENT_MODE_LABEL` map.
 - `collectPaymentItemSchema` / `collectPaymentInputSchema` Zod schemas feeding both the dialog and the service.
+- `cancelSalesOrderInputSchema` — reason (required), optional amount/tax override.
 
-**Server action — [lib/actions/sales.ts](../../lib/actions/sales.ts):**
+**Server actions — [lib/actions/sales.ts](../../lib/actions/sales.ts):**
 - `collectAppointmentPaymentAction(appointmentId, input)` — builds context, calls the service, revalidates `/appointments` and `/appointments/[id]`. Under 10 lines.
+- `cancelSalesOrderAction(salesOrderId, input)` — builds context, calls the service, revalidates `/sales`. Returns `{ cnNumber }`.
 
-**UI — [components/appointments/detail/CollectPaymentDialog.tsx](../../components/appointments/detail/CollectPaymentDialog.tsx):**
+**UI — Collect Payment Dialog:**
+- [components/appointments/detail/CollectPaymentDialog.tsx](../../components/appointments/detail/CollectPaymentDialog.tsx)
 - Two-column dialog patterned after the reference prototype's Collect Payment modal.
 - Left column: remarks card, line-items list (fed from `appointment_line_items`), Discount / Total / Cash / Balance / Require Rounding toggle. **Discount is per-line**: each row has a compact input with a `% | RM` segmented toggle. On blur, the input is clamped against the line's service cap (`services.discount_cap`) and to the line total; a `Max N% (RM X.XX)` hint sits next to the input when a cap is set. The totals panel's "Discount" row is the sum of all line discounts — there is no separate order-level discount input.
 - Right column: Attachments placeholder card, Payment section (backdate toggle, payment-mode select, amount input, remarks, add-payment-type link), "This sale will be created at <outlet>" footer, large green confirm button, message-to-frontdesk textarea.
 - Launched from [FloatingActionBar](../../components/appointments/detail/FloatingActionBar.tsx) → `ConfirmDialog` → `CollectPaymentDialog`.
 - Fields with no backing data yet (reference #, tag, attachments, message-to-frontdesk, backdate, itemised allocation, add-payment-type) are rendered as disabled / placeholder controls so the layout is complete and the real wiring can land incrementally.
 
+**UI — Sales Dashboard (`/sales`):**
+- [app/(app)/sales/page.tsx](../../app/(app)/sales/page.tsx) — tab-routed page with `?tab=` query param.
+- **Summary tab** — [app/(app)/sales/summary-content.tsx](../../app/(app)/sales/summary-content.tsx). Four metric cards: Total Sales (MYR), Total Payments (MYR), Orders Today, Payments Today. Server-rendered via `getSalesSummary()`.
+- **Sales tab** — [app/(app)/sales/sales-content.tsx](../../app/(app)/sales/sales-content.tsx) + [components/sales/SalesOrdersTable.tsx](../../components/sales/SalesOrdersTable.tsx). DataTable with Date, SO#, Status badge, Total, Customer (name + code + consultant), Created by. SO# is a clickable link to `/sales/[id]`.
+- **Payment tab** — [app/(app)/sales/payments-content.tsx](../../app/(app)/sales/payments-content.tsx) + [components/sales/PaymentsTable.tsx](../../components/sales/PaymentsTable.tsx). DataTable with Date, Invoice#, Mode badge, Amount, Customer, Consultant, Processed by. Invoice# links to the parent SO detail.
+- **Cancelled tab** — [app/(app)/sales/cancellations-content.tsx](../../app/(app)/sales/cancellations-content.tsx) + [components/sales/CancellationsTable.tsx](../../components/sales/CancellationsTable.tsx). DataTable with CN#, Date, Original SO (link), Amount, Customer, Reason, Processed by.
+- **Payor / Petty Cash / Self Bill** — Phase 2 placeholder panels.
+
+**UI — SO Detail View (`/sales/[id]`):**
+- [app/(app)/sales/[id]/page.tsx](../../app/(app)/sales/[id]/page.tsx) + [sales-order-detail-content.tsx](../../app/(app)/sales/[id]/sales-order-detail-content.tsx) — server component fetching order, items, payments in parallel.
+- [components/sales/SalesOrderDetailView.tsx](../../components/sales/SalesOrderDetailView.tsx) — full detail page: header (back link, SO#, status badge, invoice#, Print button, Cancel button), info cards (Date, Customer, Outlet, Consultant), line items table (Item, Type, Qty, Unit price, Discount, Tax, Total), totals summary, payment records list, appointment link, remarks.
+- Print: opens new window with styled invoice HTML, triggers `window.print()`.
+- Cancel: [components/sales/CancelOrderDialog.tsx](../../components/sales/CancelOrderDialog.tsx) — reason-required dialog → `cancelSalesOrderAction` → creates CN record, flips SO to `cancelled`.
+
+**UI — Appointment ↔ Sales linking:**
+- [components/appointments/detail/BookingInfoCard.tsx](../../components/appointments/detail/BookingInfoCard.tsx) — shows "Sales Order → View invoice" link when `salesOrderId` is present.
+- [app/(app)/appointments/[id]/appointment-detail-content.tsx](../../app/(app)/appointments/[id]/appointment-detail-content.tsx) — calls `getSalesOrderForAppointment()` and passes the ID down.
+- SO detail view has "View linked appointment" link back to `/appointments/[id]`.
+
 **What does NOT exist yet (deferred, explicitly):**
-- `/sales` dashboard (Summary, Sales tab, Payment tab, Cancelled tab).
-- Cancellation flow and `cancellations` table.
-- Multi-payment UI (one SO currently gets one payment via the RPC).
+- Multi-payment UI (one SO currently gets one payment via the RPC). Schema supports N payments; UI creates one.
 - Manual / out-of-appointment sales ("New Sales" entry point).
-- Void (admin-only erase).
-- Payor / third-party payer.
+- Void (admin-only erase) — distinct from cancel.
+- Payor / third-party payer (Phase 2).
+- Petty Cash (Phase 2).
+- Self Bill (Phase 2).
+- Passcode enforcement on cancel/void (documented, not enforced in code yet).
 
 ## Overview
 

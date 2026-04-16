@@ -1,8 +1,10 @@
 import type { Context } from "@/lib/context/types";
-import { ValidationError } from "@/lib/errors";
+import { NotFoundError, ValidationError } from "@/lib/errors";
 import {
+	type CancelSalesOrderInput,
 	type CollectPaymentInput,
 	type CollectPaymentItem,
+	cancelSalesOrderInputSchema,
 	collectPaymentInputSchema,
 } from "@/lib/schemas/sales";
 import type { Tables } from "@/lib/supabase/types";
@@ -10,6 +12,15 @@ import type { Tables } from "@/lib/supabase/types";
 export type SalesOrder = Tables<"sales_orders">;
 export type SaleItem = Tables<"sale_items">;
 export type Payment = Tables<"payments">;
+export type Cancellation = Tables<"cancellations">;
+
+export type PaymentWithProcessedBy = Payment & {
+	processed_by_employee: {
+		id: string;
+		first_name: string;
+		last_name: string;
+	} | null;
+};
 
 export type SalesOrderWithRelations = SalesOrder & {
 	customer: {
@@ -142,4 +153,234 @@ export async function getSalesOrderForAppointment(
 		.maybeSingle();
 	if (error) throw new ValidationError(error.message);
 	return data;
+}
+
+export async function getSalesOrder(
+	ctx: Context,
+	id: string,
+): Promise<SalesOrderWithRelations> {
+	const { data, error } = await ctx.db
+		.from("sales_orders")
+		.select(SALES_ORDER_SELECT)
+		.eq("id", id)
+		.single();
+	if (error) {
+		if (error.code === "PGRST116")
+			throw new NotFoundError("Sales order not found");
+		throw new ValidationError(error.message);
+	}
+	return data as unknown as SalesOrderWithRelations;
+}
+
+export async function listSaleItems(
+	ctx: Context,
+	salesOrderId: string,
+): Promise<SaleItem[]> {
+	const { data, error } = await ctx.db
+		.from("sale_items")
+		.select("*")
+		.eq("sales_order_id", salesOrderId)
+		.order("created_at", { ascending: true });
+	if (error) throw new ValidationError(error.message);
+	return data ?? [];
+}
+
+export async function listPaymentsForOrder(
+	ctx: Context,
+	salesOrderId: string,
+): Promise<PaymentWithProcessedBy[]> {
+	const { data, error } = await ctx.db
+		.from("payments")
+		.select(
+			"*, processed_by_employee:employees!payments_processed_by_fkey(id, first_name, last_name)",
+		)
+		.eq("sales_order_id", salesOrderId)
+		.order("paid_at", { ascending: true });
+	if (error) throw new ValidationError(error.message);
+	return (data ?? []) as unknown as PaymentWithProcessedBy[];
+}
+
+// ---------------------------------------------------------------------------
+// Payment tab: list all payment records across orders
+// ---------------------------------------------------------------------------
+
+export type PaymentWithRelations = Payment & {
+	processed_by_employee: {
+		id: string;
+		first_name: string;
+		last_name: string;
+	} | null;
+	sales_order: {
+		id: string;
+		so_number: string;
+		customer: {
+			id: string;
+			code: string;
+			first_name: string;
+			last_name: string | null;
+		} | null;
+		consultant: {
+			id: string;
+			first_name: string;
+			last_name: string;
+		} | null;
+	} | null;
+};
+
+const PAYMENT_LIST_SELECT =
+	"*, processed_by_employee:employees!payments_processed_by_fkey(id, first_name, last_name), sales_order:sales_orders!payments_sales_order_id_fkey(id, so_number, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name), consultant:employees!sales_orders_consultant_id_fkey(id, first_name, last_name))";
+
+export async function listPayments(
+	ctx: Context,
+	opts: { outletId?: string | null; limit?: number } = {},
+): Promise<PaymentWithRelations[]> {
+	let query = ctx.db
+		.from("payments")
+		.select(PAYMENT_LIST_SELECT)
+		.order("paid_at", { ascending: false })
+		.limit(opts.limit ?? 200);
+	if (opts.outletId) query = query.eq("outlet_id", opts.outletId);
+	const { data, error } = await query;
+	if (error) throw new ValidationError(error.message);
+	return (data ?? []) as unknown as PaymentWithRelations[];
+}
+
+// ---------------------------------------------------------------------------
+// Cancellation flow
+// ---------------------------------------------------------------------------
+
+export type CancellationWithRelations = Cancellation & {
+	sales_order: {
+		id: string;
+		so_number: string;
+		total: number;
+		customer: {
+			id: string;
+			code: string;
+			first_name: string;
+			last_name: string | null;
+		} | null;
+	} | null;
+	processed_by_employee: {
+		id: string;
+		first_name: string;
+		last_name: string;
+	} | null;
+};
+
+const CANCELLATION_LIST_SELECT =
+	"*, sales_order:sales_orders!cancellations_sales_order_id_fkey(id, so_number, total, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name)), processed_by_employee:employees!cancellations_processed_by_fkey(id, first_name, last_name)";
+
+export async function listCancellations(
+	ctx: Context,
+	opts: { outletId?: string | null; limit?: number } = {},
+): Promise<CancellationWithRelations[]> {
+	let query = ctx.db
+		.from("cancellations")
+		.select(CANCELLATION_LIST_SELECT)
+		.order("cancelled_at", { ascending: false })
+		.limit(opts.limit ?? 200);
+	if (opts.outletId) query = query.eq("outlet_id", opts.outletId);
+	const { data, error } = await query;
+	if (error) throw new ValidationError(error.message);
+	return (data ?? []) as unknown as CancellationWithRelations[];
+}
+
+export async function cancelSalesOrder(
+	ctx: Context,
+	salesOrderId: string,
+	input: unknown,
+): Promise<Cancellation> {
+	const parsed: CancelSalesOrderInput =
+		cancelSalesOrderInputSchema.parse(input);
+
+	// Fetch the order to validate it's cancellable
+	const order = await getSalesOrder(ctx, salesOrderId);
+	if (order.status === "cancelled")
+		throw new ValidationError("Sales order is already cancelled");
+	if (order.status === "void")
+		throw new ValidationError("Cannot cancel a voided sales order");
+
+	// Insert cancellation record (cn_number auto-generated by trigger)
+	const { data: cn, error: cnErr } = await ctx.db
+		.from("cancellations")
+		.insert({
+			cn_number: "", // overridden by BEFORE INSERT trigger
+			sales_order_id: salesOrderId,
+			outlet_id: order.outlet?.id ?? "",
+			amount: parsed.amount ?? Number(order.total),
+			tax: parsed.tax ?? Number(order.tax),
+			processed_by: ctx.currentUser?.employeeId ?? null,
+			reason: parsed.reason,
+		})
+		.select("*")
+		.single();
+	if (cnErr) throw new ValidationError(cnErr.message);
+
+	// Flip SO status to cancelled
+	const { error: soErr } = await ctx.db
+		.from("sales_orders")
+		.update({ status: "cancelled" })
+		.eq("id", salesOrderId);
+	if (soErr) throw new ValidationError(soErr.message);
+
+	return cn;
+}
+
+// ---------------------------------------------------------------------------
+// Summary: daily totals for the summary tab
+// ---------------------------------------------------------------------------
+
+export type SalesSummary = {
+	totalSales: number;
+	totalPayments: number;
+	orderCount: number;
+	paymentCount: number;
+};
+
+export async function getSalesSummary(
+	ctx: Context,
+	opts: { outletId?: string | null; from?: string; to?: string } = {},
+): Promise<SalesSummary> {
+	const today = new Date().toISOString().slice(0, 10);
+	const from = opts.from ?? today;
+	const to = opts.to ?? today;
+
+	// Sales orders in range
+	let soQuery = ctx.db
+		.from("sales_orders")
+		.select("total", { count: "exact" })
+		.gte("sold_at", `${from}T00:00:00`)
+		.lte("sold_at", `${to}T23:59:59`)
+		.neq("status", "void");
+	if (opts.outletId) soQuery = soQuery.eq("outlet_id", opts.outletId);
+	const { data: soData, count: soCount, error: soErr } = await soQuery;
+	if (soErr) throw new ValidationError(soErr.message);
+
+	const totalSales = (soData ?? []).reduce(
+		(sum, r) => sum + Number(r.total),
+		0,
+	);
+
+	// Payments in range
+	let payQuery = ctx.db
+		.from("payments")
+		.select("amount", { count: "exact" })
+		.gte("paid_at", `${from}T00:00:00`)
+		.lte("paid_at", `${to}T23:59:59`);
+	if (opts.outletId) payQuery = payQuery.eq("outlet_id", opts.outletId);
+	const { data: payData, count: payCount, error: payErr } = await payQuery;
+	if (payErr) throw new ValidationError(payErr.message);
+
+	const totalPayments = (payData ?? []).reduce(
+		(sum, r) => sum + Number(r.amount),
+		0,
+	);
+
+	return {
+		totalSales,
+		totalPayments,
+		orderCount: soCount ?? 0,
+		paymentCount: payCount ?? 0,
+	};
 }

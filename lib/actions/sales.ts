@@ -18,3 +18,14 @@ export async function collectAppointmentPaymentAction(
 	revalidatePath(`/appointments/${appointmentId}`);
 	return result;
 }
+
+export async function cancelSalesOrderAction(
+	salesOrderId: string,
+	input: unknown,
+) {
+	const ctx = await getServerContext();
+	const cn = await salesService.cancelSalesOrder(ctx, salesOrderId, input);
+	revalidatePath("/sales");
+	revalidatePath(`/sales/${salesOrderId}`);
+	return { cnNumber: cn.cn_number };
+}

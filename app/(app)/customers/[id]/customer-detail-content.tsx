@@ -5,6 +5,7 @@ import { getServerContext } from "@/lib/context/server";
 import { NotFoundError } from "@/lib/errors";
 import { listLineItemsForCustomer } from "@/lib/services/appointment-line-items";
 import { listCustomerTimeline } from "@/lib/services/appointments";
+import { listCaseNotesWithContext } from "@/lib/services/case-notes";
 import { getCustomer } from "@/lib/services/customers";
 
 export async function CustomerDetailContent({ id }: { id: string }) {
@@ -12,15 +13,17 @@ export async function CustomerDetailContent({ id }: { id: string }) {
 
 	try {
 		const customer = await getCustomer(ctx, id);
-		const [timeline, lineItems] = await Promise.all([
+		const [timeline, lineItems, caseNotes] = await Promise.all([
 			listCustomerTimeline(ctx, id),
 			listLineItemsForCustomer(ctx, id),
+			listCaseNotesWithContext(ctx, id),
 		]);
 		return (
 			<CustomerDetailView
 				customer={customer}
 				timeline={timeline}
 				lineItems={lineItems}
+				caseNotes={caseNotes}
 			/>
 		);
 	} catch (err) {

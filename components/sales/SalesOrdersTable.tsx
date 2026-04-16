@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import type { SalesOrderWithRelations } from "@/lib/services/sales";
 
@@ -59,10 +61,31 @@ export function SalesOrdersTable({ orders }: Props) {
 			header: "Sales order #",
 			sortable: true,
 			cell: (o) => (
-				<span className="font-mono font-medium text-blue-600 text-sm">
+				<Link
+					href={`/sales/${o.id}`}
+					className="font-mono font-medium text-blue-600 text-sm hover:underline"
+				>
 					{o.so_number}
-				</span>
+				</Link>
 			),
+		},
+		{
+			key: "status",
+			header: "Status",
+			sortable: true,
+			sortValue: (o) => o.status,
+			cell: (o) => {
+				switch (o.status) {
+					case "completed":
+						return <Badge variant="default">Completed</Badge>;
+					case "cancelled":
+						return <Badge variant="destructive">Cancelled</Badge>;
+					case "void":
+						return <Badge variant="outline">Void</Badge>;
+					default:
+						return <Badge variant="secondary">{o.status}</Badge>;
+				}
+			},
 		},
 		{
 			key: "total",

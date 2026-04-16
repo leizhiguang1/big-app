@@ -7,6 +7,7 @@ import {
 	AppointmentToastStack,
 	type Toast,
 } from "@/components/appointments/AppointmentToastStack";
+import { playGeneralToastSound } from "@/lib/appointments/play-status-sound";
 import { AppointmentSummaryCard } from "@/components/appointments/detail/AppointmentSummaryCard";
 import { BillingTab } from "@/components/appointments/detail/BillingTab";
 import { BookingInfoCard } from "@/components/appointments/detail/BookingInfoCard";
@@ -38,7 +39,7 @@ import type {
 	AppointmentWithRelations,
 	CustomerAppointmentSummary,
 } from "@/lib/services/appointments";
-import type { CaseNoteWithAuthor } from "@/lib/services/case-notes";
+import type { CaseNoteWithContext } from "@/lib/services/case-notes";
 import type { CustomerDocumentWithRefs } from "@/lib/services/customer-documents";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type {
@@ -57,7 +58,7 @@ type Props = {
 	lineItems: AppointmentLineItem[];
 	incentives: IncentiveWithEmployee[];
 	customerHistory: CustomerAppointmentSummary[];
-	caseNotes: CaseNoteWithAuthor[];
+	caseNotes: CaseNoteWithContext[];
 	followUps: FollowUpWithRefs[];
 	customerDocuments: CustomerDocumentWithRefs[];
 	customerLineItemsHistory: CustomerLineItem[];
@@ -71,6 +72,7 @@ type Props = {
 	allEmployees: EmployeeWithRelations[];
 	statusLog: AppointmentStatusLogEntry[];
 	shifts: EmployeeShift[];
+	salesOrderId: string | null;
 };
 
 export function AppointmentDetailView({
@@ -92,6 +94,7 @@ export function AppointmentDetailView({
 	allEmployees,
 	statusLog,
 	shifts,
+	salesOrderId,
 }: Props) {
 	const [editOpen, setEditOpen] = useState(false);
 	const [activeTab, setActiveTab] = useState<DetailTabKey>("overview");
@@ -114,6 +117,8 @@ export function AppointmentDetailView({
 
 	const showToast = useCallback(
 		(message: string, variant: Toast["variant"] = "default") => {
+			const sound = variant === "success" ? "success" : variant === "error" ? "error" : "info";
+			playGeneralToastSound(sound);
 			const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 			setToasts((prev) => [...prev, { id, message, variant }]);
 			setTimeout(() => {
@@ -208,12 +213,12 @@ export function AppointmentDetailView({
 					</button>
 				)}
 				<div className="flex min-w-0 flex-1 flex-col gap-3">
-					<div className="flex flex-col gap-3 xl:flex-row xl:items-stretch">
+					<div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
 						<div
 							className={
 								headerCollapsed
 									? "flex min-h-0 min-w-0 flex-1"
-									: "flex min-h-0 min-w-0 xl:w-[380px] xl:shrink-0"
+									: "flex min-h-0 min-w-0 lg:w-[380px] lg:shrink-0"
 							}
 						>
 							<CustomerCard
@@ -244,6 +249,7 @@ export function AppointmentDetailView({
 								<BookingInfoCard
 									appointment={appointment}
 									lineItems={lineItems}
+									salesOrderId={salesOrderId}
 								/>
 								<StatusChangeLogCard entries={statusLog} />
 							</div>

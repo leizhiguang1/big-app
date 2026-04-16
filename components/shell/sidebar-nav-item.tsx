@@ -35,7 +35,7 @@ export function SidebarNavItem({ item }: { item: SidebarNavItemData }) {
 					href={item.href}
 					prefetch
 					onClick={(e) => {
-						if (isActive) return;
+						if (isActive || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
 						e.preventDefault();
 						startTransition(() => {
 							router.push(item.href);

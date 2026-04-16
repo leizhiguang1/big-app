@@ -65,7 +65,7 @@ const employeeInputBase = z.object({
 	monthly_sales_target: z.number().min(0),
 
 	// Outlets
-	outlet_ids: z.array(z.string().uuid()).default([]),
+	outlet_ids: z.array(z.string().uuid()).min(1, "At least one outlet must be selected").default([]),
 	primary_outlet_id: z
 		.string()
 		.uuid()
@@ -136,21 +136,29 @@ export const employeeFormSchema = employeeInputBase
 	})
 	.superRefine((data, ctx) => {
 		validateIc(data, ctx);
-		if (data.web_login_enabled) {
-			if (!data.password && !data.has_existing_auth) {
+		// New employee: password and PIN are required
+		if (!data.has_existing_auth) {
+			if (data.web_login_enabled && !data.password) {
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
 					path: ["password"],
-					message: "Password is required when web login is enabled",
+					message: "Password is required",
 				});
 			}
-			if (data.password && data.password !== data.password_confirm) {
+			if (!data.pin) {
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
-					path: ["password_confirm"],
-					message: "Passwords do not match",
+					path: ["pin"],
+					message: "PIN is required",
 				});
 			}
+		}
+		if (data.web_login_enabled && data.password && data.password !== data.password_confirm) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["password_confirm"],
+				message: "Passwords do not match",
+			});
 		}
 	});
 

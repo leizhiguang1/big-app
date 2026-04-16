@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mars, Venus } from "lucide-react";
+import { Mars, RefreshCw, Star, Venus } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,12 @@ import {
 } from "@/components/ui/dialog";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { Input } from "@/components/ui/input";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
 	createEmployeeAction,
 	updateEmployeeAction,
@@ -44,6 +50,9 @@ type Props = {
 
 const SELECT_CLASS =
 	"h-9 rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+
+/** Softer placeholder contrast for long example copy (e.g. EG. SOPHIE…). */
+const INPUT_PLACEHOLDER_SOFT = "placeholder:text-muted-foreground/55";
 
 const EMPTY: EmployeeFormInput = {
 	salutation: "Mr",
@@ -159,6 +168,15 @@ function parseMalaysianIc(raw: string): IcParseResult {
 	const lastDigit = Number.parseInt(digits.slice(11, 12), 10);
 	const gender: Gender = lastDigit % 2 === 0 ? "female" : "male";
 	return { ok: true, dob, gender };
+}
+
+function generatePassword(): string {
+	const digits = Math.floor(10000 + Math.random() * 90000);
+	return `Big${digits}`;
+}
+
+function generatePin(): string {
+	return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 function Field({
@@ -342,9 +360,10 @@ export function EmployeeFormDialog({
 				if (employee) {
 					await updateEmployeeAction(employee.id, rest, password, pin);
 				} else {
+					const pw = rest.web_login_enabled ? password : undefined;
 					await createEmployeeAction(
 						{ ...rest, id: pendingId ?? undefined },
-						password,
+						pw,
 						pin,
 					);
 				}
@@ -371,6 +390,9 @@ export function EmployeeFormDialog({
 	};
 
 	const errors = form.formState.errors;
+	const isSubmitted = form.formState.isSubmitted;
+	const hasErrors =
+		(isSubmitted && Object.keys(errors).length > 0) || !!serverError;
 
 	const displayName =
 		[firstName, lastName].filter(Boolean).join(" ") || "Add Employee";
@@ -471,6 +493,7 @@ export function EmployeeFormDialog({
 									>
 										<Input
 											id="emp-first"
+											className={INPUT_PLACEHOLDER_SOFT}
 											placeholder="Eg. SOPHIE"
 											{...form.register("first_name")}
 										/>
@@ -483,6 +506,7 @@ export function EmployeeFormDialog({
 									>
 										<Input
 											id="emp-last"
+											className={INPUT_PLACEHOLDER_SOFT}
 											placeholder="Eg. WONG"
 											{...form.register("last_name")}
 										/>
@@ -536,6 +560,7 @@ export function EmployeeFormDialog({
 										</div>
 										<Input
 											id="emp-idno"
+											className={INPUT_PLACEHOLDER_SOFT}
 											placeholder={
 												idType === "passport" ? "A12345678" : "Eg. 900101101234"
 											}
@@ -558,6 +583,7 @@ export function EmployeeFormDialog({
 									>
 										<Input
 											id="emp-email"
+											className={INPUT_PLACEHOLDER_SOFT}
 											type="email"
 											placeholder="EG. SOPHIE.WONG@KORUNO.COM"
 											{...form.register("email")}
@@ -572,6 +598,7 @@ export function EmployeeFormDialog({
 									>
 										<Input
 											id="emp-dob"
+											className={INPUT_PLACEHOLDER_SOFT}
 											type="date"
 											{...form.register("date_of_birth")}
 										/>
@@ -612,6 +639,7 @@ export function EmployeeFormDialog({
 									>
 										<Input
 											id="emp-phone"
+											className={INPUT_PLACEHOLDER_SOFT}
 											placeholder="+60 12-345 6789"
 											{...form.register("phone")}
 										/>
@@ -623,6 +651,7 @@ export function EmployeeFormDialog({
 									>
 										<Input
 											id="emp-phone2"
+											className={INPUT_PLACEHOLDER_SOFT}
 											placeholder="+60 12-345 6789"
 											{...form.register("phone2")}
 										/>
@@ -636,6 +665,7 @@ export function EmployeeFormDialog({
 									>
 										<Input
 											id="emp-seq"
+											className={INPUT_PLACEHOLDER_SOFT}
 											type="number"
 											min={1}
 											max={999}
@@ -696,6 +726,7 @@ export function EmployeeFormDialog({
 									>
 										<Input
 											id="emp-start"
+											className={INPUT_PLACEHOLDER_SOFT}
 											type="date"
 											{...form.register("start_date")}
 										/>
@@ -706,19 +737,43 @@ export function EmployeeFormDialog({
 											<Field
 												label={
 													employee?.auth_user_id
-														? "New Password (optional)"
+														? "Password (leave blank to keep)"
 														: "Password"
 												}
 												htmlFor="emp-password"
 												required={!employee?.auth_user_id}
 												error={errors.password?.message}
 											>
-												<Input
-													id="emp-password"
-													type="password"
-													autoComplete="new-password"
-													{...form.register("password")}
-												/>
+												<div className="flex gap-1.5">
+													<Input
+														id="emp-password"
+														autoComplete="new-password"
+														className={cn(INPUT_PLACEHOLDER_SOFT, "font-mono")}
+														{...form.register("password")}
+													/>
+													{!employee && (
+														<TooltipProvider>
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<Button
+																		type="button"
+																		variant="outline"
+																		size="icon"
+																		className="shrink-0"
+																		onClick={() => {
+																			const pw = generatePassword();
+																			form.setValue("password", pw, { shouldDirty: true, shouldValidate: true });
+																			form.setValue("password_confirm", pw, { shouldDirty: true, shouldValidate: true });
+																		}}
+																	>
+																		<RefreshCw className="size-3.5" />
+																	</Button>
+																</TooltipTrigger>
+																<TooltipContent>Generate password</TooltipContent>
+															</Tooltip>
+														</TooltipProvider>
+													)}
+												</div>
 											</Field>
 											<Field
 												label="Confirm Password"
@@ -728,8 +783,8 @@ export function EmployeeFormDialog({
 											>
 												<Input
 													id="emp-password-confirm"
-													type="password"
 													autoComplete="new-password"
+													className={cn(INPUT_PLACEHOLDER_SOFT, "font-mono")}
 													{...form.register("password_confirm")}
 												/>
 											</Field>
@@ -738,38 +793,89 @@ export function EmployeeFormDialog({
 
 									<Field
 										label={
-											employee ? "Set / Reset PIN (6 digits)" : "PIN (6 digits)"
+											employee
+												? "PIN — 6 digits (leave blank to keep)"
+												: "PIN — 6 digits"
 										}
 										htmlFor="emp-pin"
-										full
+										required={!employee}
 										error={errors.pin?.message}
 									>
-										<Input
-											id="emp-pin"
-											type="password"
-											inputMode="numeric"
-											autoComplete="off"
-											maxLength={6}
-											placeholder={
-												employee ? "Leave blank to keep current" : "••••••"
-											}
-											{...form.register("pin")}
-										/>
+										<div className="flex gap-1.5">
+											<Input
+												id="emp-pin"
+												inputMode="numeric"
+												autoComplete="off"
+												maxLength={6}
+												className={cn(INPUT_PLACEHOLDER_SOFT, "font-mono")}
+												{...form.register("pin")}
+												onChange={(e) => {
+													const digits = e.target.value.replace(/\D/g, "");
+													form.setValue("pin", digits, { shouldValidate: true, shouldDirty: true });
+												}}
+											/>
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															type="button"
+															variant="outline"
+															size="icon"
+															className="shrink-0"
+															onClick={() => {
+																form.setValue("pin", generatePin(), { shouldDirty: true, shouldValidate: true });
+															}}
+														>
+															<RefreshCw className="size-3.5" />
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>Generate PIN</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										</div>
 									</Field>
 								</div>
 
 								<div className="flex flex-col gap-3 border-t pt-5">
-									<h3 className="font-semibold text-sm">Outlets</h3>
-									<p className="text-muted-foreground text-xs">
-										Pick the outlets this employee works at, then mark one as
-										primary.
-									</p>
+									<div className="flex items-center justify-between">
+										<div className="flex items-center gap-2">
+											<h3 className="font-semibold text-sm">Outlets</h3>
+											<span className="text-destructive text-sm">*</span>
+											{errors.outlet_ids && (
+												<p className="text-destructive text-xs">
+													{(errors.outlet_ids as { message?: string }).message ?? "At least one outlet must be selected"}
+												</p>
+											)}
+										</div>
+										{outlets.length > 1 && (
+											<button
+												type="button"
+												className="text-muted-foreground text-xs hover:text-foreground"
+												onClick={() => {
+													const allSelected = selectedOutletIds.length === outlets.length;
+													if (allSelected) {
+														form.setValue("outlet_ids", [], { shouldDirty: true });
+														form.setValue("primary_outlet_id", null, { shouldDirty: true });
+													} else {
+														const allIds = outlets.map((o) => o.id);
+														form.setValue("outlet_ids", allIds, { shouldDirty: true });
+														if (!primaryOutletId) {
+															form.setValue("primary_outlet_id", allIds[0], { shouldDirty: true });
+														}
+													}
+												}}
+											>
+												{selectedOutletIds.length === outlets.length ? "Deselect all" : "Select all"}
+											</button>
+										)}
+									</div>
+
 									{outlets.length === 0 ? (
 										<p className="text-muted-foreground text-xs">
 											No outlets yet — create one in Config → Outlets first.
 										</p>
 									) : (
-										<div className="flex flex-col gap-1.5">
+										<div className="flex flex-col divide-y rounded-md border">
 											{outlets.map((o) => {
 												const checked = selectedOutletIds.includes(o.id);
 												const isPrimary = primaryOutletId === o.id;
@@ -777,62 +883,58 @@ export function EmployeeFormDialog({
 													<div
 														key={o.id}
 														className={cn(
-															"flex items-center justify-between gap-3 rounded-md border px-3 py-2 transition",
-															checked ? "bg-muted/40" : "bg-background",
+															"flex items-center gap-3 px-3 py-2.5 transition-colors",
+															checked ? "bg-muted/30" : "bg-background",
 														)}
 													>
-														<label className="flex min-w-0 flex-1 items-center gap-2.5 text-sm">
-															<input
-																type="checkbox"
-																className="size-4 accent-emerald-500"
-																checked={checked}
-																onChange={(e) => {
-																	const next = e.target.checked
-																		? [...selectedOutletIds, o.id]
-																		: selectedOutletIds.filter(
-																				(id) => id !== o.id,
-																			);
-																	form.setValue("outlet_ids", next, {
-																		shouldDirty: true,
-																	});
-																	if (
-																		!e.target.checked &&
-																		primaryOutletId === o.id
-																	) {
-																		form.setValue(
-																			"primary_outlet_id",
-																			next[0] ?? null,
-																			{ shouldDirty: true },
-																		);
-																	} else if (
-																		e.target.checked &&
-																		!primaryOutletId
-																	) {
-																		form.setValue("primary_outlet_id", o.id, {
-																			shouldDirty: true,
-																		});
+														<input
+															type="checkbox"
+															id={`outlet-${o.id}`}
+															className="size-4 shrink-0 accent-primary"
+															checked={checked}
+															onChange={(e) => {
+																if (e.target.checked) {
+																	const next = [...selectedOutletIds, o.id];
+																	form.setValue("outlet_ids", next, { shouldDirty: true });
+																	if (!primaryOutletId) {
+																		form.setValue("primary_outlet_id", o.id, { shouldDirty: true });
 																	}
-																}}
-															/>
-															<span className="truncate">{o.name}</span>
-														</label>
-														<button
-															type="button"
-															disabled={!checked}
-															onClick={() =>
-																form.setValue("primary_outlet_id", o.id, {
-																	shouldDirty: true,
-																})
-															}
+																} else {
+																	const next = selectedOutletIds.filter((id) => id !== o.id);
+																	form.setValue("outlet_ids", next, { shouldDirty: true });
+																	if (isPrimary) {
+																		form.setValue("primary_outlet_id", next[0] ?? null, { shouldDirty: true });
+																	}
+																}
+															}}
+														/>
+														<label
+															htmlFor={`outlet-${o.id}`}
 															className={cn(
-																"rounded-full px-2.5 py-0.5 text-xs font-medium transition",
-																isPrimary
-																	? "bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-300"
-																	: "text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50",
+																"flex-1 cursor-pointer text-sm",
+																checked ? "font-medium text-foreground" : "text-muted-foreground",
 															)}
 														>
-															{isPrimary ? "Primary" : "Set primary"}
-														</button>
+															{o.name}
+														</label>
+														{checked && (
+															isPrimary ? (
+																<span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+																	<Star className="size-2.5 fill-primary" />
+																	Primary
+																</span>
+															) : (
+																<button
+																	type="button"
+																	onClick={() =>
+																		form.setValue("primary_outlet_id", o.id, { shouldDirty: true })
+																	}
+																	className="text-[11px] text-muted-foreground hover:text-primary"
+																>
+																	Set primary
+																</button>
+															)
+														)}
 													</div>
 												);
 											})}
@@ -850,25 +952,53 @@ export function EmployeeFormDialog({
 											full
 											error={errors.country?.message}
 										>
-											<Input id="emp-country" {...form.register("country")} />
+											<Input
+												id="emp-country"
+												className={INPUT_PLACEHOLDER_SOFT}
+												{...form.register("country")}
+											/>
 										</Field>
 										<Field label="Address Line 1" htmlFor="emp-addr1" full>
-											<Input id="emp-addr1" {...form.register("address1")} />
+											<Input
+												id="emp-addr1"
+												className={INPUT_PLACEHOLDER_SOFT}
+												{...form.register("address1")}
+											/>
 										</Field>
 										<Field label="Address Line 2" htmlFor="emp-addr2" full>
-											<Input id="emp-addr2" {...form.register("address2")} />
+											<Input
+												id="emp-addr2"
+												className={INPUT_PLACEHOLDER_SOFT}
+												{...form.register("address2")}
+											/>
 										</Field>
 										<Field label="Address Line 3" htmlFor="emp-addr3" full>
-											<Input id="emp-addr3" {...form.register("address3")} />
+											<Input
+												id="emp-addr3"
+												className={INPUT_PLACEHOLDER_SOFT}
+												{...form.register("address3")}
+											/>
 										</Field>
 										<Field label="Postcode" htmlFor="emp-postcode">
-											<Input id="emp-postcode" {...form.register("postcode")} />
+											<Input
+												id="emp-postcode"
+												className={INPUT_PLACEHOLDER_SOFT}
+												{...form.register("postcode")}
+											/>
 										</Field>
 										<Field label="City" htmlFor="emp-city">
-											<Input id="emp-city" {...form.register("city")} />
+											<Input
+												id="emp-city"
+												className={INPUT_PLACEHOLDER_SOFT}
+												{...form.register("city")}
+											/>
 										</Field>
 										<Field label="State" htmlFor="emp-state" full>
-											<Input id="emp-state" {...form.register("state")} />
+											<Input
+												id="emp-state"
+												className={INPUT_PLACEHOLDER_SOFT}
+												{...form.register("state")}
+											/>
 										</Field>
 									</div>
 								</div>
@@ -879,6 +1009,7 @@ export function EmployeeFormDialog({
 										<Field label="Language" htmlFor="emp-language" full>
 											<Input
 												id="emp-language"
+												className={INPUT_PLACEHOLDER_SOFT}
 												placeholder="English"
 												{...form.register("language")}
 											/>
@@ -886,12 +1017,17 @@ export function EmployeeFormDialog({
 									</div>
 								</div>
 
-								{serverError && (
-									<p className="text-destructive text-sm">{serverError}</p>
-								)}
 							</div>
 						</div>
 					</div>
+
+					{hasErrors && (
+						<div className="border-t bg-destructive/5 px-4 py-2.5">
+							<p className="text-destructive text-xs font-medium">
+								{serverError ?? "Some fields are missing or invalid — check the form above."}
+							</p>
+						</div>
+					)}
 
 					<DialogFooter className="border-t bg-muted/20 px-4 py-3">
 						<Button type="button" variant="outline" onClick={handleClose}>

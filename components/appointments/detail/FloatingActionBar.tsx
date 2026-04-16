@@ -20,6 +20,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+	deleteAppointmentAction,
 	markAppointmentCompletedAction,
 	revertCompletedAppointmentAction,
 } from "@/lib/actions/appointments";
@@ -67,6 +68,7 @@ export function FloatingActionBar({
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [collectOpen, setCollectOpen] = useState(false);
 	const [revertOpen, setRevertOpen] = useState(false);
+	const [cancelOpen, setCancelOpen] = useState(false);
 	const [isPending, startTransition] = useTransition();
 
 	const isCompleted = appointment.status === "completed";
@@ -99,6 +101,20 @@ export function FloatingActionBar({
 				router.refresh();
 			} catch (e) {
 				const message = e instanceof Error ? e.message : "Failed to revert";
+				onToast?.(message, "error");
+			}
+		});
+	};
+
+	const handleCancelConfirm = () => {
+		setCancelOpen(false);
+		startTransition(async () => {
+			try {
+				await deleteAppointmentAction(appointment.id);
+				onToast?.("Appointment cancelled", "success");
+				router.push("/appointments");
+			} catch (e) {
+				const message = e instanceof Error ? e.message : "Failed to cancel";
 				onToast?.(message, "error");
 			}
 		});
@@ -188,6 +204,8 @@ export function FloatingActionBar({
 								<button
 									type="button"
 									aria-label="Cancel appointment"
+									onClick={() => setCancelOpen(true)}
+									disabled={isPending}
 									className={cn(
 										baseBtn,
 										"pointer-events-auto bg-red-600 text-white",
@@ -282,6 +300,17 @@ export function FloatingActionBar({
 				cancelLabel="Cancel"
 				variant="default"
 				onConfirm={handleRevertConfirm}
+			/>
+
+			<ConfirmDialog
+				open={cancelOpen}
+				onOpenChange={setCancelOpen}
+				title="Cancel appointment?"
+				description="This will permanently delete this appointment. This action cannot be undone."
+				confirmLabel="Delete"
+				cancelLabel="Keep"
+				variant="destructive"
+				onConfirm={handleCancelConfirm}
 			/>
 
 			<CollectPaymentDialog

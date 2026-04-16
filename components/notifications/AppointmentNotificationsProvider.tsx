@@ -26,20 +26,23 @@ import {
 import type { AppointmentStatus } from "@/lib/constants/appointment-status";
 import { createClient } from "@/lib/supabase/client";
 
-const SUPPRESS_WINDOW_MS = 5000;
+// How long we keep a suppression entry alive. Generous to cover slow networks
+// — the counter-based approach means we won't accidentally let events through,
+// and stale entries are garbage-collected on every check.
+const SUPPRESS_TTL_MS = 30_000;
 
 type ToastSource = {
+	appointmentId?: string;
 	customerName: string;
 	employeeName?: string | null;
 	roomName?: string | null;
 };
 
+type SuppressEntry = { count: number; createdAt: number };
+
 type ContextValue = {
 	showStatusToast: (source: ToastSource, status: AppointmentStatus) => void;
-	suppressNextRealtime: (
-		appointmentId: string,
-		status: AppointmentStatus,
-	) => void;
+	suppressNextRealtime: (appointmentId: string) => void;
 };
 
 const NotificationsContext = createContext<ContextValue | null>(null);
@@ -69,7 +72,7 @@ export function AppointmentNotificationsProvider({
 	const router = useRouter();
 	const [outletId, setOutletId] = useState<string | null>(initialOutletId);
 	const [toasts, setToasts] = useState<StatusToast[]>([]);
-	const suppressedRef = useRef<Map<string, number>>(new Map());
+	const suppressedRef = useRef<Map<string, SuppressEntry>>(new Map());
 
 	useEffect(() => {
 		const stored = readActiveOutletId();
@@ -99,15 +102,20 @@ export function AppointmentNotificationsProvider({
 			playStatusSound(notif.sound);
 
 			const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-			setToasts((prev) => [
-				...prev,
-				{
-					id,
-					status,
-					title: notif.toastTitle(source.customerName),
-					subtitle,
-				},
-			]);
+			const toast: StatusToast = {
+				id,
+				appointmentId: source.appointmentId,
+				status,
+				title: notif.toastTitle(source.customerName),
+				subtitle,
+			};
+			setToasts((prev) => {
+				// Rapid clicks on the same appointment → replace instead of stack
+				const filtered = source.appointmentId
+					? prev.filter((t) => t.appointmentId !== source.appointmentId)
+					: prev;
+				return [...filtered, toast];
+			});
 			setTimeout(() => {
 				setToasts((prev) => prev.filter((t) => t.id !== id));
 			}, STATUS_TOAST_DURATION_MS);
@@ -115,12 +123,17 @@ export function AppointmentNotificationsProvider({
 		[],
 	);
 
-	const suppressNextRealtime = useCallback(
-		(appointmentId: string, status: AppointmentStatus) => {
-			suppressedRef.current.set(`${appointmentId}:${status}`, Date.now());
-		},
-		[],
-	);
+	const suppressNextRealtime = useCallback((appointmentId: string) => {
+		const existing = suppressedRef.current.get(appointmentId);
+		if (existing && Date.now() - existing.createdAt < SUPPRESS_TTL_MS) {
+			existing.count += 1;
+		} else {
+			suppressedRef.current.set(appointmentId, {
+				count: 1,
+				createdAt: Date.now(),
+			});
+		}
+	}, []);
 
 	useEffect(() => {
 		if (!outletId) return;
@@ -146,13 +159,16 @@ export function AppointmentNotificationsProvider({
 
 					if (!nextStatus || nextStatus === prevStatus) return;
 
-					const key = `${next.id}:${nextStatus}`;
-					const suppressedAt = suppressedRef.current.get(key);
-					if (
-						suppressedAt !== undefined &&
-						Date.now() - suppressedAt < SUPPRESS_WINDOW_MS
-					) {
-						suppressedRef.current.delete(key);
+					// Garbage-collect stale entries
+					for (const [k, v] of suppressedRef.current) {
+						if (Date.now() - v.createdAt > SUPPRESS_TTL_MS)
+							suppressedRef.current.delete(k);
+					}
+
+					const entry = suppressedRef.current.get(next.id);
+					if (entry && entry.count > 0) {
+						entry.count -= 1;
+						if (entry.count <= 0) suppressedRef.current.delete(next.id);
 						return;
 					}
 
@@ -183,6 +199,7 @@ export function AppointmentNotificationsProvider({
 
 					pushToast(
 						{
+							appointmentId: next.id,
 							customerName,
 							employeeName,
 							roomName: room?.name ?? null,

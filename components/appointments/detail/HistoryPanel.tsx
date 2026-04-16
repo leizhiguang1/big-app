@@ -32,7 +32,7 @@ import {
 } from "@/lib/constants/appointment-status";
 import type { CustomerLineItem } from "@/lib/services/appointment-line-items";
 import type { CustomerAppointmentSummary } from "@/lib/services/appointments";
-import type { CaseNoteWithAuthor } from "@/lib/services/case-notes";
+import type { CaseNoteWithContext } from "@/lib/services/case-notes";
 import type { FollowUpWithRefs } from "@/lib/services/follow-ups";
 import { cn } from "@/lib/utils";
 
@@ -56,7 +56,7 @@ type NoteThread = {
 	kind: "note";
 	id: string;
 	date: Date;
-	note: CaseNoteWithAuthor;
+	note: CaseNoteWithContext;
 	bookingRef: string | null;
 	appointmentId: string | null;
 	isCurrent: boolean;
@@ -66,7 +66,7 @@ type Thread = BillingThread | NoteThread;
 
 type Props = {
 	currentAppointmentId: string;
-	caseNotes: CaseNoteWithAuthor[];
+	caseNotes: CaseNoteWithContext[];
 	customerBillingHistory: CustomerLineItem[];
 	customerHistory: CustomerAppointmentSummary[];
 	onClose: () => void;
@@ -88,13 +88,13 @@ function formatWeekdayTime(d: Date) {
 	)}`;
 }
 
-function authorLabel(n: CaseNoteWithAuthor): string {
+function authorLabel(n: CaseNoteWithContext): string {
 	if (!n.employee) return "—";
 	return `${n.employee.first_name} ${n.employee.last_name}`.trim();
 }
 
 function buildThreads(
-	caseNotes: CaseNoteWithAuthor[],
+	caseNotes: CaseNoteWithContext[],
 	billing: CustomerLineItem[],
 	customerHistory: CustomerAppointmentSummary[],
 	currentAppointmentId: string,
@@ -271,7 +271,7 @@ export function HistoryPanel({
 	};
 
 	return (
-		<aside className="sticky top-4 flex h-[calc(100vh-8rem)] w-[340px] shrink-0 flex-col overflow-hidden rounded-md border bg-card">
+		<aside className="sticky top-4 hidden h-[calc(100vh-8rem)] w-[340px] shrink-0 flex-col overflow-hidden rounded-md border bg-card lg:flex">
 			<div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
 				<div className="font-bold text-[12px] text-foreground tracking-wide">
 					HISTORY
@@ -640,7 +640,7 @@ function NoteRow({
 							{formatDayMonthYear(item.date)}
 						</span>
 						{item.isCurrent && (
-							<span className="rounded bg-blue-600 px-1.5 py-[1px] font-bold text-[9px] text-white">
+							<span className="rounded bg-blue-600 px-1.5 py-px font-bold text-[9px] text-white">
 								CURRENT
 							</span>
 						)}
@@ -726,7 +726,7 @@ function NoteRow({
 				/>
 			) : (
 				!collapsed && (
-					<p className="mt-1 whitespace-pre-wrap break-words text-[11px] text-muted-foreground leading-snug">
+					<p className="mt-1 whitespace-pre-wrap wrap-break-word text-[11px] text-muted-foreground leading-snug">
 						{content === "" ? (
 							<span className="text-muted-foreground/50">(empty note)</span>
 						) : (
@@ -842,7 +842,7 @@ export function FollowUpHistoryPanel({
 	};
 
 	return (
-		<aside className="sticky top-4 flex h-[calc(100vh-8rem)] w-[340px] shrink-0 flex-col overflow-hidden rounded-md border bg-card">
+		<aside className="sticky top-4 hidden h-[calc(100vh-8rem)] w-[340px] shrink-0 flex-col overflow-hidden rounded-md border bg-card lg:flex">
 			<div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
 				<div className="font-bold text-[12px] text-foreground tracking-wide">
 					FOLLOW-UPS
@@ -951,7 +951,7 @@ function FollowUpRow({
 							{formatDayMonthYear(item.date)}
 						</span>
 						{item.isCurrent && (
-							<span className="rounded bg-violet-600 px-1.5 py-[1px] font-bold text-[9px] text-white">
+							<span className="rounded bg-violet-600 px-1.5 py-px font-bold text-[9px] text-white">
 								CURRENT
 							</span>
 						)}
@@ -1004,7 +1004,7 @@ function FollowUpRow({
 			</button>
 			{!collapsed && (
 				<>
-					<p className="mt-1 whitespace-pre-wrap break-words text-[11px] text-muted-foreground leading-snug">
+					<p className="mt-1 whitespace-pre-wrap wrap-break-word text-[11px] text-muted-foreground leading-snug">
 						{f.content === "" ? (
 							<span className="text-muted-foreground/50">(empty)</span>
 						) : (
@@ -1020,7 +1020,7 @@ function FollowUpRow({
 									: "border-amber-200 bg-amber-50 text-amber-800",
 							)}
 						>
-							<ReminderIcon className="mt-[1px] size-[11px] shrink-0" />
+							<ReminderIcon className="mt-px size-[11px] shrink-0" />
 							<div className="flex-1">
 								<div className="font-semibold">
 									{reminderLabel} · {formatReminderDate(f.reminder_date)}

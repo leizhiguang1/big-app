@@ -1,6 +1,7 @@
 "use client";
 
-import { FileText } from "lucide-react";
+import { ExternalLink, FileText } from "lucide-react";
+import Link from "next/link";
 import { AppointmentServicesList } from "@/components/appointments/detail/AppointmentServicesList";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
@@ -8,6 +9,7 @@ import type { AppointmentWithRelations } from "@/lib/services/appointments";
 type Props = {
 	appointment: AppointmentWithRelations;
 	lineItems: AppointmentLineItem[];
+	salesOrderId: string | null;
 };
 
 function formatDate(iso: string): string {
@@ -38,7 +40,11 @@ function durationLabel(startIso: string, endIso: string): string {
 	return `${h}h ${m}m`;
 }
 
-export function BookingInfoCard({ appointment, lineItems }: Props) {
+export function BookingInfoCard({
+	appointment,
+	lineItems,
+	salesOrderId,
+}: Props) {
 	const employeeName = appointment.employee
 		? `${appointment.employee.first_name} ${appointment.employee.last_name}`
 		: null;
@@ -83,6 +89,18 @@ export function BookingInfoCard({ appointment, lineItems }: Props) {
 					No symptoms recorded
 				</span>
 			</Section>
+
+			{salesOrderId && (
+				<Section label="Sales Order">
+					<Link
+						href={`/sales/${salesOrderId}`}
+						className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+					>
+						View invoice
+						<ExternalLink className="size-2.5" />
+					</Link>
+				</Section>
+			)}
 		</div>
 	);
 }

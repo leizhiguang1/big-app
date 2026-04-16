@@ -24,10 +24,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 	let imagePath: string | null = null;
 	let fullName: string | null = null;
 	let roleName: string | null = null;
+	let hasPin = false;
 	if (employeeId) {
 		const { data } = await ctx.dbAdmin
 			.from("employees")
-			.select("first_name, last_name, profile_image_path, role:roles(name)")
+			.select(
+				"first_name, last_name, profile_image_path, pin_hash, role:roles(name)",
+			)
 			.eq("id", employeeId)
 			.maybeSingle();
 		imagePath = data?.profile_image_path ?? null;
@@ -35,6 +38,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 			fullName = [data.first_name, data.last_name].filter(Boolean).join(" ");
 			const role = (data as { role?: { name?: string | null } | null }).role;
 			roleName = role?.name ?? null;
+			hasPin = Boolean(data.pin_hash);
 		}
 	}
 
@@ -48,6 +52,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 						name={fullName}
 						role={roleName}
 						imageUrl={mediaPublicUrl(imagePath)}
+						hasPin={hasPin}
 					/>
 					<main className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
 						{children}

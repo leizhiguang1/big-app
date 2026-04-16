@@ -49,3 +49,16 @@ export const collectPaymentInputSchema = z.object({
 		.transform((v) => (v && v.length > 0 ? v : null)),
 });
 export type CollectPaymentInput = z.infer<typeof collectPaymentInputSchema>;
+
+export const cancelSalesOrderInputSchema = z.object({
+	reason: z
+		.string()
+		.trim()
+		.min(1, "Cancellation reason is required")
+		.max(500),
+	amount: z.coerce.number().min(0).optional(),
+	tax: z.coerce.number().min(0).optional(),
+});
+export type CancelSalesOrderInput = z.infer<
+	typeof cancelSalesOrderInputSchema
+>;

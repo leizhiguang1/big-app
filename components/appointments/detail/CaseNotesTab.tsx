@@ -6,15 +6,13 @@ import {
 	FileText,
 	Grid3x3,
 	ImagePlus,
-	Pencil,
 	Pill,
 	Save,
-	Trash2,
-	X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
+import { CaseNoteRow } from "@/components/case-notes/CaseNoteRow";
 import { AddMcDialog } from "@/components/medical-certificates/AddMcDialog";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -29,30 +27,13 @@ import {
 	updateCaseNoteAction,
 } from "@/lib/actions/case-notes";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
-import type { CaseNoteWithAuthor } from "@/lib/services/case-notes";
+import type { CaseNoteWithContext } from "@/lib/services/case-notes";
 
 type Props = {
 	appointment: AppointmentWithRelations;
-	caseNotes: CaseNoteWithAuthor[];
+	caseNotes: CaseNoteWithContext[];
 	onToast: (message: string, variant?: Toast["variant"]) => void;
 };
-
-function formatDateTime(d: Date): string {
-	return `${d.toLocaleDateString(undefined, {
-		month: "short",
-		day: "numeric",
-		year: "numeric",
-	})} · ${d.toLocaleTimeString(undefined, {
-		hour: "numeric",
-		minute: "2-digit",
-		hour12: true,
-	})}`;
-}
-
-function authorLabel(n: CaseNoteWithAuthor): string {
-	if (!n.employee) return "—";
-	return `${n.employee.first_name} ${n.employee.last_name}`.trim();
-}
 
 export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 	const router = useRouter();
@@ -60,9 +41,10 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editContent, setEditContent] = useState("");
 	const [deleteId, setDeleteId] = useState<string | null>(null);
+	const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 	const [mcDialogOpen, setMcDialogOpen] = useState(false);
-	const [, startTransition] = useTransition();
-	const [localNotes, setLocalNotes] = useState<CaseNoteWithAuthor[]>(caseNotes);
+	const [pending, startTransition] = useTransition();
+	const [localNotes, setLocalNotes] = useState<CaseNoteWithContext[]>(caseNotes);
 
 	useEffect(() => {
 		setLocalNotes(caseNotes);
@@ -78,7 +60,7 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 		if (!customerId || !draft.trim()) return;
 		const content = draft.trim();
 		const tempId = `temp-${crypto.randomUUID()}`;
-		const optimistic: CaseNoteWithAuthor = {
+		const optimistic: CaseNoteWithContext = {
 			id: tempId,
 			appointment_id: appointment.id,
 			customer_id: customerId,
@@ -87,7 +69,8 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 			created_at: new Date().toISOString(),
 			updated_at: new Date().toISOString(),
 			employee: null,
-		} as CaseNoteWithAuthor;
+			appointment: null,
+		};
 		setLocalNotes((prev) => [...prev, optimistic]);
 		setDraft("");
 		startTransition(async () => {
@@ -155,6 +138,14 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 		});
 	};
 
+	const toggleCollapse = (id: string) =>
+		setCollapsedIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
+
 	if (isBlock) {
 		return (
 			<div className="rounded-md border bg-muted/20 p-6 text-center text-muted-foreground text-sm">
@@ -204,37 +195,38 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 				</div>
 			</div>
 
-			<div className="rounded-md border bg-card p-4">
-				<div className="text-muted-foreground text-xs uppercase tracking-wide">
+			<div className="rounded-md border bg-card">
+				<div className="border-b px-4 py-2.5 text-muted-foreground text-xs uppercase tracking-wide">
 					Notes on this visit
 				</div>
-				<div className="mt-3 flex flex-col gap-3">
-					{notesOnThisVisit.length === 0 ? (
-						<p className="text-muted-foreground text-sm italic">
-							No notes yet for this visit.
-						</p>
-					) : (
-						notesOnThisVisit.map((n) => (
-							<NoteRow
-								key={n.id}
-								note={n}
-								isEditing={editingId === n.id}
-								editContent={editContent}
-								onEditStart={() => {
-									setEditingId(n.id);
-									setEditContent(n.content);
-								}}
-								onEditCancel={() => {
-									setEditingId(null);
-									setEditContent("");
-								}}
-								onEditChange={setEditContent}
-								onEditSave={handleUpdate}
-								onDelete={() => setDeleteId(n.id)}
-							/>
-						))
-					)}
-				</div>
+				{notesOnThisVisit.length === 0 ? (
+					<p className="p-4 text-muted-foreground text-sm italic">
+						No notes yet for this visit.
+					</p>
+				) : (
+					notesOnThisVisit.map((n) => (
+						<CaseNoteRow
+							key={n.id}
+							note={n}
+							collapsed={collapsedIds.has(n.id)}
+							isEditing={editingId === n.id}
+							editContent={editContent}
+							pending={pending}
+							onToggle={() => toggleCollapse(n.id)}
+							onEditStart={() => {
+								setEditingId(n.id);
+								setEditContent(n.content);
+							}}
+							onEditCancel={() => {
+								setEditingId(null);
+								setEditContent("");
+							}}
+							onEditChange={setEditContent}
+							onEditSave={handleUpdate}
+							onDelete={() => setDeleteId(n.id)}
+						/>
+					))
+				)}
 			</div>
 
 			<ConfirmDialog
@@ -243,6 +235,7 @@ export function CaseNotesTab({ appointment, caseNotes, onToast }: Props) {
 				title="Delete this case note?"
 				description="This removes the note permanently."
 				confirmLabel="Delete"
+				pending={pending}
 				onConfirm={handleDelete}
 			/>
 
@@ -334,87 +327,5 @@ function StubButton({
 			</TooltipTrigger>
 			<TooltipContent side="top">{label}</TooltipContent>
 		</Tooltip>
-	);
-}
-
-function NoteRow({
-	note,
-	isEditing,
-	editContent,
-	onEditStart,
-	onEditCancel,
-	onEditChange,
-	onEditSave,
-	onDelete,
-}: {
-	note: CaseNoteWithAuthor;
-	isEditing: boolean;
-	editContent: string;
-	onEditStart: () => void;
-	onEditCancel: () => void;
-	onEditChange: (v: string) => void;
-	onEditSave: () => void;
-	onDelete: () => void;
-}) {
-	return (
-		<div className="rounded border bg-background p-3 text-sm">
-			<div className="flex items-center justify-between gap-2">
-				<div className="text-muted-foreground text-xs">
-					{formatDateTime(new Date(note.created_at))} · {authorLabel(note)}
-				</div>
-				<div className="flex items-center gap-1">
-					{!isEditing ? (
-						<>
-							<button
-								type="button"
-								onClick={onEditStart}
-								className="text-muted-foreground hover:text-foreground"
-								aria-label="Edit note"
-							>
-								<Pencil className="size-3.5" />
-							</button>
-							<button
-								type="button"
-								onClick={onDelete}
-								className="text-muted-foreground hover:text-destructive"
-								aria-label="Delete note"
-							>
-								<Trash2 className="size-3.5" />
-							</button>
-						</>
-					) : (
-						<>
-							<button
-								type="button"
-								onClick={onEditSave}
-								disabled={!editContent.trim()}
-								className="text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
-								aria-label="Save edit"
-							>
-								<Save className="size-3.5" />
-							</button>
-							<button
-								type="button"
-								onClick={onEditCancel}
-								className="text-muted-foreground hover:text-foreground"
-								aria-label="Cancel edit"
-							>
-								<X className="size-3.5" />
-							</button>
-						</>
-					)}
-				</div>
-			</div>
-			{isEditing ? (
-				<textarea
-					value={editContent}
-					onChange={(e) => onEditChange(e.target.value)}
-					rows={4}
-					className="mt-2 w-full resize-y rounded-md border bg-background p-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-				/>
-			) : (
-				<p className="mt-2 whitespace-pre-wrap">{note.content}</p>
-			)}
-		</div>
 	);
 }

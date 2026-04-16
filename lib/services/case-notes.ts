@@ -16,8 +16,19 @@ export type CaseNoteWithAuthor = CaseNote & {
 	} | null;
 };
 
+export type CaseNoteWithContext = CaseNoteWithAuthor & {
+	appointment: {
+		id: string;
+		booking_ref: string;
+		start_at: string;
+	} | null;
+};
+
 const SELECT_WITH_AUTHOR =
 	"*, employee:employees!case_notes_employee_id_fkey(id, first_name, last_name)";
+
+const SELECT_WITH_CONTEXT =
+	"*, employee:employees!case_notes_employee_id_fkey(id, first_name, last_name), appointment:appointments!case_notes_appointment_id_fkey(id, booking_ref, start_at)";
 
 export async function listCaseNotesForCustomer(
 	ctx: Context,
@@ -30,6 +41,19 @@ export async function listCaseNotesForCustomer(
 		.order("created_at", { ascending: false });
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []) as unknown as CaseNoteWithAuthor[];
+}
+
+export async function listCaseNotesWithContext(
+	ctx: Context,
+	customerId: string,
+): Promise<CaseNoteWithContext[]> {
+	const { data, error } = await ctx.db
+		.from("case_notes")
+		.select(SELECT_WITH_CONTEXT)
+		.eq("customer_id", customerId)
+		.order("created_at", { ascending: false });
+	if (error) throw new ValidationError(error.message);
+	return (data ?? []) as unknown as CaseNoteWithContext[];
 }
 
 export async function createCaseNote(

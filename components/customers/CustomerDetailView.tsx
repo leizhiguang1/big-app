@@ -1,30 +1,41 @@
 "use client";
 
 import {
+	AlertTriangle,
 	ArrowLeft,
+	Bell,
 	CalendarDays,
+	ChevronLeft,
 	ChevronRight,
+	Cigarette,
+	Crown,
+	Heart,
+	Mail,
 	MapPin,
+	Megaphone,
 	Phone,
+	Pill,
 	Plus,
-	Printer,
 	Star,
+	Tag,
 	User,
 	Wallet,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { SegmentedTabs } from "@/components/ui/segmented-tabs";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CustomerLineItem } from "@/lib/services/appointment-line-items";
 import type { CustomerTimelineAppointment } from "@/lib/services/appointments";
+import type { CaseNoteWithContext } from "@/lib/services/case-notes";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import { mediaPublicUrl } from "@/lib/storage/urls";
 import { cn } from "@/lib/utils";
+import { CustomerCaseNotesTab } from "@/components/customers/CustomerCaseNotesTab";
 
 type Props = {
 	customer: CustomerWithRelations;
 	timeline: CustomerTimelineAppointment[];
 	lineItems: CustomerLineItem[];
+	caseNotes: CaseNoteWithContext[];
 };
 
 type TabKey =
@@ -38,7 +49,12 @@ type TabKey =
 	| "medical-certificate"
 	| "prescriptions"
 	| "laboratory"
-	| "vaccinations";
+	| "vaccinations"
+	| "sales"
+	| "payments"
+	| "services"
+	| "products"
+	| "cash-wallet";
 
 const TABS: { key: TabKey; label: string }[] = [
 	{ key: "timeline", label: "Timeline" },
@@ -52,6 +68,11 @@ const TABS: { key: TabKey; label: string }[] = [
 	{ key: "prescriptions", label: "Prescriptions" },
 	{ key: "laboratory", label: "Laboratory" },
 	{ key: "vaccinations", label: "Vaccinations" },
+	{ key: "sales", label: "Sales" },
+	{ key: "payments", label: "Payments" },
+	{ key: "services", label: "Services" },
+	{ key: "products", label: "Products" },
+	{ key: "cash-wallet", label: "Cash Wallet" },
 ];
 
 function computeAge(dob: string | null): string | null {
@@ -98,7 +119,7 @@ function monthKey(iso: string): string {
 	return d.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 }
 
-export function CustomerDetailView({ customer, timeline, lineItems }: Props) {
+export function CustomerDetailView({ customer, timeline, lineItems, caseNotes }: Props) {
 	const [activeTab, setActiveTab] = useState<TabKey>("timeline");
 
 	const displayName = `${customer.first_name} ${customer.last_name ?? ""}`
@@ -164,7 +185,13 @@ export function CustomerDetailView({ customer, timeline, lineItems }: Props) {
 	}, [timeline]);
 
 	return (
-		<div className="flex min-h-[calc(100vh-10rem)] flex-col gap-4 lg:flex-row">
+		<div className="flex flex-col gap-3">
+			<CustomerTabBar
+				tabs={TABS}
+				active={activeTab}
+				onChange={(key) => setActiveTab(key as TabKey)}
+			/>
+			<div className="flex min-h-[calc(100vh-12rem)] flex-col gap-4 lg:flex-row">
 			<aside className="flex w-full shrink-0 flex-col gap-3 lg:w-[320px]">
 				<div className="flex items-center gap-2">
 					<Link
@@ -219,7 +246,24 @@ export function CustomerDetailView({ customer, timeline, lineItems }: Props) {
 								<div className="min-w-0 truncate font-semibold text-[15px] text-sky-800">
 									{displayName} ({salutation})
 								</div>
+								{customer.is_vip && (
+									<span className="flex shrink-0 items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+										<Crown className="size-3" />
+										VIP
+									</span>
+								)}
 							</div>
+							{customer.gender && (
+								<div className="text-[11px] text-muted-foreground capitalize">
+									{customer.gender}
+								</div>
+							)}
+							{customer.tag && (
+								<span className="flex w-fit items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700">
+									<Tag className="size-2.5" />
+									{customer.tag}
+								</span>
+							)}
 							{(customer.address1 || customer.city || customer.state) && (
 								<div className="flex items-start gap-1 text-[11px] text-muted-foreground">
 									<MapPin className="mt-0.5 size-3 shrink-0" />
@@ -246,6 +290,18 @@ export function CustomerDetailView({ customer, timeline, lineItems }: Props) {
 								<div className="flex items-center gap-1 text-[11px] text-emerald-600">
 									<Phone className="size-3 shrink-0" />
 									<span className="tabular-nums">{customer.phone}</span>
+								</div>
+							)}
+							{customer.phone2 && (
+								<div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+									<Phone className="size-3 shrink-0" />
+									<span className="tabular-nums">{customer.phone2}</span>
+								</div>
+							)}
+							{customer.email && (
+								<div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+									<Mail className="size-3 shrink-0" />
+									<span className="truncate">{customer.email}</span>
 								</div>
 							)}
 						</div>
@@ -289,10 +345,14 @@ export function CustomerDetailView({ customer, timeline, lineItems }: Props) {
 
 					<div className="flex flex-col gap-2 text-xs">
 						<DetailRow
-							label="Identification"
+							label={customer.id_type === "passport" ? "Passport" : "IC Number"}
 							value={customer.id_number ?? "—"}
 						/>
 						<DetailRow label="Birthday" value={dob ?? "—"} />
+						<DetailRow
+							label="Country"
+							value={(customer.country_of_origin ?? "Malaysia").toUpperCase()}
+						/>
 						<DetailRow
 							label="Consultant"
 							value={
@@ -306,7 +366,27 @@ export function CustomerDetailView({ customer, timeline, lineItems }: Props) {
 							value={(customer.source ?? "—").toUpperCase()}
 						/>
 						<DetailRow label="Visits" value={String(timeline.length)} />
+						{customer.external_code && (
+							<DetailRow
+								label="External Code"
+								value={customer.external_code}
+							/>
+						)}
 					</div>
+
+					{customer.medical_alert && (
+						<div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+							<AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+							<div className="flex flex-col gap-0.5">
+								<span className="font-semibold text-[10px] text-amber-700 uppercase">
+									Medical Alert
+								</span>
+								<span className="text-[11px] text-amber-800 leading-snug">
+									{customer.medical_alert}
+								</span>
+							</div>
+						</div>
+					)}
 
 					<div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
 						<div className="flex items-center gap-2">
@@ -321,33 +401,53 @@ export function CustomerDetailView({ customer, timeline, lineItems }: Props) {
 						<ChevronRight className="size-4 text-muted-foreground" />
 					</div>
 				</div>
+
+				<MedicalInfoCard customer={customer} />
+
+				<div className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm">
+					<div className="flex items-center gap-1.5 text-[11px]">
+						<Bell className="size-3 text-muted-foreground" />
+						<span className="text-muted-foreground">Notifications</span>
+						<span
+							className={cn(
+								"font-semibold",
+								customer.opt_in_notifications
+									? "text-emerald-600"
+									: "text-muted-foreground",
+							)}
+						>
+							{customer.opt_in_notifications ? "ON" : "OFF"}
+						</span>
+					</div>
+					<span className="text-border">|</span>
+					<div className="flex items-center gap-1.5 text-[11px]">
+						<Megaphone className="size-3 text-muted-foreground" />
+						<span className="text-muted-foreground">Marketing</span>
+						<span
+							className={cn(
+								"font-semibold",
+								customer.opt_in_marketing
+									? "text-emerald-600"
+									: "text-muted-foreground",
+							)}
+						>
+							{customer.opt_in_marketing ? "ON" : "OFF"}
+						</span>
+					</div>
+				</div>
 			</aside>
 
 			<main className="flex min-w-0 flex-1 flex-col gap-4">
-				<div className="flex items-center gap-2">
-					<SegmentedTabs
-						aria-label="Customer detail sections"
-						className="flex-1"
-						active={activeTab}
-						onChange={(key) => setActiveTab(key as TabKey)}
-						tabs={TABS}
-						size="sm"
-					/>
-					<button
-						type="button"
-						className="flex size-9 shrink-0 items-center justify-center rounded-full border bg-background text-muted-foreground transition hover:bg-muted"
-						aria-label="Print"
-						disabled
-					>
-						<Printer className="size-4" />
-					</button>
-				</div>
-
 				{activeTab === "timeline" ? (
 					<TimelineTab
 						groupedTimeline={groupedTimeline}
 						stats={stats}
 						lineItemsByAppointment={lineItemsByAppointment}
+					/>
+				) : activeTab === "casenotes" ? (
+					<CustomerCaseNotesTab
+						customerId={customer.id}
+						caseNotes={caseNotes}
 					/>
 				) : (
 					<PlaceholderTab
@@ -355,6 +455,7 @@ export function CustomerDetailView({ customer, timeline, lineItems }: Props) {
 					/>
 				)}
 			</main>
+			</div>
 		</div>
 	);
 }
@@ -619,6 +720,157 @@ function AppointmentTimelineCard({
 					</div>
 				)}
 			</div>
+		</div>
+	);
+}
+
+function MedicalInfoCard({ customer }: { customer: CustomerWithRelations }) {
+	const hasMedical =
+		customer.smoker ||
+		customer.drug_allergies ||
+		(customer.medical_conditions && customer.medical_conditions.length > 0);
+
+	if (!hasMedical) return null;
+
+	return (
+		<div className="flex flex-col gap-2 rounded-xl border bg-card p-4 shadow-sm">
+			<div className="flex items-center gap-1.5 font-semibold text-xs text-muted-foreground uppercase">
+				<Heart className="size-3.5" />
+				Medical Information
+			</div>
+
+			{customer.smoker && (
+				<div className="flex items-center gap-2 text-xs">
+					<Cigarette className="size-3.5 shrink-0 text-muted-foreground" />
+					<span className="text-[10px] text-muted-foreground uppercase">
+						Smoker:
+					</span>
+					<span className="font-medium capitalize">{customer.smoker}</span>
+				</div>
+			)}
+
+			{customer.drug_allergies && (
+				<div className="flex flex-col gap-0.5">
+					<div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase">
+						<Pill className="size-3 shrink-0" />
+						Drug Allergies
+					</div>
+					<span className="text-xs leading-snug">
+						{customer.drug_allergies}
+					</span>
+				</div>
+			)}
+
+			{customer.medical_conditions && customer.medical_conditions.length > 0 && (
+				<div className="flex flex-col gap-1">
+					<span className="text-[10px] text-muted-foreground uppercase">
+						Conditions
+					</span>
+					<div className="flex flex-wrap gap-1">
+						{customer.medical_conditions.map((c) => (
+							<span
+								key={c}
+								className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium"
+							>
+								{c}
+							</span>
+						))}
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}
+
+function CustomerTabBar({
+	tabs,
+	active,
+	onChange,
+}: {
+	tabs: { key: string; label: string }[];
+	active: string;
+	onChange: (key: string) => void;
+}) {
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const [canScrollLeft, setCanScrollLeft] = useState(false);
+	const [canScrollRight, setCanScrollRight] = useState(false);
+
+	function checkScroll() {
+		const el = scrollRef.current;
+		if (!el) return;
+		setCanScrollLeft(el.scrollLeft > 4);
+		setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+	}
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: recheck on tab count change
+	useEffect(() => {
+		checkScroll();
+		const el = scrollRef.current;
+		if (!el) return;
+		const ro = new ResizeObserver(checkScroll);
+		ro.observe(el);
+		return () => ro.disconnect();
+	}, [tabs.length]);
+
+	function scrollBy(amount: number) {
+		scrollRef.current?.scrollBy({ left: amount, behavior: "smooth" });
+	}
+
+	const navBtn = "flex shrink-0 size-7 items-center justify-center rounded-full border bg-background shadow-sm transition hover:bg-muted disabled:pointer-events-none disabled:opacity-30";
+
+	return (
+		<div className="flex items-center gap-2 rounded-xl border bg-card px-3 py-2 shadow-sm">
+			<button
+				type="button"
+				aria-label="Scroll tabs left"
+				disabled={!canScrollLeft}
+				onClick={() => scrollBy(-200)}
+				className={navBtn}
+			>
+				<ChevronLeft className="size-3.5" />
+			</button>
+
+			<div
+				ref={scrollRef}
+				className="flex-1 overflow-x-auto scrollbar-none"
+				onScroll={checkScroll}
+				onWheel={(e) => {
+					if (e.deltaY === 0) return;
+					e.preventDefault();
+					scrollRef.current?.scrollBy({ left: e.deltaY });
+				}}
+			>
+				<div className="inline-flex min-w-max items-center gap-0.5">
+					{tabs.map((tab) => {
+						const isActive = tab.key === active;
+						return (
+							<button
+								key={tab.key}
+								type="button"
+								onClick={() => onChange(tab.key)}
+								className={cn(
+									"whitespace-nowrap rounded-full px-4 py-1.5 font-semibold text-[11px] uppercase tracking-wide transition",
+									isActive
+										? "bg-primary text-primary-foreground shadow-sm"
+										: "text-muted-foreground hover:bg-muted hover:text-foreground",
+								)}
+							>
+								{tab.label}
+							</button>
+						);
+					})}
+				</div>
+			</div>
+
+			<button
+				type="button"
+				aria-label="Scroll tabs right"
+				disabled={!canScrollRight}
+				onClick={() => scrollBy(200)}
+				className={navBtn}
+			>
+				<ChevronRight className="size-3.5" />
+			</button>
 		</div>
 	);
 }

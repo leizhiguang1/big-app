@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-export type LoginResult = { error: string } | { ok: true };
+export type LoginResult =
+	| { error: string; email: string; password: string }
+	| { ok: true };
 
 export async function loginAction(
 	_prev: LoginResult | null,
@@ -14,7 +16,7 @@ export async function loginAction(
 	const password = String(formData.get("password") ?? "");
 
 	if (!email || !password) {
-		return { error: "Email and password are required" };
+		return { error: "Email and password are required", email, password };
 	}
 
 	const db = await createClient();
@@ -22,7 +24,7 @@ export async function loginAction(
 		{ email, password },
 	);
 	if (signInError || !signIn.user) {
-		return { error: signInError?.message ?? "Invalid credentials" };
+		return { error: signInError?.message ?? "Invalid credentials", email, password };
 	}
 
 	const dbAdmin = createSupabaseAdminClient();
@@ -34,7 +36,7 @@ export async function loginAction(
 
 	if (!employee?.is_active || !employee.web_login_enabled) {
 		await db.auth.signOut();
-		return { error: "Your account is not allowed to sign in" };
+		return { error: "Your account is not allowed to sign in", email, password };
 	}
 
 	redirect("/dashboard");

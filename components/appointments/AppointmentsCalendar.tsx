@@ -15,6 +15,7 @@ import {
 	AppointmentToastStack,
 	type Toast,
 } from "@/components/appointments/AppointmentToastStack";
+import { playGeneralToastSound } from "@/lib/appointments/play-status-sound";
 import { DayView } from "@/components/appointments/DayView";
 import { GridView } from "@/components/appointments/GridView";
 import { ListView } from "@/components/appointments/ListView";
@@ -121,7 +122,7 @@ export function AppointmentsCalendar({
 		writeActiveOutletId(outletId);
 	}, [outletId]);
 	const searchParams = useSearchParams();
-	const [, startTransition] = useTransition();
+	const [isStatusPending, startTransition] = useTransition();
 
 	type OptimisticPatch =
 		| { kind: "status"; id: string; status: AppointmentStatus }
@@ -155,6 +156,8 @@ export function AppointmentsCalendar({
 
 	const showToast = useCallback(
 		(message: string, variant: Toast["variant"] = "default") => {
+			const sound = variant === "success" ? "success" : variant === "error" ? "error" : "info";
+			playGeneralToastSound(sound);
 			const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 			setToasts((prev) => [...prev, { id, message, variant }]);
 			setTimeout(() => {
@@ -255,7 +258,8 @@ export function AppointmentsCalendar({
 		a: AppointmentWithRelations,
 		status: AppointmentStatus,
 	) => {
-		suppressNextRealtime(a.id, status);
+		if (isStatusPending) return;
+		suppressNextRealtime(a.id);
 		const notif = APPOINTMENT_STATUS_NOTIFICATIONS[status];
 		if (notif.enabled) {
 			showStatusToast(
@@ -436,6 +440,7 @@ export function AppointmentsCalendar({
 				appointments={filteredAppointments}
 				employees={employees}
 				rooms={rooms}
+				shifts={shifts}
 				onCellClick={openCreateAt}
 				onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
 				onAppointmentContextMenu={handleContextMenu}

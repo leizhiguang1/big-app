@@ -17,8 +17,12 @@ import {
 	TOTAL_GRID_HEIGHT_PX,
 	timeToY,
 } from "@/lib/calendar/layout";
+import { fmtDate, shiftCoversDate } from "@/lib/roster/week";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
-import type { RosterEmployee } from "@/lib/services/employee-shifts";
+import type {
+	EmployeeShift,
+	RosterEmployee,
+} from "@/lib/services/employee-shifts";
 import type { Room } from "@/lib/services/outlets";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +46,7 @@ type Props = {
 		e: React.MouseEvent,
 		a: AppointmentWithRelations,
 	) => void;
+	shifts: EmployeeShift[];
 	onReschedule?: (
 		id: string,
 		args: {
@@ -68,6 +73,7 @@ export function DayView({
 	appointments,
 	employees,
 	rooms,
+	shifts,
 	onCellClick,
 	onAppointmentClick,
 	onAppointmentContextMenu,
@@ -75,21 +81,45 @@ export function DayView({
 }: Props) {
 	const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
-	const columns: Column[] = useMemo(() => {
+	// In employee mode, only show employees who are rostered on this date
+	// OR already have an appointment on this date.
+	const rosteredEmployees = useMemo(() => {
+		if (resourceMode !== "employee") return employees;
+		const employeeIdsWithShift = new Set(
+			shifts
+				.filter((s) => shiftCoversDate(s, dateStr))
+				.map((s) => s.employee_id),
+		);
+		const employeeIdsWithAppt = new Set(
+			appointments
+				.filter(
+					(a) => a.employee_id && fmtDate(new Date(a.start_at)) === dateStr,
+				)
+				.map((a) => a.employee_id),
+		);
+		return employees.filter(
+			(e) => employeeIdsWithShift.has(e.id) || employeeIdsWithAppt.has(e.id),
+		);
+	}, [resourceMode, employees, shifts, appointments, dateStr]);
+
+	const hasUnassigned = useMemo(() => {
 		if (resourceMode === "room") {
-			return [
-				...rooms.map((r) => ({ id: r.id, label: r.name })),
-				{ id: null, label: "Unassigned" },
-			];
+			return appointments.some((a) => !a.room_id);
 		}
-		return [
-			...employees.map((e) => ({
-				id: e.id,
-				label: `${e.first_name} ${e.last_name}`,
-			})),
-			{ id: null, label: "Unassigned" },
-		];
-	}, [resourceMode, employees, rooms]);
+		return appointments.some((a) => !a.employee_id);
+	}, [appointments, resourceMode]);
+
+	const columns: Column[] = useMemo(() => {
+		const cols: Column[] =
+			resourceMode === "room"
+				? rooms.map((r) => ({ id: r.id, label: r.name }))
+				: rosteredEmployees.map((e) => ({
+						id: e.id,
+						label: `${e.first_name} ${e.last_name}`,
+					}));
+		if (hasUnassigned) cols.push({ id: null, label: "Unassigned" });
+		return cols;
+	}, [resourceMode, rosteredEmployees, rooms, hasUnassigned]);
 
 	const aptsByColumn = useMemo(() => {
 		const map = new Map<string, AppointmentWithRelations[]>();

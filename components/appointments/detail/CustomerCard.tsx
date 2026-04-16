@@ -436,17 +436,17 @@ function InfoItem({
 	label: string;
 }) {
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<div className="flex min-w-0 items-center gap-1.5">
+		<div className="flex min-w-0 items-center gap-1.5">
+			<Tooltip>
+				<TooltipTrigger asChild>
 					<span className="shrink-0 text-muted-foreground" aria-label={label}>
 						{icon}
 					</span>
-					<span className="min-w-0 truncate leading-tight">{value}</span>
-				</div>
-			</TooltipTrigger>
-			<TooltipContent>{label}</TooltipContent>
-		</Tooltip>
+				</TooltipTrigger>
+				<TooltipContent side="left">{label}</TooltipContent>
+			</Tooltip>
+			<span className="min-w-0 truncate leading-tight">{value}</span>
+		</div>
 	);
 }
 
@@ -465,33 +465,35 @@ function ActionIcon({
 }) {
 	const base =
 		"flex size-7 items-center justify-center rounded-md border bg-background transition";
-	if (href && !disabled) {
-		return (
+	const inner =
+		href && !disabled ? (
 			<a
 				href={href}
 				target="_blank"
 				rel="noopener noreferrer"
-				title={label}
 				aria-label={label}
 				className={cn(base, "hover:bg-muted", className)}
 			>
 				{children}
 			</a>
+		) : (
+			<button
+				type="button"
+				aria-label={label}
+				disabled={disabled}
+				className={cn(
+					base,
+					"text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60",
+					className,
+				)}
+			>
+				{children}
+			</button>
 		);
-	}
 	return (
-		<button
-			type="button"
-			title={label}
-			aria-label={label}
-			disabled={disabled}
-			className={cn(
-				base,
-				"text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60",
-				className,
-			)}
-		>
-			{children}
-		</button>
+		<Tooltip>
+			<TooltipTrigger asChild>{inner}</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 }

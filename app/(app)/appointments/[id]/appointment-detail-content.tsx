@@ -18,8 +18,8 @@ import {
 	listCustomerAppointments,
 } from "@/lib/services/appointments";
 import {
-	type CaseNoteWithAuthor,
-	listCaseNotesForCustomer,
+	type CaseNoteWithContext,
+	listCaseNotesWithContext,
 } from "@/lib/services/case-notes";
 import {
 	type CustomerDocumentWithRefs,
@@ -37,6 +37,7 @@ import {
 } from "@/lib/services/follow-ups";
 import { listSellableProducts } from "@/lib/services/inventory";
 import { listOutlets, listRooms } from "@/lib/services/outlets";
+import { getSalesOrderForAppointment } from "@/lib/services/sales";
 import { listServices } from "@/lib/services/services";
 import { listTaxes } from "@/lib/services/taxes";
 
@@ -58,9 +59,9 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 			? listCustomerAppointments(ctx, appointment.customer_id)
 			: Promise.resolve([]);
 
-	const caseNotesPromise: Promise<CaseNoteWithAuthor[]> =
+	const caseNotesPromise: Promise<CaseNoteWithContext[]> =
 		appointment.customer_id
-			? listCaseNotesForCustomer(ctx, appointment.customer_id)
+			? listCaseNotesWithContext(ctx, appointment.customer_id)
 			: Promise.resolve([]);
 
 	const followUpsPromise: Promise<FollowUpWithRefs[]> = appointment.customer_id
@@ -99,6 +100,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 		statusLog,
 		shifts,
 		taxes,
+		salesOrder,
 	] = await Promise.all([
 		listLineItemsForAppointment(ctx, id),
 		listIncentivesForAppointment(ctx, id),
@@ -121,6 +123,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 			to: nextDateStr,
 		}),
 		listTaxes(ctx),
+		getSalesOrderForAppointment(ctx, id),
 	]);
 
 	const activeOutlets = outlets.filter((o) => o.is_active);
@@ -148,6 +151,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 			allEmployees={activeAllEmployees}
 			statusLog={statusLog}
 			shifts={shifts}
+			salesOrderId={salesOrder?.id ?? null}
 		/>
 	);
 }
