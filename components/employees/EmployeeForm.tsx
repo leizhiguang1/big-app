@@ -277,6 +277,7 @@ export function EmployeeFormDialog({
 	const savedRef = useRef(false);
 
 	const form = useForm<EmployeeFormInput>({
+		// @ts-expect-error — @hookform/resolvers v5 Resolver type conflicts with RHF v7's on complex schemas (extend + superRefine)
 		resolver: zodResolver(employeeFormSchema),
 		defaultValues: EMPTY,
 	});
