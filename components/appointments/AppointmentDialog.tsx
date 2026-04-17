@@ -87,6 +87,7 @@ type Props = {
 		endAt: string;
 		employeeId: string | null;
 		roomId: string | null;
+		customerId?: string | null;
 	} | null;
 	customers: CustomerWithRelations[];
 	employees: RosterEmployee[];
@@ -147,7 +148,7 @@ function buildDefaults(args: {
 	const fallbackEnd = new Date(fallbackStart);
 	fallbackEnd.setMinutes(fallbackStart.getMinutes() + DEFAULT_DURATION_MIN);
 	return {
-		customer_id: null,
+		customer_id: args.prefill?.customerId ?? null,
 		employee_id: args.prefill?.employeeId ?? null,
 		outlet_id: args.outletId,
 		room_id: args.prefill?.roomId ?? defaultRoomId,
@@ -168,8 +169,9 @@ function buildDefaults(args: {
 
 function initialCustomerMode(
 	a: AppointmentWithRelations | null,
+	prefill?: Props["prefill"],
 ): CustomerInputMode {
-	if (!a) return "searching";
+	if (!a) return prefill?.customerId ? "selected-customer" : "searching";
 	if (a.is_time_block) return "searching";
 	if (a.customer_id) return "selected-customer";
 	if (a.lead_name) return "selected-lead";
@@ -194,7 +196,7 @@ export function AppointmentDialog({
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [customerSearch, setCustomerSearch] = useState("");
 	const [customerMode, setCustomerMode] = useState<CustomerInputMode>(
-		initialCustomerMode(appointment),
+		initialCustomerMode(appointment, prefill),
 	);
 	const [pickerOpen, setPickerOpen] = useState(false);
 	const [convertOpen, setConvertOpen] = useState(false);
@@ -219,7 +221,7 @@ export function AppointmentDialog({
 			setServerError(null);
 			setCustomerSearch("");
 			setPickerOpen(false);
-			setCustomerMode(initialCustomerMode(appointment));
+			setCustomerMode(initialCustomerMode(appointment, prefill));
 			setConvertOpen(false);
 		}
 	}, [open, outletId, appointment, prefill, rooms, form]);
@@ -274,7 +276,7 @@ export function AppointmentDialog({
 			setCustomerMode("searching");
 			setPickerOpen(false);
 		} else {
-			setCustomerMode(initialCustomerMode(appointment));
+			setCustomerMode(initialCustomerMode(appointment, prefill));
 		}
 	};
 

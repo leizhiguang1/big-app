@@ -1,29 +1,55 @@
 "use client";
 
 import {
+	CalendarPlus,
 	ChevronDown,
 	ChevronUp,
+	ChevronsDownUp,
+	ChevronsUpDown,
+	FileText,
 	Loader2,
-	Paperclip,
 	Percent,
 	Plus,
-	Printer,
 	RefreshCw,
 	ShoppingCart,
+	Trash2,
 	X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { collectAppointmentPaymentAction } from "@/lib/actions/sales";
 import {
-	SALES_PAYMENT_MODE_LABEL,
-	SALES_PAYMENT_MODES,
-	type SalesPaymentMode,
-} from "@/lib/schemas/sales";
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { listPastLineItemsForCustomerAction } from "@/lib/actions/appointments";
+import { collectAppointmentPaymentAction } from "@/lib/actions/sales";
+import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
+import {
+	BillingItemPickerDialog,
+	type BillingItemSelection,
+} from "@/components/appointments/BillingItemPickerDialog";
+import { EmployeePicker } from "@/components/employees/EmployeePicker";
+import { saveAllocationsForAppointmentAction } from "@/lib/actions/appointments";
+import {
+	PAYMENT_BANKS,
+	PAYMENT_CARD_TYPES,
+	PAYMENT_EPS_MONTHS,
+} from "@/lib/constants/payment-fields";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
+import type { CustomerWithRelations } from "@/lib/services/customers";
+import type {
+	EmployeeShift,
+	RosterEmployee,
+} from "@/lib/services/employee-shifts";
+import type { EmployeeWithRelations } from "@/lib/services/employees";
+import type { InventoryItemWithRefs } from "@/lib/services/inventory";
+import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
+import type { PaymentMethod } from "@/lib/services/payment-methods";
 import type { ServiceWithCategory } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
 import { cn } from "@/lib/utils";
@@ -34,12 +60,23 @@ type Props = {
 	appointment: AppointmentWithRelations;
 	entries: AppointmentLineItem[];
 	services: ServiceWithCategory[];
+	products: InventoryItemWithRefs[];
 	taxes: Tax[];
+	outletName: string | null;
+	allEmployees: EmployeeWithRelations[];
+	paymentMethods: PaymentMethod[];
+	customers: CustomerWithRelations[];
+	rosterEmployees: RosterEmployee[];
+	rooms: Room[];
+	allOutlets: OutletWithRoomCount[];
+	shifts: EmployeeShift[];
 	onSuccess?: (result: { so_number: string; invoice_no: string }) => void;
 	onError?: (message: string) => void;
 };
 
 type DiscountType = "percent" | "amount";
+
+type Allocation = { employeeId: string; percent: number };
 
 type Line = {
 	id: string;
@@ -47,25 +84,64 @@ type Line = {
 	inventory_item_id: string | null;
 	item_type: "service" | "product" | "charge";
 	item_name: string;
+	sku: string;
 	quantity: number;
 	unit_price: number;
 	tax_id: string | null;
 	discount_type: DiscountType;
 	discount_input: string;
+	tooth_number: string;
+	surface: string;
+	remarks: string;
 };
 
-function toLine(e: AppointmentLineItem): Line {
+type PaymentEntry = {
+	key: string;
+	mode: string;
+	amount: string;
+	remarks: string;
+	bank: string;
+	card_type: string;
+	trace_no: string;
+	approval_code: string;
+	reference_no: string;
+	months: string;
+};
+
+function emptyPayment(mode: string): PaymentEntry {
+	return {
+		key: crypto.randomUUID(),
+		mode,
+		amount: "",
+		remarks: "",
+		bank: "",
+		card_type: "",
+		trace_no: "",
+		approval_code: "",
+		reference_no: "",
+		months: "",
+	};
+}
+
+function toLine(e: AppointmentLineItem, services: ServiceWithCategory[]): Line {
+	const svc = e.service_id
+		? services.find((s) => s.id === e.service_id)
+		: null;
 	return {
 		id: e.id,
 		service_id: e.service_id,
 		inventory_item_id: e.product_id ?? null,
 		item_type: (e.item_type as Line["item_type"]) ?? "service",
 		item_name: e.description,
+		sku: svc?.sku ?? "",
 		quantity: Number(e.quantity),
 		unit_price: Number(e.unit_price),
 		tax_id: e.tax_id ?? null,
 		discount_type: "amount",
 		discount_input: "",
+		tooth_number: (e as Record<string, unknown>).tooth_number as string ?? "",
+		surface: (e as Record<string, unknown>).surface as string ?? "",
+		remarks: e.notes ?? "",
 	};
 }
 
@@ -78,9 +154,6 @@ function capMyrForLine(line: Line, capPct: number | null): number | null {
 	return Math.round(lineGross(line) * capPct) / 100;
 }
 
-// Translates the staff's raw input into the final MYR discount applied to the
-// line. Clamps to [0, line total] and, when the line's service carries a cap,
-// to the cap MYR. The returned number matches what we send to the RPC.
 function computeLineDiscount(line: Line, capPct: number | null): number {
 	const raw = Number(line.discount_input);
 	if (!Number.isFinite(raw) || raw <= 0) return 0;
@@ -128,16 +201,62 @@ export function CollectPaymentDialog({
 	appointment,
 	entries,
 	services,
+	products,
 	taxes,
+	outletName,
+	allEmployees,
+	paymentMethods,
+	customers,
+	rosterEmployees,
+	rooms,
+	allOutlets,
+	shifts,
 	onSuccess,
 	onError,
 }: Props) {
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
-	const [lines, setLines] = useState<Line[]>(() => entries.map(toLine));
+	const [lines, setLines] = useState<Line[]>(() =>
+		entries.map((e) => toLine(e, services)),
+	);
 	useEffect(() => {
-		setLines(entries.map(toLine));
-	}, [entries]);
+		setLines(entries.map((e) => toLine(e, services)));
+	}, [entries, services]);
+
+	// Track which cards are expanded (by line id)
+	const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+	const toggleExpanded = (id: string) =>
+		setExpandedIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
+	const allExpanded = lines.length > 0 && lines.every((l) => expandedIds.has(l.id));
+	const toggleAll = () => {
+		if (allExpanded) {
+			setExpandedIds(new Set());
+		} else {
+			setExpandedIds(new Set(lines.map((l) => l.id)));
+		}
+	};
+
+	// Remarks sub-section collapsed state
+	const [remarksOpenIds, setRemarksOpenIds] = useState<Set<string>>(new Set());
+	const toggleRemarks = (id: string) =>
+		setRemarksOpenIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
+
+	const serviceById = useMemo(() => {
+		const map = new Map<string, ServiceWithCategory>();
+		for (const s of services) map.set(s.id, s);
+		return map;
+	}, [services]);
+
 	const capByServiceId = useMemo(() => {
 		const map = new Map<string, number>();
 		for (const s of services) {
@@ -147,21 +266,12 @@ export function CollectPaymentDialog({
 	}, [services]);
 	const capFor = (serviceId: string | null): number | null =>
 		serviceId ? (capByServiceId.get(serviceId) ?? null) : null;
-	const setLineTax = (id: string, taxId: string | null) =>
+
+	const updateLine = (id: string, patch: Partial<Line>) =>
 		setLines((rows) =>
-			rows.map((r) => (r.id === id ? { ...r, tax_id: taxId } : r)),
+			rows.map((r) => (r.id === id ? { ...r, ...patch } : r)),
 		);
-	const setLineDiscountType = (id: string, type: DiscountType) =>
-		setLines((rows) =>
-			rows.map((r) => (r.id === id ? { ...r, discount_type: type } : r)),
-		);
-	const setLineDiscountInput = (id: string, value: string) =>
-		setLines((rows) =>
-			rows.map((r) => (r.id === id ? { ...r, discount_input: value } : r)),
-		);
-	// On blur: clamp the raw input to the cap (and to the line total). We
-	// re-write the field so the staff sees what will actually be charged,
-	// instead of silently lying on submit.
+
 	const clampLineDiscountInput = (id: string) => {
 		setLines((rows) =>
 			rows.map((r) => {
@@ -192,21 +302,223 @@ export function CollectPaymentDialog({
 			}),
 		);
 	};
-	const [rounding, setRounding] = useState(0);
+
+	// Clamp unit price to service range on blur
+	const clampUnitPrice = (id: string) => {
+		setLines((rows) =>
+			rows.map((r) => {
+				if (r.id !== id || !r.service_id) return r;
+				const svc = serviceById.get(r.service_id);
+				if (!svc) return r;
+				const min = svc.price_min != null ? Number(svc.price_min) : null;
+				const max = svc.price_max != null ? Number(svc.price_max) : null;
+				let price = r.unit_price;
+				if (min != null && price < min) price = min;
+				if (max != null && price > max) price = max;
+				return price === r.unit_price ? r : { ...r, unit_price: price };
+			}),
+		);
+	};
+
+	// Rounding
 	const [requireRounding, setRequireRounding] = useState(false);
-	const [paymentMode, setPaymentMode] = useState<SalesPaymentMode>("cash");
-	const [amount, setAmount] = useState<string>("");
+	const [roundedTotalInput, setRoundedTotalInput] = useState("");
+
+	// Multi-payment
+	const methodByCode = useMemo(() => {
+		const map = new Map<string, PaymentMethod>();
+		for (const m of paymentMethods) map.set(m.code, m);
+		return map;
+	}, [paymentMethods]);
+	const defaultMethodCode = paymentMethods[0]?.code ?? "cash";
+	const [payments, setPayments] = useState<PaymentEntry[]>([
+		emptyPayment(defaultMethodCode),
+	]);
+	const addPaymentEntry = () => {
+		if (payments.length >= 5) return;
+		setPayments((prev) => [...prev, emptyPayment(defaultMethodCode)]);
+	};
+	const removePaymentEntry = (key: string) => {
+		setPayments((prev) => (prev.length <= 1 ? prev : prev.filter((p) => p.key !== key)));
+	};
+	const updatePayment = (key: string, patch: Partial<PaymentEntry>) =>
+		setPayments((prev) =>
+			prev.map((p) => (p.key === key ? { ...p, ...patch } : p)),
+		);
+	// Switching method wipes field values — old inputs never belong to the new one.
+	const changePaymentMethod = (key: string, mode: string) =>
+		setPayments((prev) =>
+			prev.map((p) =>
+				p.key === key
+					? { ...emptyPayment(mode), key: p.key, amount: p.amount }
+					: p,
+			),
+		);
+
 	const [remarks, setRemarks] = useState("");
-	const [frontdeskMsg, setFrontdeskMsg] = useState("");
-	const [attachmentsOpen, setAttachmentsOpen] = useState(true);
-	const [itemized, setItemized] = useState(false);
+	const [frontdeskMsg, setFrontdeskMsg] = useState(
+		appointment.notes ?? "",
+	);
 	const [backdate, setBackdate] = useState(false);
+	const [backdateValue, setBackdateValue] = useState("");
+	const [pickerOpen, setPickerOpen] = useState(false);
+	const [isLoadingRepeat, startRepeatTransition] = useTransition();
+	const [itemized, setItemized] = useState(false);
 	const [formError, setFormError] = useState<string | null>(null);
+	const [apptDialogOpen, setApptDialogOpen] = useState(false);
+
+	// Allocation state
+	const assignedEmpId = appointment.employee?.id ?? null;
+	const makeEmptySlots = (): Allocation[] => [
+		{ employeeId: assignedEmpId ?? "", percent: assignedEmpId ? 100 : 0 },
+		{ employeeId: "", percent: 0 },
+		{ employeeId: "", percent: 0 },
+	];
+	const redistribute = (allocs: Allocation[]): Allocation[] => {
+		const filledCount = allocs.filter((a) => a.employeeId).length;
+		if (filledCount === 0) return allocs.map((a) => ({ ...a, percent: 0 }));
+		const even = Math.floor(100 / filledCount);
+		const remainder = 100 - even * filledCount;
+		let firstAssigned = false;
+		return allocs.map((a) => {
+			if (!a.employeeId) return { ...a, percent: 0 };
+			if (!firstAssigned) {
+				firstAssigned = true;
+				return { ...a, percent: even + remainder };
+			}
+			return { ...a, percent: even };
+		});
+	};
+
+	const [globalAlloc, setGlobalAlloc] = useState<Allocation[]>(makeEmptySlots);
+	const [lineAlloc, setLineAlloc] = useState<Map<string, Allocation[]>>(
+		() => new Map(),
+	);
+
+	const setGlobalEmployee = (idx: number, empId: string | null) => {
+		setGlobalAlloc((prev) =>
+			redistribute(
+				prev.map((a, i) =>
+					i === idx ? { ...a, employeeId: empId ?? "" } : a,
+				),
+			),
+		);
+	};
+	const setGlobalPercent = (idx: number, pct: number) => {
+		setGlobalAlloc((prev) =>
+			prev.map((a, i) => (i === idx ? { ...a, percent: pct } : a)),
+		);
+	};
+
+	const getLineAlloc = (lineId: string): Allocation[] =>
+		lineAlloc.get(lineId) ?? makeEmptySlots();
+	const setLineAllocForLine = (lineId: string, allocs: Allocation[]) =>
+		setLineAlloc((prev) => new Map(prev).set(lineId, allocs));
+	const setLineEmployee = (
+		lineId: string,
+		idx: number,
+		empId: string | null,
+	) => {
+		const cur = getLineAlloc(lineId);
+		setLineAllocForLine(
+			lineId,
+			redistribute(
+				cur.map((a, i) => (i === idx ? { ...a, employeeId: empId ?? "" } : a)),
+			),
+		);
+	};
+	const setLinePercent = (lineId: string, idx: number, pct: number) => {
+		const cur = getLineAlloc(lineId);
+		setLineAllocForLine(
+			lineId,
+			cur.map((a, i) => (i === idx ? { ...a, percent: pct } : a)),
+		);
+	};
+
+	const handlePickerSelect = (sel: BillingItemSelection) => {
+		const newLine: Line =
+			sel.type === "service"
+				? {
+						id: crypto.randomUUID(),
+						service_id: sel.service.id,
+						inventory_item_id: null,
+						item_type: "service",
+						item_name: sel.service.name,
+						sku: sel.service.sku ?? "",
+						quantity: 1,
+						unit_price: Number(sel.service.price),
+						tax_id: null,
+						discount_type: "amount",
+						discount_input: "",
+						tooth_number: "",
+						surface: "",
+						remarks: "",
+					}
+				: {
+						id: crypto.randomUUID(),
+						service_id: null,
+						inventory_item_id: sel.product.id,
+						item_type: "product",
+						item_name: sel.product.name,
+						sku: sel.product.sku ?? "",
+						quantity: 1,
+						unit_price: Number(sel.product.selling_price ?? 0),
+						tax_id: null,
+						discount_type: "amount",
+						discount_input: "",
+						tooth_number: "",
+						surface: "",
+						remarks: "",
+					};
+		setLines((prev) => [...prev, newLine]);
+		setPickerOpen(false);
+	};
+
+	const handleRepeatPreviousItems = () => {
+		if (!appointment.customer_id) return;
+		startRepeatTransition(async () => {
+			try {
+				const pastItems = await listPastLineItemsForCustomerAction(
+					appointment.customer_id!,
+				);
+				const filtered = pastItems.filter(
+					(item) => item.appointment?.id !== appointment.id,
+				);
+				if (filtered.length === 0) {
+					setFormError("No previous billing items found for this customer.");
+					return;
+				}
+				const seen = new Set<string>();
+				const unique = filtered.filter((item) => {
+					const key = `${item.service_id ?? ""}_${item.description}`;
+					if (seen.has(key)) return false;
+					seen.add(key);
+					return true;
+				});
+				const newLines: Line[] = unique.slice(0, 20).map((item) => ({
+					id: crypto.randomUUID(),
+					service_id: item.service_id,
+					inventory_item_id: item.product_id ?? null,
+					item_type: (item.item_type as Line["item_type"]) ?? "service",
+					item_name: item.description,
+					sku: "",
+					quantity: Number(item.quantity),
+					unit_price: Number(item.unit_price),
+					tax_id: item.tax_id ?? null,
+					discount_type: "amount" as const,
+					discount_input: "",
+					tooth_number: "",
+					surface: "",
+					remarks: "",
+				}));
+				setLines((prev) => [...prev, ...newLines]);
+			} catch {
+				setFormError("Failed to load previous items.");
+			}
+		});
+	};
 
 	const customer = customerDisplay(appointment);
-	const assignedEmployee = appointment.employee
-		? `${appointment.employee.first_name} ${appointment.employee.last_name}`.trim()
-		: null;
 
 	const lineDiscounts = useMemo(
 		() =>
@@ -234,13 +546,55 @@ export function CollectPaymentDialog({
 			),
 		[lines, taxes, lineDiscounts],
 	);
-	const total = Math.max(0, subtotal - totalDiscount + totalTax + rounding);
 
-	const parsedAmount = Number(amount);
-	const amountValid =
-		amount !== "" && !Number.isNaN(parsedAmount) && parsedAmount > 0;
-	const cashPaid = amountValid ? parsedAmount : 0;
-	const balance = Math.max(0, total - cashPaid);
+	const rawTotal = Math.max(0, subtotal - totalDiscount + totalTax);
+
+	// Rounding: compute from rounded total input
+	const rounding = useMemo(() => {
+		if (!requireRounding) return 0;
+		const parsed = Number(roundedTotalInput);
+		if (!Number.isFinite(parsed)) return 0;
+		return Math.round((parsed - rawTotal) * 100) / 100;
+	}, [requireRounding, roundedTotalInput, rawTotal]);
+
+	const roundingExceedsLimit = requireRounding && Math.abs(rounding) > 1;
+
+	const total = Math.max(0, rawTotal + rounding);
+
+	// Multi-payment totals
+	const totalPaid = useMemo(
+		() =>
+			payments.reduce((sum, p) => {
+				const v = Number(p.amount);
+				return sum + (Number.isFinite(v) && v > 0 ? v : 0);
+			}, 0),
+		[payments],
+	);
+	const balance = Math.max(0, total - totalPaid);
+
+	// Payment allocation per line
+	const [linePayAlloc, setLinePayAlloc] = useState<Map<string, string>>(
+		() => new Map(),
+	);
+	const getLinePayAlloc = (id: string) => linePayAlloc.get(id) ?? "";
+	const setLinePayAllocVal = (id: string, val: string) =>
+		setLinePayAlloc((prev) => new Map(prev).set(id, val));
+
+	// Auto-fill allocations when total paid >= total
+	useEffect(() => {
+		if (totalPaid >= total && total > 0) {
+			const next = new Map<string, string>();
+			for (let i = 0; i < lines.length; i++) {
+				const disc = lineDiscounts[i] ?? 0;
+				const net = Math.max(0, lineGross(lines[i]) - disc);
+				const tax = lineTaxAmount(lines[i], taxes, disc);
+				next.set(lines[i].id, (net + tax).toFixed(2));
+			}
+			setLinePayAlloc(next);
+		}
+	}, [totalPaid, total, lines, lineDiscounts, taxes]);
+
+	const amountValid = totalPaid > 0;
 
 	const handleSubmit = () => {
 		setFormError(null);
@@ -252,8 +606,51 @@ export function CollectPaymentDialog({
 			setFormError("Enter the payment amount.");
 			return;
 		}
+		// Validate rounding
+		if (roundingExceedsLimit) {
+			setFormError("Rounding adjustment cannot exceed RM 1.00.");
+			return;
+		}
+
 		startTransition(async () => {
 			try {
+				// Save employee allocations for real appointment line items
+				const entryIds = new Set(entries.map((e) => e.id));
+				const allocPayload: {
+					lineItemId: string;
+					employees: { employee_id: string; percent: number }[];
+				}[] = [];
+				for (const line of lines) {
+					if (!entryIds.has(line.id)) continue;
+					const allocs = itemized
+						? getLineAlloc(line.id)
+						: globalAlloc;
+					const valid = allocs.filter((a) => a.employeeId);
+					if (valid.length > 0) {
+						allocPayload.push({
+							lineItemId: line.id,
+							employees: valid.map((a) => ({
+								employee_id: a.employeeId,
+								percent: a.percent,
+							})),
+						});
+					}
+				}
+				if (allocPayload.length > 0) {
+					await saveAllocationsForAppointmentAction(
+						appointment.id,
+						allocPayload,
+					);
+				}
+
+				// Build allocations array for the RPC
+				const allocations = totalPaid < total
+					? lines.map((l, i) => ({
+							item_index: i,
+							amount: Number(linePayAlloc.get(l.id) || "0"),
+						}))
+					: null;
+
 				const result = await collectAppointmentPaymentAction(appointment.id, {
 					items: lines.map((l, i) => ({
 						service_id: l.service_id,
@@ -269,9 +666,29 @@ export function CollectPaymentDialog({
 					discount: 0,
 					tax: 0,
 					rounding,
-					payment_mode: paymentMode,
-					amount: parsedAmount,
+					payments: payments
+						.filter((p) => {
+							const v = Number(p.amount);
+							return Number.isFinite(v) && v > 0;
+						})
+						.map((p) => ({
+							mode: p.mode,
+							amount: Number(p.amount),
+							remarks: p.remarks.trim() || null,
+							bank: p.bank.trim() || null,
+							card_type: p.card_type.trim() || null,
+							trace_no: p.trace_no.trim() || null,
+							approval_code: p.approval_code.trim() || null,
+							reference_no: p.reference_no.trim() || null,
+							months: p.months ? Number(p.months) : null,
+						})),
+					allocations,
 					remarks: remarks.trim() || null,
+					sold_at:
+						backdate && backdateValue
+							? new Date(backdateValue).toISOString()
+							: null,
+					frontdesk_message: frontdeskMsg.trim() || null,
 				});
 				onSuccess?.({
 					so_number: result.so_number,
@@ -288,12 +705,14 @@ export function CollectPaymentDialog({
 		});
 	};
 
-	const disabled = isPending || lines.length === 0 || !amountValid;
+	const disabled = isPending || lines.length === 0 || !amountValid || roundingExceedsLimit;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				showCloseButton={false}
+				onPointerDownOutside={(e) => e.preventDefault()}
+				onInteractOutside={(e) => e.preventDefault()}
 				className="flex max-h-[92vh] w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl"
 			>
 				<DialogTitle className="sr-only">Collect payment</DialogTitle>
@@ -309,70 +728,110 @@ export function CollectPaymentDialog({
 								{customer.code}
 							</div>
 						)}
-						<div className="mt-1 text-sm font-medium text-amber-500">
-							MYR {money(0)}
+						<div className="mt-0.5 text-xs text-muted-foreground">
+							MYR {money(total)}
 						</div>
-						<div className="text-xs text-muted-foreground">Cash Wallet</div>
+						<div className="text-[10px] text-muted-foreground">
+							Cash / Wallet
+						</div>
 					</div>
 
-					<div className="flex items-center gap-6">
+					<div className="flex items-center gap-4">
 						<div className="flex items-center gap-2">
-							<span className="text-sm text-muted-foreground">
+							<span className="text-xs text-muted-foreground">
 								Itemised Allocation?
 							</span>
 							<Toggle checked={itemized} onCheckedChange={setItemized} />
 						</div>
-						<div className="flex items-end gap-3">
-							<StaffAvatar
-								name={assignedEmployee ?? "Employee 1"}
-								percent={100}
-							/>
-							<StaffAvatar name="Employee 2" percent={null} muted />
-							<StaffAvatar name="Employee 3" percent={null} muted />
-						</div>
-						<button
-							type="button"
-							onClick={() => onOpenChange(false)}
-							className="ml-2 rounded p-1 text-muted-foreground hover:bg-muted"
-							aria-label="Close"
-						>
-							<X className="size-5" />
-						</button>
+
+						{/* Global allocation slots (shown when NOT itemised) */}
+						{!itemized &&
+							(() => {
+								const filled = globalAlloc.filter((a) => a.employeeId);
+								const sum = filled.reduce((s, a) => s + a.percent, 0);
+								return (
+									<div className="flex items-end gap-2">
+										{globalAlloc.map((slot, idx) => (
+											<div
+												key={`global-${idx}`}
+												className="flex flex-col items-center gap-1"
+											>
+												<EmployeePicker
+													employees={allEmployees}
+													value={slot.employeeId || null}
+													onChange={(id) => setGlobalEmployee(idx, id)}
+													size="sm"
+													placeholder={`Employee ${idx + 1}`}
+												/>
+												{slot.employeeId ? (
+													<div className="flex items-center gap-0.5">
+														<input
+															type="number"
+															min={0}
+															max={100}
+															step="0.01"
+															value={slot.percent}
+															onChange={(e) =>
+																setGlobalPercent(
+																	idx,
+																	Number(e.target.value) || 0,
+																)
+															}
+															className="h-5 w-14 rounded border bg-background px-1 text-center text-[10px] tabular-nums outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+														/>
+														<span className="text-[10px] text-muted-foreground">
+															%
+														</span>
+													</div>
+												) : (
+													<div className="h-5" />
+												)}
+											</div>
+										))}
+										{filled.length > 0 && (
+											<div className="text-[10px] tabular-nums text-muted-foreground">
+												{sum.toFixed(0)}%
+												{Math.abs(sum - 100) > 0.01 && (
+													<span className="ml-1 text-amber-600">
+														(must be 100%)
+													</span>
+												)}
+											</div>
+										)}
+									</div>
+								);
+							})()}
+
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<button
+										type="button"
+										onClick={() => onOpenChange(false)}
+										disabled={isPending}
+										aria-label="Close"
+										className="ml-2 flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+									>
+										<X className="size-4" />
+									</button>
+								</TooltipTrigger>
+								<TooltipContent>Close</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 					</div>
 				</div>
 
 				{/* Body */}
 				<div className="grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden lg:grid-cols-[1fr_360px]">
 					{/* LEFT COLUMN */}
-					<div className="flex min-h-0 flex-col overflow-y-auto border-r bg-slate-50/40 px-5 py-4">
-						{/* Custom fields placeholder card */}
-						<div className="mb-3 rounded-md border bg-white p-3 shadow-sm">
-							<div className="grid grid-cols-2 gap-3">
-								<div>
-									<label className="text-xs text-muted-foreground">
-										Reference #
-									</label>
-									<Input placeholder="Optional" disabled className="mt-1 h-8" />
-								</div>
-								<div>
-									<label className="text-xs text-muted-foreground">Tag</label>
-									<Input
-										placeholder="Type to search"
-										disabled
-										className="mt-1 h-8"
-									/>
-								</div>
-							</div>
-							<div className="mt-3">
-								<div className="text-xs font-medium text-blue-600">Remarks</div>
-								<textarea
-									placeholder="Up to 100 words"
-									className="mt-1 min-h-[44px] w-full resize-none rounded border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring"
-									maxLength={500}
-									value={remarks}
-									onChange={(e) => setRemarks(e.target.value)}
-								/>
-							</div>
+					<div className="flex min-h-0 flex-col overflow-y-auto border-r bg-slate-50/40 px-5 pt-4 pb-10">
+						{/* Column headers */}
+						<div className="mb-2 grid grid-cols-[1fr_56px_96px_80px_24px] items-center gap-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-blue-600">
+							<span>Product/Service</span>
+							<span className="text-center">Qty</span>
+							<span className="text-right">Unit (MYR)</span>
+							<span className="text-right">Total (MYR)</span>
+							<span />
 						</div>
 
 						{/* Line items */}
@@ -382,129 +841,375 @@ export function CollectPaymentDialog({
 									No billing items. Add services in the Billing tab first.
 								</div>
 							) : (
-								<ul className="divide-y">
-									{lines.map((l, i) => {
-										const appliedDiscount = lineDiscounts[i] ?? 0;
-										const taxAmt = lineTaxAmount(l, taxes, appliedDiscount);
-										const activeTaxes = taxes.filter((t) => t.is_active);
-										const capPct = capFor(l.service_id);
-										const gross = lineGross(l);
-										const capMyr =
-											capPct != null ? Math.round(gross * capPct) / 100 : null;
-										const netTotal = Math.max(0, gross - appliedDiscount);
-										return (
-											<li key={l.id} className="px-3 py-3">
-												<div className="grid grid-cols-[1fr_60px_110px_110px_24px] items-center gap-2 text-sm">
-													<div>
-														<div className="font-medium text-blue-600">
-															({l.item_type === "product" ? "PRD" : "SVC"}){" "}
-															{l.item_name}
+								<>
+									{/* Expand / Collapse All header */}
+									<div className="flex items-center justify-end border-b px-3 py-1.5">
+										<button
+											type="button"
+											onClick={toggleAll}
+											className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+										>
+											{allExpanded ? (
+												<>
+													<ChevronsDownUp className="size-3.5" />
+													Collapse All
+												</>
+											) : (
+												<>
+													<ChevronsUpDown className="size-3.5" />
+													Expand All
+												</>
+											)}
+										</button>
+									</div>
+									<ul className="divide-y">
+										{lines.map((l, i) => {
+											const isExpanded = expandedIds.has(l.id);
+											const appliedDiscount = lineDiscounts[i] ?? 0;
+											const taxAmt = lineTaxAmount(l, taxes, appliedDiscount);
+											const activeTaxes = taxes.filter((t) => t.is_active);
+											const capPct = capFor(l.service_id);
+											const gross = lineGross(l);
+											const netTotal = Math.max(0, gross - appliedDiscount);
+											const svc = l.service_id
+												? serviceById.get(l.service_id)
+												: null;
+											const priceMin =
+												svc?.price_min != null
+													? Number(svc.price_min)
+													: null;
+											const priceMax =
+												svc?.price_max != null
+													? Number(svc.price_max)
+													: null;
+											const priceLocked =
+												svc != null && svc.allow_cash_price_range === false;
+											const hasRange = priceMin != null && priceMax != null;
+											const priceEditable = l.item_type !== "service" || (hasRange && !priceLocked);
+											const qtyEditable = l.item_type !== "service";
+											const remarksOpen = remarksOpenIds.has(l.id);
+
+											return (
+												<li key={l.id} className="px-3 py-2.5">
+													{/* Row 1: main data — grid aligned with column headers */}
+													<div className="grid grid-cols-[1fr_56px_96px_80px_24px] items-center gap-1">
+														{/* Product/Service */}
+														<div className="min-w-0">
+															<div className="flex items-center gap-1.5">
+																<span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-primary">
+																	{l.item_type === "product"
+																		? "PRD"
+																		: l.item_type === "charge"
+																			? "CON"
+																			: "SVC"}
+																</span>
+																<span className="truncate text-sm font-medium text-blue-600">
+																	{l.item_name}
+																</span>
+															</div>
 														</div>
-														<div className="text-xs text-muted-foreground">
-															{l.id.slice(0, 6).toUpperCase()}
-														</div>
-													</div>
-													<div className="text-right tabular-nums">
-														{l.quantity}
-													</div>
-													<div className="text-right tabular-nums">
-														{money(l.unit_price)}
-													</div>
-													<div className="text-right font-medium tabular-nums">
-														{money(netTotal)}
-													</div>
-													<ChevronDown className="size-4 text-muted-foreground" />
-												</div>
-												<div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-													<select
-														value={l.tax_id ?? ""}
-														onChange={(e) =>
-															setLineTax(
-																l.id,
-																e.target.value === "" ? null : e.target.value,
-															)
-														}
-														className="h-6 rounded-full border bg-background px-2 text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-														aria-label="Tax for this line item"
-													>
-														<option value="">— No tax —</option>
-														{activeTaxes.map((t) => (
-															<option key={t.id} value={t.id}>
-																({t.name.toUpperCase()}){" "}
-																{Number(t.rate_pct).toFixed(2)}%
-															</option>
-														))}
-													</select>
-													<span className="text-muted-foreground tabular-nums">
-														Tax: {money(taxAmt)}
-													</span>
-												</div>
-												<div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-													<span className="text-muted-foreground">
-														Discount
-													</span>
-													<div className="flex items-center overflow-hidden rounded-md border">
-														<Input
-															type="number"
-															min={0}
-															step="0.01"
-															value={l.discount_input}
-															placeholder="0"
-															onChange={(e) =>
-																setLineDiscountInput(l.id, e.target.value)
-															}
-															onBlur={() => clampLineDiscountInput(l.id)}
-															className="h-6 w-20 rounded-none border-0 text-right text-[11px] focus-visible:ring-0"
-															aria-label={`Discount for ${l.item_name}`}
-														/>
-														<div className="flex border-l">
-															<button
-																type="button"
-																onClick={() =>
-																	setLineDiscountType(l.id, "percent")
+
+														{/* Qty */}
+														{qtyEditable ? (
+															<Input
+																type="number"
+																min={1}
+																step="1"
+																value={l.quantity}
+																onChange={(e) =>
+																	updateLine(l.id, {
+																		quantity: Number(e.target.value) || 1,
+																	})
 																}
-																className={cn(
-																	"px-2 text-[11px]",
-																	l.discount_type === "percent"
-																		? "bg-blue-600 text-white"
-																		: "bg-background text-muted-foreground hover:bg-muted",
-																)}
-																aria-pressed={l.discount_type === "percent"}
-															>
-																%
-															</button>
-															<button
-																type="button"
-																onClick={() =>
-																	setLineDiscountType(l.id, "amount")
+																className="h-7 text-center text-[11px] tabular-nums"
+															/>
+														) : (
+															<span className="text-center text-sm tabular-nums">
+																{l.quantity}
+															</span>
+														)}
+
+														{/* Unit Price */}
+														{priceEditable ? (
+															<Input
+																type="number"
+																min={0}
+																step="0.01"
+																value={l.unit_price}
+																onChange={(e) =>
+																	updateLine(l.id, {
+																		unit_price: Number(e.target.value) || 0,
+																	})
 																}
-																className={cn(
-																	"border-l px-2 text-[11px]",
-																	l.discount_type === "amount"
-																		? "bg-blue-600 text-white"
-																		: "bg-background text-muted-foreground hover:bg-muted",
-																)}
-																aria-pressed={l.discount_type === "amount"}
-															>
-																RM
-															</button>
-														</div>
-													</div>
-													{appliedDiscount > 0 && (
-														<span className="tabular-nums text-muted-foreground">
-															−{money(appliedDiscount)}
+																onBlur={() => clampUnitPrice(l.id)}
+																className="h-7 text-right text-[11px] tabular-nums"
+															/>
+														) : (
+															<span className="text-right text-sm tabular-nums">
+																{money(l.unit_price)}
+															</span>
+														)}
+
+														{/* Total */}
+														<span className="text-right text-sm font-medium tabular-nums">
+															{money(netTotal)}
 														</span>
+
+														{/* Chevron */}
+														<button
+															type="button"
+															onClick={() => toggleExpanded(l.id)}
+															className="flex size-6 items-center justify-center rounded hover:bg-muted"
+														>
+															{isExpanded ? (
+																<ChevronUp className="size-4 text-muted-foreground" />
+															) : (
+																<ChevronDown className="size-4 text-muted-foreground" />
+															)}
+														</button>
+													</div>
+
+													{/* Row 2: SKU + Tax (right-aligned, outside grid) */}
+													<div className="mt-1 flex items-start justify-between">
+														{l.sku ? (
+															<div className="pl-7 text-[10px] font-mono text-muted-foreground">
+																{l.sku}
+															</div>
+														) : (
+															<div />
+														)}
+														<div className="flex flex-col items-end gap-0.5">
+															<select
+																value={l.tax_id ?? ""}
+																onChange={(e) =>
+																	updateLine(l.id, {
+																		tax_id: e.target.value === "" ? null : e.target.value,
+																	})
+																}
+																className="h-5 rounded border bg-background px-1.5 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+															>
+																<option value="">No tax</option>
+																{activeTaxes.map((t) => (
+																	<option key={t.id} value={t.id}>
+																		({t.name.toUpperCase()}) {Number(t.rate_pct).toFixed(2)}%
+																	</option>
+																))}
+															</select>
+															{taxAmt > 0 && (
+																<span className="text-[10px] text-muted-foreground">
+																	Tax Amount (MYR): {money(taxAmt)}
+																</span>
+															)}
+														</div>
+													</div>
+
+													{/* Expanded section */}
+													{isExpanded && (
+														<div className="mt-2 space-y-2 border-t border-dashed pt-2 text-[11px]">
+															{/* Discount row */}
+															<div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+																<div className="flex items-center gap-1.5">
+																	<span className="text-muted-foreground">Discount</span>
+																	<div className="flex items-center overflow-hidden rounded-md border">
+																		<Input
+																			type="number"
+																			min={0}
+																			step="0.01"
+																			value={l.discount_input}
+																			placeholder="0"
+																			onChange={(e) =>
+																				updateLine(l.id, {
+																					discount_input: e.target.value,
+																				})
+																			}
+																			onBlur={() => clampLineDiscountInput(l.id)}
+																			className="h-6 w-16 rounded-none border-0 text-right text-[11px] focus-visible:ring-0"
+																		/>
+																		<div className="flex">
+																			<button
+																				type="button"
+																				onClick={() =>
+																					updateLine(l.id, { discount_type: "percent" })
+																				}
+																				className={cn(
+																					"border-l px-2.5 py-1 text-[11px] font-medium transition-colors",
+																					l.discount_type === "percent"
+																						? "bg-blue-600 text-white"
+																						: "bg-muted/50 text-muted-foreground hover:bg-muted",
+																				)}
+																			>
+																				%
+																			</button>
+																			<button
+																				type="button"
+																				onClick={() =>
+																					updateLine(l.id, { discount_type: "amount" })
+																				}
+																				className={cn(
+																					"border-l px-2.5 py-1 text-[11px] font-medium transition-colors",
+																					l.discount_type === "amount"
+																						? "bg-blue-600 text-white"
+																						: "bg-muted/50 text-muted-foreground hover:bg-muted",
+																				)}
+																			>
+																				MYR
+																			</button>
+																		</div>
+																	</div>
+																	{appliedDiscount > 0 && (
+																		<span className="tabular-nums text-muted-foreground">
+																			-{money(appliedDiscount)}
+																		</span>
+																	)}
+																</div>
+
+																{/* Payment Allocation — only when partial */}
+																{totalPaid < total && (
+																	<div className="flex items-center gap-1.5">
+																		<span className="text-muted-foreground">Payment Allocation (MYR)</span>
+																		<Input
+																			type="number"
+																			min={0}
+																			step="0.01"
+																			value={getLinePayAlloc(l.id)}
+																			onChange={(e) =>
+																				setLinePayAllocVal(l.id, e.target.value)
+																			}
+																			className="h-6 w-20 text-right text-[11px] tabular-nums"
+																		/>
+																	</div>
+																)}
+															</div>
+
+															{/* Tooth + Surface row */}
+															<div className="flex items-center gap-4">
+																<div className="flex items-center gap-1.5">
+																	<span className="text-muted-foreground">Tooth #</span>
+																	<Input
+																		value={l.tooth_number}
+																		onChange={(e) =>
+																			updateLine(l.id, { tooth_number: e.target.value })
+																		}
+																		className="h-6 w-24 text-[11px]"
+																	/>
+																</div>
+																<div className="flex items-center gap-1.5">
+																	<span className="text-muted-foreground">Surface</span>
+																	<Input
+																		value={l.surface}
+																		onChange={(e) =>
+																			updateLine(l.id, { surface: e.target.value })
+																		}
+																		className="h-6 w-24 text-[11px]"
+																	/>
+																</div>
+															</div>
+
+															{/* Remarks */}
+															<div className="flex items-start gap-1.5">
+																<button
+																	type="button"
+																	onClick={() => toggleRemarks(l.id)}
+																	className="mt-0.5 flex shrink-0 items-center gap-0.5 text-muted-foreground hover:text-foreground"
+																>
+																	Remarks
+																	{remarksOpen ? (
+																		<ChevronUp className="size-3" />
+																	) : (
+																		<ChevronDown className="size-3" />
+																	)}
+																</button>
+																{remarksOpen && (
+																	<textarea
+																		value={l.remarks}
+																		onChange={(e) =>
+																			updateLine(l.id, { remarks: e.target.value })
+																		}
+																		maxLength={500}
+																		rows={1}
+																		className="min-h-[24px] flex-1 resize-none rounded border border-input bg-transparent px-2 py-0.5 text-[11px] outline-none placeholder:italic placeholder:text-muted-foreground/50 focus-visible:border-ring"
+																	/>
+																)}
+															</div>
+
+															{/* Hints */}
+															{(capPct != null || hasRange) && (
+																<div className="space-y-0.5 text-[10px] text-muted-foreground">
+																	{capPct != null && (
+																		<div>Up to {capPct}(%)</div>
+																	)}
+																	{hasRange && (
+																		<div>
+																			Item price range is (MYR) {money(priceMin!)} to (MYR) {money(priceMax!)}
+																		</div>
+																	)}
+																</div>
+															)}
+
+															{/* Per-line employee allocation (when itemised) */}
+															{itemized &&
+																(() => {
+																	const slots = getLineAlloc(l.id);
+																	const filled = slots.filter((a) => a.employeeId);
+																	const sum = filled.reduce((s, a) => s + a.percent, 0);
+																	return (
+																		<div className="flex flex-wrap items-center gap-2 border-t border-dotted pt-1.5">
+																			{slots.map((slot, si) => (
+																				<div
+																					key={`la-${l.id}-${si}`}
+																					className="flex items-center gap-1"
+																				>
+																					<EmployeePicker
+																						employees={allEmployees}
+																						value={slot.employeeId || null}
+																						onChange={(id) =>
+																							setLineEmployee(l.id, si, id)
+																						}
+																						size="sm"
+																						placeholder={`Employee ${si + 1}`}
+																					/>
+																					{slot.employeeId && (
+																						<>
+																							<input
+																								type="number"
+																								min={0}
+																								max={100}
+																								step="0.01"
+																								value={slot.percent}
+																								onChange={(e) =>
+																									setLinePercent(
+																										l.id,
+																										si,
+																										Number(e.target.value) || 0,
+																									)
+																								}
+																								className="h-5 w-14 rounded border bg-background px-1 text-center text-[10px] tabular-nums outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+																							/>
+																							<span className="text-[10px] text-muted-foreground">%</span>
+																						</>
+																					)}
+																				</div>
+																			))}
+																			{filled.length > 0 && (
+																				<span className="text-[10px] tabular-nums text-muted-foreground">
+																					{sum.toFixed(0)}%
+																					{Math.abs(sum - 100) > 0.01 && (
+																						<span className="ml-1 text-amber-600">
+																							(must be 100%)
+																						</span>
+																					)}
+																				</span>
+																			)}
+																		</div>
+																	);
+																})()}
+														</div>
 													)}
-													{capPct != null ? (
-														<span className="text-muted-foreground">
-															Max {capPct}% ({money(capMyr ?? 0)})
-														</span>
-													) : null}
-												</div>
-											</li>
-										);
-									})}
-								</ul>
+												</li>
+											);
+										})}
+									</ul>
+								</>
 							)}
 						</div>
 
@@ -513,120 +1218,177 @@ export function CollectPaymentDialog({
 							<div className="space-y-2 text-sm">
 								<button
 									type="button"
-									disabled
-									className="flex items-center gap-2 text-blue-600 disabled:opacity-60"
+									onClick={() => setPickerOpen(true)}
+									className="flex items-center gap-2 text-blue-600 hover:underline"
 								>
 									<ShoppingCart className="size-4" />
 									Add Item to Cart
 								</button>
 								<button
 									type="button"
-									disabled
-									className="flex items-center gap-2 text-blue-600 disabled:opacity-60"
+									onClick={handleRepeatPreviousItems}
+									disabled={isLoadingRepeat || !appointment.customer_id}
+									className="flex items-center gap-2 text-blue-600 hover:underline disabled:opacity-60"
 								>
-									<RefreshCw className="size-4" />
-									Repeat Previous Items
+									{isLoadingRepeat ? (
+										<Loader2 className="size-4 animate-spin" />
+									) : (
+										<RefreshCw className="size-4" />
+									)}
+									Repeat Medication
 								</button>
 								<button
 									type="button"
 									disabled
-									className="flex items-center gap-2 text-blue-600 disabled:opacity-60"
+									className="flex items-center gap-2 text-muted-foreground disabled:opacity-50"
+									title="Coming soon"
 								>
 									<Percent className="size-4" />
-									Apply Auto Discount to Cart Items
+									Apply Auto Discount to Cart Items?
 								</button>
 							</div>
 
-							<div className="space-y-1 text-sm">
+							<div className="space-y-1.5 text-sm">
 								<Row
-									label="Subtotal (MYR)"
+									label="Tax"
 									value={
-										<span className="tabular-nums">{money(subtotal)}</span>
+										<span className="tabular-nums text-foreground">{money(totalTax)}</span>
 									}
 								/>
 								<Row
-									label="Discount (MYR)"
+									label="Discount"
 									value={
-										<span className="tabular-nums">
-											−{money(totalDiscount)}
+										<span className="tabular-nums text-foreground">
+											{money(totalDiscount)}
 										</span>
 									}
 								/>
+								<div className="border-t pt-1.5">
+									<Row
+										label="Total (MYR)"
+										value={
+											<span className={cn(
+												"tabular-nums font-semibold text-foreground",
+												requireRounding && "line-through text-muted-foreground font-normal",
+											)}>
+												{money(rawTotal)}
+											</span>
+										}
+									/>
+								</div>
+
+								{/* Rounding */}
 								<Row
-									label="Tax (MYR)"
+									label={
+										<div className="flex items-center gap-2">
+											<span>Rounding</span>
+											<Toggle
+												checked={requireRounding}
+												onCheckedChange={(v) => {
+													setRequireRounding(v);
+													if (v) {
+														setRoundedTotalInput(String(Math.floor(rawTotal)));
+													} else {
+														setRoundedTotalInput("");
+													}
+												}}
+											/>
+										</div>
+									}
 									value={
-										<span className="tabular-nums">{money(totalTax)}</span>
+										requireRounding ? (
+											<div className="flex flex-col items-end gap-0.5">
+												<Input
+													type="number"
+													step="1"
+													value={roundedTotalInput}
+													onChange={(e) =>
+														setRoundedTotalInput(e.target.value)
+													}
+													placeholder={rawTotal.toFixed(2)}
+													className={cn(
+														"h-7 w-28 text-right text-xs tabular-nums",
+														roundingExceedsLimit && "border-red-500 focus-visible:ring-red-500",
+													)}
+												/>
+												{rounding !== 0 && !roundingExceedsLimit && (
+													<span className="text-[10px] text-muted-foreground">
+														{rounding > 0 ? "+" : ""}{money(rounding)}
+													</span>
+												)}
+												{roundingExceedsLimit && (
+													<span className="text-[10px] font-medium text-red-600">
+														Exceeds RM 1.00 limit
+													</span>
+												)}
+											</div>
+										) : (
+											<span className="tabular-nums text-muted-foreground">—</span>
+										)
+									}
+								/>
+
+								{/* Total After Rounding — the final charge amount */}
+								{requireRounding && (
+									<div className="rounded-md bg-blue-50 px-3 py-2">
+										<Row
+											label={<span className="text-xs font-semibold text-foreground">Total After Rounding (MYR)</span>}
+											value={
+												<span className="tabular-nums text-base font-bold text-blue-700">
+													{money(total)}
+												</span>
+											}
+										/>
+									</div>
+								)}
+
+								<Row
+									label="Paid"
+									value={
+										<span className="tabular-nums text-foreground">{money(totalPaid)}</span>
 									}
 								/>
 								<Row
-									label="Total (MYR)"
+									label="Balance"
 									value={
-										<span className="tabular-nums font-medium">
-											{money(total)}
-										</span>
-									}
-								/>
-								<Row
-									label="Cash (MYR)"
-									value={
-										<span className="tabular-nums">{money(cashPaid)}</span>
-									}
-								/>
-								<Row
-									label="Balance (MYR)"
-									value={
-										<span className="tabular-nums font-semibold">
+										<span className={cn(
+											"tabular-nums font-semibold",
+											balance > 0 ? "text-amber-600" : "text-foreground",
+										)}>
 											{money(balance)}
 										</span>
 									}
 								/>
-								<div className="flex items-center justify-end gap-2 pt-1 text-xs">
-									<span className="text-blue-600">Require Rounding?</span>
-									<Toggle
-										checked={requireRounding}
-										onCheckedChange={(v) => {
-											setRequireRounding(v);
-											if (!v) setRounding(0);
-										}}
-									/>
-								</div>
 							</div>
 						</div>
 					</div>
 
 					{/* RIGHT COLUMN */}
 					<div className="flex min-h-0 flex-col overflow-y-auto bg-white px-5 py-4">
-						{/* Attachments / certificates placeholder */}
-						<button
-							type="button"
-							onClick={() => setAttachmentsOpen((v) => !v)}
-							className="flex w-full items-center justify-between text-sm font-semibold text-blue-600"
-						>
-							<span className="tracking-wide">ATTACHMENTS</span>
-							{attachmentsOpen ? (
-								<ChevronUp className="size-4" />
-							) : (
-								<ChevronDown className="size-4" />
-							)}
-						</button>
-						{attachmentsOpen && (
-							<div className="mt-2 rounded-md border p-3 shadow-sm">
-								<div className="flex items-center justify-between">
-									<div>
-										<div className="text-sm font-medium">
-											ATTACH-{appointment.id.slice(0, 6).toUpperCase()}
-										</div>
-										<div className="text-xs text-muted-foreground">
-											Placeholder · no files yet
-										</div>
-									</div>
-									<div className="flex items-center gap-2 text-muted-foreground">
-										<Printer className="size-4" />
-										<Paperclip className="size-4" />
-									</div>
+						{/* Medical Certificate */}
+						<div className="text-sm font-semibold tracking-wide text-blue-600">
+							MEDICAL CERTIFICATE
+							<span className="ml-1 text-[10px] font-normal text-muted-foreground">
+								^
+							</span>
+						</div>
+						<div className="mt-2 rounded-md border p-3">
+							<div className="flex items-center justify-between">
+								<span className="text-xs text-muted-foreground">
+									MC/—
+								</span>
+								<div className="flex items-center gap-1.5">
+									<button
+										type="button"
+										disabled
+										className="flex size-6 items-center justify-center rounded text-muted-foreground/40"
+										aria-label="Generate MC"
+									>
+										<FileText className="size-3.5" />
+									</button>
 								</div>
 							</div>
-						)}
+						</div>
 
 						{/* Payment */}
 						<div className="mt-5 text-sm font-semibold tracking-wide text-blue-600">
@@ -635,72 +1397,142 @@ export function CollectPaymentDialog({
 
 						<div className="mt-2 flex items-center justify-end gap-2 text-xs">
 							<span className="text-blue-600">Backdate Invoice?</span>
-							<Toggle checked={backdate} onCheckedChange={setBackdate} />
-						</div>
-
-						<div className="mt-3 space-y-2">
-							<div className="grid grid-cols-[1fr_1fr] gap-2">
-								<select
-									className="h-9 rounded-md border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring"
-									value={paymentMode}
-									onChange={(e) =>
-										setPaymentMode(e.target.value as SalesPaymentMode)
+							<Toggle
+								checked={backdate}
+								onCheckedChange={(v) => {
+									setBackdate(v);
+									if (v) {
+										const now = new Date();
+										const yyyy = now.getFullYear();
+										const mm = String(now.getMonth() + 1).padStart(2, "0");
+										const dd = String(now.getDate()).padStart(2, "0");
+										setBackdateValue(`${yyyy}-${mm}-${dd}`);
+									} else {
+										setBackdateValue("");
 									}
-								>
-									{SALES_PAYMENT_MODES.map((m) => (
-										<option key={m} value={m}>
-											{SALES_PAYMENT_MODE_LABEL[m]}
-										</option>
-									))}
-								</select>
-								<div className="flex h-9 items-center justify-end rounded-md border border-input px-2 text-sm tabular-nums text-muted-foreground">
-									MYR {money(total)}
-								</div>
-							</div>
-
-							<div className="grid grid-cols-[1fr_1fr] gap-2">
-								<div className="flex h-9 items-center rounded-md border border-input bg-muted/30 px-2 text-xs uppercase tracking-wide text-muted-foreground">
-									{SALES_PAYMENT_MODE_LABEL[paymentMode]}
-								</div>
+								}}
+							/>
+						</div>
+						{backdate && (
+							<div className="mt-2">
 								<Input
-									type="number"
-									min={0}
-									step="0.01"
-									placeholder={money(total)}
-									value={amount}
-									onChange={(e) => setAmount(e.target.value)}
-									className="h-9 text-right tabular-nums"
+									type="date"
+									value={backdateValue}
+									onChange={(e) => setBackdateValue(e.target.value)}
+									className="h-8 text-xs"
 								/>
 							</div>
+						)}
 
-							<div>
-								<div className="text-xs text-muted-foreground">Remarks:</div>
+						<div className="mt-3 space-y-3">
+							{payments.map((p) => {
+								const method = methodByCode.get(p.mode);
+								return (
+									<div
+										key={p.key}
+										className="space-y-2 rounded-md border border-border bg-muted/20 p-2"
+									>
+										<div className="flex items-center gap-2">
+											<select
+												className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring"
+												value={p.mode}
+												onChange={(e) =>
+													changePaymentMethod(p.key, e.target.value)
+												}
+											>
+												{paymentMethods.map((m) => (
+													<option key={m.code} value={m.code}>
+														{m.name}
+													</option>
+												))}
+												{!method && (
+													<option key={p.mode} value={p.mode}>
+														{p.mode}
+													</option>
+												)}
+											</select>
+											<Input
+												type="number"
+												min={0}
+												step="0.01"
+												placeholder="0.00"
+												value={p.amount}
+												onChange={(e) =>
+													updatePayment(p.key, { amount: e.target.value })
+												}
+												className="h-8 flex-1 text-right text-xs tabular-nums"
+											/>
+											{payments.length > 1 && (
+												<button
+													type="button"
+													onClick={() => removePaymentEntry(p.key)}
+													className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+													aria-label="Remove payment"
+												>
+													<Trash2 className="size-3.5" />
+												</button>
+											)}
+										</div>
+
+										{method && (
+											<PaymentMethodFields
+												method={method}
+												entry={p}
+												onChange={(patch) => updatePayment(p.key, patch)}
+											/>
+										)}
+									</div>
+								);
+							})}
+
+							{/* SO remarks — different from payments.remarks. Stored on sales_orders.remarks. */}
+							<div className="flex items-center gap-2">
+								<span className="w-20 shrink-0 text-xs text-muted-foreground">
+									SO remarks:
+								</span>
 								<Input
 									placeholder="Add Remarks"
 									value={remarks}
 									onChange={(e) => setRemarks(e.target.value)}
-									className="mt-1 h-9"
+									className="h-8 flex-1 text-xs"
 								/>
 							</div>
 
 							<button
 								type="button"
-								disabled
-								className="flex items-center gap-1 text-xs text-blue-600 disabled:opacity-60"
+								onClick={addPaymentEntry}
+								disabled={payments.length >= 5}
+								className="flex items-center gap-1 text-xs text-blue-600 hover:underline disabled:opacity-50"
 							>
 								<Plus className="size-3" />
 								Add Payment Type
 							</button>
 						</div>
 
-						<div className="mt-4 text-xs text-muted-foreground">
+						<div className="mt-4 text-[11px] text-muted-foreground">
 							This Sales will be created at{" "}
 							<span className="font-semibold text-blue-600">
-								BIG DENTAL · OUTLET
+								{outletName ?? "Unknown outlet"}
 							</span>
 						</div>
 
-						<div className="mt-3 flex justify-end">
+						<div className="mt-3 flex items-center justify-end gap-2">
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button
+											type="button"
+											onClick={() => setApptDialogOpen(true)}
+											className="flex size-12 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 shadow-sm transition hover:bg-blue-100"
+											aria-label="Create appointment"
+										>
+											<CalendarPlus className="size-5" />
+										</button>
+									</TooltipTrigger>
+									<TooltipContent>Create appointment</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+
 							<button
 								type="button"
 								onClick={handleSubmit}
@@ -729,16 +1561,18 @@ export function CollectPaymentDialog({
 							</button>
 						</div>
 
-						<div className="mt-5">
-							<div className="text-xs text-muted-foreground">
-								Message to frontdesk
+						<div className="mt-4 flex items-start gap-2">
+							<div className="flex-1">
+								<div className="text-xs font-medium text-muted-foreground">
+									Message to frontdesk
+								</div>
+								<textarea
+									value={frontdeskMsg}
+									onChange={(e) => setFrontdeskMsg(e.target.value)}
+									className="mt-1 min-h-[50px] w-full resize-none rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none placeholder:italic placeholder:text-muted-foreground/50 focus-visible:border-ring"
+									placeholder="Optional message..."
+								/>
 							</div>
-							<textarea
-								value={frontdeskMsg}
-								onChange={(e) => setFrontdeskMsg(e.target.value)}
-								className="mt-1 min-h-[60px] w-full resize-none rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring"
-								placeholder="Optional"
-							/>
 						</div>
 
 						{formError && (
@@ -749,11 +1583,168 @@ export function CollectPaymentDialog({
 					</div>
 				</div>
 			</DialogContent>
+
+			<BillingItemPickerDialog
+				open={pickerOpen}
+				onOpenChange={setPickerOpen}
+				services={services}
+				products={products}
+				onSelect={handlePickerSelect}
+			/>
+
+			<AppointmentDialog
+				open={apptDialogOpen}
+				onClose={() => setApptDialogOpen(false)}
+				outletId={appointment.outlet_id}
+				appointment={null}
+				prefill={{
+					startAt: new Date().toISOString(),
+					endAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+					employeeId: appointment.employee_id ?? null,
+					roomId: null,
+					customerId: appointment.customer_id ?? null,
+				}}
+				customers={customers}
+				employees={rosterEmployees}
+				rooms={rooms}
+				allOutlets={allOutlets}
+				allEmployees={allEmployees}
+				shifts={shifts}
+			/>
 		</Dialog>
 	);
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+function PaymentMethodFields({
+	method,
+	entry,
+	onChange,
+}: {
+	method: PaymentMethod;
+	entry: PaymentEntry;
+	onChange: (patch: Partial<PaymentEntry>) => void;
+}) {
+	const selectClass =
+		"h-7 w-full rounded-md border border-input bg-background px-2 text-[11px] outline-none focus-visible:border-ring";
+	const inputClass = "h-7 text-[11px]";
+	const labelClass = "text-[10px] font-medium uppercase text-muted-foreground";
+
+	const fields: React.ReactNode[] = [];
+	if (method.requires_bank) {
+		fields.push(
+			<div key="bank" className="flex flex-col gap-0.5">
+				<span className={labelClass}>Bank</span>
+				<select
+					className={selectClass}
+					value={entry.bank}
+					onChange={(e) => onChange({ bank: e.target.value })}
+				>
+					<option value="">Please choose…</option>
+					{PAYMENT_BANKS.map((b) => (
+						<option key={b} value={b}>
+							{b}
+						</option>
+					))}
+				</select>
+			</div>,
+		);
+	}
+	if (method.requires_card_type) {
+		fields.push(
+			<div key="card_type" className="flex flex-col gap-0.5">
+				<span className={labelClass}>Card type</span>
+				<select
+					className={selectClass}
+					value={entry.card_type}
+					onChange={(e) => onChange({ card_type: e.target.value })}
+				>
+					<option value="">Please choose…</option>
+					{PAYMENT_CARD_TYPES.map((c) => (
+						<option key={c} value={c}>
+							{c}
+						</option>
+					))}
+				</select>
+			</div>,
+		);
+	}
+	if (method.requires_months) {
+		fields.push(
+			<div key="months" className="flex flex-col gap-0.5">
+				<span className={labelClass}>Months</span>
+				<select
+					className={selectClass}
+					value={entry.months}
+					onChange={(e) => onChange({ months: e.target.value })}
+				>
+					<option value="">Please choose…</option>
+					{PAYMENT_EPS_MONTHS.map((m) => (
+						<option key={m} value={String(m)}>
+							{m}
+						</option>
+					))}
+				</select>
+			</div>,
+		);
+	}
+	if (method.requires_trace_no) {
+		fields.push(
+			<div key="trace_no" className="flex flex-col gap-0.5">
+				<span className={labelClass}>Trace no</span>
+				<Input
+					placeholder="Eg. 888888"
+					value={entry.trace_no}
+					onChange={(e) => onChange({ trace_no: e.target.value })}
+					className={inputClass}
+				/>
+			</div>,
+		);
+	}
+	if (method.requires_approval_code) {
+		fields.push(
+			<div key="approval_code" className="flex flex-col gap-0.5">
+				<span className={labelClass}>Approval code</span>
+				<Input
+					placeholder="Eg. 888888"
+					value={entry.approval_code}
+					onChange={(e) => onChange({ approval_code: e.target.value })}
+					className={inputClass}
+				/>
+			</div>,
+		);
+	}
+	if (method.requires_reference_no) {
+		fields.push(
+			<div key="reference_no" className="flex flex-col gap-0.5">
+				<span className={labelClass}>Reference no</span>
+				<Input
+					placeholder="Eg. 888888"
+					value={entry.reference_no}
+					onChange={(e) => onChange({ reference_no: e.target.value })}
+					className={inputClass}
+				/>
+			</div>,
+		);
+	}
+	if (method.requires_remarks) {
+		fields.push(
+			<div key="remarks" className="col-span-2 flex flex-col gap-0.5">
+				<span className={labelClass}>Remarks</span>
+				<Input
+					placeholder="Add Remarks"
+					value={entry.remarks}
+					onChange={(e) => onChange({ remarks: e.target.value })}
+					className={inputClass}
+				/>
+			</div>,
+		);
+	}
+
+	if (fields.length === 0) return null;
+	return <div className="grid grid-cols-2 gap-2">{fields}</div>;
+}
+
+function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
 	return (
 		<div className="flex items-center justify-between gap-3">
 			<span className="text-xs text-muted-foreground">{label}</span>
@@ -787,49 +1778,5 @@ function Toggle({
 				)}
 			/>
 		</button>
-	);
-}
-
-function StaffAvatar({
-	name,
-	percent,
-	muted = false,
-}: {
-	name: string;
-	percent: number | null;
-	muted?: boolean;
-}) {
-	const initials = name
-		.split(/\s+/)
-		.map((w) => w[0])
-		.filter(Boolean)
-		.slice(0, 2)
-		.join("")
-		.toUpperCase();
-	return (
-		<div className="flex flex-col items-center gap-1">
-			<div
-				className={cn(
-					"flex size-9 items-center justify-center rounded-full text-xs font-semibold",
-					muted
-						? "bg-muted text-muted-foreground"
-						: "bg-blue-100 text-blue-700",
-				)}
-			>
-				{initials || "?"}
-			</div>
-			<div
-				className={cn(
-					"max-w-[80px] truncate text-[10px]",
-					muted ? "text-muted-foreground" : "font-medium text-blue-600",
-				)}
-				title={name}
-			>
-				{name}
-			</div>
-			{percent !== null && (
-				<div className="text-[10px] text-muted-foreground">{percent}%</div>
-			)}
-		</div>
 	);
 }

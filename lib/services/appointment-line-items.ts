@@ -39,6 +39,8 @@ function normalize(input: unknown) {
 		unit_price: p.unit_price,
 		tax_id: p.tax_id ?? null,
 		notes: p.notes ?? null,
+		tooth_number: p.tooth_number ?? null,
+		surface: p.surface ?? null,
 	};
 }
 
@@ -214,6 +216,7 @@ export async function createIncentive(
 		.insert({
 			line_item_id: p.line_item_id,
 			employee_id: p.employee_id,
+			percent: p.percent,
 			created_by: ctx.currentUser?.employeeId ?? null,
 		})
 		.select("*")
@@ -235,4 +238,29 @@ export async function deleteIncentive(ctx: Context, id: string): Promise<void> {
 		.delete()
 		.eq("id", id);
 	if (error) throw new ValidationError(error.message);
+}
+
+export async function replaceIncentivesForLineItem(
+	ctx: Context,
+	lineItemId: string,
+	allocations: { employee_id: string; percent: number }[],
+): Promise<void> {
+	const { error: delErr } = await ctx.db
+		.from("appointment_line_item_incentives")
+		.delete()
+		.eq("line_item_id", lineItemId);
+	if (delErr) throw new ValidationError(delErr.message);
+
+	if (allocations.length === 0) return;
+
+	const rows = allocations.map((a) => ({
+		line_item_id: lineItemId,
+		employee_id: a.employee_id,
+		percent: a.percent,
+		created_by: ctx.currentUser?.employeeId ?? null,
+	}));
+	const { error: insErr } = await ctx.db
+		.from("appointment_line_item_incentives")
+		.insert(rows);
+	if (insErr) throw new ValidationError(insErr.message);
 }

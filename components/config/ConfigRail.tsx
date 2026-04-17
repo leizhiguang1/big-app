@@ -56,6 +56,7 @@ export function ConfigRail() {
 						category={category}
 						isActive={activeSlug === category.slug}
 						activeSectionKey={activeSectionKey}
+						pathname={pathname}
 						pendingHref={pendingHref}
 						onNavigate={navigate}
 					/>
@@ -76,12 +77,14 @@ function CategoryRailItem({
 	category,
 	isActive,
 	activeSectionKey,
+	pathname,
 	pendingHref,
 	onNavigate,
 }: {
 	category: ConfigCategory;
 	isActive: boolean;
 	activeSectionKey: string | null;
+	pathname: string;
 	pendingHref: string | null;
 	onNavigate: (href: string) => void;
 }) {
@@ -131,11 +134,14 @@ function CategoryRailItem({
 			{isActive && hasMultipleSections ? (
 				<ul className="mt-1 mb-1 ml-[1.375rem] flex flex-col gap-0.5 border-border border-l pl-2">
 					{category.sections.map((section, index) => {
-						const href = `/config/${category.slug}?section=${section.key}`;
+						const href =
+							section.href ??
+							`/config/${category.slug}?section=${section.key}`;
 						const isFirst = index === 0;
-						const isSectionActive =
-							activeSectionKey === section.key ||
-							(activeSectionKey === null && isFirst);
+						const isSectionActive = section.href
+							? pathname === section.href
+							: activeSectionKey === section.key ||
+								(activeSectionKey === null && isFirst);
 						const isSectionPending = pendingHref === href;
 						const show = isSectionActive || isSectionPending;
 

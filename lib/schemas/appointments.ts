@@ -211,6 +211,18 @@ export const lineItemInputSchema = z
 			.max(500)
 			.nullish()
 			.transform((v) => (v && v.length > 0 ? v : null)),
+		tooth_number: z
+			.string()
+			.trim()
+			.max(20)
+			.nullish()
+			.transform((v) => (v && v.length > 0 ? v : null)),
+		surface: z
+			.string()
+			.trim()
+			.max(40)
+			.nullish()
+			.transform((v) => (v && v.length > 0 ? v : null)),
 	})
 	.superRefine((d, ctx) => {
 		if (d.item_type === "service") {
@@ -264,6 +276,7 @@ export type LineItemInput = z.infer<typeof lineItemInputSchema>;
 export const lineItemIncentiveInputSchema = z.object({
 	line_item_id: z.string().uuid(),
 	employee_id: z.string().uuid("Employee is required"),
+	percent: z.coerce.number().min(0).max(100).default(100),
 });
 export type LineItemIncentiveInput = z.infer<
 	typeof lineItemIncentiveInputSchema

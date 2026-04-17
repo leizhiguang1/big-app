@@ -21,6 +21,13 @@ export type CategorySection = {
 	key: string;
 	label: string;
 	implemented?: boolean;
+	/**
+	 * When set, the rail link navigates here instead of the default dynamic
+	 * `/config/<slug>?section=<key>` path. Used when a single section breaks
+	 * out to a static route while the rest of the category is still stubbed
+	 * (see `/config/sales/payment`).
+	 */
+	href?: string;
 };
 
 export type ConfigCategory = {
@@ -124,7 +131,12 @@ export const CATEGORIES: ConfigCategory[] = [
 		sections: [
 			{ key: "discounts", label: "Discounts" },
 			{ key: "billing", label: "Billing" },
-			{ key: "payment", label: "Payment" },
+			{
+				key: "payment",
+				label: "Payment",
+				implemented: true,
+				href: "/config/sales/payment",
+			},
 		],
 	},
 	{

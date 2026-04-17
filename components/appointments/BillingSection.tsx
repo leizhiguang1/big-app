@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import {
 	createLineItemsBulkAction,
 	deleteLineItemAction,
+	saveAppointmentNotesAction,
 	updateLineItemAction,
 } from "@/lib/actions/appointments";
 import type { LineItemType } from "@/lib/schemas/appointments";
@@ -25,6 +26,7 @@ type Props = {
 	services: ServiceWithCategory[];
 	products: InventoryItemWithRefs[];
 	taxes: Tax[];
+	appointmentNotes?: string | null;
 	onChange: () => void;
 };
 
@@ -133,11 +135,20 @@ export function BillingSection({
 	services,
 	products,
 	taxes,
+	appointmentNotes,
 	onChange,
 }: Props) {
 	const [pending, startTransition] = useTransition();
 	const [items, setItems] = useState<Item[]>(() => entries.map(toItem));
-	const [batchNote, setBatchNote] = useState("");
+	const [batchNote, setBatchNote] = useState(appointmentNotes ?? "");
+	const batchNoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const saveBatchNote = (value: string) => {
+		setBatchNote(value);
+		if (batchNoteTimerRef.current) clearTimeout(batchNoteTimerRef.current);
+		batchNoteTimerRef.current = setTimeout(() => {
+			saveAppointmentNotesAction(appointmentId, value.trim() || null);
+		}, 800);
+	};
 	const [error, setError] = useState<string | null>(null);
 	const [pickerKey, setPickerKey] = useState<string | null>(null);
 	const [savingKeys, setSavingKeys] = useState<ReadonlySet<string>>(
@@ -151,6 +162,7 @@ export function BillingSection({
 	useEffect(() => {
 		return () => {
 			if (justSavedTimerRef.current) clearTimeout(justSavedTimerRef.current);
+			if (batchNoteTimerRef.current) clearTimeout(batchNoteTimerRef.current);
 		};
 	}, []);
 
@@ -354,8 +366,8 @@ export function BillingSection({
 						<span />
 					</div>
 
-					<div className="flex flex-col">
-						{items.map((item, idx) => {
+					<div className="flex flex-col divide-y divide-border/60">
+						{items.map((item) => {
 							const svc =
 								item.item_type === "service" && item.service_id
 									? serviceById.get(item.service_id)
@@ -378,13 +390,12 @@ export function BillingSection({
 								item.tax_id,
 								taxes,
 							).amount;
-							const isEven = idx % 2 === 0;
 							const isSaving = savingKeys.has(item.key);
 
 							return (
 								<div
 									key={item.key}
-									className={`rounded-sm py-2 transition-opacity ${isEven ? "" : "bg-muted/30"} ${isSaving ? "pointer-events-none opacity-60" : ""}`}
+									className={`py-3 transition-opacity first:pt-1 last:pb-1 ${isSaving ? "pointer-events-none opacity-60" : ""}`}
 								>
 									{/* ── Desktop row ── */}
 									<div
@@ -532,18 +543,16 @@ export function BillingSection({
 												No item selected
 											</span>
 										)}
-										<div className="ml-auto flex items-center gap-1.5">
-											<Input
-												type="text"
-												placeholder="Remarks…"
-												value={item.notes}
-												onChange={(e) =>
-													update(item.key, { notes: e.target.value })
-												}
-												className="h-6 w-48 text-xs"
-												aria-label="Remarks"
-											/>
-										</div>
+										<Input
+											type="text"
+											placeholder="Remarks…"
+											value={item.notes}
+											onChange={(e) =>
+												update(item.key, { notes: e.target.value })
+											}
+											className="ml-auto h-6 w-48 border-transparent bg-transparent px-1.5 text-[11px] text-muted-foreground shadow-none placeholder:text-muted-foreground/40 hover:border-input focus-visible:border-ring focus-visible:text-foreground"
+											aria-label="Remarks"
+										/>
 									</div>
 
 									{/* ── Mobile layout ── */}
@@ -671,7 +680,7 @@ export function BillingSection({
 												onChange={(e) =>
 													update(item.key, { notes: e.target.value })
 												}
-												className="ml-auto h-6 max-w-[140px] text-xs"
+												className="ml-auto h-6 max-w-[140px] border-transparent bg-transparent px-1.5 text-[11px] text-muted-foreground shadow-none placeholder:text-muted-foreground/40 hover:border-input focus-visible:border-ring focus-visible:text-foreground"
 												aria-label="Remarks"
 											/>
 										</div>
@@ -696,7 +705,7 @@ export function BillingSection({
 						id="billing-batch-note"
 						placeholder="Optional — e.g. waive deposit, follow-up call needed"
 						value={batchNote}
-						onChange={(e) => setBatchNote(e.target.value)}
+						onChange={(e) => saveBatchNote(e.target.value)}
 						rows={2}
 						className="w-full resize-y rounded-md border bg-background px-2 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 					/>

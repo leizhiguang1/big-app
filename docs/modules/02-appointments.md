@@ -109,11 +109,11 @@ Appointments is the central hub of the clinic app. Every booking lives here, and
 
 ### Screen: Appointment Detail (`/appointments/[id]`)
 
-Full-page route reached by clicking any appointment card on the calendar. Layout is a **collapsible header area + 8 segmented tabs + a content area + a fixed bottom-right floating action bar**. When Case Notes or Billing is active and the appointment has a linked customer, a sticky **History panel** slides in on the left.
+Full-page route reached by clicking any appointment card on the calendar. Layout is a **collapsible header area with an inline action bar on the right + 8 segmented tabs + a content area**. When Case Notes or Billing is active and the appointment has a linked customer, a sticky **History panel** slides in on the left.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│ DetailHeader  (back · title · collapse toggle · delete)                │
+│ DetailHeader (back · title · collapse)      [AppointmentActionBar 6×]  │
 ├────────────────────────────────────────────────────────────────────────┤
 │ ┌─ History ─┐ ┌─ CustomerCard (380px) ─┐ ┌─ AppointmentSummaryCard ──┐ │
 │ │ (only on  │ │ avatar · name · code · │ │ title · time · outlet ·   │ │
@@ -125,11 +125,10 @@ Full-page route reached by clicking any appointment card on the calendar. Layout
 │ │           │ ┌──────────── Active tab content ────────────────────┐   │
 │ │           │ └────────────────────────────────────────────────────┘   │
 │ └───────────┘                                                          │
-│                                                   [FloatingActionBar] │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Header bar** (`DetailHeader`) — back button (`router.back()` with `/appointments` fallback), title (customer/block label + booking ref), a **collapse chevron** that toggles `summaryCollapsed` (hides the Summary card and stretches the Customer card to full width — useful on narrower screens), and a delete button. Edit is NOT in the header anymore — it lives on the floating action bar. Edit opens `AppointmentDialog` in edit mode via local state.
+**Header bar** (`DetailHeader`) — back button (`router.back()` with `/appointments` fallback), title (customer/block label + booking ref), and a **collapse chevron** that toggles `summaryCollapsed` (hides the Summary card and stretches the Customer card to full width — useful on narrower screens). All appointment actions (Edit, Cancel, Complete, etc.) live on the `AppointmentActionBar` to the right — see below.
 
 **Top row — two stacked cards at xl, single column below:**
 - **`CustomerCard`** (left, 380px at `xl:`) — avatar with initials, name, code (or amber `Walk-in lead` badge), phone (with `tel:` link), a stats grid showing `No-shows` and `Outstanding` computed from the customer's full appointment history, and a `Next appointment` link. When the header is collapsed, this card expands to full width and the Summary card is hidden.
@@ -753,9 +752,9 @@ components/appointments/
   AppointmentDialog.tsx               (Dialog form — scheduling only)
   BillingSection.tsx                  (post-treatment line-item editor, used by BillingTab — handles service + product lines)
   BillingItemPickerDialog.tsx         (tabbed picker inside BillingSection: Services + Products live, Laboratory / Vaccinations / Other Charges disabled)
-  AppointmentDetailView.tsx           (full-page client view, coordinates tabs + edit dialog + floating action bar + history panel + toasts)
+  AppointmentDetailView.tsx           (full-page client view, coordinates tabs + edit dialog + inline action bar + history panel + toasts)
   detail/
-    DetailHeader.tsx                  (back, title, collapse toggle, delete)
+    DetailHeader.tsx                  (back, title, collapse toggle)
     DetailTabs.tsx                    (8 segmented tabs — all clickable)
     CustomerCard.tsx                  (left-top card: avatar, name, stats, next appt)
     AppointmentSummaryCard.tsx        (right-top card: title, time, outlet, room, StatusProgressionRow)
@@ -769,7 +768,7 @@ components/appointments/
     DocumentsTab.tsx                  (upload + list + view/download + delete customer_documents; This visit / All for customer toggle)
     HistoryPanel.tsx                  (sticky left timeline — exports HistoryPanel [case notes + billing] AND FollowUpHistoryPanel [follow-ups only])
     PlaceholderPanel.tsx              (reusable placeholder card — now used only by clinical/Camera tabs and the Status Change Log overview sub-card)
-    FloatingActionBar.tsx             (fixed bottom-right: 5 placeholders + wired Complete → ConfirmDialog → CollectPaymentDialog)
+    AppointmentActionBar.tsx          (inline, top-right of header: 4 placeholders + wired Edit + wired Cancel + wired Complete → ConfirmDialog → CollectPaymentDialog; rendered on every tab)
     CollectPaymentDialog.tsx          (two-column POS-style dialog calling collectAppointmentPaymentAction)
     LeadConvertDialog.tsx             (Register-as-customer sub-dialog launched from the appointment dialog)
 

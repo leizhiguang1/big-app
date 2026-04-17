@@ -6,6 +6,7 @@ import {
 	AppointmentToastStack,
 	type Toast,
 } from "@/components/appointments/AppointmentToastStack";
+import { AppointmentActionBar } from "@/components/appointments/detail/AppointmentActionBar";
 import { AppointmentSummaryCard } from "@/components/appointments/detail/AppointmentSummaryCard";
 import { BillingTab } from "@/components/appointments/detail/BillingTab";
 import { BookingInfoCard } from "@/components/appointments/detail/BookingInfoCard";
@@ -18,7 +19,6 @@ import {
 	DetailTabs,
 } from "@/components/appointments/detail/DetailTabs";
 import { DocumentsTab } from "@/components/appointments/detail/DocumentsTab";
-import { FloatingActionBar } from "@/components/appointments/detail/FloatingActionBar";
 import { FollowUpTab } from "@/components/appointments/detail/FollowUpTab";
 import { HandsOnIncentivesCard } from "@/components/appointments/detail/HandsOnIncentivesCard";
 import {
@@ -48,6 +48,7 @@ import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { FollowUpWithRefs } from "@/lib/services/follow-ups";
 import type { InventoryItemWithRefs } from "@/lib/services/inventory";
 import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
+import type { PaymentMethod } from "@/lib/services/payment-methods";
 import type { ServiceWithCategory } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
 
@@ -71,6 +72,7 @@ type Props = {
 	statusLog: AppointmentStatusLogEntry[];
 	shifts: EmployeeShift[];
 	salesOrderId: string | null;
+	paymentMethods: PaymentMethod[];
 };
 
 export function AppointmentDetailView({
@@ -93,6 +95,7 @@ export function AppointmentDetailView({
 	statusLog,
 	shifts,
 	salesOrderId,
+	paymentMethods,
 }: Props) {
 	const [editOpen, setEditOpen] = useState(false);
 	const [activeTab, setActiveTab] = useState<DetailTabKey>("overview");
@@ -163,17 +166,34 @@ export function AppointmentDetailView({
 
 	return (
 		<div className="flex flex-col gap-3">
-			<DetailHeader
-				appointment={appointment}
-				onEdit={() => setEditOpen(true)}
-				onToast={showToast}
-				summaryCollapsed={headerCollapsed}
-				onToggleSummaryCollapse={
-					appointment.is_time_block
-						? undefined
-						: () => setHeaderCollapsed((v) => !v)
-				}
-			/>
+			<div className="flex items-center justify-between gap-3">
+				<DetailHeader
+					appointment={appointment}
+					summaryCollapsed={headerCollapsed}
+					onToggleSummaryCollapse={
+						appointment.is_time_block
+							? undefined
+							: () => setHeaderCollapsed((v) => !v)
+					}
+				/>
+				<AppointmentActionBar
+					appointment={appointment}
+					lineItems={lineItems}
+					services={services}
+					products={products}
+					taxes={taxes}
+					outletName={outletName}
+					allEmployees={allEmployees}
+					paymentMethods={paymentMethods}
+					customers={customers}
+					rosterEmployees={employees}
+					rooms={rooms}
+					allOutlets={allOutlets}
+					shifts={shifts}
+					onEdit={() => setEditOpen(true)}
+					onToast={showToast}
+				/>
+			</div>
 
 			<div className="flex gap-3">
 				<div className="flex min-w-0 flex-1 flex-col gap-3">
@@ -247,6 +267,7 @@ export function AppointmentDetailView({
 							services={services}
 							products={products}
 							taxes={taxes}
+							appointmentNotes={appointment.notes}
 						/>
 					)}
 
@@ -330,16 +351,6 @@ export function AppointmentDetailView({
 					allOutlets={allOutlets}
 					allEmployees={allEmployees}
 					shifts={shifts}
-				/>
-			)}
-
-			{activeTab === "overview" && (
-				<FloatingActionBar
-					appointment={appointment}
-					lineItems={lineItems}
-					services={services}
-					taxes={taxes}
-					onToast={showToast}
 				/>
 			)}
 

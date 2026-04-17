@@ -125,7 +125,7 @@ Verified against the live product screenshots listed above.
 | `dashboard` | Dashboard | Display | stub |
 | `appointments` | Appointments | Appointment Settings · Online Booking · Appointment Tag · Queue Display | stub |
 | `customers` | Customers | General · Leads · Security | stub |
-| `sales` | Sales | Discounts · Billing · Payment | stub |
+| `sales` | Sales | Discounts · Billing · **Payment** | partial |
 | `services` | Services | Service Receipt · Category | stub |
 | `inventory` | Inventory | Product Redemption · Barcode Scanning · Locations · Others | stub |
 | `employees` | Employees | Profile · Security | stub |
@@ -172,7 +172,7 @@ Single flat page, no sub-tabs.
 #### Sales (12.5)
 - **Discounts** — per-outlet discount capping table with columns `Product Maximum Cap %`, `Consumable Maximum Cap %`, `Service Maximum Cap %`, `Medication Maximum Cap %`. Per-outlet rows allow different caps per location
 - **Billing** — billing-flow rules (draft handling, edit permissions, cancellation) **(inferred)**
-- **Payment** — payment method toggles and rules (cash, card, e-wallet, insurance) **(inferred)**
+- **Payment** *(implemented 2026-04-17)* — CRUD of `payment_methods` at `/config/sales/payment`. DataTable with columns Order / Name / Code / Fields / Built-in / Active / Actions. Built-in methods (Cash, Credit Card, Debit Card, EPS, Online Transaction, QR Pay, Touch N Go) can be renamed, reordered, or toggled inactive but not deleted. Custom methods are remarks-only. The Collect Payment dialog renders fields per-method based on the flags set here. See [docs/design/payment-methods.md](../design/payment-methods.md) for the full design and [04-sales.md](./04-sales.md) for the data model
 
 #### Services (12.6)
 - **Service Receipt** — receipt format and display toggles **(inferred from prototype)**

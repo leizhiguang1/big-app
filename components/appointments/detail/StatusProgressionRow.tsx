@@ -91,7 +91,7 @@ export function StatusProgressionRow({ appointment, onToast }: Props) {
 
 	return (
 		<TooltipProvider delayDuration={200}>
-			<div className="@container flex flex-wrap gap-1.5 @[420px]:gap-2">
+			<div className="@container flex flex-wrap gap-1 @[340px]:gap-1.5 @[480px]:gap-2">
 				{PROGRESSION_STATUSES.map((s) => {
 					const config = APPOINTMENT_STATUS_CONFIG[s];
 					const Icon = config.Icon;
@@ -103,8 +103,8 @@ export function StatusProgressionRow({ appointment, onToast }: Props) {
 									type="button"
 									onClick={() => handleClick(s)}
 									className={cn(
-										"inline-flex min-h-8 items-center justify-center gap-1 rounded-full border py-1 font-semibold text-[11px] uppercase tracking-wide transition",
-										"min-w-8 px-1.5 @[420px]:px-2.5 @[420px]:text-xs",
+										"inline-flex min-h-7 items-center justify-center gap-1 rounded-full border py-0.5 font-semibold text-[10px] uppercase tracking-wide transition",
+										"min-w-7 px-1 @[340px]:min-h-8 @[340px]:px-1.5 @[340px]:py-1 @[340px]:text-[11px] @[480px]:px-2.5 @[480px]:text-xs",
 										isActive
 											? "border-transparent text-white shadow-sm"
 											: "border-border bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -116,10 +116,10 @@ export function StatusProgressionRow({ appointment, onToast }: Props) {
 									}
 								>
 									<Icon
-										className="size-3 shrink-0 @[420px]:size-3.5"
+										className="size-3 shrink-0 @[480px]:size-3.5"
 										aria-hidden
 									/>
-									<span className="hidden @[420px]:inline">
+									<span className="hidden @[340px]:inline">
 										{config.label}
 									</span>
 								</button>

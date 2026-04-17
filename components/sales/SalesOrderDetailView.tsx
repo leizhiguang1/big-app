@@ -15,7 +15,6 @@ import { useRef, useState } from "react";
 import { CancelOrderDialog } from "@/components/sales/CancelOrderDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SALES_PAYMENT_MODE_LABEL } from "@/lib/schemas/sales";
 import type {
 	PaymentWithProcessedBy,
 	SaleItem,
@@ -78,11 +77,26 @@ function statusBadge(status: string) {
 	}
 }
 
-function paymentModeLabel(mode: string): string {
-	return (
-		SALES_PAYMENT_MODE_LABEL[mode as keyof typeof SALES_PAYMENT_MODE_LABEL] ??
-		mode
-	);
+function prettyCode(code: string): string {
+	return code
+		.split("_")
+		.map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
+		.join(" ");
+}
+
+function paymentMethodName(p: PaymentWithProcessedBy): string {
+	return p.method?.name ?? prettyCode(p.payment_mode);
+}
+
+function paymentFieldPills(p: PaymentWithProcessedBy): string[] {
+	const out: string[] = [];
+	if (p.bank) out.push(`Bank: ${p.bank}`);
+	if (p.card_type) out.push(`Card: ${p.card_type}`);
+	if (p.months != null) out.push(`${p.months} mo`);
+	if (p.trace_no) out.push(`Trace: ${p.trace_no}`);
+	if (p.approval_code) out.push(`Appr: ${p.approval_code}`);
+	if (p.reference_no) out.push(`Ref: ${p.reference_no}`);
+	return out;
 }
 
 function itemTypeLabel(t: string): string {
@@ -351,39 +365,44 @@ export function SalesOrderDetailView({ order, items, payments }: Props) {
 						Payments ({payments.length})
 					</h3>
 					<div className="space-y-3">
-						{payments.map((p) => (
-							<div
-								key={p.id}
-								className="flex items-start justify-between rounded-md border p-4"
-							>
-								<div className="space-y-1">
-									<div className="flex items-center gap-2">
-										<span className="font-mono font-medium text-sm">
-											{p.invoice_no}
-										</span>
-										<Badge variant="outline" className="text-xs">
-											{paymentModeLabel(p.payment_mode)}
-										</Badge>
-									</div>
-									<p className="text-muted-foreground text-xs">
-										{formatDateTime(p.paid_at)}
-										{p.processed_by_employee &&
-											` \u00B7 by ${fullName(p.processed_by_employee.first_name, p.processed_by_employee.last_name)}`}
-									</p>
-									{p.remarks && (
-										<p className="text-muted-foreground text-xs">{p.remarks}</p>
-									)}
-									{p.reference_no && (
+						{payments.map((p) => {
+							const pills = paymentFieldPills(p);
+							return (
+								<div
+									key={p.id}
+									className="flex items-start justify-between rounded-md border p-4"
+								>
+									<div className="space-y-1">
+										<div className="flex items-center gap-2">
+											<span className="font-mono font-medium text-sm">
+												{p.invoice_no}
+											</span>
+											<Badge variant="outline" className="text-xs">
+												{paymentMethodName(p)}
+											</Badge>
+										</div>
 										<p className="text-muted-foreground text-xs">
-											Ref: {p.reference_no}
+											{formatDateTime(p.paid_at)}
+											{p.processed_by_employee &&
+												` \u00B7 by ${fullName(p.processed_by_employee.first_name, p.processed_by_employee.last_name)}`}
 										</p>
-									)}
+										{pills.length > 0 && (
+											<p className="text-muted-foreground text-xs">
+												{pills.join(" · ")}
+											</p>
+										)}
+										{p.remarks && (
+											<p className="text-muted-foreground text-xs">
+												{p.remarks}
+											</p>
+										)}
+									</div>
+									<span className="font-medium text-sm tabular-nums">
+										MYR {money(p.amount)}
+									</span>
 								</div>
-								<span className="font-medium text-sm tabular-nums">
-									MYR {money(p.amount)}
-								</span>
-							</div>
-						))}
+							);
+						})}
 					</div>
 				</section>
 			)}
@@ -512,9 +531,10 @@ export function SalesOrderDetailView({ order, items, payments }: Props) {
 							<strong>Payment</strong>
 							{payments.map((p) => (
 								<div key={p.id} style={{ marginTop: 8 }}>
-									{paymentModeLabel(p.payment_mode)}: MYR {money(p.amount)} (
+									{paymentMethodName(p)}: MYR {money(p.amount)} (
 									{formatDateTime(p.paid_at)})
-									{p.reference_no && ` — Ref: ${p.reference_no}`}
+									{paymentFieldPills(p).length > 0 &&
+										` — ${paymentFieldPills(p).join(" · ")}`}
 								</div>
 							))}
 						</div>

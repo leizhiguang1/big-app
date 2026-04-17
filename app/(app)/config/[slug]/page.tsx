@@ -24,6 +24,12 @@ export default async function ConfigCategoryPage({
 	}
 
 	const active = resolveSection(category, section);
+	// When a section carves out its own static route, this dynamic stub must
+	// defer — otherwise the `?section=` URL keeps rendering ComingSoon instead
+	// of bouncing to the real page.
+	if (active.href) {
+		notFound();
+	}
 
 	return (
 		<>

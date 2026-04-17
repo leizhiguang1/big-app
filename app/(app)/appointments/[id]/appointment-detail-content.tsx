@@ -37,6 +37,7 @@ import {
 } from "@/lib/services/follow-ups";
 import { listSellableProducts } from "@/lib/services/inventory";
 import { listOutlets, listRooms } from "@/lib/services/outlets";
+import { listActivePaymentMethods } from "@/lib/services/payment-methods";
 import { getSalesOrderForAppointment } from "@/lib/services/sales";
 import { listServices } from "@/lib/services/services";
 import { listTaxes } from "@/lib/services/taxes";
@@ -101,6 +102,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 		shifts,
 		taxes,
 		salesOrder,
+		paymentMethods,
 	] = await Promise.all([
 		listLineItemsForAppointment(ctx, id),
 		listIncentivesForAppointment(ctx, id),
@@ -124,6 +126,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 		}),
 		listTaxes(ctx),
 		getSalesOrderForAppointment(ctx, id),
+		listActivePaymentMethods(ctx),
 	]);
 
 	const activeOutlets = outlets.filter((o) => o.is_active);
@@ -152,6 +155,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 			statusLog={statusLog}
 			shifts={shifts}
 			salesOrderId={salesOrder?.id ?? null}
+			paymentMethods={paymentMethods}
 		/>
 	);
 }

@@ -7,6 +7,7 @@ import {
 	cancelSalesOrderInputSchema,
 	collectPaymentInputSchema,
 } from "@/lib/schemas/sales";
+import { assertPaymentFields } from "@/lib/services/payment-methods";
 import type { Tables } from "@/lib/supabase/types";
 
 export type SalesOrder = Tables<"sales_orders">;
@@ -20,6 +21,7 @@ export type PaymentWithProcessedBy = Payment & {
 		first_name: string;
 		last_name: string;
 	} | null;
+	method: { code: string; name: string } | null;
 };
 
 export type SalesOrderWithRelations = SalesOrder & {
@@ -75,6 +77,7 @@ export async function collectAppointmentPayment(
 ): Promise<CollectPaymentResult> {
 	const parsed: CollectPaymentInput = collectPaymentInputSchema.parse(input);
 	await assertLineDiscountCaps(ctx, parsed.items);
+	const normalizedPayments = await assertPaymentFields(ctx, parsed.payments);
 	const { data, error } = await ctx.db.rpc("collect_appointment_payment", {
 		p_appointment_id: appointmentId,
 		p_items: parsed.items.map((i) => ({
@@ -91,10 +94,27 @@ export async function collectAppointmentPayment(
 		p_discount: parsed.discount,
 		p_tax: parsed.tax,
 		p_rounding: parsed.rounding,
-		p_payment_mode: parsed.payment_mode,
-		p_amount: parsed.amount,
+		p_payments: normalizedPayments.map((p) => ({
+			mode: p.mode,
+			amount: p.amount,
+			remarks: p.remarks ?? "",
+			bank: p.bank ?? "",
+			card_type: p.card_type ?? "",
+			trace_no: p.trace_no ?? "",
+			approval_code: p.approval_code ?? "",
+			reference_no: p.reference_no ?? "",
+			months: p.months != null ? String(p.months) : "",
+		})),
 		p_remarks: parsed.remarks ?? "",
 		p_processed_by: (ctx.currentUser?.employeeId ?? null) as string,
+		p_sold_at: parsed.sold_at ?? "",
+		p_frontdesk_message: parsed.frontdesk_message ?? "",
+		p_allocations: parsed.allocations
+			? parsed.allocations.map((a) => ({
+					item_index: a.item_index,
+					amount: a.amount,
+				}))
+			: null,
 	});
 	if (error) throw new ValidationError(error.message);
 	if (!data) throw new ValidationError("Collect payment returned no result");
@@ -192,7 +212,7 @@ export async function listPaymentsForOrder(
 	const { data, error } = await ctx.db
 		.from("payments")
 		.select(
-			"*, processed_by_employee:employees!payments_processed_by_fkey(id, first_name, last_name)",
+			"*, processed_by_employee:employees!payments_processed_by_fkey(id, first_name, last_name), method:payment_methods!payments_payment_mode_fk(code, name)",
 		)
 		.eq("sales_order_id", salesOrderId)
 		.order("paid_at", { ascending: true });
@@ -210,6 +230,7 @@ export type PaymentWithRelations = Payment & {
 		first_name: string;
 		last_name: string;
 	} | null;
+	method: { code: string; name: string } | null;
 	sales_order: {
 		id: string;
 		so_number: string;
@@ -228,7 +249,7 @@ export type PaymentWithRelations = Payment & {
 };
 
 const PAYMENT_LIST_SELECT =
-	"*, processed_by_employee:employees!payments_processed_by_fkey(id, first_name, last_name), sales_order:sales_orders!payments_sales_order_id_fkey(id, so_number, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name), consultant:employees!sales_orders_consultant_id_fkey(id, first_name, last_name))";
+	"*, processed_by_employee:employees!payments_processed_by_fkey(id, first_name, last_name), method:payment_methods!payments_payment_mode_fk(code, name), sales_order:sales_orders!payments_sales_order_id_fkey(id, so_number, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name), consultant:employees!sales_orders_consultant_id_fkey(id, first_name, last_name))";
 
 export async function listPayments(
 	ctx: Context,

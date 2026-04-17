@@ -9,7 +9,8 @@ What actually exists in code as of migration `0048_cancellations`:
 **Database (migrations `0029_sales` through `0048_cancellations`):**
 - `sales_orders` — all columns per the spec below, `so_number` auto-generated `SO000001` from `sales_orders_code_seq` via a `BEFORE INSERT` trigger, generated column `outstanding = total - amount_paid`, status CHECK `draft / completed / cancelled / void`, default `completed`.
 - `sale_items` — normalized rows with generated `total` column, item_type CHECK `service / product / charge`.
-- `payments` — `invoice_no` auto-generated `INV000001` from `payments_code_seq`, payment_mode CHECK `cash / card / bank_transfer / e_wallet / other`.
+- `payments` — `invoice_no` auto-generated `INV000001` from `payments_code_seq`. `payment_mode` is a text FK → `payment_methods.code` with `ON DELETE RESTRICT` (no more static CHECK). Carries per-method fields: `bank`, `card_type`, `trace_no`, `approval_code`, `reference_no`, `months`, `remarks` — nullable; which ones are populated depends on the chosen method's flags.
+- `payment_methods` (new, 2026-04-17) — config-driven list of payment methods with per-method field flags (`requires_bank`, `requires_card_type`, `requires_trace_no`, `requires_approval_code`, `requires_reference_no`, `requires_months`, `requires_remarks`). Seven built-ins seeded: `cash`, `credit_card`, `debit_card`, `eps`, `online_transaction`, `qr_pay`, `touch_n_go`. Brands can toggle, rename, reorder, or add custom methods via `/config/sales/payment`. Custom methods are always remarks-only.
 - `cancellations` — `cn_number` auto-generated `CN000001` from `cancellations_code_seq` via a `BEFORE INSERT` trigger. Links to `sales_orders` (CASCADE), `outlets` (RESTRICT), `employees` (SET NULL). Stores amount, tax, reason, processed_by, cancelled_at.
 - RLS on all four tables with temp `anon` + `authenticated` permissive policies (pre-auth tightening).
 - **RPC `collect_appointment_payment(p_appointment_id, p_items jsonb, p_discount, p_tax, p_rounding, p_payment_mode, p_amount, p_remarks, p_processed_by)`** — wraps the whole SO + sale_items + payment insert in a single transaction, then (a) flips `appointments.payment_status` to `paid` / `partial`, (b) flips `appointments.status` to `completed`, and (c) decrements inventory for every line where `inventory_item_id` is present. Returns `{ sales_order_id, so_number, invoice_no, subtotal, total_tax, total }`.
@@ -18,7 +19,7 @@ What actually exists in code as of migration `0048_cancellations`:
 - **NOT yet built:** void flow, petty cash, self-bill, payor/insurance.
 
 **Service layer — [lib/services/sales.ts](../../lib/services/sales.ts):**
-- `collectAppointmentPayment(ctx, appointmentId, input)` — Zod-validates input, calls the RPC, maps errors to `ValidationError`. Pure TS, no framework imports.
+- `collectAppointmentPayment(ctx, appointmentId, input)` — Zod-validates input, runs `assertLineDiscountCaps` and `assertPaymentFields` (per-method required-field check), calls the RPC, maps errors to `ValidationError`. Pure TS, no framework imports.
 - `getSalesOrderForAppointment(ctx, appointmentId)` — fetches the latest SO for an appointment.
 - `getSalesOrder(ctx, id)` — single SO with full relations (customer, consultant, outlet, created_by).
 - `listSalesOrders(ctx, opts)` — all orders with relations, optional outlet filter.
@@ -29,22 +30,37 @@ What actually exists in code as of migration `0048_cancellations`:
 - `listCancellations(ctx, opts)` — all cancellation records with SO→customer and processed_by relations.
 - `getSalesSummary(ctx, opts)` — daily totals (total sales MYR, total payments MYR, order count, payment count) for the Summary tab.
 
+**Service layer — [lib/services/payment-methods.ts](../../lib/services/payment-methods.ts) (new):**
+- `listPaymentMethods(ctx)` / `listActivePaymentMethods(ctx)` — used by the config table and the Collect Payment dialog respectively.
+- `createPaymentMethod(ctx, input)` — custom only; server auto-snake-cases `code` from `name` with uniqueness suffix, sets `requires_remarks = true`, all other flags false.
+- `updatePaymentMethod(ctx, id, input)` — changes name / is_active / sort_order. Field flags stay locked (not exposed in v1).
+- `deletePaymentMethod(ctx, id)` — `ConflictError` on built-ins; FK `RESTRICT` blocks deletion of any method already referenced by a `payments` row (toggle inactive instead).
+- `assertPaymentFields(ctx, payments)` — loads each method and verifies its required fields are present; strips unrequired fields to null. Server-side invariant — UI can't weasel around it.
+
 **Schemas — [lib/schemas/sales.ts](../../lib/schemas/sales.ts):**
-- `SALES_PAYMENT_MODES` const tuple + `SALES_PAYMENT_MODE_LABEL` map.
 - `collectPaymentItemSchema` / `collectPaymentInputSchema` Zod schemas feeding both the dialog and the service.
+- `paymentEntrySchema` — `mode` is now a free-form string (resolved at runtime against `payment_methods.code`); carries all per-method optional fields (`remarks`, `bank`, `card_type`, `trace_no`, `approval_code`, `reference_no`, `months`). Zod doesn't cross-validate required fields per method — the service layer does that via `assertPaymentFields` against the method's flags.
 - `cancelSalesOrderInputSchema` — reason (required), optional amount/tax override.
+
+**Schemas — [lib/schemas/payment-methods.ts](../../lib/schemas/payment-methods.ts) (new):**
+- `paymentMethodInputSchema` — edit payload (name / is_active / sort_order only; field flags are not user-editable in v1).
+- `newPaymentMethodInputSchema` — create payload for custom methods (name only; server sets remarks-only flags + auto-derives `code`).
 
 **Server actions — [lib/actions/sales.ts](../../lib/actions/sales.ts):**
 - `collectAppointmentPaymentAction(appointmentId, input)` — builds context, calls the service, revalidates `/appointments` and `/appointments/[id]`. Under 10 lines.
 - `cancelSalesOrderAction(salesOrderId, input)` — builds context, calls the service, revalidates `/sales`. Returns `{ cnNumber }`.
 
+**Server actions — [lib/actions/payment-methods.ts](../../lib/actions/payment-methods.ts) (new):**
+- `createPaymentMethodAction` / `updatePaymentMethodAction` / `deletePaymentMethodAction` — thin wrappers around the service; revalidate `/config/sales/payment` + `/appointments`.
+
 **UI — Collect Payment Dialog:**
 - [components/appointments/detail/CollectPaymentDialog.tsx](../../components/appointments/detail/CollectPaymentDialog.tsx)
 - Two-column dialog patterned after the reference prototype's Collect Payment modal.
 - Left column: remarks card, line-items list (fed from `appointment_line_items`), Discount / Total / Cash / Balance / Require Rounding toggle. **Discount is per-line**: each row has a compact input with a `% | RM` segmented toggle. On blur, the input is clamped against the line's service cap (`services.discount_cap`) and to the line total; a `Max N% (RM X.XX)` hint sits next to the input when a cap is set. The totals panel's "Discount" row is the sum of all line discounts — there is no separate order-level discount input.
-- Right column: Attachments placeholder card, Payment section (backdate toggle, payment-mode select, amount input, remarks, add-payment-type link), "This sale will be created at <outlet>" footer, large green confirm button, message-to-frontdesk textarea.
-- Launched from [FloatingActionBar](../../components/appointments/detail/FloatingActionBar.tsx) → `ConfirmDialog` → `CollectPaymentDialog`.
-- Fields with no backing data yet (reference #, tag, attachments, message-to-frontdesk, backdate, itemised allocation, add-payment-type) are rendered as disabled / placeholder controls so the layout is complete and the real wiring can land incrementally.
+- Right column: Attachments placeholder card, Payment section (backdate toggle, payment-method select, amount input, method-specific fields, SO remarks, add-payment-type link), "This sale will be created at <outlet>" footer, large green confirm button, message-to-frontdesk textarea.
+- **Payment block is field-driven** (2026-04-17). Method dropdown is fed from `listActivePaymentMethods`. Each `PaymentEntry` row renders fields per the selected method's `requires_*` flags — bank / card type / months as `<select>` from hardcoded constants in [lib/constants/payment-fields.ts](../../lib/constants/payment-fields.ts), everything else as `<Input>`. Switching method wipes previously entered values (old values don't belong to the new method). Up to 5 payment entries (split tender) supported.
+- Launched from [AppointmentActionBar](../../components/appointments/detail/AppointmentActionBar.tsx) → `ConfirmDialog` → `CollectPaymentDialog`.
+- Fields with no backing data yet (tag, attachments) are rendered as disabled / placeholder controls so the layout is complete and the real wiring can land incrementally.
 
 **UI — Sales Dashboard (`/sales`):**
 - [app/(app)/sales/page.tsx](../../app/(app)/sales/page.tsx) — tab-routed page with `?tab=` query param.
@@ -66,7 +82,6 @@ What actually exists in code as of migration `0048_cancellations`:
 - SO detail view has "View linked appointment" link back to `/appointments/[id]`.
 
 **What does NOT exist yet (deferred, explicitly):**
-- Multi-payment UI (one SO currently gets one payment via the RPC). Schema supports N payments; UI creates one.
 - Manual / out-of-appointment sales ("New Sales" entry point).
 - Void (admin-only erase) — distinct from cancel.
 - Payor / third-party payer (Phase 2).
@@ -311,15 +326,31 @@ Child table (`appointment_line_item_incentives`) is documented in [02-appointmen
 | invoice_no | text | Yes | Auto `INV000001` |
 | sales_order_id | uuid (FK) | Yes | CASCADE |
 | outlet_id | uuid (FK) | Yes | RESTRICT |
-| payment_mode | text | Yes | `cash / card / bank_transfer / e_wallet / other` |
+| payment_mode | text (FK) | Yes | → `payment_methods.code`, `ON DELETE RESTRICT`. |
 | amount | numeric(10,2) | Yes | CHECK > 0 |
-| bank | text | No | |
-| reference_no | text | No | |
-| approval_code | text | No | |
+| bank | text | No | Free-text; UI picks from hardcoded bank list |
+| card_type | text | No | Free-text; UI picks Visa/Master/Amex/Others |
+| trace_no | text | No | Card / EPS trace number |
+| approval_code | text | No | Card / EPS approval code |
+| reference_no | text | No | Online transaction reference |
+| months | int | No | EPS installment months (3/6/9/12/18/24/36/48/60) |
 | processed_by | uuid (FK) | No | SET NULL |
-| remarks | text | No | |
+| remarks | text | No | Cash / QR Pay / Touch N Go / custom methods |
 | paid_at | timestamptz | Yes | Default now() |
 | created_at | timestamptz | Yes | |
+
+### `payment_methods`
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| id | uuid | Yes | PK |
+| code | text | Yes | Unique; lowercase snake_case (e.g. `credit_card`) |
+| name | text | Yes | Display label |
+| is_builtin | bool | Yes | Seeded built-ins can't be deleted or have flags changed |
+| is_active | bool | Yes | Inactive methods don't appear in Collect Payment |
+| sort_order | int | Yes | Ascending in the picker |
+| requires_remarks / requires_bank / requires_card_type / requires_trace_no / requires_approval_code / requires_reference_no / requires_months | bool | Yes | Per-method field flags; drive dialog rendering and server-side validation |
+| created_at, updated_at | timestamptz | Yes | |
 
 ### `cancellations`
 
@@ -368,9 +399,9 @@ Historical changes (all already landed):
 
 Otherwise: `sales_orders`, `sale_items`, `payments`, `cancellations` all stay as drafted.
 
-Payment mode CHECK constraint:
-```sql
-CHECK (payment_mode IN ('cash', 'card', 'bank_transfer', 'e_wallet', 'other'))
-```
+Payment-mode validation is now runtime-dynamic: `payments.payment_mode` is a FK
+to `payment_methods.code` (the CHECK constraint was dropped when
+`payment_methods` landed, 2026-04-17). See
+[docs/design/payment-methods.md](../design/payment-methods.md).
 
 All four sales tables already exist in [schema/initial_schema.sql](../schema/initial_schema.sql). The SQL file is being updated in the same pass as this doc.

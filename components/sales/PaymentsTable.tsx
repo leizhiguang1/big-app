@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
-import { SALES_PAYMENT_MODE_LABEL } from "@/lib/schemas/sales";
 import type { PaymentWithRelations } from "@/lib/services/sales";
 
 type Props = {
@@ -40,11 +39,11 @@ function fullName(
 	return [first, last].filter(Boolean).join(" ").trim();
 }
 
-function paymentModeLabel(mode: string): string {
-	return (
-		SALES_PAYMENT_MODE_LABEL[mode as keyof typeof SALES_PAYMENT_MODE_LABEL] ??
-		mode
-	);
+function prettyCode(code: string): string {
+	return code
+		.split("_")
+		.map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
+		.join(" ");
 }
 
 export function PaymentsTable({ payments }: Props) {
@@ -81,10 +80,10 @@ export function PaymentsTable({ payments }: Props) {
 			key: "mode",
 			header: "Mode",
 			sortable: true,
-			sortValue: (p) => p.payment_mode,
+			sortValue: (p) => p.method?.name ?? p.payment_mode,
 			cell: (p) => (
 				<Badge variant="outline" className="text-xs">
-					{paymentModeLabel(p.payment_mode)}
+					{p.method?.name ?? prettyCode(p.payment_mode)}
 				</Badge>
 			),
 		},

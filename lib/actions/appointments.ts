@@ -156,6 +156,19 @@ export async function convertLeadToCustomerAction(
 	return result;
 }
 
+export async function saveAppointmentNotesAction(
+	id: string,
+	notes: string | null,
+) {
+	const ctx = await getServerContext();
+	const { error } = await ctx.db
+		.from("appointments")
+		.update({ notes })
+		.eq("id", id);
+	if (error) throw new Error(error.message);
+	revalidatePath(`/appointments/${id}`);
+}
+
 // ─── Appointment line items ─────────────────────────────────────────────────
 
 export async function listLineItemsAction(appointmentId: string) {
@@ -218,6 +231,11 @@ export async function revertBillingForAppointmentAction(
 	revalidatePath(`/appointments/${currentAppointmentId}`);
 }
 
+export async function listPastLineItemsForCustomerAction(customerId: string) {
+	const ctx = await getServerContext();
+	return lineItemsService.listLineItemsForCustomer(ctx, customerId);
+}
+
 // ─── Incentives (hands-on attribution) ──────────────────────────────────────
 
 export async function createLineItemIncentiveAction(
@@ -236,5 +254,23 @@ export async function deleteLineItemIncentiveAction(
 ) {
 	const ctx = await getServerContext();
 	await lineItemsService.deleteIncentive(ctx, id);
+	revalidatePath(`/appointments/${appointmentId}`);
+}
+
+export async function saveAllocationsForAppointmentAction(
+	appointmentId: string,
+	allocations: {
+		lineItemId: string;
+		employees: { employee_id: string; percent: number }[];
+	}[],
+) {
+	const ctx = await getServerContext();
+	for (const a of allocations) {
+		await lineItemsService.replaceIncentivesForLineItem(
+			ctx,
+			a.lineItemId,
+			a.employees,
+		);
+	}
 	revalidatePath(`/appointments/${appointmentId}`);
 }

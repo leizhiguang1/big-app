@@ -98,6 +98,7 @@ export type Database = {
           employee_id: string
           id: string
           line_item_id: string
+          percent: number
           updated_at: string
         }
         Insert: {
@@ -106,6 +107,7 @@ export type Database = {
           employee_id: string
           id?: string
           line_item_id: string
+          percent?: number
           updated_at?: string
         }
         Update: {
@@ -114,6 +116,7 @@ export type Database = {
           employee_id?: string
           id?: string
           line_item_id?: string
+          percent?: number
           updated_at?: string
         }
         Relationships: [
@@ -153,7 +156,9 @@ export type Database = {
           product_id: string | null
           quantity: number
           service_id: string | null
+          surface: string | null
           tax_id: string | null
+          tooth_number: string | null
           total: number | null
           unit_price: number
           updated_at: string
@@ -170,7 +175,9 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           service_id?: string | null
+          surface?: string | null
           tax_id?: string | null
+          tooth_number?: string | null
           total?: number | null
           unit_price: number
           updated_at?: string
@@ -187,7 +194,9 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           service_id?: string | null
+          surface?: string | null
           tax_id?: string | null
+          tooth_number?: string | null
           total?: number | null
           unit_price?: number
           updated_at?: string
@@ -1511,14 +1520,109 @@ export type Database = {
           },
         ]
       }
+      payment_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          payment_id: string
+          sale_item_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          payment_id: string
+          sale_item_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          payment_id?: string
+          sale_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_allocations_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_allocations_sale_item_id_fkey"
+            columns: ["sale_item_id"]
+            isOneToOne: false
+            referencedRelation: "sale_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_methods: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_builtin: boolean
+          name: string
+          requires_approval_code: boolean
+          requires_bank: boolean
+          requires_card_type: boolean
+          requires_months: boolean
+          requires_reference_no: boolean
+          requires_remarks: boolean
+          requires_trace_no: boolean
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_builtin?: boolean
+          name: string
+          requires_approval_code?: boolean
+          requires_bank?: boolean
+          requires_card_type?: boolean
+          requires_months?: boolean
+          requires_reference_no?: boolean
+          requires_remarks?: boolean
+          requires_trace_no?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_builtin?: boolean
+          name?: string
+          requires_approval_code?: boolean
+          requires_bank?: boolean
+          requires_card_type?: boolean
+          requires_months?: boolean
+          requires_reference_no?: boolean
+          requires_remarks?: boolean
+          requires_trace_no?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
           approval_code: string | null
           bank: string | null
+          card_type: string | null
           created_at: string
           id: string
           invoice_no: string
+          months: number | null
           outlet_id: string
           paid_at: string
           payment_mode: string
@@ -1526,14 +1630,17 @@ export type Database = {
           reference_no: string | null
           remarks: string | null
           sales_order_id: string
+          trace_no: string | null
         }
         Insert: {
           amount: number
           approval_code?: string | null
           bank?: string | null
+          card_type?: string | null
           created_at?: string
           id?: string
           invoice_no: string
+          months?: number | null
           outlet_id: string
           paid_at?: string
           payment_mode: string
@@ -1541,14 +1648,17 @@ export type Database = {
           reference_no?: string | null
           remarks?: string | null
           sales_order_id: string
+          trace_no?: string | null
         }
         Update: {
           amount?: number
           approval_code?: string | null
           bank?: string | null
+          card_type?: string | null
           created_at?: string
           id?: string
           invoice_no?: string
+          months?: number | null
           outlet_id?: string
           paid_at?: string
           payment_mode?: string
@@ -1556,6 +1666,7 @@ export type Database = {
           reference_no?: string | null
           remarks?: string | null
           sales_order_id?: string
+          trace_no?: string | null
         }
         Relationships: [
           {
@@ -1564,6 +1675,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "outlets"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_payment_mode_fk"
+            columns: ["payment_mode"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["code"]
           },
           {
             foreignKeyName: "payments_processed_by_fkey"
@@ -1768,6 +1886,7 @@ export type Database = {
           created_by: string | null
           customer_id: string | null
           discount: number
+          frontdesk_message: string | null
           id: string
           outlet_id: string
           outstanding: number | null
@@ -1789,6 +1908,7 @@ export type Database = {
           created_by?: string | null
           customer_id?: string | null
           discount?: number
+          frontdesk_message?: string | null
           id?: string
           outlet_id: string
           outstanding?: number | null
@@ -1810,6 +1930,7 @@ export type Database = {
           created_by?: string | null
           customer_id?: string | null
           discount?: number
+          frontdesk_message?: string | null
           id?: string
           outlet_id?: string
           outstanding?: number | null
@@ -2417,14 +2538,16 @@ export type Database = {
     Functions: {
       collect_appointment_payment: {
         Args: {
-          p_amount: number
+          p_allocations?: Json
           p_appointment_id: string
           p_discount: number
+          p_frontdesk_message?: string
           p_items: Json
-          p_payment_mode: string
+          p_payments: Json
           p_processed_by: string
           p_remarks: string
           p_rounding: number
+          p_sold_at?: string
           p_tax: number
         }
         Returns: Json
@@ -2576,3 +2699,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

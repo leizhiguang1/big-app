@@ -13,6 +13,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { CollectPaymentDialog } from "@/components/appointments/detail/CollectPaymentDialog";
+import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
 	Tooltip,
@@ -26,23 +27,38 @@ import {
 } from "@/lib/actions/appointments";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
+import type { CustomerWithRelations } from "@/lib/services/customers";
+import type {
+	EmployeeShift,
+	RosterEmployee,
+} from "@/lib/services/employee-shifts";
+import type { EmployeeWithRelations } from "@/lib/services/employees";
+import type { InventoryItemWithRefs } from "@/lib/services/inventory";
+import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
+import type { PaymentMethod } from "@/lib/services/payment-methods";
 import type { ServiceWithCategory } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
-import { cn } from "@/lib/utils";
 
 type Props = {
 	appointment: AppointmentWithRelations;
 	lineItems: AppointmentLineItem[];
 	services: ServiceWithCategory[];
+	products: InventoryItemWithRefs[];
 	taxes: Tax[];
+	outletName: string | null;
+	allEmployees: EmployeeWithRelations[];
+	paymentMethods: PaymentMethod[];
+	customers: CustomerWithRelations[];
+	rosterEmployees: RosterEmployee[];
+	rooms: Room[];
+	allOutlets: OutletWithRoomCount[];
+	shifts: EmployeeShift[];
+	onEdit: () => void;
 	onToast?: (
 		message: string,
 		variant?: "default" | "success" | "error",
 	) => void;
 };
-
-const baseBtn =
-	"flex h-11 w-11 items-center justify-center rounded-full shadow-lg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50";
 
 // Mark Complete branches on line items + payment state. See
 // docs/modules/02-appointments.md §Complete appointment workflow.
@@ -57,11 +73,35 @@ function pickCompletionPath(
 	return "collect-payment";
 }
 
-export function FloatingActionBar({
+const colorClass = {
+	blue: "border-blue-300 bg-blue-100 text-blue-800 hover:bg-blue-200 hover:text-blue-900",
+	green:
+		"border-green-300 bg-green-100 text-green-800 hover:bg-green-200 hover:text-green-900",
+	sky: "border-sky-300 bg-sky-100 text-sky-800 hover:bg-sky-200 hover:text-sky-900",
+	amber:
+		"border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200 hover:text-amber-900",
+	red: "border-red-300 bg-red-100 text-red-700 hover:bg-red-200 hover:text-red-800",
+	emerald:
+		"border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200 hover:text-emerald-900",
+	slate:
+		"border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-800",
+} as const;
+
+export function AppointmentActionBar({
 	appointment,
 	lineItems,
 	services,
+	products,
 	taxes,
+	outletName,
+	allEmployees,
+	paymentMethods,
+	customers,
+	rosterEmployees,
+	rooms,
+	allOutlets,
+	shifts,
+	onEdit,
 	onToast,
 }: Props) {
 	const router = useRouter();
@@ -122,153 +162,164 @@ export function FloatingActionBar({
 
 	return (
 		<>
-			<div className="pointer-events-none fixed right-4 bottom-4 z-40 flex items-center gap-2">
+			<div className="flex shrink-0 items-center gap-1.5">
 				{isCompleted ? (
 					<>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<button
+								<Button
 									type="button"
+									variant="outline"
+									size="icon-sm"
+									className={colorClass.green}
 									aria-label="Schedule next appointment for this customer"
-									className={cn(
-										baseBtn,
-										"pointer-events-auto bg-green-600 text-white",
-									)}
+									onClick={() => {
+										const params = new URLSearchParams();
+										if (appointment.customer_id)
+											params.set("customer_id", appointment.customer_id);
+										if (appointment.outlet_id)
+											params.set("outlet_id", appointment.outlet_id);
+										router.push(`/appointments?${params.toString()}&new=1`);
+									}}
 								>
-									<Plus className="size-5" />
-								</button>
+									<Plus />
+								</Button>
 							</TooltipTrigger>
-							<TooltipContent side="top">
+							<TooltipContent side="bottom">
 								Schedule next appointment
 							</TooltipContent>
 						</Tooltip>
 
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<button
+								<Button
 									type="button"
-									aria-label="Revert to pending"
+									variant="outline"
+									size="icon-sm"
+									className={colorClass.slate}
 									onClick={() => setRevertOpen(true)}
 									disabled={isPending}
-									className={cn(
-										baseBtn,
-										"pointer-events-auto bg-slate-500 text-white",
-									)}
+									aria-label="Revert to pending"
 								>
 									{isPending ? (
-										<Loader2 className="size-5 animate-spin" />
+										<Loader2 className="animate-spin" />
 									) : (
-										<Undo2 className="size-5" />
+										<Undo2 />
 									)}
-								</button>
+								</Button>
 							</TooltipTrigger>
-							<TooltipContent side="top">Revert to pending</TooltipContent>
+							<TooltipContent side="bottom">Revert to pending</TooltipContent>
 						</Tooltip>
 					</>
 				) : (
 					<>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<button
+								<Button
 									type="button"
-									aria-label="Print queue ticket"
-									className={cn(
-										baseBtn,
-										"pointer-events-auto border border-blue-300 bg-white text-blue-700",
-									)}
+									variant="outline"
+									size="icon-sm"
+									className={colorClass.blue}
+									aria-label="Print queue ticket (coming soon)"
 								>
-									<Ticket className="size-5" />
-								</button>
+									<Ticket />
+								</Button>
 							</TooltipTrigger>
-							<TooltipContent side="top">Print queue ticket</TooltipContent>
+							<TooltipContent side="bottom">Print queue ticket (coming soon)</TooltipContent>
 						</Tooltip>
 
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<button
+								<Button
 									type="button"
+									variant="outline"
+									size="icon-sm"
+									className={colorClass.green}
 									aria-label="Create new appointment for this customer"
-									className={cn(
-										baseBtn,
-										"pointer-events-auto bg-green-600 text-white",
-									)}
+									onClick={() => {
+										const params = new URLSearchParams();
+										if (appointment.customer_id)
+											params.set("customer_id", appointment.customer_id);
+										if (appointment.outlet_id)
+											params.set("outlet_id", appointment.outlet_id);
+										router.push(`/appointments?${params.toString()}&new=1`);
+									}}
 								>
-									<Plus className="size-5" />
-								</button>
+									<Plus />
+								</Button>
 							</TooltipTrigger>
-							<TooltipContent side="top">New appointment</TooltipContent>
+							<TooltipContent side="bottom">New appointment</TooltipContent>
 						</Tooltip>
 
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<button
+								<Button
 									type="button"
-									aria-label="Cancel appointment"
+									variant="outline"
+									size="icon-sm"
+									className={colorClass.sky}
+									aria-label="Add to queue (coming soon)"
+								>
+									<ListOrdered />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent side="bottom">Add to queue (coming soon)</TooltipContent>
+						</Tooltip>
+
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									type="button"
+									variant="outline"
+									size="icon-sm"
+									className={colorClass.amber}
+									onClick={onEdit}
+									aria-label="Edit appointment"
+								>
+									<Pencil />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent side="bottom">Edit appointment</TooltipContent>
+						</Tooltip>
+
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									type="button"
+									variant="outline"
+									size="icon-sm"
+									className={colorClass.red}
 									onClick={() => setCancelOpen(true)}
 									disabled={isPending}
-									className={cn(
-										baseBtn,
-										"pointer-events-auto bg-red-600 text-white",
-									)}
+									aria-label="Cancel appointment"
 								>
-									<Ban className="size-5" />
-								</button>
+									<Ban />
+								</Button>
 							</TooltipTrigger>
-							<TooltipContent side="top">Cancel appointment</TooltipContent>
+							<TooltipContent side="bottom">Cancel appointment</TooltipContent>
 						</Tooltip>
 
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<button
+								<Button
 									type="button"
-									aria-label="Add to queue"
-									className={cn(
-										baseBtn,
-										"pointer-events-auto bg-sky-600 text-white",
-									)}
-								>
-									<ListOrdered className="size-5" />
-								</button>
-							</TooltipTrigger>
-							<TooltipContent side="top">Add to queue</TooltipContent>
-						</Tooltip>
-
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<button
-									type="button"
-									aria-label="Edit appointment"
-									className={cn(
-										baseBtn,
-										"pointer-events-auto bg-amber-400 text-white",
-									)}
-								>
-									<Pencil className="size-5" />
-								</button>
-							</TooltipTrigger>
-							<TooltipContent side="top">Edit appointment</TooltipContent>
-						</Tooltip>
-
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<button
-									type="button"
-									aria-label="Complete appointment"
+									variant="outline"
+									size="icon-sm"
+									className={colorClass.emerald}
 									onClick={() => setConfirmOpen(true)}
 									disabled={isPending}
-									className={cn(
-										baseBtn,
-										"pointer-events-auto bg-emerald-600 text-white",
-									)}
+									aria-label="Complete appointment"
 								>
 									{isPending ? (
-										<Loader2 className="size-5 animate-spin" />
+										<Loader2 className="animate-spin" />
 									) : (
-										<Check className="size-5" />
+										<Check />
 									)}
-								</button>
+								</Button>
 							</TooltipTrigger>
-							<TooltipContent side="top">Complete appointment</TooltipContent>
+							<TooltipContent side="bottom">
+								Complete appointment
+							</TooltipContent>
 						</Tooltip>
 					</>
 				)}
@@ -307,7 +358,7 @@ export function FloatingActionBar({
 				onOpenChange={setCancelOpen}
 				title="Cancel appointment?"
 				description="This will permanently delete this appointment. This action cannot be undone."
-				confirmLabel="Delete"
+				confirmLabel="Cancel appointment"
 				cancelLabel="Keep"
 				variant="destructive"
 				onConfirm={handleCancelConfirm}
@@ -319,7 +370,16 @@ export function FloatingActionBar({
 				appointment={appointment}
 				entries={lineItems}
 				services={services}
+				products={products}
 				taxes={taxes}
+				outletName={outletName}
+				allEmployees={allEmployees}
+				paymentMethods={paymentMethods}
+				customers={customers}
+				rosterEmployees={rosterEmployees}
+				rooms={rooms}
+				allOutlets={allOutlets}
+				shifts={shifts}
 				onSuccess={(r) =>
 					onToast?.(
 						`Payment collected · ${r.so_number} / ${r.invoice_no}`,
