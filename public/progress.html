@@ -12,12 +12,13 @@
     --muted: oklch(0.97 0 0);
     --muted-foreground: oklch(0.556 0 0);
     --primary: oklch(0.623 0.214 259.815);
-    --primary-foreground: oklch(0.985 0 0);
     --accent: oklch(0.97 0.02 259.815);
     --accent-foreground: oklch(0.623 0.214 259.815);
     --success: oklch(0.62 0.17 150);
-    --border: oklch(0.922 0 0);
+    --success-bg: oklch(0.96 0.04 150);
     --amber: oklch(0.78 0.14 75);
+    --amber-bg: oklch(0.97 0.04 75);
+    --border: oklch(0.922 0 0);
     --radius: 0.625rem;
   }
   * { box-sizing: border-box; }
@@ -27,16 +28,13 @@
     color: var(--foreground);
     font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
-    font-feature-settings: "cv11", "ss01";
   }
   .wrap {
     max-width: 880px;
     margin: 0 auto;
     padding: 56px 24px 120px;
   }
-  header {
-    margin-bottom: 32px;
-  }
+  header { margin-bottom: 32px; }
   .eyebrow {
     font-size: 11px;
     letter-spacing: 0.16em;
@@ -50,7 +48,6 @@
     font-weight: 600;
     margin: 0 0 10px;
     letter-spacing: -0.02em;
-    color: var(--foreground);
   }
   .lede {
     color: var(--muted-foreground);
@@ -71,7 +68,6 @@
   .overall-label {
     font-size: 13px;
     color: var(--muted-foreground);
-    flex-shrink: 0;
     font-weight: 500;
   }
   .overall-bar {
@@ -85,21 +81,109 @@
     height: 100%;
     background: var(--primary);
     width: 0%;
-    transition: width 0.4s ease;
+    transition: width 0.5s ease;
   }
   .overall-count {
     font-variant-numeric: tabular-nums;
     font-weight: 600;
     font-size: 13px;
-    color: var(--foreground);
-    min-width: 62px;
+    min-width: 64px;
     text-align: right;
+  }
+
+  .section-label {
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    font-weight: 600;
+    margin: 36px 0 12px;
+    padding: 0 4px;
+  }
+
+  /* Core summary card */
+  .core {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px;
+  }
+  .core-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+  .core-sub {
+    font-size: 13px;
+    color: var(--muted-foreground);
+    margin: 0 0 18px;
+  }
+  .pipeline {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .pipe-step {
+    background: var(--success-bg);
+    border: 1px solid color-mix(in oklch, var(--success) 25%, white);
+    border-radius: calc(var(--radius) * 0.8);
+    padding: 12px 14px;
+    position: relative;
+  }
+  .pipe-step-label {
+    font-size: 11px;
+    color: var(--muted-foreground);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .pipe-step-name {
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 2px;
+    color: var(--foreground);
+  }
+  .pipe-check {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 16px;
+    height: 16px;
+    color: var(--success);
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .stat {
+    text-align: left;
+  }
+  .stat-num {
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-num.done { color: var(--success); }
+  .stat-num.fix { color: var(--amber); }
+  .stat-num.todo { color: var(--primary); }
+  .stat-num.later { color: var(--muted-foreground); }
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted-foreground);
+    margin-top: 6px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
   }
 
   .controls {
     display: flex;
     gap: 8px;
-    margin: 20px 0 0;
+    margin: 16px 0 0;
   }
   .ctrl-btn {
     background: var(--card);
@@ -113,10 +197,10 @@
     font-family: inherit;
     transition: all 0.15s;
   }
-  .ctrl-btn:hover { background: var(--muted); border-color: var(--muted-foreground); }
+  .ctrl-btn:hover { background: var(--muted); }
 
   .module {
-    margin-top: 12px;
+    margin-top: 10px;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -140,13 +224,6 @@
   }
   .module.collapsed .mod-chevron { transform: rotate(-90deg); }
   .module.collapsed .mod-body { display: none; }
-
-  .mod-title {
-    font-size: 15px;
-    font-weight: 600;
-    margin: 0;
-    color: var(--foreground);
-  }
   .mod-status-dot {
     width: 8px; height: 8px;
     border-radius: 50%;
@@ -156,7 +233,11 @@
   .dot-progress { background: var(--primary); }
   .dot-todo { background: var(--amber); }
   .dot-later { background: var(--muted-foreground); opacity: 0.5; }
-
+  .mod-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+  }
   .mod-meta {
     margin-left: auto;
     display: flex;
@@ -182,14 +263,11 @@
     width: 0%;
     transition: width 0.3s ease;
   }
-
   .mod-body {
     padding: 4px 8px 12px;
     border-top: 1px solid var(--border);
   }
-  .group {
-    padding: 8px 10px 4px;
-  }
+  .group { padding: 8px 10px 4px; }
   .group-label {
     font-size: 11px;
     letter-spacing: 0.1em;
@@ -202,69 +280,40 @@
     display: flex;
     align-items: flex-start;
     gap: 11px;
-    padding: 8px 10px;
+    padding: 7px 10px;
     border-radius: calc(var(--radius) * 0.6);
-    cursor: pointer;
-    transition: background 0.12s;
   }
-  .item:hover { background: var(--muted); }
-  .item input[type="checkbox"] {
-    appearance: none;
-    -webkit-appearance: none;
+  .status-icon {
     width: 16px; height: 16px;
-    border: 1.5px solid var(--border);
-    border-radius: 4px;
-    background: var(--card);
-    cursor: pointer;
     flex-shrink: 0;
-    margin-top: 2px;
-    position: relative;
-    transition: all 0.15s;
+    margin-top: 1px;
   }
-  .item input[type="checkbox"]:hover { border-color: var(--primary); }
-  .item input[type="checkbox"]:checked {
-    background: var(--primary);
-    border-color: var(--primary);
-  }
-  .item input[type="checkbox"]:checked::after {
-    content: "";
-    position: absolute;
-    left: 4px; top: 0px;
-    width: 5px; height: 10px;
-    border: solid white;
-    border-width: 0 2px 2px 0;
-    transform: rotate(45deg);
-  }
+  .status-icon.done { color: var(--success); }
+  .status-icon.pending { color: var(--muted-foreground); opacity: 0.5; }
   .item-body { flex: 1; min-width: 0; }
   .item-title {
     font-size: 13.5px;
     font-weight: 500;
     line-height: 1.4;
-    color: var(--foreground);
   }
+  .item.done .item-title { color: var(--foreground); }
+  .item.pending .item-title { color: color-mix(in oklch, var(--foreground) 80%, white); }
   .item-note {
     font-size: 12px;
     color: var(--muted-foreground);
     margin-top: 2px;
     line-height: 1.45;
   }
-  .item.checked .item-title {
-    color: var(--muted-foreground);
-    text-decoration: line-through;
-    text-decoration-thickness: 1px;
-  }
   .tag {
     display: inline-block;
     font-size: 10px;
     padding: 1px 7px;
     border-radius: 999px;
-    background: var(--accent);
-    color: var(--accent-foreground);
     font-weight: 500;
     margin-left: 6px;
     vertical-align: 1px;
   }
-  .tag.fix { background: color-mix(in oklch, var(--amber) 15%, white); color: color-mix(in oklch, var(--amber) 80%, black); }
+  .tag.fix { background: var(--amber-bg); color: color-mix(in oklch, var(--amber) 75%, black); }
   .tag.ui { background: var(--accent); color: var(--accent-foreground); }
   .tag.later { background: var(--muted); color: var(--muted-foreground); }
 
@@ -274,16 +323,13 @@
     border-top: 1px solid var(--border);
     color: var(--muted-foreground);
     font-size: 12px;
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
   }
 
   @media (max-width: 620px) {
     .wrap { padding: 36px 16px 80px; }
     h1 { font-size: 26px; }
     .mod-mini-bar { display: none; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
 </head>
@@ -293,19 +339,71 @@
     <div class="eyebrow">BIG · Build Progress</div>
     <h1>What's shipped, what's next.</h1>
     <p class="lede">
-      BIG is a service-business management platform — starting with dental clinics, designed to also fit salons, spas &amp; barbershops. We rebuilt it from scratch on a modern stack: Next.js 16, Supabase, TypeScript strict, shadcn/ui, with a framework-free service layer so a backend split later stays clean.
+      BIG is a service-business management platform — starting with dental clinics, designed to also fit salons, spas &amp; barbershops. Rebuilt from scratch on a modern stack: Next.js 16, Supabase, TypeScript, shadcn/ui.
     </p>
     <div class="overall">
       <span class="overall-label">Overall</span>
       <div class="overall-bar"><div class="overall-fill" id="overallFill"></div></div>
       <span class="overall-count" id="overallCount">0 / 0</span>
     </div>
-    <div class="controls">
+  </header>
+
+  <!-- Core summary -->
+  <div class="section-label">Core platform</div>
+  <div class="core">
+    <h2 class="core-title">Booking → Payment flow is live</h2>
+    <p class="core-sub">
+      The end-to-end operational loop — roster staff, book customers, deliver services, collect payment — works today across all shipped modules.
+    </p>
+    <div class="pipeline">
+      <div class="pipe-step">
+        <svg class="pipe-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <div class="pipe-step-label">Step 1</div>
+        <div class="pipe-step-name">Roster</div>
+      </div>
+      <div class="pipe-step">
+        <svg class="pipe-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <div class="pipe-step-label">Step 2</div>
+        <div class="pipe-step-name">Book</div>
+      </div>
+      <div class="pipe-step">
+        <svg class="pipe-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <div class="pipe-step-label">Step 3</div>
+        <div class="pipe-step-name">Bill</div>
+      </div>
+      <div class="pipe-step">
+        <svg class="pipe-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <div class="pipe-step-label">Step 4</div>
+        <div class="pipe-step-name">Collect Payment</div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num done" id="statDone">0</div>
+        <div class="stat-label">Shipped</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num fix" id="statFix">0</div>
+        <div class="stat-label">To fix / polish</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num todo" id="statTodo">0</div>
+        <div class="stat-label">UI to build</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num later" id="statLater">0</div>
+        <div class="stat-label">Later phase</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label" style="display:flex;align-items:center;gap:12px;">
+    <span>Module breakdown</span>
+    <div class="controls" style="margin:0 0 0 auto;">
       <button class="ctrl-btn" id="expandAll">Expand all</button>
       <button class="ctrl-btn" id="collapseAll">Collapse all</button>
-      <button class="ctrl-btn" id="resetBtn">Reset</button>
     </div>
-  </header>
+  </div>
 
   <!-- Auth -->
   <div class="module" data-mod>
@@ -321,15 +419,15 @@
     <div class="mod-body">
       <div class="group">
         <div class="group-label">Done</div>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Login &amp; logout</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Password recovery flow</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Roles &amp; positions management</div></div></label>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Login &amp; logout</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Password recovery flow</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Roles &amp; positions management</div></div></div>
       </div>
       <div class="group">
         <div class="group-label">To add</div>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Staff permissions <span class="tag fix">small</span></div><div class="item-note">Tighten role-based access on sensitive actions.</div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Admin-managed password + PIN <span class="tag fix">small</span></div><div class="item-note">Set/reset an employee's login &amp; PIN from their detail page.</div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">RLS tightening <span class="tag fix">polish</span></div><div class="item-note">Replace temp permissive policies with real per-role rules.</div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Staff permissions <span class="tag fix">small</span></div><div class="item-note">Tighten role-based access on sensitive actions.</div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Admin-managed password + PIN <span class="tag fix">small</span></div><div class="item-note">Set/reset an employee's login &amp; PIN from their detail page.</div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">RLS tightening <span class="tag fix">polish</span></div><div class="item-note">Replace temp permissive policies with real per-role rules.</div></div></div>
       </div>
     </div>
   </div>
@@ -348,13 +446,13 @@
     <div class="mod-body">
       <div class="group">
         <div class="group-label">Done</div>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Employee CRUD</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Assign to outlets</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Role &amp; position linkage</div></div></label>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Employee CRUD</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Assign to outlets</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Role &amp; position linkage</div></div></div>
       </div>
       <div class="group">
         <div class="group-label">To add</div>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">"Bookable" toggle <span class="tag fix">small</span></div><div class="item-note">When on, employee appears in appointment resource picker.</div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">"Bookable" toggle <span class="tag fix">small</span></div><div class="item-note">When on, employee appears in appointment resource picker.</div></div></div>
       </div>
     </div>
   </div>
@@ -373,9 +471,9 @@
     <div class="mod-body">
       <div class="group">
         <div class="group-label">Done</div>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Outlet CRUD</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Room CRUD per outlet</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Guardrails on delete (min one room)</div></div></label>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Outlet CRUD</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Room CRUD per outlet</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Guardrails on delete (min one room)</div></div></div>
       </div>
     </div>
   </div>
@@ -394,13 +492,13 @@
     <div class="mod-body">
       <div class="group">
         <div class="group-label">Done</div>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Shift scheduling</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Recurring shifts</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Overnight shifts</div></div></label>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Shift scheduling</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Recurring shifts</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Overnight shifts</div></div></div>
       </div>
       <div class="group">
         <div class="group-label">Later</div>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Clock in / Clock out <span class="tag later">later</span></div><div class="item-note">Staff attendance module.</div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Clock in / Clock out <span class="tag later">later</span></div><div class="item-note">Staff attendance module.</div></div></div>
       </div>
     </div>
   </div>
@@ -419,19 +517,19 @@
     <div class="mod-body">
       <div class="group">
         <div class="group-label">Done</div>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Customer CRUD</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Medical fields + ID uniqueness</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Delete with confirmation</div></div></label>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Customer CRUD</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Medical fields + ID uniqueness</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Delete with confirmation</div></div></div>
       </div>
       <div class="group">
         <div class="group-label">To surface in UI</div>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Customer detail tabs <span class="tag ui">UI</span></div><div class="item-note">Visit history, files, notes, medical history — data already captured.</div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Customer detail tabs <span class="tag ui">UI</span></div><div class="item-note">Visit history, files, notes, medical history — data already captured.</div></div></div>
       </div>
       <div class="group">
         <div class="group-label">To add</div>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Foreign customer fields <span class="tag fix">small</span></div><div class="item-note">Passport number + country of origin.</div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Staff-benefit 10% auto-detect <span class="tag fix">small</span></div><div class="item-note"><code>is_staff</code> flag + auto discount hook in billing.</div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">IC reader integration <span class="tag later">later</span></div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Foreign customer fields <span class="tag fix">small</span></div><div class="item-note">Passport number + country of origin.</div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Staff-benefit 10% auto-detect <span class="tag fix">small</span></div><div class="item-note">is_staff flag + auto discount hook in billing.</div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">IC reader integration <span class="tag later">later</span></div></div></div>
       </div>
     </div>
   </div>
@@ -450,19 +548,19 @@
     <div class="mod-body">
       <div class="group">
         <div class="group-label">Done</div>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Service CRUD</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Categories</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Fixed pricing</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Inventory-item linkage in service form</div></div></label>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Service CRUD</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Categories</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Fixed pricing</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Inventory-item linkage in service form</div></div></div>
       </div>
       <div class="group">
         <div class="group-label">To fix</div>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Add new category bug <span class="tag fix">bug</span></div><div class="item-note">Reproduce &amp; fix category creation flow.</div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Add new category bug <span class="tag fix">bug</span></div><div class="item-note">Reproduce &amp; fix category creation flow.</div></div></div>
       </div>
       <div class="group">
         <div class="group-label">To add</div>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Price range (min + max)</div><div class="item-note">Billing picks within range instead of single fixed price.</div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Discount capping (MYR or %)</div><div class="item-note">Per-service cap with unit toggle.</div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Price range (min + max)</div><div class="item-note">Billing picks within range instead of single fixed price.</div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Discount capping (MYR or %)</div><div class="item-note">Per-service cap with unit toggle.</div></div></div>
       </div>
     </div>
   </div>
@@ -481,12 +579,12 @@
     <div class="mod-body">
       <div class="group">
         <div class="group-label">Done</div>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Items CRUD</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Brands, categories, suppliers, UoMs</div></div></label>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Items CRUD</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Brands, categories, suppliers, UoMs</div></div></div>
       </div>
       <div class="group">
         <div class="group-label">Later</div>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Stock movement / deep inventory <span class="tag later">later</span></div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Stock movement / deep inventory <span class="tag later">later</span></div></div></div>
       </div>
     </div>
   </div>
@@ -505,25 +603,25 @@
     <div class="mod-body">
       <div class="group">
         <div class="group-label">Done</div>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Day / Week / Month / Timeline / List views</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Drag &amp; drop with visual feedback</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Room selection</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Tags &amp; lead flag</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Realtime updates + optimistic UI</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Full-page detail view</div><div class="item-note">Two-column layout, floating action bar, tooltips.</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Case Notes tab</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Billing line items</div></div></label>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Day / Week / Month / Timeline / List views</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Drag &amp; drop with visual feedback</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Room selection</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Tags &amp; lead flag</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Realtime updates + optimistic UI</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Full-page detail view</div><div class="item-note">Two-column layout, floating action bar, tooltips.</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Case Notes tab</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Billing line items</div></div></div>
       </div>
       <div class="group">
         <div class="group-label">To fix</div>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Delete / No-Show → reschedule popup <span class="tag fix">small</span></div><div class="item-note">Prompt to reschedule instead of just destructive confirm.</div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Track appointment creator <span class="tag fix">small</span></div><div class="item-note">Add <code>created_by</code> and surface in UI.</div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Delete / No-Show → reschedule popup <span class="tag fix">small</span></div><div class="item-note">Prompt to reschedule instead of just destructive confirm.</div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Track appointment creator <span class="tag fix">small</span></div><div class="item-note">Add created_by and surface in UI.</div></div></div>
       </div>
       <div class="group">
         <div class="group-label">Later (Phase 2 clinical)</div>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Dental Assessment tab <span class="tag later">later</span></div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Periodontal Charting tab <span class="tag later">later</span></div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Camera / photos tab <span class="tag later">later</span></div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Dental Assessment tab <span class="tag later">later</span></div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Periodontal Charting tab <span class="tag later">later</span></div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Camera / photos tab <span class="tag later">later</span></div></div></div>
       </div>
     </div>
   </div>
@@ -542,27 +640,27 @@
     <div class="mod-body">
       <div class="group">
         <div class="group-label">Done</div>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Collect Payment (transactional)</div><div class="item-note">Sales order + sale items + payment in one RPC.</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Configurable payment methods</div><div class="item-note">Dynamic field validation + admin UI.</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Action bar → confirm → dialog wiring</div></div></label>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Collect Payment (transactional)</div><div class="item-note">Sales order + sale items + payment in one RPC.</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Configurable payment methods</div><div class="item-note">Dynamic field validation + admin UI.</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Action bar → confirm → dialog wiring</div></div></div>
       </div>
       <div class="group">
         <div class="group-label">To fix</div>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Structured card fields on payment <span class="tag fix">small</span></div><div class="item-note">Split into last4 / brand / auth code instead of flat string.</div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Structured card fields on payment <span class="tag fix">small</span></div><div class="item-note">Split into last4 / brand / auth code instead of flat string.</div></div></div>
       </div>
       <div class="group">
         <div class="group-label">To surface in UI</div>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">/sales dashboard <span class="tag ui">UI</span></div><div class="item-note">Summary / Sales / Payment / Cancelled tabs.</div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Invoice printing <span class="tag ui">UI</span></div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Multi-payment (split methods) <span class="tag ui">UI</span></div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Cancellations + credit notes <span class="tag ui">UI</span></div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Void sales <span class="tag ui">UI</span></div><div class="item-note">Void a completed sales order with audit trail.</div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Manual / walk-in sales <span class="tag ui">UI</span></div><div class="item-note">Sell without booking an appointment first.</div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Payor / insurance <span class="tag ui">UI</span></div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">/sales dashboard <span class="tag ui">UI</span></div><div class="item-note">Summary / Sales / Payment / Cancelled tabs.</div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Invoice printing <span class="tag ui">UI</span></div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Multi-payment (split methods) <span class="tag ui">UI</span></div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Cancellations + credit notes <span class="tag ui">UI</span></div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Void sales <span class="tag ui">UI</span></div><div class="item-note">Void a completed sales order with audit trail.</div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Manual / walk-in sales <span class="tag ui">UI</span></div><div class="item-note">Sell without booking an appointment first.</div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Payor / insurance <span class="tag ui">UI</span></div></div></div>
       </div>
       <div class="group">
         <div class="group-label">Later</div>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Commission calculation <span class="tag later">later</span></div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Commission calculation <span class="tag later">later</span></div></div></div>
       </div>
     </div>
   </div>
@@ -581,9 +679,9 @@
     <div class="mod-body">
       <div class="group">
         <div class="group-label">Done</div>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Medical certificate issuance</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Tax rate configuration</div></div></label>
-        <label class="item"><input type="checkbox" checked><div class="item-body"><div class="item-title">Config module rail layout</div></div></label>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Medical certificate issuance</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Tax rate configuration</div></div></div>
+        <div class="item done"><svg class="status-icon done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><div class="item-body"><div class="item-title">Config module rail layout</div></div></div>
       </div>
     </div>
   </div>
@@ -601,95 +699,89 @@
     </div>
     <div class="mod-body">
       <div class="group">
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">WhatsApp connector <span class="tag later">Phase 3</span></div><div class="item-note">Separate <code>wa-service</code> repo.</div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">NestJS backend extraction <span class="tag later">Phase 2</span></div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Multi-tenant <span class="tag later">Phase 4</span></div></div></label>
-        <label class="item"><input type="checkbox"><div class="item-body"><div class="item-title">Automation workflows <span class="tag later">later</span></div></div></label>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">WhatsApp connector <span class="tag later">Phase 3</span></div><div class="item-note">Separate wa-service repo.</div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">NestJS backend extraction <span class="tag later">Phase 2</span></div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Multi-tenant <span class="tag later">Phase 4</span></div></div></div>
+        <div class="item pending"><svg class="status-icon pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><div class="item-body"><div class="item-title">Automation workflows <span class="tag later">later</span></div></div></div>
       </div>
     </div>
   </div>
 
   <div class="footer">
-    <span>Checkbox state saved locally in your browser.</span>
+    <span>View-only snapshot of the build.</span>
   </div>
 </div>
 
 <script>
-  const STORAGE_KEY = "big-progress-v2";
-  const COLLAPSE_KEY = "big-progress-collapse-v2";
-
+  const COLLAPSE_KEY = "big-progress-collapse-v3";
   function load(k) { try { return JSON.parse(localStorage.getItem(k) || "{}"); } catch { return {}; } }
   function save(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
-
-  const state = load(STORAGE_KEY);
   const collapseState = load(COLLAPSE_KEY);
-
-  document.querySelectorAll(".item").forEach((item, idx) => {
-    const key = "i" + idx;
-    const box = item.querySelector("input[type=checkbox]");
-    if (state[key] !== undefined) box.checked = state[key];
-    if (box.checked) item.classList.add("checked");
-    box.addEventListener("change", () => {
-      state[key] = box.checked;
-      save(STORAGE_KEY, state);
-      item.classList.toggle("checked", box.checked);
-      updateCounts();
-    });
-  });
 
   document.querySelectorAll(".module").forEach((mod, idx) => {
     const key = "m" + idx;
-    if (collapseState[key]) mod.classList.add("collapsed");
+    if (collapseState[key] === true) mod.classList.add("collapsed");
     else if (collapseState[key] === false) mod.classList.remove("collapsed");
-    const header = mod.querySelector(".mod-header");
-    header.addEventListener("click", (e) => {
-      if (e.target.tagName === "INPUT" || e.target.closest("label")) return;
+    mod.querySelector(".mod-header").addEventListener("click", () => {
       mod.classList.toggle("collapsed");
       collapseState[key] = mod.classList.contains("collapsed");
       save(COLLAPSE_KEY, collapseState);
     });
   });
 
-  function updateCounts() {
-    let total = 0, done = 0;
-    document.querySelectorAll(".module").forEach(mod => {
-      const boxes = mod.querySelectorAll("input[type=checkbox]");
-      const checked = mod.querySelectorAll("input[type=checkbox]:checked");
-      total += boxes.length;
-      done += checked.length;
-      mod.querySelector(".mod-count").textContent = checked.length + " / " + boxes.length;
-      const pct = boxes.length ? (checked.length / boxes.length * 100) : 0;
-      mod.querySelector(".mod-mini-fill").style.width = pct + "%";
-      const dot = mod.querySelector(".mod-status-dot");
-      dot.classList.remove("dot-done","dot-progress","dot-todo","dot-later");
-      if (pct === 100) dot.classList.add("dot-done");
-      else if (pct >= 50) dot.classList.add("dot-progress");
-      else if (pct > 0) dot.classList.add("dot-todo");
-      else dot.classList.add("dot-later");
-    });
-    document.getElementById("overallCount").textContent = done + " / " + total;
-    document.getElementById("overallFill").style.width = (total ? (done/total*100) : 0) + "%";
+  function countDoneItems(sec) {
+    return {
+      total: sec.querySelectorAll(".item").length,
+      done: sec.querySelectorAll(".item.done").length,
+    };
   }
-  updateCounts();
 
-  document.getElementById("expandAll").addEventListener("click", () => {
+  let totalAll = 0, doneAll = 0;
+  let totalFix = 0, totalUi = 0, totalLater = 0;
+  document.querySelectorAll(".module").forEach(mod => {
+    const { total, done } = countDoneItems(mod);
+    totalAll += total;
+    doneAll += done;
+    mod.querySelector(".mod-count").textContent = done + " / " + total;
+    const pct = total ? (done / total * 100) : 0;
+    mod.querySelector(".mod-mini-fill").style.width = pct + "%";
+    const dot = mod.querySelector(".mod-status-dot");
+    if (pct === 100) dot.classList.add("dot-done");
+    else if (pct >= 50) dot.classList.add("dot-progress");
+    else if (pct > 0) dot.classList.add("dot-todo");
+    else dot.classList.add("dot-later");
+  });
+
+  document.querySelectorAll(".item.pending").forEach(item => {
+    const tag = item.querySelector(".tag");
+    if (!tag) { totalFix++; return; }
+    if (tag.classList.contains("ui")) totalUi++;
+    else if (tag.classList.contains("later")) totalLater++;
+    else totalFix++;
+  });
+
+  document.getElementById("overallCount").textContent = doneAll + " / " + totalAll;
+  document.getElementById("overallFill").style.width = (totalAll ? (doneAll/totalAll*100) : 0) + "%";
+  document.getElementById("statDone").textContent = doneAll;
+  document.getElementById("statFix").textContent = totalFix;
+  document.getElementById("statTodo").textContent = totalUi;
+  document.getElementById("statLater").textContent = totalLater;
+
+  document.getElementById("expandAll").addEventListener("click", (e) => {
+    e.stopPropagation();
     document.querySelectorAll(".module").forEach((m, idx) => {
       m.classList.remove("collapsed");
       collapseState["m" + idx] = false;
     });
     save(COLLAPSE_KEY, collapseState);
   });
-  document.getElementById("collapseAll").addEventListener("click", () => {
+  document.getElementById("collapseAll").addEventListener("click", (e) => {
+    e.stopPropagation();
     document.querySelectorAll(".module").forEach((m, idx) => {
       m.classList.add("collapsed");
       collapseState["m" + idx] = true;
     });
     save(COLLAPSE_KEY, collapseState);
-  });
-  document.getElementById("resetBtn").addEventListener("click", () => {
-    if (!confirm("Reset all checkboxes to defaults?")) return;
-    localStorage.removeItem(STORAGE_KEY);
-    location.reload();
   });
 </script>
 </body>
