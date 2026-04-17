@@ -16,8 +16,8 @@ import {
 	X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
 	Tooltip,
@@ -334,9 +334,17 @@ export function CollectPaymentDialog({
 	const [payments, setPayments] = useState<PaymentEntry[]>([
 		emptyPayment(defaultMethodCode),
 	]);
+	// Each split-tender row must use a distinct method — one SO can have
+	// two payments both tagged `cash` in the DB, but on the UI "Cash" +
+	// "Cash" is almost always a duplicate-entry mistake, and it makes
+	// reconciliation at the counter confusing. Pre-select the first unused
+	// active method when adding a row.
 	const addPaymentEntry = () => {
 		if (payments.length >= 5) return;
-		setPayments((prev) => [...prev, emptyPayment(defaultMethodCode)]);
+		const used = new Set(payments.map((p) => p.mode));
+		const nextMethod =
+			paymentMethods.find((m) => !used.has(m.code))?.code ?? defaultMethodCode;
+		setPayments((prev) => [...prev, emptyPayment(nextMethod)]);
 	};
 	const removePaymentEntry = (key: string) => {
 		setPayments((prev) => (prev.length <= 1 ? prev : prev.filter((p) => p.key !== key)));
@@ -365,6 +373,7 @@ export function CollectPaymentDialog({
 	const [isLoadingRepeat, startRepeatTransition] = useTransition();
 	const [itemized, setItemized] = useState(false);
 	const [formError, setFormError] = useState<string | null>(null);
+	const [formSuccess, setFormSuccess] = useState<string | null>(null);
 	const [apptDialogOpen, setApptDialogOpen] = useState(false);
 
 	// Allocation state
@@ -547,6 +556,33 @@ export function CollectPaymentDialog({
 		[lines, taxes, lineDiscounts],
 	);
 
+	// Per-line net (what each line actually adds to the bill).
+	const lineNets = useMemo(
+		() =>
+			lines.map((l, i) => {
+				const disc = lineDiscounts[i] ?? 0;
+				const tax = lineTaxAmount(l, taxes, disc);
+				return Math.max(0, lineGross(l) - disc) + tax;
+			}),
+		[lines, lineDiscounts, taxes],
+	);
+
+	// A line "requires full payment" unless the underlying service was
+	// explicitly flagged as "Allow Redemption Without Payment". That flag
+	// is the single source of truth for "can the customer walk out without
+	// paying this line in full" — its default (unchecked) means yes, full
+	// payment is required. Products and ad-hoc charges are always
+	// full-payment-required (goods delivered, one-off fees).
+	const requiresFullFor = useCallback(
+		(line: Line): boolean => {
+			if (line.item_type !== "service") return true;
+			if (!line.service_id) return true;
+			const svc = serviceById.get(line.service_id);
+			return !(svc?.allow_redemption_without_payment ?? false);
+		},
+		[serviceById],
+	);
+
 	const rawTotal = Math.max(0, subtotal - totalDiscount + totalTax);
 
 	// Rounding: compute from rounded total input
@@ -570,7 +606,18 @@ export function CollectPaymentDialog({
 			}, 0),
 		[payments],
 	);
-	const balance = Math.max(0, total - totalPaid);
+	// Signed diff — negative means overpaid. We expose this instead of the
+	// old `Math.max(0, …)` so the UI can actually show overpayment.
+	const balanceDiff = total - totalPaid;
+	const isOverpaid = balanceDiff < -0.005;
+	const isUnderpaid = balanceDiff > 0.005;
+
+	// If every line demands full payment, partial is not an option.
+	const anyPartialAllowed = useMemo(
+		() => lines.some((l) => !requiresFullFor(l)),
+		[lines, requiresFullFor],
+	);
+	const forcesFullPayment = !anyPartialAllowed && lines.length > 0;
 
 	// Payment allocation per line
 	const [linePayAlloc, setLinePayAlloc] = useState<Map<string, string>>(
@@ -580,21 +627,210 @@ export function CollectPaymentDialog({
 	const setLinePayAllocVal = (id: string, val: string) =>
 		setLinePayAlloc((prev) => new Map(prev).set(id, val));
 
-	// Auto-fill allocations when total paid >= total
+	// On exact/overpay, every line is paid to its net — lock allocations
+	// to the deterministic value so the user can't create a mismatch.
 	useEffect(() => {
-		if (totalPaid >= total && total > 0) {
+		if (!isUnderpaid && total > 0) {
 			const next = new Map<string, string>();
 			for (let i = 0; i < lines.length; i++) {
-				const disc = lineDiscounts[i] ?? 0;
-				const net = Math.max(0, lineGross(lines[i]) - disc);
-				const tax = lineTaxAmount(lines[i], taxes, disc);
-				next.set(lines[i].id, (net + tax).toFixed(2));
+				next.set(lines[i].id, (lineNets[i] ?? 0).toFixed(2));
 			}
 			setLinePayAlloc(next);
 		}
-	}, [totalPaid, total, lines, lineDiscounts, taxes]);
+	}, [isUnderpaid, total, lines, lineNets]);
+
+	// Drop stale allocation keys when lines are added/removed — otherwise
+	// a deleted line's allocation would keep contributing to the sum.
+	useEffect(() => {
+		setLinePayAlloc((prev) => {
+			const ids = new Set(lines.map((l) => l.id));
+			let changed = false;
+			const next = new Map<string, string>();
+			for (const [k, v] of prev) {
+				if (ids.has(k)) next.set(k, v);
+				else changed = true;
+			}
+			return changed ? next : prev;
+		});
+	}, [lines]);
+
+	// Per-line allocation numbers + validation flags.
+	const allocNums = useMemo(
+		() =>
+			lines.map((l) => {
+				const raw = Number(linePayAlloc.get(l.id) ?? "0");
+				return Number.isFinite(raw) && raw > 0 ? raw : 0;
+			}),
+		[lines, linePayAlloc],
+	);
+	const allocSum = useMemo(
+		() => allocNums.reduce((s, n) => s + n, 0),
+		[allocNums],
+	);
+	const lineOverAllocated = useMemo(
+		() =>
+			lines.map((_l, i) => allocNums[i] > (lineNets[i] ?? 0) + 0.005),
+		[lines, allocNums, lineNets],
+	);
+	const lineUnderRequired = useMemo(
+		() =>
+			lines.map(
+				(l, i) =>
+					requiresFullFor(l) &&
+					allocNums[i] < (lineNets[i] ?? 0) - 0.005,
+			),
+		[lines, allocNums, lineNets, requiresFullFor],
+	);
+	// Allocation checks only apply once the user has actually tried to pay
+	// partially — at totalPaid = 0 everything is trivially "under" and we
+	// don't want to flag that as an error.
+	const allocChecksActive = isUnderpaid && totalPaid > 0;
+	const anyLineOverAllocated = lineOverAllocated.some(Boolean);
+	const anyRequiredUnder = allocChecksActive && lineUnderRequired.some(Boolean);
+	const allocSumMismatch =
+		allocChecksActive && Math.abs(allocSum - totalPaid) > 0.01;
+
+	// Auto-allocate: required-full lines paid to their net first, then any
+	// remaining cash spread across optional lines pro-rata to their nets.
+	// Runs only when the user clicks the button — never while they type,
+	// so numbers don't jump underneath the cursor.
+	const autoAllocatePartial = () => {
+		if (total <= 0 || totalPaid <= 0) return;
+		const cap = Math.min(totalPaid, total);
+		const required = lines.map((l) => requiresFullFor(l));
+		const next = new Map<string, string>();
+		let remaining = cap;
+		// Pass 1: required-full lines get their full net (or what's left).
+		for (let i = 0; i < lines.length; i++) {
+			if (!required[i]) {
+				next.set(lines[i].id, "0.00");
+				continue;
+			}
+			const want = lineNets[i] ?? 0;
+			const take = Math.min(want, remaining);
+			remaining = Math.max(0, remaining - take);
+			next.set(lines[i].id, take.toFixed(2));
+		}
+		// Pass 2: spread leftover across optional lines pro-rata to their nets.
+		const optionalTotal = lines.reduce(
+			(s, _l, i) => (required[i] ? s : s + (lineNets[i] ?? 0)),
+			0,
+		);
+		if (remaining > 0 && optionalTotal > 0) {
+			let distributed = 0;
+			let lastOptional = -1;
+			for (let i = 0; i < lines.length; i++) {
+				if (required[i]) continue;
+				lastOptional = i;
+				const share = Math.min(
+					lineNets[i] ?? 0,
+					Math.round((remaining * (lineNets[i] ?? 0) * 100) / optionalTotal) /
+						100,
+				);
+				next.set(lines[i].id, share.toFixed(2));
+				distributed += share;
+			}
+			// Rounding remainder → last optional line, capped at its net.
+			if (lastOptional >= 0) {
+				const residue = Math.round((remaining - distributed) * 100) / 100;
+				if (Math.abs(residue) > 0.005) {
+					const cur = Number(next.get(lines[lastOptional].id) ?? "0");
+					const capped = Math.min(
+						lineNets[lastOptional] ?? 0,
+						Math.max(0, cur + residue),
+					);
+					next.set(lines[lastOptional].id, capped.toFixed(2));
+				}
+			}
+		}
+		setLinePayAlloc(next);
+	};
+
+	// Set payment row to exactly cover the bill (single-click helper when
+	// the user accidentally typed too much / too little in a single payment).
+	const setPaymentToTotal = (key: string) => {
+		setPayments((prev) => {
+			const others = prev.reduce((s, p) => {
+				if (p.key === key) return s;
+				const v = Number(p.amount);
+				return s + (Number.isFinite(v) && v > 0 ? v : 0);
+			}, 0);
+			const target = Math.max(0, total - others);
+			return prev.map((p) =>
+				p.key === key ? { ...p, amount: target.toFixed(2) } : p,
+			);
+		});
+	};
 
 	const amountValid = totalPaid > 0;
+
+	// Employee-allocation validation. A slot "counts" once an employee is
+	// picked; slots with no employee are ignored so empty rows don't break
+	// submit. We require the filled slots to sum to 100% — either via the
+	// user typing, the auto-redistribute on pick, or the Balance button.
+	const globalEmpSum = useMemo(
+		() =>
+			globalAlloc
+				.filter((a) => a.employeeId)
+				.reduce((s, a) => s + (a.percent || 0), 0),
+		[globalAlloc],
+	);
+	const globalHasAssigned = globalAlloc.some((a) => a.employeeId);
+	const globalAllocInvalid =
+		!itemized && globalHasAssigned && Math.abs(globalEmpSum - 100) > 0.01;
+
+	const itemizedInvalidLineIds = useMemo(() => {
+		if (!itemized) return new Set<string>();
+		const bad = new Set<string>();
+		const entryIds = new Set(entries.map((e) => e.id));
+		for (const line of lines) {
+			if (!entryIds.has(line.id)) continue;
+			const slots = lineAlloc.get(line.id);
+			if (!slots) continue;
+			const filled = slots.filter((a) => a.employeeId);
+			if (filled.length === 0) continue;
+			const sum = filled.reduce((s, a) => s + (a.percent || 0), 0);
+			if (Math.abs(sum - 100) > 0.01) bad.add(line.id);
+		}
+		return bad;
+	}, [itemized, lines, lineAlloc, entries]);
+
+	// Distribute the missing % into the first filled slot, or clamp the
+	// first slot down if we're over. Button, not onChange — one deliberate
+	// user click, no surprise mutation while typing.
+	const balanceGlobalEmployee = () => {
+		setGlobalAlloc((prev) => {
+			const filledIdx = prev.findIndex((a) => a.employeeId);
+			if (filledIdx === -1) return prev;
+			const sum = prev
+				.filter((a) => a.employeeId)
+				.reduce((s, a) => s + (a.percent || 0), 0);
+			const delta = 100 - sum;
+			return prev.map((a, i) =>
+				i === filledIdx
+					? { ...a, percent: Math.max(0, Math.min(100, (a.percent || 0) + delta)) }
+					: a,
+			);
+		});
+	};
+	const balanceLineEmployee = (lineId: string) => {
+		setLineAlloc((prev) => {
+			const cur = prev.get(lineId);
+			if (!cur) return prev;
+			const filledIdx = cur.findIndex((a) => a.employeeId);
+			if (filledIdx === -1) return prev;
+			const sum = cur
+				.filter((a) => a.employeeId)
+				.reduce((s, a) => s + (a.percent || 0), 0);
+			const delta = 100 - sum;
+			const next = cur.map((a, i) =>
+				i === filledIdx
+					? { ...a, percent: Math.max(0, Math.min(100, (a.percent || 0) + delta)) }
+					: a,
+			);
+			return new Map(prev).set(lineId, next);
+		});
+	};
 
 	const handleSubmit = () => {
 		setFormError(null);
@@ -609,6 +845,78 @@ export function CollectPaymentDialog({
 		// Validate rounding
 		if (roundingExceedsLimit) {
 			setFormError("Rounding adjustment cannot exceed RM 1.00.");
+			return;
+		}
+		// No two payment rows may share a method — split tender is about
+		// multiple *modes*, and `Cash 200 + Cash 300` is almost always a
+		// "I meant 500" mistake that the operator won't catch at the counter.
+		{
+			const filled = payments.filter((p) => {
+				const v = Number(p.amount);
+				return Number.isFinite(v) && v > 0;
+			});
+			const seen = new Set<string>();
+			for (const p of filled) {
+				if (seen.has(p.mode)) {
+					const dup = methodByCode.get(p.mode)?.name ?? p.mode;
+					setFormError(
+						`Payment method "${dup}" appears twice. Merge the amounts or pick a different method.`,
+					);
+					return;
+				}
+				seen.add(p.mode);
+			}
+		}
+		// Never accept more money than the bill asks for. The customer can
+		// overpay at the counter and get change, but the SO must match the
+		// bill — otherwise reports and AR reconciliation drift.
+		if (isOverpaid) {
+			setFormError(
+				`Collected RM ${money(totalPaid)} exceeds bill total RM ${money(total)}. Reduce the payment or use the "Set to Total" helper.`,
+			);
+			return;
+		}
+		// If nothing in the bill allows partial payment, block partial.
+		if (forcesFullPayment && isUnderpaid) {
+			setFormError(
+				`All items require full payment. Collect RM ${money(total)} or remove/replace items before proceeding.`,
+			);
+			return;
+		}
+		// On partial pay every required-full line must be covered to its net.
+		if (anyRequiredUnder) {
+			setFormError(
+				"Some items require full payment but their allocation is below the net total. Adjust allocations or tap Auto-allocate.",
+			);
+			return;
+		}
+		// No line can be allocated more than it costs.
+		if (anyLineOverAllocated) {
+			setFormError("A line's payment allocation exceeds its own total.");
+			return;
+		}
+		// Allocations must sum exactly to the amount paid.
+		if (allocSumMismatch) {
+			const diff = totalPaid - allocSum;
+			setFormError(
+				diff > 0
+					? `Allocated RM ${money(allocSum)} is less than paid RM ${money(totalPaid)} (short by RM ${money(diff)}). Tap Auto-allocate or distribute the remainder.`
+					: `Allocated RM ${money(allocSum)} exceeds paid RM ${money(totalPaid)}. Reduce one of the line allocations.`,
+			);
+			return;
+		}
+		// Employee commission splits must sum to 100% — silent drift here
+		// shows up later as broken commission/reports.
+		if (globalAllocInvalid) {
+			setFormError(
+				`Employee allocation is ${globalEmpSum.toFixed(0)}% — must equal 100%. Tap Balance or adjust the slots.`,
+			);
+			return;
+		}
+		if (itemizedInvalidLineIds.size > 0) {
+			setFormError(
+				`${itemizedInvalidLineIds.size} item${itemizedInvalidLineIds.size > 1 ? "s" : ""} have employee allocations that don't sum to 100%.`,
+			);
 			return;
 		}
 
@@ -643,11 +951,12 @@ export function CollectPaymentDialog({
 					);
 				}
 
-				// Build allocations array for the RPC
-				const allocations = totalPaid < total
-					? lines.map((l, i) => ({
+				// Build allocations array for the RPC. Only needed on partial
+				// pay — on exact pay the RPC assigns each line its own net.
+				const allocations = isUnderpaid
+					? lines.map((_l, i) => ({
 							item_index: i,
-							amount: Number(linePayAlloc.get(l.id) || "0"),
+							amount: allocNums[i] ?? 0,
 						}))
 					: null;
 
@@ -705,17 +1014,36 @@ export function CollectPaymentDialog({
 		});
 	};
 
-	const disabled = isPending || lines.length === 0 || !amountValid || roundingExceedsLimit;
+	// Disable submit for any *hard* validation failure. We still show the
+	// dialog and let users keep editing — the block only stops the submit,
+	// and the button tooltip / top error banner tells them why.
+	const disabled =
+		isPending ||
+		lines.length === 0 ||
+		!amountValid ||
+		roundingExceedsLimit ||
+		isOverpaid ||
+		(forcesFullPayment && isUnderpaid) ||
+		anyRequiredUnder ||
+		anyLineOverAllocated ||
+		allocSumMismatch ||
+		globalAllocInvalid ||
+		itemizedInvalidLineIds.size > 0;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				showCloseButton={false}
-				onPointerDownOutside={(e) => e.preventDefault()}
-				onInteractOutside={(e) => e.preventDefault()}
+				onPointerDownOutside={(e) => {
+					if (!apptDialogOpen) e.preventDefault();
+				}}
+				onInteractOutside={(e) => {
+					if (!apptDialogOpen) e.preventDefault();
+				}}
 				className="flex max-h-[92vh] w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl"
 			>
 				<DialogTitle className="sr-only">Collect payment</DialogTitle>
+				<DialogDescription className="sr-only">Review billing items and collect payment for this appointment</DialogDescription>
 
 				{/* Header bar */}
 				<div className="flex items-start justify-between border-b bg-white px-6 py-3">
@@ -789,12 +1117,22 @@ export function CollectPaymentDialog({
 											</div>
 										))}
 										{filled.length > 0 && (
-											<div className="text-[10px] tabular-nums text-muted-foreground">
-												{sum.toFixed(0)}%
+											<div className="flex items-center gap-1.5 text-[10px] tabular-nums text-muted-foreground">
+												<span
+													className={cn(
+														Math.abs(sum - 100) > 0.01 && "text-red-600 font-medium",
+													)}
+												>
+													{sum.toFixed(0)}%
+												</span>
 												{Math.abs(sum - 100) > 0.01 && (
-													<span className="ml-1 text-amber-600">
-														(must be 100%)
-													</span>
+													<button
+														type="button"
+														onClick={balanceGlobalEmployee}
+														className="rounded border border-amber-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-amber-900 hover:bg-amber-50"
+													>
+														Balance
+													</button>
 												)}
 											</div>
 										)}
@@ -888,6 +1226,10 @@ export function CollectPaymentDialog({
 											const priceEditable = l.item_type !== "service" || (hasRange && !priceLocked);
 											const qtyEditable = l.item_type !== "service";
 											const remarksOpen = remarksOpenIds.has(l.id);
+											const lineNet = lineNets[i] ?? 0;
+											const lineRequiresFull = requiresFullFor(l);
+											const lineAllocOver = lineOverAllocated[i] === true;
+											const lineAllocShort = lineUnderRequired[i] === true;
 
 											return (
 												<li key={l.id} className="px-3 py-2.5">
@@ -906,6 +1248,25 @@ export function CollectPaymentDialog({
 																<span className="truncate text-sm font-medium text-blue-600">
 																	{l.item_name}
 																</span>
+																{/* Always-visible hint: services opted into redemption
+																   without payment can carry an outstanding balance
+																   at Collection; everything else must be paid in full. */}
+																{l.item_type === "service" && lineRequiresFull && (
+																	<span
+																		className="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-blue-700"
+																		title="Requires full payment — cannot leave an outstanding balance"
+																	>
+																		Full pay
+																	</span>
+																)}
+																{l.item_type === "service" && !lineRequiresFull && (
+																	<span
+																		className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-amber-700"
+																		title="Partial payment allowed (Allow Redemption Without Payment)"
+																	>
+																		Partial ok
+																	</span>
+																)}
 															</div>
 														</div>
 
@@ -1063,8 +1424,10 @@ export function CollectPaymentDialog({
 																	)}
 																</div>
 
-																{/* Payment Allocation — only when partial */}
-																{totalPaid < total && (
+																{/* Payment Allocation — only once the user has actually
+																   started paying partially. Hidden at totalPaid = 0 so a
+																   fresh dialog isn't littered with confusing 0.00 slots. */}
+																{isUnderpaid && totalPaid > 0 && (
 																	<div className="flex items-center gap-1.5">
 																		<span className="text-muted-foreground">Payment Allocation (MYR)</span>
 																		<Input
@@ -1075,8 +1438,23 @@ export function CollectPaymentDialog({
 																			onChange={(e) =>
 																				setLinePayAllocVal(l.id, e.target.value)
 																			}
-																			className="h-6 w-20 text-right text-[11px] tabular-nums"
+																			className={cn(
+																				"h-6 w-20 text-right text-[11px] tabular-nums",
+																				(lineAllocOver || lineAllocShort) &&
+																					"border-red-500 focus-visible:ring-red-500",
+																			)}
 																		/>
+																		<span className="text-[10px] text-muted-foreground">of {money(lineNet)}</span>
+																		{lineAllocOver && (
+																			<span className="text-[10px] font-medium text-red-600">
+																				exceeds line total
+																			</span>
+																		)}
+																		{lineAllocShort && (
+																			<span className="text-[10px] font-medium text-red-600">
+																				must equal line total
+																			</span>
+																		)}
 																	</div>
 																)}
 															</div>
@@ -1191,12 +1569,25 @@ export function CollectPaymentDialog({
 																				</div>
 																			))}
 																			{filled.length > 0 && (
-																				<span className="text-[10px] tabular-nums text-muted-foreground">
-																					{sum.toFixed(0)}%
+																				<span className="inline-flex items-center gap-1.5 text-[10px] tabular-nums text-muted-foreground">
+																					<span
+																						className={cn(
+																							Math.abs(sum - 100) > 0.01 &&
+																								"text-red-600 font-medium",
+																						)}
+																					>
+																						{sum.toFixed(0)}%
+																					</span>
 																					{Math.abs(sum - 100) > 0.01 && (
-																						<span className="ml-1 text-amber-600">
-																							(must be 100%)
-																						</span>
+																						<button
+																							type="button"
+																							onClick={() =>
+																								balanceLineEmployee(l.id)
+																							}
+																							className="rounded border border-amber-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-amber-900 hover:bg-amber-50"
+																						>
+																							Balance
+																						</button>
 																					)}
 																				</span>
 																			)}
@@ -1349,16 +1740,62 @@ export function CollectPaymentDialog({
 									}
 								/>
 								<Row
-									label="Balance"
+									label={isOverpaid ? "Over" : "Balance"}
 									value={
-										<span className={cn(
-											"tabular-nums font-semibold",
-											balance > 0 ? "text-amber-600" : "text-foreground",
-										)}>
-											{money(balance)}
+										<span
+											className={cn(
+												"tabular-nums font-semibold",
+												isOverpaid
+													? "text-red-600"
+													: isUnderpaid
+														? "text-amber-600"
+														: "text-foreground",
+											)}
+										>
+											{money(Math.abs(balanceDiff))}
 										</span>
 									}
 								/>
+
+								{/* Partial-pay allocation summary + auto-allocate helper.
+								    Only appears once the user has actually entered a payment
+								    amount — otherwise every fresh dialog would open with a
+								    loud amber banner shouting about the RM 0 / RM 600 split
+								    even though the user has done nothing yet. */}
+								{isUnderpaid && totalPaid > 0 && lines.length > 0 && (
+									<div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px]">
+										<div className="flex items-center justify-between">
+											<span className="font-medium text-amber-900">
+												Allocated to items
+											</span>
+											<span
+												className={cn(
+													"tabular-nums font-semibold",
+													allocSumMismatch ? "text-red-600" : "text-emerald-700",
+												)}
+											>
+												{money(allocSum)} / {money(totalPaid)}
+											</span>
+										</div>
+										<button
+											type="button"
+											onClick={autoAllocatePartial}
+											className="mt-1.5 w-full rounded-md border border-amber-300 bg-white px-2 py-1 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
+										>
+											Auto-allocate (required-full first)
+										</button>
+										{forcesFullPayment && (
+											<div className="mt-1.5 text-[10px] text-red-700">
+												Every item requires full payment — partial is not allowed for this bill.
+											</div>
+										)}
+									</div>
+								)}
+								{isOverpaid && (
+									<div className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] text-red-700">
+										Over by RM {money(-balanceDiff)}. Reduce a payment row below.
+									</div>
+								)}
 							</div>
 						</div>
 					</div>
@@ -1427,10 +1864,20 @@ export function CollectPaymentDialog({
 						<div className="mt-3 space-y-3">
 							{payments.map((p) => {
 								const method = methodByCode.get(p.mode);
+								// Methods used by other rows — disabled here so split
+								// tender can't collide on the same mode.
+								const usedByOthers = new Set(
+									payments.filter((q) => q.key !== p.key).map((q) => q.mode),
+								);
 								return (
 									<div
 										key={p.key}
-										className="space-y-2 rounded-md border border-border bg-muted/20 p-2"
+										className={cn(
+											"space-y-2 rounded-md border bg-muted/20 p-2",
+											isOverpaid
+												? "border-red-300 bg-red-50/40"
+												: "border-border",
+										)}
 									>
 										<div className="flex items-center gap-2">
 											<select
@@ -1441,8 +1888,13 @@ export function CollectPaymentDialog({
 												}
 											>
 												{paymentMethods.map((m) => (
-													<option key={m.code} value={m.code}>
+													<option
+														key={m.code}
+														value={m.code}
+														disabled={usedByOthers.has(m.code)}
+													>
 														{m.name}
+														{usedByOthers.has(m.code) ? " (used)" : ""}
 													</option>
 												))}
 												{!method && (
@@ -1460,7 +1912,10 @@ export function CollectPaymentDialog({
 												onChange={(e) =>
 													updatePayment(p.key, { amount: e.target.value })
 												}
-												className="h-8 flex-1 text-right text-xs tabular-nums"
+												className={cn(
+													"h-8 flex-1 text-right text-xs tabular-nums",
+													isOverpaid && "border-red-500 focus-visible:ring-red-500",
+												)}
 											/>
 											{payments.length > 1 && (
 												<button
@@ -1473,6 +1928,17 @@ export function CollectPaymentDialog({
 												</button>
 											)}
 										</div>
+										{isOverpaid && (
+											<div className="flex items-center justify-end">
+												<button
+													type="button"
+													onClick={() => setPaymentToTotal(p.key)}
+													className="text-[10px] font-medium text-blue-600 hover:underline"
+												>
+													Set to Total (MYR {money(total)})
+												</button>
+											</div>
+										)}
 
 										{method && (
 											<PaymentMethodFields
@@ -1485,19 +1951,6 @@ export function CollectPaymentDialog({
 								);
 							})}
 
-							{/* SO remarks — different from payments.remarks. Stored on sales_orders.remarks. */}
-							<div className="flex items-center gap-2">
-								<span className="w-20 shrink-0 text-xs text-muted-foreground">
-									SO remarks:
-								</span>
-								<Input
-									placeholder="Add Remarks"
-									value={remarks}
-									onChange={(e) => setRemarks(e.target.value)}
-									className="h-8 flex-1 text-xs"
-								/>
-							</div>
-
 							<button
 								type="button"
 								onClick={addPaymentEntry}
@@ -1507,6 +1960,19 @@ export function CollectPaymentDialog({
 								<Plus className="size-3" />
 								Add Payment Type
 							</button>
+
+							{/* SO remarks — applies to the whole sale, not a single payment. Stored on sales_orders.remarks. */}
+							<div className="flex items-center gap-2 border-t pt-3">
+								<span className="w-20 shrink-0 text-xs text-muted-foreground">
+									Sale remarks
+								</span>
+								<Input
+									placeholder="Optional"
+									value={remarks}
+									onChange={(e) => setRemarks(e.target.value)}
+									className="h-8 flex-1 text-xs"
+								/>
+							</div>
 						</div>
 
 						<div className="mt-4 text-[11px] text-muted-foreground">
@@ -1575,6 +2041,11 @@ export function CollectPaymentDialog({
 							</div>
 						</div>
 
+						{formSuccess && (
+							<div className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+								{formSuccess}
+							</div>
+						)}
 						{formError && (
 							<div className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
 								{formError}
@@ -1610,6 +2081,11 @@ export function CollectPaymentDialog({
 				allOutlets={allOutlets}
 				allEmployees={allEmployees}
 				shifts={shifts}
+				hideBlockTab
+				onSuccess={() => {
+					setFormSuccess("Appointment created successfully");
+					setTimeout(() => setFormSuccess(null), 3000);
+				}}
 			/>
 		</Dialog>
 	);

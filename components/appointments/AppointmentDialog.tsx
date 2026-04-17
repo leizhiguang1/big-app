@@ -95,6 +95,8 @@ type Props = {
 	allOutlets: OutletWithRoomCount[];
 	allEmployees: EmployeeWithRelations[];
 	shifts?: EmployeeShift[];
+	hideBlockTab?: boolean;
+	onSuccess?: () => void;
 };
 
 function isoToLocalInputValue(iso: string): string {
@@ -190,6 +192,8 @@ export function AppointmentDialog({
 	allOutlets,
 	allEmployees,
 	shifts = [],
+	hideBlockTab = false,
+	onSuccess,
 }: Props) {
 	const [pending, startTransition] = useTransition();
 	const [serverError, setServerError] = useState<string | null>(null);
@@ -345,6 +349,7 @@ export function AppointmentDialog({
 					} else {
 						await createAppointmentAction(values);
 					}
+					onSuccess?.();
 					onClose();
 				} catch (err) {
 					setServerError(
@@ -403,8 +408,8 @@ export function AppointmentDialog({
 				<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
 					<DialogHeader className="border-b px-5 py-3">
 						<DialogTitle className="text-base">{headerLabel}</DialogTitle>
-						<DialogDescription className="text-xs">
-							{appointment?.booking_ref ?? "Booking ref auto-generated on save"}
+						<DialogDescription className={appointment?.booking_ref ? "text-xs" : "sr-only"}>
+							{appointment?.booking_ref ?? "Fill in the details below"}
 						</DialogDescription>
 					</DialogHeader>
 
@@ -415,32 +420,34 @@ export function AppointmentDialog({
 					>
 						<div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-5">
 							{/* Booking mode tabs */}
-							<div className="grid grid-cols-2 overflow-hidden rounded-md border">
-								{(
-									[
-										["appointment", "Appointment", CalendarDays],
-										["block", "Time block", Lock],
-									] as const
-								).map(([mode, label, Icon]) => {
-									const active = bookingMode === mode;
-									return (
-										<button
-											key={mode}
-											type="button"
-											onClick={() => setBookingMode(mode)}
-											className={cn(
-												"inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition",
-												active
-													? "bg-primary text-primary-foreground shadow-inner"
-													: "bg-muted/40 text-muted-foreground hover:bg-muted",
-											)}
-										>
-											<Icon className="size-4" />
-											{label}
-										</button>
-									);
-								})}
-							</div>
+							{!hideBlockTab && (
+								<div className="grid grid-cols-2 overflow-hidden rounded-md border">
+									{(
+										[
+											["appointment", "Appointment", CalendarDays],
+											["block", "Time block", Lock],
+										] as const
+									).map(([mode, label, Icon]) => {
+										const active = bookingMode === mode;
+										return (
+											<button
+												key={mode}
+												type="button"
+												onClick={() => setBookingMode(mode)}
+												className={cn(
+													"inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition",
+													active
+														? "bg-primary text-primary-foreground shadow-inner"
+														: "bg-muted/40 text-muted-foreground hover:bg-muted",
+												)}
+											>
+												<Icon className="size-4" />
+												{label}
+											</button>
+										);
+									})}
+								</div>
+							)}
 
 							{/* Customer or block title */}
 							{isBlock ? (

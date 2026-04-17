@@ -70,7 +70,7 @@ export async function listLineItemsForCustomer(
 		.order("created_at", { ascending: false });
 	if (error) throw new ValidationError(error.message);
 	return ((data ?? []) as unknown as CustomerLineItem[]).filter(
-		(r) => r.appointment !== null,
+		(r) => r.appointment !== null && r.appointment.payment_status === "paid",
 	);
 }
 

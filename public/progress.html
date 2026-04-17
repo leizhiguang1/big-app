@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BIG — Build Progress</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #14171c;
+    --panel-2: #1a1e25;
+    --border: #262b33;
+    --text: #e6e8eb;
+    --muted: #8a919b;
+    --accent: #4f8cff;
+    --green: #3ecf8e;
+    --amber: #f5a623;
+    --red: #ff6b6b;
+    --purple: #a78bfa;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 48px 24px 120px;
+  }
+  header {
+    margin-bottom: 40px;
+  }
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  h1 {
+    font-size: 36px;
+    font-weight: 700;
+    margin: 0 0 12px;
+    letter-spacing: -0.02em;
+  }
+  .lede {
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.6;
+    max-width: 680px;
+  }
+  .overall {
+    margin-top: 28px;
+    padding: 18px 20px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .overall-label {
+    font-size: 13px;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .overall-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--panel-2);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .overall-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), var(--accent));
+    width: 0%;
+    transition: width 0.5s ease;
+  }
+  .overall-count {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 70px;
+    text-align: right;
+  }
+  section {
+    margin-top: 36px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .sec-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .sec-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .sec-title {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .sec-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 2px 0 0;
+  }
+  .sec-meta {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .items {
+    padding: 8px 8px;
+  }
+  .item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .item:hover {
+    background: var(--panel-2);
+  }
+  .item input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border: 1.5px solid var(--border);
+    border-radius: 5px;
+    background: var(--panel-2);
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: 2px;
+    position: relative;
+    transition: all 0.15s;
+  }
+  .item input[type="checkbox"]:hover {
+    border-color: var(--accent);
+  }
+  .item input[type="checkbox"]:checked {
+    background: var(--green);
+    border-color: var(--green);
+  }
+  .item input[type="checkbox"]:checked::after {
+    content: "";
+    position: absolute;
+    left: 5px; top: 1px;
+    width: 5px; height: 10px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .item-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .item-title {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+  .item-note {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 3px;
+    line-height: 1.45;
+  }
+  .item.checked .item-title {
+    color: var(--muted);
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+    text-decoration-color: rgba(138,145,155,0.5);
+  }
+  .badges {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+  .badge.phase2 { background: rgba(167,139,250,0.12); color: var(--purple); }
+  .badge.small { background: rgba(62,207,142,0.12); color: var(--green); }
+  .badge.ui { background: rgba(79,140,255,0.14); color: var(--accent); }
+  .badge.defer { background: rgba(138,145,155,0.14); }
+
+  .dot-done    { background: var(--green); box-shadow: 0 0 10px rgba(62,207,142,0.5); }
+  .dot-fix     { background: var(--amber); box-shadow: 0 0 10px rgba(245,166,35,0.5); }
+  .dot-ui      { background: var(--accent); box-shadow: 0 0 10px rgba(79,140,255,0.5); }
+  .dot-small   { background: #ec4899; box-shadow: 0 0 10px rgba(236,72,153,0.5); }
+  .dot-later   { background: var(--muted); }
+
+  .footer {
+    margin-top: 48px;
+    padding: 20px 0;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .reset-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .reset-btn:hover { color: var(--text); border-color: var(--text); }
+
+  @media (max-width: 620px) {
+    .wrap { padding: 32px 16px 80px; }
+    h1 { font-size: 28px; }
+    .sec-header { padding: 14px 16px; }
+    .sec-meta { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">BIG · Build Progress</div>
+    <h1>What's shipped, what's next.</h1>
+    <p class="lede">
+      BIG is a service-business management platform (starting with dental clinics, designed to also fit salons / spas / barbershops). We rebuilt it from scratch on a modern stack — Next.js 16, Supabase, TypeScript strict, shadcn/ui — with a framework-free service layer so a future backend split stays clean. This page tracks where we are.
+    </p>
+    <div class="overall">
+      <span class="overall-label">Overall</span>
+      <div class="overall-bar"><div class="overall-fill" id="overallFill"></div></div>
+      <span class="overall-count" id="overallCount">0 / 0</span>
+    </div>
+  </header>
+
+  <section data-section="done">
+    <div class="sec-header">
+      <span class="sec-dot dot-done"></span>
+      <div>
+        <h2 class="sec-title">Shipped</h2>
+        <p class="sec-sub">Core flow works end-to-end.</p>
+      </div>
+      <span class="sec-meta" data-meta></span>
+    </div>
+    <div class="items">
+      <label class="item"><input type="checkbox" checked /><div class="item-body"><div class="item-title">Auth, roles &amp; positions</div><div class="item-note">Login, password recovery, role-based employee records.</div></div></label>
+      <label class="item"><input type="checkbox" checked /><div class="item-body"><div class="item-title">Employees, outlets, rooms</div><div class="item-note">Full CRUD, employee-outlet assignment.</div></div></label>
+      <label class="item"><input type="checkbox" checked /><div class="item-body"><div class="item-title">Roster / shifts</div><div class="item-note">Recurring shifts, overnight support.</div></div></label>
+      <label class="item"><input type="checkbox" checked /><div class="item-body"><div class="item-title">Customers</div><div class="item-note">CRUD, medical fields, ID uniqueness, delete with confirmation.</div></div></label>
+      <label class="item"><input type="checkbox" checked /><div class="item-body"><div class="item-title">Services &amp; categories</div><div class="item-note">Pricing, inventory-item linkage in service form.</div></div></label>
+      <label class="item"><input type="checkbox" checked /><div class="item-body"><div class="item-title">Inventory (light)</div><div class="item-note">Items, brands, categories, suppliers, UoMs.</div></div></label>
+      <label class="item"><input type="checkbox" checked /><div class="item-body"><div class="item-title">Appointments — all calendar views</div><div class="item-note">Day / Week / Month / Timeline / List, drag-and-drop, room selection, realtime, optimistic UI.</div></div></label>
+      <label class="item"><input type="checkbox" checked /><div class="item-body"><div class="item-title">Appointment detail page</div><div class="item-note">Two-column layout, floating action bar, tooltips, status progression.</div></div></label>
+      <label class="item"><input type="checkbox" checked /><div class="item-body"><div class="item-title">Case notes</div><div class="item-note">CRUD tab inside appointment detail.</div></div></label>
+      <label class="item"><input type="checkbox" checked /><div class="item-body"><div class="item-title">Collect Payment</div><div class="item-note">Sales orders + sale items + payments in one transactional RPC, wired action bar → confirm → dialog.</div></div></label>
+      <label class="item"><input type="checkbox" checked /><div class="item-body"><div class="item-title">Payment methods config</div><div class="item-note">Configurable types with dynamic field validation + admin UI.</div></div></label>
+      <label class="item"><input type="checkbox" checked /><div class="item-body"><div class="item-title">Medical certificates &amp; tax config</div><div class="item-note">MC issuance, tax rate management.</div></div></label>
+      <label class="item"><input type="checkbox" checked /><div class="item-body"><div class="item-title">Config module</div><div class="item-note">Rail layout, standardized UI across settings pages.</div></div></label>
+    </div>
+  </section>
+
+  <section data-section="fix">
+    <div class="sec-header">
+      <span class="sec-dot dot-fix"></span>
+      <div>
+        <h2 class="sec-title">To fix / polish</h2>
+        <p class="sec-sub">Small billing &amp; integration touch-ups on top of shipped features.</p>
+      </div>
+      <span class="sec-meta" data-meta></span>
+    </div>
+    <div class="items">
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Structured card fields on payments</div><div class="item-note">Split into last4 / brand / auth code instead of flat string.</div><div class="badges"><span class="badge small">small</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Delete / No-Show → reschedule popup</div><div class="item-note">Prompt to reschedule instead of just destructive confirm.</div><div class="badges"><span class="badge small">small</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Track appointment creator</div><div class="item-note">Add <code>created_by</code> FK + surface in UI.</div><div class="badges"><span class="badge small">small</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Service Category creation bug</div><div class="item-note">Unable to add new category — reproduce and fix.</div><div class="badges"><span class="badge small">bug</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Service price range (min + cap)</div><div class="item-note">Allow min/max price; billing picks within range.</div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Discount capping (MYR or %)</div><div class="item-note">Per-service cap with unit toggle.</div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Auth RLS tightening</div><div class="item-note">Replace temp anon+authenticated policies with real per-role rules.</div></div></label>
+    </div>
+  </section>
+
+  <section data-section="ui">
+    <div class="sec-header">
+      <span class="sec-dot dot-ui"></span>
+      <div>
+        <h2 class="sec-title">To surface in UI</h2>
+        <p class="sec-sub">Data &amp; logic mostly exist — these need their screens built.</p>
+      </div>
+      <span class="sec-meta" data-meta></span>
+    </div>
+    <div class="items">
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">/sales dashboard</div><div class="item-note">Summary / Sales / Payment / Cancelled tabs.</div><div class="badges"><span class="badge ui">UI</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Customer detail tabs</div><div class="item-note">Surface medical history, visit history, files, notes — data already captured.</div><div class="badges"><span class="badge ui">UI</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Invoice printing</div><div class="item-note">Printable invoice from sales order / payment.</div><div class="badges"><span class="badge ui">UI</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Multi-payment UI</div><div class="item-note">Split a sales order across multiple payment methods.</div><div class="badges"><span class="badge ui">UI</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Cancellations + credit note flow</div><div class="item-note">Cancellations table, CN generation on refund.</div><div class="badges"><span class="badge ui">UI</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Void sales</div><div class="item-note">Void a completed sales order with audit trail.</div><div class="badges"><span class="badge ui">UI</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Manual / out-of-appointment sales</div><div class="item-note">Sell products or services without booking an appointment first.</div><div class="badges"><span class="badge ui">UI</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Payor / insurance</div><div class="item-note">Third-party payor on sales orders.</div><div class="badges"><span class="badge ui">UI</span></div></div></label>
+    </div>
+  </section>
+
+  <section data-section="small">
+    <div class="sec-header">
+      <span class="sec-dot dot-small"></span>
+      <div>
+        <h2 class="sec-title">Small functions to add</h2>
+        <p class="sec-sub">Quick wins, mostly isolated to one module.</p>
+      </div>
+      <span class="sec-meta" data-meta></span>
+    </div>
+    <div class="items">
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Staff permissions</div><div class="item-note">Tighten role-based access on sensitive actions.</div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Employee "bookable" toggle</div><div class="item-note">When on, employee appears in appointment resource picker.</div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Admin-managed password + PIN</div><div class="item-note">Set/reset an employee's login password &amp; PIN from their detail page.</div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Foreign customer: passport + country</div><div class="item-note">Extend customer form for non-local IDs.</div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Staff-benefit 10% auto-detect</div><div class="item-note"><code>is_staff</code> flag on customer + auto discount hook in billing.</div></div></label>
+    </div>
+  </section>
+
+  <section data-section="later">
+    <div class="sec-header">
+      <span class="sec-dot dot-later"></span>
+      <div>
+        <h2 class="sec-title">Later phase / deferred</h2>
+        <p class="sec-sub">On the roadmap, not scheduled now.</p>
+      </div>
+      <span class="sec-meta" data-meta></span>
+    </div>
+    <div class="items">
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Clinical sub-modules</div><div class="item-note">Dental Assessment, Periodontal Charting, Camera tabs.</div><div class="badges"><span class="badge phase2">Phase 2</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">IC reader integration</div><div class="item-note">Hardware auto-fill for Malaysian IC on customer register.</div><div class="badges"><span class="badge defer">deferred</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Clock in / Clock out</div><div class="item-note">Staff attendance module.</div><div class="badges"><span class="badge defer">deferred</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">WhatsApp connector</div><div class="item-note">Separate <code>wa-service</code> repo; Phase 3 integration.</div><div class="badges"><span class="badge phase2">Phase 3</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Andi Ads automation</div><div class="item-note">Workflow fix — scope to confirm.</div><div class="badges"><span class="badge defer">deferred</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Commission calculation</div><div class="item-note">Staff commission on sales/services.</div><div class="badges"><span class="badge phase2">Phase 2</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">NestJS backend extraction</div><div class="item-note">Split service layer out of Next when scale demands it.</div><div class="badges"><span class="badge phase2">Phase 2</span></div></div></label>
+      <label class="item"><input type="checkbox" /><div class="item-body"><div class="item-title">Multi-tenant</div><div class="item-note">Support multiple brands/companies on one instance.</div><div class="badges"><span class="badge phase2">Phase 4</span></div></div></label>
+    </div>
+  </section>
+
+  <div class="footer">
+    <span>Checkbox state is saved locally in your browser.</span>
+    <button class="reset-btn" id="resetBtn">Reset all</button>
+  </div>
+</div>
+
+<script>
+  const STORAGE_KEY = "big-progress-v1";
+
+  function loadState() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
+    catch { return {}; }
+  }
+  function saveState(state) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  const state = loadState();
+  const items = document.querySelectorAll(".item");
+  items.forEach((item, idx) => {
+    const key = "i" + idx;
+    const box = item.querySelector("input[type=checkbox]");
+    if (state[key] !== undefined) box.checked = state[key];
+    if (box.checked) item.classList.add("checked");
+    box.addEventListener("change", () => {
+      state[key] = box.checked;
+      saveState(state);
+      item.classList.toggle("checked", box.checked);
+      updateCounts();
+    });
+  });
+
+  function updateCounts() {
+    let total = 0, done = 0;
+    document.querySelectorAll("section").forEach(sec => {
+      const boxes = sec.querySelectorAll("input[type=checkbox]");
+      const checked = sec.querySelectorAll("input[type=checkbox]:checked");
+      total += boxes.length;
+      done += checked.length;
+      const meta = sec.querySelector("[data-meta]");
+      if (meta) meta.textContent = checked.length + " / " + boxes.length;
+    });
+    document.getElementById("overallCount").textContent = done + " / " + total;
+    document.getElementById("overallFill").style.width = (total ? (done / total * 100) : 0) + "%";
+  }
+  updateCounts();
+
+  document.getElementById("resetBtn").addEventListener("click", () => {
+    if (!confirm("Reset all checkboxes to defaults?")) return;
+    localStorage.removeItem(STORAGE_KEY);
+    location.reload();
+  });
+</script>
+</body>
+</html>

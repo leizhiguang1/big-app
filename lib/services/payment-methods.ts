@@ -184,7 +184,6 @@ export async function assertPaymentFields(
 				throw new ValidationError(`${label}: ${msg} is required`);
 			return v;
 		};
-		must(m.requires_remarks, "remarks", "remarks");
 		must(m.requires_bank, "bank", "bank");
 		must(m.requires_card_type, "card_type", "card type");
 		must(m.requires_trace_no, "trace_no", "trace no");

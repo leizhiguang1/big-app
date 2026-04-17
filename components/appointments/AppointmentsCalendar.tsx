@@ -120,6 +120,20 @@ export function AppointmentsCalendar({
 	useEffect(() => {
 		writeActiveOutletId(outletId);
 	}, [outletId]);
+
+	useEffect(() => {
+		document.body.classList.remove("dragging-appt");
+		const clear = () => document.body.classList.remove("dragging-appt");
+		window.addEventListener("pointerup", clear, true);
+		window.addEventListener("dragend", clear, true);
+		window.addEventListener("drop", clear, true);
+		return () => {
+			window.removeEventListener("pointerup", clear, true);
+			window.removeEventListener("dragend", clear, true);
+			window.removeEventListener("drop", clear, true);
+			clear();
+		};
+	}, []);
 	const searchParams = useSearchParams();
 	const [isStatusPending, startTransition] = useTransition();
 

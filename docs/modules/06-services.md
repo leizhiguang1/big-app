@@ -91,8 +91,7 @@ Bulk activate/deactivate is **not** in v1.
 - **Selling Price** (MYR) — single amount, applies to all outlets in v1. Shown only when `allow_cash_price_range` is off.
 - **Other Fees** (MYR) — additional fee beyond the selling price
 - **Individual Discount Capping** — optional; checkbox "Enable" reveals a percentage input; stored as `discount_cap` (nullable; null = no cap). Enforced at Collect Payment — staff can enter discounts in % or RM at billing but neither form can exceed this cap on the line total.
-- **Full payment required** — `full_payment` bool
-- **Allow redemption without payment** — `allow_redemption_without_payment` bool (default true)
+- **Allow redemption without payment** — `allow_redemption_without_payment` bool (default `false` — unchecked). **This is the single source of truth for whether the line requires full payment at Collection.** When unchecked (the default), Collect Payment forces the line to be allocated to its full net — the customer cannot walk out with an outstanding balance on this line. When checked, staff may allocate less than the line total; Billing and Collect Payment both show a "Partial ok" chip next to the line. Products and ad-hoc charges always require full payment regardless. A "Full pay" chip is shown on the line UI whenever this flag is off, so cashiers see the rule at a glance. The old `services.full_payment` column was dropped in migration `0051_services_drop_full_payment`. See [04-sales.md §Collect Payment — validation rules](./04-sales.md#collect-payment--validation-rules-2026-04-17).
 - **Allow cash selling price range** — `allow_cash_price_range` bool (default false). When enabled, **Selling Price is hidden** and the form shows **Min Price** / **Max Price** inputs instead — two fields, not three, to avoid "which of these prices is the real one?" confusion. On save, `services.price` is auto-mirrored to `price_min` so downstream code that reads `service.price` (billing default, services list, etc.) naturally shows the low price first; the cashier can edit `unit_price` up to `price_max` at billing time (follow-up task). The DB `CHECK` (`services_price_range_valid`) enforces: both columns NULL iff the flag is off; both set and `price_min ≤ price ≤ price_max` iff on.
 
 *Status*
@@ -139,7 +138,7 @@ Inline CRUD list opened from a "Manage Categories" button on the services page. 
 | price_max | numeric(10,2) | No | Max cashier-editable price. NULL iff `allow_cash_price_range` is false; otherwise required, ≥ `price_min`, and `price` must sit inside `[price_min, price_max]` (always true since `price = price_min` when the flag is on). |
 | other_fees | numeric(10,2) | Yes | Default 0, CHECK ≥ 0. Additional fee beyond selling price. |
 | discount_cap | numeric | No | Nullable. Null = no cap. Range 0–100 (percent). |
-| full_payment | bool | Yes | Default false. |
+<!-- full_payment column removed in migration 0051_services_drop_full_payment (2026-04-17); the partial-payment rule now reads `allow_redemption_without_payment` only. -->
 | allow_redemption_without_payment | bool | Yes | Default true. |
 | allow_cash_price_range | bool | Yes | Default false. |
 | incentive_type | text | No | Holdover free-text column; not referenced by new code. |

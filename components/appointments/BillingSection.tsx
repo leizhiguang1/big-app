@@ -414,6 +414,14 @@ export function BillingSection({
 													<span className="truncate text-sm">
 														{svc.name}
 													</span>
+													{!svc.allow_redemption_without_payment && (
+														<span
+															className="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-semibold text-blue-700 uppercase"
+															title="Requires full payment at Collection — no partial pay"
+														>
+															Full pay
+														</span>
+													)}
 												</>
 											) : prod ? (
 												<>
@@ -571,6 +579,14 @@ export function BillingSection({
 														<span className="truncate text-sm">
 															{svc.name}
 														</span>
+														{!svc.allow_redemption_without_payment && (
+															<span
+																className="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-semibold text-blue-700 uppercase"
+																title="Requires full payment at Collection"
+															>
+																Full pay
+															</span>
+														)}
 													</>
 												) : prod ? (
 													<>

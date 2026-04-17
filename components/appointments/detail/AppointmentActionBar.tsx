@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import { CollectPaymentDialog } from "@/components/appointments/detail/CollectPaymentDialog";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -73,6 +74,26 @@ function pickCompletionPath(
 	return "collect-payment";
 }
 
+function showDomToast(message: string, durationMs = 2000) {
+	let container = document.getElementById("dom-toast-container");
+	if (!container) {
+		container = document.createElement("div");
+		container.id = "dom-toast-container";
+		container.className =
+			"pointer-events-none fixed right-4 bottom-4 z-[10100] flex flex-col gap-1.5";
+		document.body.appendChild(container);
+	}
+	const el = document.createElement("div");
+	el.className =
+		"pointer-events-auto flex max-w-[320px] items-center gap-2 rounded-md border bg-white px-2.5 py-1.5 text-left shadow-sm animate-in slide-in-from-bottom-2 fade-in";
+	el.innerHTML = `<svg class="size-3.5 shrink-0 text-emerald-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span class="min-w-0 flex-1 text-xs">${message}</span>`;
+	container.appendChild(el);
+	setTimeout(() => {
+		el.remove();
+		if (container && container.children.length === 0) container.remove();
+	}, durationMs);
+}
+
 const colorClass = {
 	blue: "border-blue-300 bg-blue-100 text-blue-800 hover:bg-blue-200 hover:text-blue-900",
 	green:
@@ -109,6 +130,7 @@ export function AppointmentActionBar({
 	const [collectOpen, setCollectOpen] = useState(false);
 	const [revertOpen, setRevertOpen] = useState(false);
 	const [cancelOpen, setCancelOpen] = useState(false);
+	const [newApptOpen, setNewApptOpen] = useState(false);
 	const [isPending, startTransition] = useTransition();
 
 	const isCompleted = appointment.status === "completed";
@@ -173,14 +195,7 @@ export function AppointmentActionBar({
 									size="icon-sm"
 									className={colorClass.green}
 									aria-label="Schedule next appointment for this customer"
-									onClick={() => {
-										const params = new URLSearchParams();
-										if (appointment.customer_id)
-											params.set("customer_id", appointment.customer_id);
-										if (appointment.outlet_id)
-											params.set("outlet_id", appointment.outlet_id);
-										router.push(`/appointments?${params.toString()}&new=1`);
-									}}
+									onClick={() => setNewApptOpen(true)}
 								>
 									<Plus />
 								</Button>
@@ -236,14 +251,7 @@ export function AppointmentActionBar({
 									size="icon-sm"
 									className={colorClass.green}
 									aria-label="Create new appointment for this customer"
-									onClick={() => {
-										const params = new URLSearchParams();
-										if (appointment.customer_id)
-											params.set("customer_id", appointment.customer_id);
-										if (appointment.outlet_id)
-											params.set("outlet_id", appointment.outlet_id);
-										router.push(`/appointments?${params.toString()}&new=1`);
-									}}
+									onClick={() => setNewApptOpen(true)}
 								>
 									<Plus />
 								</Button>
@@ -387,6 +395,28 @@ export function AppointmentActionBar({
 					)
 				}
 				onError={(m) => onToast?.(m, "error")}
+			/>
+
+			<AppointmentDialog
+				open={newApptOpen}
+				onClose={() => setNewApptOpen(false)}
+				outletId={appointment.outlet_id}
+				appointment={null}
+				prefill={{
+					startAt: new Date().toISOString(),
+					endAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+					employeeId: appointment.employee_id ?? null,
+					roomId: null,
+					customerId: appointment.customer_id ?? null,
+				}}
+				customers={customers}
+				employees={rosterEmployees}
+				rooms={rooms}
+				allOutlets={allOutlets}
+				allEmployees={allEmployees}
+				shifts={shifts}
+				hideBlockTab
+				onSuccess={() => showDomToast("Appointment created")}
 			/>
 		</>
 	);

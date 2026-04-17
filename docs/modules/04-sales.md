@@ -62,6 +62,90 @@ What actually exists in code as of migration `0048_cancellations`:
 - Launched from [AppointmentActionBar](../../components/appointments/detail/AppointmentActionBar.tsx) → `ConfirmDialog` → `CollectPaymentDialog`.
 - Fields with no backing data yet (tag, attachments) are rendered as disabled / placeholder controls so the layout is complete and the real wiring can land incrementally.
 
+### Collect Payment — validation rules (2026-04-17)
+
+Financial correctness is defended client-side with these invariants. They are
+implemented in [CollectPaymentDialog.tsx](../../components/appointments/detail/CollectPaymentDialog.tsx) and block submit — the server-side RPC is the second line of defence, not the only one.
+
+**UX philosophy**: never mutate what the user is typing. Auto-calcs only fire
+on state transitions (e.g. first time an employee is picked) or explicit
+button clicks ("Auto-allocate", "Balance", "Set to Total"). Everything else
+is surfaced as a red border / amber banner / blocked submit with a specific
+error message. This is the opposite of KumoDent's clamp-on-every-keystroke
+behaviour, which causes the "numbers jumping under my cursor" trap.
+
+**The rules:**
+
+1. **No overpayment.** `totalPaid` may not exceed `total` (bill total after
+   rounding). Violating it paints the payment row red and shows "Set to
+   Total (MYR X)" quick-fix links under each row. Submit is blocked.
+1a. **No duplicate payment methods across rows.** Split tender is about
+    multiple *modes* (e.g. RM 200 cash + RM 300 card), not multiple rows of
+    the same mode — `Cash + Cash` is almost always a "meant to type 500"
+    mistake the operator won't catch at the counter. The method dropdown
+    disables methods already used by other rows (shown as "Name (used)"),
+    and Add Payment Type pre-selects the first unused method. Submit is
+    blocked as a defence-in-depth check.
+2. **Partial payment is opt-in per line, via `allow_redemption_without_payment`.**
+   A line "requires full payment" when its service has
+   `allow_redemption_without_payment = false` (the default — unchecked
+   in the Service form). The reasoning: that flag already decides whether
+   a customer can redeem the service before paying in full, so it is the
+   single source of truth for "can this line carry an outstanding
+   balance at Collection". The separate `services.full_payment` column
+   was dropped in migration `0051_services_drop_full_payment` — one
+   source of truth, no dormant columns. Products and ad-hoc charges are
+   always full-payment-required regardless. `requiresFullFor(line)` in
+   the dialog resolves this. A small **"Full pay"** or **"Partial ok"**
+   chip is shown next to every service line (both in the Billing section
+   and in the Collect Payment dialog) so staff can see the billing
+   treatment of each line at a glance — not just when partial payment is
+   already being attempted.
+3. **Forces-full-pay bill.** If every line on the bill is required-full and
+   `totalPaid < total`, submit is blocked with "All items require full
+   payment. Collect RM X or remove/replace items…".
+4. **Line allocation ceiling.** No per-line allocation may exceed the line's
+   own net (gross − discount + tax). Over-allocation paints the input red
+   and blocks submit.
+5. **Required-full lines must be fully covered on partial pay.** If any
+   required-full line has an allocation below its own net while
+   `totalPaid < total`, submit is blocked. The Auto-allocate button exists
+   exactly to fix this.
+6. **Allocation sum equals paid amount.** On partial pay, the sum of the
+   per-line Payment Allocation inputs must equal `totalPaid` exactly
+   (±0.01). A running "Allocated / Paid" banner + the Auto-allocate helper
+   make this easy to satisfy; submit is blocked if they diverge.
+   **Banner + per-line allocation input are suppressed at `totalPaid = 0`** —
+   a fresh dialog shouldn't open with a loud "Allocated 0.00 / 0.00"
+   warning before the user has done anything. The banner only appears once
+   the user has actually typed a payment amount that's below the total.
+7. **Exact/overpay locks allocations.** When `totalPaid ≥ total`, per-line
+   allocations are deterministically set to each line's net by an effect
+   and the allocation UI is hidden (there's only one right answer).
+8. **Stale allocation keys pruned.** Adding/removing a billing line prunes
+   any allocation keyed to a removed line id — otherwise a deleted line's
+   allocation would keep contributing to the sum and drift the invariant.
+9. **Employee allocation must sum to 100%.** For both the global allocation
+   (non-itemised) and each itemised line's allocation, the filled slots
+   must sum to 100%. A red count appears beside the picker, plus a one-click
+   "Balance" button that drops the difference into the first filled slot.
+   Submit is blocked until fixed.
+10. **Zero-employee OK.** An allocation block with no employee chosen is
+    ignored entirely (no commission attribution) — empty state is legal.
+11. **Rounding capped at RM 1.00.** Existing rule, unchanged.
+
+**Helper actions (all explicit, never auto-fire):**
+
+- **Auto-allocate** (partial pay): required-full lines paid to their full
+  net first, then any remaining cash distributed across optional lines
+  pro-rata to their nets, with the rounding residue going to the last
+  optional line (capped at its net).
+- **Set to Total** (per payment row, overpay state): sets the row's amount
+  to `total − (other rows' amounts)` so a single click exactly covers the
+  bill.
+- **Balance** (employee allocation, non-100% state): adds (100 − current
+  sum) to the first filled slot, clamped to [0, 100].
+
 **UI — Sales Dashboard (`/sales`):**
 - [app/(app)/sales/page.tsx](../../app/(app)/sales/page.tsx) — tab-routed page with `?tab=` query param.
 - **Summary tab** — [app/(app)/sales/summary-content.tsx](../../app/(app)/sales/summary-content.tsx). Four metric cards: Total Sales (MYR), Total Payments (MYR), Orders Today, Payments Today. Server-rendered via `getSalesSummary()`.

@@ -52,6 +52,7 @@ export const SERVICE_FORM_TOOLTIPS: Record<ServiceFormTooltipKey, string[]> = {
 	allowRedemptionWithoutPayment: [
 		"Enable this option if the service can be redeemed even when full payment is not made. This is commonly used when the customer is allowed to make payments in a staggered manner for the service.",
 		"NOTE: If there is outstanding payment detected for this service at the point the appointment is completed, the system will remind the user to request payment from the customer.",
+		"BILLING EFFECT: When OFF (default), Collect Payment requires this line to be allocated to its full net — partial payment on the bill cannot leave any outstanding on this line. When ON, staff may allocate less than the line total during Collect Payment.",
 	],
 	consumables: [
 		"Set the default consumables and their quantities used to render this service to the customer.",

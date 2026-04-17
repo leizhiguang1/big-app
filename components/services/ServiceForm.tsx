@@ -74,7 +74,6 @@ const emptyDefaults = (): ServiceCreateInput => ({
 	other_fees: 0,
 	incentive_type: null,
 	discount_cap: null,
-	full_payment: false,
 	allow_redemption_without_payment: false,
 	allow_cash_price_range: false,
 	is_active: true,
@@ -143,7 +142,6 @@ export function ServiceFormDialog({
 				other_fees: service ? Number(service.other_fees ?? 0) : 0,
 				incentive_type: service?.incentive_type ?? null,
 				discount_cap: nextCap,
-				full_payment: service?.full_payment ?? false,
 				allow_redemption_without_payment:
 					service?.allow_redemption_without_payment ?? false,
 				allow_cash_price_range: service?.allow_cash_price_range ?? false,

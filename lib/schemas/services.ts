@@ -39,7 +39,6 @@ const serviceBaseShape = z.object({
 	other_fees: z.number().min(0, "Other fees must be ≥ 0"),
 	incentive_type: z.string().trim().max(80).nullable(),
 	discount_cap: z.number().min(0, "Min 0").max(100, "Max 100").nullable(),
-	full_payment: z.boolean(),
 	allow_redemption_without_payment: z.boolean(),
 	allow_cash_price_range: z.boolean(),
 	is_active: z.boolean(),

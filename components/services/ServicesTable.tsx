@@ -194,11 +194,14 @@ export function ServicesTable({
 			key: "full_payment",
 			header: "Full Payment?",
 			align: "center",
+			// Derived from allow_redemption_without_payment — if a customer
+			// can redeem without paying in full, the line doesn't require
+			// full payment at Collection.
 			cell: (s) =>
-				s.full_payment ? (
-					<Check className="mx-auto size-4 text-primary" />
-				) : (
+				s.allow_redemption_without_payment ? (
 					dash
+				) : (
+					<Check className="mx-auto size-4 text-primary" />
 				),
 		},
 		{

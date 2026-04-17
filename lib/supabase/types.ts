@@ -2093,7 +2093,6 @@ export type Database = {
           discount_cap: number | null
           duration_min: number
           external_code: string | null
-          full_payment: boolean
           id: string
           image_url: string | null
           incentive_type: string | null
@@ -2115,7 +2114,6 @@ export type Database = {
           discount_cap?: number | null
           duration_min?: number
           external_code?: string | null
-          full_payment?: boolean
           id?: string
           image_url?: string | null
           incentive_type?: string | null
@@ -2137,7 +2135,6 @@ export type Database = {
           discount_cap?: number | null
           duration_min?: number
           external_code?: string | null
-          full_payment?: boolean
           id?: string
           image_url?: string | null
           incentive_type?: string | null
@@ -2699,4 +2696,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

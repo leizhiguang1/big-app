@@ -1,7 +1,7 @@
 "use client";
 
 import { Phone, StickyNote, User } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppointmentHoverCard } from "@/components/appointments/AppointmentHoverCard";
 import {
 	APPOINTMENT_STATUS_CONFIG,
@@ -29,6 +29,13 @@ export function AppointmentCard({
 }: Props) {
 	const [hoverAnchor, setHoverAnchor] = useState<DOMRect | null>(null);
 	const [isDragging, setIsDragging] = useState(false);
+
+	useEffect(() => {
+		if (!isDragging) return;
+		return () => {
+			document.body.classList.remove("dragging-appt");
+		};
+	}, [isDragging]);
 
 	const isBlock = a.is_time_block;
 	const isLead = !isBlock && !a.customer_id && !!a.lead_name;
