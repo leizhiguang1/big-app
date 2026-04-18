@@ -23,12 +23,15 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CustomerCaseNotesTab } from "@/components/customers/CustomerCaseNotesTab";
+import { CustomerCashWalletTab } from "@/components/customers/CustomerCashWalletTab";
 import { CustomerDocumentsTab } from "@/components/customers/CustomerDocumentsTab";
 import { CustomerFollowUpsTab } from "@/components/customers/CustomerFollowUpsTab";
 import { CustomerMedicalCertificatesTab } from "@/components/customers/CustomerMedicalCertificatesTab";
 import { CustomerPaymentsTab } from "@/components/customers/CustomerPaymentsTab";
+import { CustomerProductsTab } from "@/components/customers/CustomerProductsTab";
 import { CustomerSalesTab } from "@/components/customers/CustomerSalesTab";
 import { CustomerServicesTab } from "@/components/customers/CustomerServicesTab";
+import { CustomerVisualsTab } from "@/components/customers/CustomerVisualsTab";
 import { SegmentedTabs } from "@/components/ui/segmented-tabs";
 import type { CustomerLineItem } from "@/lib/services/appointment-line-items";
 import type { CustomerTimelineAppointment } from "@/lib/services/appointments";
@@ -499,6 +502,12 @@ export function CustomerDetailView({
 						/>
 					) : activeTab === "services" ? (
 						<CustomerServicesTab lineItems={lineItems} />
+					) : activeTab === "products" ? (
+						<CustomerProductsTab lineItems={lineItems} />
+					) : activeTab === "visuals" ? (
+						<CustomerVisualsTab documents={documents} />
+					) : activeTab === "cash-wallet" ? (
+						<CustomerCashWalletTab />
 					) : (
 						<PlaceholderTab
 							label={TABS.find((t) => t.key === activeTab)?.label ?? ""}
