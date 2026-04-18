@@ -49,7 +49,11 @@ const SALES_ORDER_SELECT =
 
 export async function listSalesOrders(
 	ctx: Context,
-	opts: { outletId?: string | null; limit?: number } = {},
+	opts: {
+		outletId?: string | null;
+		customerId?: string | null;
+		limit?: number;
+	} = {},
 ): Promise<SalesOrderWithRelations[]> {
 	let query = ctx.db
 		.from("sales_orders")
@@ -57,6 +61,7 @@ export async function listSalesOrders(
 		.order("sold_at", { ascending: false })
 		.limit(opts.limit ?? 200);
 	if (opts.outletId) query = query.eq("outlet_id", opts.outletId);
+	if (opts.customerId) query = query.eq("customer_id", opts.customerId);
 	const { data, error } = await query;
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []) as unknown as SalesOrderWithRelations[];
@@ -249,11 +254,15 @@ export type PaymentWithRelations = Payment & {
 };
 
 const PAYMENT_LIST_SELECT =
-	"*, processed_by_employee:employees!payments_processed_by_fkey(id, first_name, last_name), method:payment_methods!payments_payment_mode_fk(code, name), sales_order:sales_orders!payments_sales_order_id_fkey(id, so_number, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name), consultant:employees!sales_orders_consultant_id_fkey(id, first_name, last_name))";
+	"*, processed_by_employee:employees!payments_processed_by_fkey(id, first_name, last_name), method:payment_methods!payments_payment_mode_fk(code, name), sales_order:sales_orders!payments_sales_order_id_fkey!inner(id, so_number, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name), consultant:employees!sales_orders_consultant_id_fkey(id, first_name, last_name))";
 
 export async function listPayments(
 	ctx: Context,
-	opts: { outletId?: string | null; limit?: number } = {},
+	opts: {
+		outletId?: string | null;
+		customerId?: string | null;
+		limit?: number;
+	} = {},
 ): Promise<PaymentWithRelations[]> {
 	let query = ctx.db
 		.from("payments")
@@ -261,6 +270,8 @@ export async function listPayments(
 		.order("paid_at", { ascending: false })
 		.limit(opts.limit ?? 200);
 	if (opts.outletId) query = query.eq("outlet_id", opts.outletId);
+	if (opts.customerId)
+		query = query.eq("sales_order.customer_id", opts.customerId);
 	const { data, error } = await query;
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []) as unknown as PaymentWithRelations[];

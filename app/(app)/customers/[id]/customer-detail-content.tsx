@@ -6,17 +6,35 @@ import { NotFoundError } from "@/lib/errors";
 import { listLineItemsForCustomer } from "@/lib/services/appointment-line-items";
 import { listCustomerTimeline } from "@/lib/services/appointments";
 import { listCaseNotesWithContext } from "@/lib/services/case-notes";
+import { listCustomerDocuments } from "@/lib/services/customer-documents";
 import { getCustomer } from "@/lib/services/customers";
+import { listFollowUpsForCustomer } from "@/lib/services/follow-ups";
+import { listMedicalCertificatesForCustomer } from "@/lib/services/medical-certificates";
+import { listPayments, listSalesOrders } from "@/lib/services/sales";
 
 export async function CustomerDetailContent({ id }: { id: string }) {
 	const ctx = await getServerContext();
 
 	try {
 		const customer = await getCustomer(ctx, id);
-		const [timeline, lineItems, caseNotes] = await Promise.all([
+		const [
+			timeline,
+			lineItems,
+			caseNotes,
+			salesOrders,
+			payments,
+			followUps,
+			documents,
+			medicalCertificates,
+		] = await Promise.all([
 			listCustomerTimeline(ctx, id),
 			listLineItemsForCustomer(ctx, id),
 			listCaseNotesWithContext(ctx, id),
+			listSalesOrders(ctx, { customerId: id }),
+			listPayments(ctx, { customerId: id }),
+			listFollowUpsForCustomer(ctx, id),
+			listCustomerDocuments(ctx, id),
+			listMedicalCertificatesForCustomer(ctx, id),
 		]);
 		return (
 			<CustomerDetailView
@@ -24,6 +42,11 @@ export async function CustomerDetailContent({ id }: { id: string }) {
 				timeline={timeline}
 				lineItems={lineItems}
 				caseNotes={caseNotes}
+				salesOrders={salesOrders}
+				payments={payments}
+				followUps={followUps}
+				documents={documents}
+				medicalCertificates={medicalCertificates}
 			/>
 		);
 	} catch (err) {
