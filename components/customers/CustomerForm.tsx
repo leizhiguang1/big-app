@@ -70,7 +70,6 @@ const EMPTY: CustomerInput = {
 	profile_image_path: null,
 	id_type: "ic",
 	id_number: undefined,
-	passport_no: undefined,
 	phone: "",
 	phone2: undefined,
 	email: undefined,
@@ -107,7 +106,6 @@ function fromCustomer(c: CustomerWithRelations | null): CustomerInput {
 		profile_image_path: c.profile_image_path ?? null,
 		id_type: (c.id_type as CustomerInput["id_type"]) ?? "ic",
 		id_number: c.id_number ?? undefined,
-		passport_no: c.passport_no ?? undefined,
 		phone: c.phone,
 		phone2: c.phone2 ?? undefined,
 		email: c.email ?? undefined,
@@ -625,19 +623,6 @@ export function CustomerFormDialog({
 												<p className="text-amber-600 text-xs">{icWarning}</p>
 											) : null}
 										</div>
-										{idType === "ic" && (
-											<Field
-												label="Passport Number"
-												htmlFor="cus-passport"
-												error={errors.passport_no?.message}
-											>
-												<Input
-													id="cus-passport"
-													placeholder="Optional — for foreign travel records"
-													{...form.register("passport_no")}
-												/>
-											</Field>
-										)}
 										<Field
 											label="Email Address"
 											htmlFor="cus-email"

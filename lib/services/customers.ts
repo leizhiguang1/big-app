@@ -36,7 +36,6 @@ function normalize(input: unknown) {
 		profile_image_path: p.profile_image_path ?? null,
 		id_type: p.id_type,
 		id_number: nz(p.id_number),
-		passport_no: nz(p.passport_no),
 		phone: p.phone,
 		phone2: nz(p.phone2),
 		email: nz(p.email),

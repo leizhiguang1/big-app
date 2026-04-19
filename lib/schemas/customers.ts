@@ -71,7 +71,6 @@ export const customerInputSchema = z
 		// Identification
 		id_type: z.enum(ID_TYPES),
 		id_number: optionalText(60),
-		passport_no: optionalText(60),
 
 		// Contact
 		phone: z.string().trim().min(1, "Phone is required").max(40),

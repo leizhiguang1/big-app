@@ -110,8 +110,7 @@ _v1 customer creation form fields:_
 | gender | text | No | male, female |
 | date_of_birth | date | No | |
 | id_type | text | Yes | `'ic'` (default) or `'passport'` — toggle in the form |
-| id_number | text | No | IC (Malaysian format) or passport number — label + validation swap with `id_type`. Partial unique index on `(id_number) where id_type='ic'` blocks duplicate Malaysian ICs; passports are intentionally not uniqued (different countries can issue the same number). Same shape on `employees`. |
-| passport_no | text | No | Optional, added 2026-04-18 in migration `0053_customers_passport_no`. Only shown on the form when `id_type='ic'` — the case where a local customer also carries a passport (travel / insurance paperwork). For passport-only foreign customers keep using `id_type='passport'` + `id_number`. |
+| id_number | text | No | IC (Malaysian format) or passport number — label + validation swap with `id_type`. Partial unique index on `(id_number) where id_type='ic'` blocks duplicate Malaysian ICs; passports are intentionally not uniqued (different countries can issue the same number). Same shape on `employees`. We store only one of the two per customer — the earlier `passport_no` column was dropped in migration `0069_customers_drop_passport_no` (2026-04-20). |
 | country_of_origin | text | No | Default: Malaysia |
 | phone | text | Yes | Primary, with country code (+60) |
 | phone2 | text | No | Secondary contact |
