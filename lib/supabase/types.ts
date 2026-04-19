@@ -631,7 +631,7 @@ export type Database = {
           address1?: string | null
           address2?: string | null
           city?: string | null
-          code: string
+          code?: string
           consultant_id: string
           country_of_origin?: string | null
           created_at?: string
@@ -2771,3 +2771,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
