@@ -1,4 +1,4 @@
-import { SalesOrdersTable } from "@/components/sales/SalesOrdersTable";
+import { SalesOrdersTableWithDetail } from "@/components/sales/SalesOrdersTableWithDetail";
 import { getServerContext } from "@/lib/context/server";
 import { listSalesOrders } from "@/lib/services/sales";
 
@@ -13,7 +13,7 @@ export async function SalesOrdersContent() {
 					{orders.length} sales order{orders.length === 1 ? "" : "s"}
 				</span>
 			</div>
-			<SalesOrdersTable orders={orders} />
+			<SalesOrdersTableWithDetail orders={orders} />
 		</div>
 	);
 }

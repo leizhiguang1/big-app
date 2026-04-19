@@ -72,28 +72,28 @@ export function StatusChangeLogCard({ entries }: Props) {
 						<div className="text-center">To</div>
 					</div>
 					<div className="flex max-h-64 flex-col divide-y divide-border/60 overflow-y-auto">
-					{entries.map((entry) => {
-						const who = entry.changed_by
-							? `${entry.changed_by.first_name} ${entry.changed_by.last_name}`.trim()
-							: "System";
-						return (
-							<div
-								key={entry.id}
-								className="grid grid-cols-[1fr_auto_auto] items-center gap-2 py-1.5"
-							>
-								<div className="min-w-0">
-									<div className="truncate tabular-nums text-[10px]">
-										{formatTimestamp(entry.changed_at)}
+						{entries.map((entry) => {
+							const who = entry.changed_by
+								? `${entry.changed_by.first_name} ${entry.changed_by.last_name}`.trim()
+								: "System";
+							return (
+								<div
+									key={entry.id}
+									className="grid grid-cols-[1fr_auto_auto] items-center gap-2 py-1.5"
+								>
+									<div className="min-w-0">
+										<div className="truncate tabular-nums text-[10px]">
+											{formatTimestamp(entry.changed_at)}
+										</div>
+										<div className="truncate text-[10px] text-muted-foreground">
+											{who}
+										</div>
 									</div>
-									<div className="truncate text-[10px] text-muted-foreground">
-										{who}
-									</div>
+									<StatusPill status={entry.from_status} />
+									<StatusPill status={entry.to_status} />
 								</div>
-								<StatusPill status={entry.from_status} />
-								<StatusPill status={entry.to_status} />
-							</div>
-						);
-					})}
+							);
+						})}
 					</div>
 				</div>
 			)}

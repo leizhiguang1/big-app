@@ -244,6 +244,7 @@ export function ServicesTable({
 				searchPlaceholder="Search services…"
 				emptyMessage="No services yet. Click “New service” to create one."
 				minWidth={1400}
+				fillHeight
 			/>
 			<ServiceFormDialog
 				open={!!editing}

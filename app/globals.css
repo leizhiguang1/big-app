@@ -149,6 +149,34 @@
 	}
 }
 
+@utility scrollbar-themed {
+	scrollbar-gutter: stable;
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in oklch, var(--primary) 55%, transparent)
+		transparent;
+
+	&::-webkit-scrollbar {
+		width: 10px;
+		height: 10px;
+	}
+	&::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	&::-webkit-scrollbar-thumb {
+		background: color-mix(in oklch, var(--primary) 45%, transparent);
+		border-radius: 9999px;
+		border: 2px solid transparent;
+		background-clip: padding-box;
+	}
+	&::-webkit-scrollbar-thumb:hover {
+		background: color-mix(in oklch, var(--primary) 75%, transparent);
+		background-clip: padding-box;
+	}
+	&::-webkit-scrollbar-corner {
+		background: transparent;
+	}
+}
+
 body.dragging-appt [data-appt-card]:not([data-dragging="true"]) {
 	pointer-events: none;
 }
@@ -181,4 +209,16 @@ body.dragging-appt [data-appt-card]:not([data-dragging="true"]) {
 [data-appt-card][data-shake="true"]:not([data-dragging="true"]) {
 	animation: appt-card-shake 0.9s ease-in-out infinite;
 	transform-origin: center;
+}
+
+@keyframes nav-slide {
+	0% {
+		transform: translateX(-100%);
+	}
+	50% {
+		transform: translateX(200%);
+	}
+	100% {
+		transform: translateX(-100%);
+	}
 }

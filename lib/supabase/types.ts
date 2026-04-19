@@ -408,6 +408,48 @@ export type Database = {
           },
         ]
       }
+      billing_settings: {
+        Row: {
+          auto_foreign_tax_enabled: boolean
+          created_at: string
+          foreign_tax_id: string | null
+          local_tax_id: string | null
+          singleton: boolean
+          updated_at: string
+        }
+        Insert: {
+          auto_foreign_tax_enabled?: boolean
+          created_at?: string
+          foreign_tax_id?: string | null
+          local_tax_id?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Update: {
+          auto_foreign_tax_enabled?: boolean
+          created_at?: string
+          foreign_tax_id?: string | null
+          local_tax_id?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_settings_foreign_tax_id_fkey"
+            columns: ["foreign_tax_id"]
+            isOneToOne: false
+            referencedRelation: "taxes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_settings_local_tax_id_fkey"
+            columns: ["local_tax_id"]
+            isOneToOne: false
+            referencedRelation: "taxes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cancellations: {
         Row: {
           amount: number
@@ -1286,8 +1328,10 @@ export type Database = {
           code: string
           created_at: string
           customer_id: string
-          duration_days: number
+          duration_days: number | null
+          duration_hours: number | null
           end_date: string
+          end_time: string | null
           half_day_period: string | null
           has_half_day: boolean
           id: string
@@ -1297,6 +1341,7 @@ export type Database = {
           reason: string | null
           slip_type: string
           start_date: string
+          start_time: string | null
           updated_at: string
         }
         Insert: {
@@ -1304,8 +1349,10 @@ export type Database = {
           code?: string
           created_at?: string
           customer_id: string
-          duration_days: number
+          duration_days?: number | null
+          duration_hours?: number | null
           end_date: string
+          end_time?: string | null
           half_day_period?: string | null
           has_half_day?: boolean
           id?: string
@@ -1315,6 +1362,7 @@ export type Database = {
           reason?: string | null
           slip_type: string
           start_date: string
+          start_time?: string | null
           updated_at?: string
         }
         Update: {
@@ -1322,8 +1370,10 @@ export type Database = {
           code?: string
           created_at?: string
           customer_id?: string
-          duration_days?: number
+          duration_days?: number | null
+          duration_hours?: number | null
           end_date?: string
+          end_time?: string | null
           half_day_period?: string | null
           has_half_day?: boolean
           id?: string
@@ -1333,6 +1383,7 @@ export type Database = {
           reason?: string | null
           slip_type?: string
           start_date?: string
+          start_time?: string | null
           updated_at?: string
         }
         Relationships: [

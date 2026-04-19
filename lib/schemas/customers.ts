@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { COUNTRY_CODES } from "@/lib/constants/countries";
 import { MEDICAL_CONDITIONS, SMOKER_OPTIONS } from "@/lib/constants/medical";
 
 const optionalText = (max: number) =>
@@ -81,7 +82,16 @@ export const customerInputSchema = z
 			.email("Invalid email")
 			.optional()
 			.or(z.literal("").transform(() => undefined)),
-		country_of_origin: optionalText(80),
+		country_of_origin: z
+			.string()
+			.trim()
+			.toUpperCase()
+			.refine(
+				(v) => (COUNTRY_CODES as readonly string[]).includes(v),
+				"Select a valid country",
+			)
+			.optional()
+			.or(z.literal("").transform(() => undefined)),
 
 		// Address
 		address1: optionalText(160),

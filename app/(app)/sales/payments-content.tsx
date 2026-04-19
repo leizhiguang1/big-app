@@ -1,4 +1,4 @@
-import { PaymentsTable } from "@/components/sales/PaymentsTable";
+import { PaymentsTableWithDetail } from "@/components/sales/PaymentsTableWithDetail";
 import { getServerContext } from "@/lib/context/server";
 import { listPayments } from "@/lib/services/sales";
 
@@ -13,7 +13,7 @@ export async function PaymentsContent() {
 					{payments.length} payment record{payments.length === 1 ? "" : "s"}
 				</span>
 			</div>
-			<PaymentsTable payments={payments} />
+			<PaymentsTableWithDetail payments={payments} />
 		</div>
 	);
 }

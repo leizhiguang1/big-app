@@ -37,6 +37,7 @@ import type {
 	AppointmentWithRelations,
 	CustomerAppointmentSummary,
 } from "@/lib/services/appointments";
+import type { BillingSettings } from "@/lib/services/billing-settings";
 import type { CaseNoteWithContext } from "@/lib/services/case-notes";
 import type { CustomerDocumentWithRefs } from "@/lib/services/customer-documents";
 import type { CustomerWithRelations } from "@/lib/services/customers";
@@ -47,6 +48,7 @@ import type {
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { FollowUpWithRefs } from "@/lib/services/follow-ups";
 import type { InventoryItemWithRefs } from "@/lib/services/inventory";
+import type { MedicalCertificateWithRefs } from "@/lib/services/medical-certificates";
 import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
 import type { PaymentMethod } from "@/lib/services/payment-methods";
 import type { ServiceWithCategory } from "@/lib/services/services";
@@ -73,6 +75,8 @@ type Props = {
 	shifts: EmployeeShift[];
 	salesOrderId: string | null;
 	paymentMethods: PaymentMethod[];
+	medicalCertificates: MedicalCertificateWithRefs[];
+	billingSettings: BillingSettings;
 };
 
 export function AppointmentDetailView({
@@ -96,6 +100,8 @@ export function AppointmentDetailView({
 	shifts,
 	salesOrderId,
 	paymentMethods,
+	medicalCertificates,
+	billingSettings,
 }: Props) {
 	const [editOpen, setEditOpen] = useState(false);
 	const [activeTab, setActiveTab] = useState<DetailTabKey>("overview");
@@ -116,16 +122,19 @@ export function AppointmentDetailView({
 	const showFollowUpPanel = isFollowUpTab && hasCustomer;
 
 	const showToast = useCallback(
-		(message: string, variant: Toast["variant"] = "default") => {
+		(
+			message: string,
+			variant: Toast["variant"] = "default",
+			durationMs = 2000,
+		) => {
 			const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 			setToasts((prev) => [...prev, { id, message, variant }]);
 			setTimeout(() => {
 				setToasts((prev) => prev.filter((t) => t.id !== id));
-			}, 2000);
+			}, durationMs);
 		},
 		[],
 	);
-
 
 	const dismissToast = useCallback((id: string) => {
 		setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -191,6 +200,8 @@ export function AppointmentDetailView({
 					rooms={rooms}
 					allOutlets={allOutlets}
 					shifts={shifts}
+					medicalCertificates={medicalCertificates}
+					billingSettings={billingSettings}
 					onEdit={() => setEditOpen(true)}
 					onToast={showToast}
 				/>
@@ -256,6 +267,7 @@ export function AppointmentDetailView({
 						<CaseNotesTab
 							appointment={appointment}
 							caseNotes={caseNotes}
+							medicalCertificates={medicalCertificates}
 							onToast={showToast}
 							pendingEdit={pendingEdit}
 							onPendingEditHandled={() => setPendingEdit(null)}
@@ -272,6 +284,8 @@ export function AppointmentDetailView({
 							frontdeskMessage={appointment.frontdesk_message}
 							isLead={!appointment.is_time_block && !appointment.customer_id}
 							isBlock={appointment.is_time_block}
+							customer={appointment.customer}
+							billingSettings={billingSettings}
 						/>
 					)}
 

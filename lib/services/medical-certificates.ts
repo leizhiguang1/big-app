@@ -53,7 +53,10 @@ function addDaysISO(startISO: string, wholeDays: number): string {
 	return dt.toISOString().slice(0, 10);
 }
 
-function deriveEndDate(input: { start_date: string; duration_days: number }): {
+function deriveDayOffEnd(input: {
+	start_date: string;
+	duration_days: number;
+}): {
 	end_date: string;
 	half_day_period: "AM" | "PM" | null;
 } {
@@ -112,26 +115,43 @@ export async function createMedicalCertificate(
 	input: unknown,
 ): Promise<MedicalCertificate> {
 	const p = medicalCertificateCreateSchema.parse(input);
-	const { end_date, half_day_period } = deriveEndDate({
+	const shared = {
+		appointment_id: p.appointment_id,
+		customer_id: p.customer_id,
+		outlet_id: p.outlet_id,
+		issuing_employee_id:
+			p.issuing_employee_id ?? ctx.currentUser?.employeeId ?? null,
+		slip_type: p.slip_type,
 		start_date: p.start_date,
-		duration_days: p.duration_days,
-	});
+		reason: p.reason,
+	};
+
+	const row =
+		p.slip_type === "day_off"
+			? (() => {
+					const { end_date, half_day_period } = deriveDayOffEnd({
+						start_date: p.start_date,
+						duration_days: p.duration_days,
+					});
+					return {
+						...shared,
+						end_date,
+						duration_days: p.duration_days,
+						has_half_day: p.has_half_day,
+						half_day_period: p.has_half_day ? half_day_period : null,
+					};
+				})()
+			: {
+					...shared,
+					end_date: p.start_date,
+					start_time: p.start_time,
+					end_time: p.end_time,
+					duration_hours: p.duration_hours,
+				};
+
 	const { data, error } = await ctx.db
 		.from("medical_certificates")
-		.insert({
-			appointment_id: p.appointment_id,
-			customer_id: p.customer_id,
-			outlet_id: p.outlet_id,
-			issuing_employee_id:
-				p.issuing_employee_id ?? ctx.currentUser?.employeeId ?? null,
-			slip_type: p.slip_type,
-			start_date: p.start_date,
-			end_date,
-			duration_days: p.duration_days,
-			has_half_day: p.has_half_day,
-			half_day_period: p.has_half_day ? half_day_period : null,
-			reason: p.reason,
-		})
+		.insert(row)
 		.select("*")
 		.single();
 	if (error) throw new ValidationError(error.message);

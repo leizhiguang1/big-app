@@ -81,11 +81,7 @@ export function BookingInfoCard({
 						<span className="tabular-nums">{appointment.booking_ref}</span>
 					}
 				/>
-				<Row
-					label="Booked by"
-					value={createdByName}
-					muted={!createdByName}
-				/>
+				<Row label="Booked by" value={createdByName} muted={!createdByName} />
 			</dl>
 
 			<Section label="Services">

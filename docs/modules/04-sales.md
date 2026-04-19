@@ -2,21 +2,27 @@
 
 > Status: v1 complete — Collect Payment RPC, Sales dashboard (Summary + Sales + Payment + Cancelled tabs), SO detail view, cancellation flow, printable invoice route, and bidirectional appointment↔sales linking all shipped.
 
-## Invoice printing (2026-04-18)
+## Invoice printing (2026-04-20)
 
-Printable route at `/sales/[id]/print` (see
-[app/(app)/sales/[id]/print/page.tsx](../../app/(app)/sales/[id]/print/page.tsx)).
+Invoice renders inside a centered dialog on the SO detail page — the
+Print button on the SO detail view opens
+[components/sales/ViewInvoiceDialog.tsx](../../components/sales/ViewInvoiceDialog.tsx),
+which wraps
+[components/sales/PrintableInvoice.tsx](../../components/sales/PrintableInvoice.tsx).
 One A4 sheet per sales order — header (outlet name + address + contact),
 SO number / date / status block, Bill-To + Consultant + Prepared-By
 section, line-items table, totals ladder (subtotal / discount / tax /
 rounding / total / amount paid / outstanding), payments audit table, and
-free-text remarks. Rendered by
-[components/sales/PrintableInvoice.tsx](../../components/sales/PrintableInvoice.tsx)
-as a pure server component; the screen chrome (sidebar + topbar from the
-`(app)` layout) is hidden at print time via `visibility: hidden` on
-`body *` + re-enabled on `.invoice-sheet *`. The Print button on the SO
-detail view opens this route in a new tab — the old inline
-`window.open(...)` handler was removed. No new schema.
+free-text remarks. Print from the dialog header button; screen chrome
+(sidebar + topbar from the `(app)` layout) is hidden at print time via
+`visibility: hidden` on `body *` + re-enabled on `.invoice-sheet *`.
+
+Auto-print flow after Collect Payment: the new-window tab opens
+`/sales/{id}?print=1`, the SO detail page reads the `print` search param
+and auto-opens the invoice dialog on mount. The previous dedicated
+`/sales/[id]/print` route was removed — it duplicated the SO detail
+fetch and forced a full-page navigation for something that should be a
+popup. No new schema.
 
 ## Implementation status (Phase 1)
 

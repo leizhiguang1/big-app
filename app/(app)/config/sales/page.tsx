@@ -1,11 +1,14 @@
 import { ComingSoonCard } from "@/components/config/ComingSoonCard";
 import { ConfigSectionHeader } from "@/components/config/ConfigSectionHeader";
-import { BillingTab } from "@/components/config/sales/BillingTab";
-import { DiscountsTab } from "@/components/config/sales/DiscountsTab";
 import {
 	findCategory,
 	resolveSection,
 } from "@/components/config/categories-data";
+import { BillingTab } from "@/components/config/sales/BillingTab";
+import { DiscountsTab } from "@/components/config/sales/DiscountsTab";
+import { getServerContext } from "@/lib/context/server";
+import { getBillingSettings } from "@/lib/services/billing-settings";
+import { listTaxes } from "@/lib/services/taxes";
 
 type PageProps = {
 	searchParams: Promise<{ section?: string }>;
@@ -31,6 +34,19 @@ export default async function SalesConfigPage({ searchParams }: PageProps) {
 		);
 	}
 
+	let billingData: {
+		billingSettings: Awaited<ReturnType<typeof getBillingSettings>>;
+		taxes: Awaited<ReturnType<typeof listTaxes>>;
+	} | null = null;
+	if (active.key === "billing") {
+		const ctx = await getServerContext();
+		const [billingSettings, taxes] = await Promise.all([
+			getBillingSettings(ctx),
+			listTaxes(ctx),
+		]);
+		billingData = { billingSettings, taxes };
+	}
+
 	return (
 		<>
 			<ConfigSectionHeader
@@ -38,7 +54,12 @@ export default async function SalesConfigPage({ searchParams }: PageProps) {
 				sectionLabel={active.label}
 			/>
 			{active.key === "discounts" && <DiscountsTab />}
-			{active.key === "billing" && <BillingTab />}
+			{active.key === "billing" && billingData && (
+				<BillingTab
+					billingSettings={billingData.billingSettings}
+					taxes={billingData.taxes}
+				/>
+			)}
 			{!["discounts", "billing"].includes(active.key) && (
 				<ComingSoonCard sectionLabel={active.label} />
 			)}

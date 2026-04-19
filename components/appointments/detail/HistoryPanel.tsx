@@ -518,9 +518,7 @@ export function HistoryPanel({
 								item={t}
 								collapsed={collapsedIds.has(t.id)}
 								onToggle={() => toggleCollapse(t.id)}
-								onTogglePin={() =>
-									handleToggleNotePin(t.note.id, t.isPinned)
-								}
+								onTogglePin={() => handleToggleNotePin(t.note.id, t.isPinned)}
 								onEdit={
 									onEditNote && !t.isCancelled
 										? () => onEditNote(t.note.id, t.note.content)
@@ -663,7 +661,7 @@ function BillingRow({
 									<IconBtn
 										label="Restore billing"
 										onClick={onRevert}
-																			className="bg-blue-500 text-white hover:bg-blue-600"
+										className="bg-blue-500 text-white hover:bg-blue-600"
 									>
 										<RotateCcw className="size-[11px]" />
 									</IconBtn>
@@ -671,7 +669,7 @@ function BillingRow({
 									<IconBtn
 										label="Cancel billing"
 										onClick={onCancel}
-																			className="bg-rose-500 text-white hover:bg-rose-600"
+										className="bg-rose-500 text-white hover:bg-rose-600"
 									>
 										<XCircle className="size-[11px]" />
 									</IconBtn>
@@ -769,10 +767,7 @@ function BillingRow({
 							<div className="flex justify-between text-[10px] text-muted-foreground">
 								<span>Sub Total (MYR)</span>
 								<span
-									className={cn(
-										"tabular-nums",
-										cancelled && "line-through",
-									)}
+									className={cn("tabular-nums", cancelled && "line-through")}
 								>
 									{item.total.toFixed(2)}
 								</span>
@@ -890,7 +885,7 @@ function NoteRow({
 						<IconBtn
 							label="Restore note"
 							onClick={onRevert}
-													className="bg-blue-500 text-white hover:bg-blue-600"
+							className="bg-blue-500 text-white hover:bg-blue-600"
 						>
 							<RotateCcw className="size-[11px]" />
 						</IconBtn>
@@ -899,7 +894,7 @@ function NoteRow({
 							<IconBtn
 								label={pinned ? "Unpin" : "Pin to top"}
 								onClick={onTogglePin}
-															className={
+								className={
 									pinned
 										? "bg-amber-500 text-white hover:bg-amber-600"
 										: "border border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100"
@@ -932,7 +927,7 @@ function NoteRow({
 							<IconBtn
 								label="Cancel note"
 								onClick={onCancel}
-															className="bg-rose-500 text-white hover:bg-rose-600"
+								className="bg-rose-500 text-white hover:bg-rose-600"
 							>
 								<XCircle className="size-[11px]" />
 							</IconBtn>
@@ -1154,9 +1149,7 @@ export function FollowUpHistoryPanel({
 							item={t}
 							collapsed={collapsedIds.has(t.id)}
 							onToggle={() => toggleCollapse(t.id)}
-							onTogglePin={() =>
-								handleTogglePin(t.followUp.id, t.isPinned)
-							}
+							onTogglePin={() => handleTogglePin(t.followUp.id, t.isPinned)}
 							onEdit={() => onEdit(t.followUp)}
 							onDelete={() => setDeleteId(t.followUp.id)}
 							onJump={
@@ -1238,7 +1231,7 @@ function FollowUpRow({
 					<IconBtn
 						label={pinned ? "Unpin" : "Pin to top"}
 						onClick={onTogglePin}
-											className={
+						className={
 							pinned
 								? "bg-amber-500 text-white hover:bg-amber-600"
 								: "border border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100"

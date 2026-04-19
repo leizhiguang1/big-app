@@ -2,8 +2,8 @@
 
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
 	SidebarMenuButton,
 	SidebarMenuItem,
@@ -17,17 +17,20 @@ export type SidebarNavItemData = {
 
 export function SidebarNavItem({ item }: { item: SidebarNavItemData }) {
 	const pathname = usePathname();
-	const router = useRouter();
-	const [isPending, startTransition] = useTransition();
+	const [pending, setPending] = useState(false);
 	const isActive =
 		pathname === item.href || pathname.startsWith(`${item.href}/`);
 	const Icon = item.icon;
+
+	useEffect(() => {
+		if (pending && isActive) setPending(false);
+	}, [pending, isActive]);
 
 	return (
 		<SidebarMenuItem>
 			<SidebarMenuButton
 				asChild
-				isActive={isActive || isPending}
+				isActive={isActive || pending}
 				tooltip={item.label}
 				className="gap-3 px-3"
 			>
@@ -36,10 +39,7 @@ export function SidebarNavItem({ item }: { item: SidebarNavItemData }) {
 					prefetch
 					onClick={(e) => {
 						if (isActive || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-						e.preventDefault();
-						startTransition(() => {
-							router.push(item.href);
-						});
+						setPending(true);
 					}}
 				>
 					<Icon />

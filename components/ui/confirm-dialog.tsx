@@ -17,7 +17,7 @@ type Props = {
 	title: ReactNode;
 	description?: ReactNode;
 	confirmLabel?: string;
-	cancelLabel?: string;
+	cancelLabel?: string | null;
 	variant?: "default" | "destructive";
 	pending?: boolean;
 	onConfirm: () => void;
@@ -46,14 +46,16 @@ export function ConfirmDialog({
 					{description && <DialogDescription>{description}</DialogDescription>}
 				</DialogHeader>
 				<DialogFooter className="border-t">
-					<Button
-						type="button"
-						variant="outline"
-						onClick={() => onOpenChange(false)}
-						disabled={pending}
-					>
-						{cancelLabel}
-					</Button>
+					{cancelLabel !== null && (
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => onOpenChange(false)}
+							disabled={pending}
+						>
+							{cancelLabel}
+						</Button>
+					)}
 					{altLabel && onAlt && (
 						<Button
 							type="button"

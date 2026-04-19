@@ -40,6 +40,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { countryNameForCode } from "@/lib/constants/countries";
 import type { CustomerLineItem } from "@/lib/services/appointment-line-items";
 import type { CustomerTimelineAppointment } from "@/lib/services/appointments";
 import type { CaseNoteWithContext } from "@/lib/services/case-notes";
@@ -419,7 +420,7 @@ export function CustomerDetailView({
 							<DetailRow label="Birthday" value={dob ?? "—"} />
 							<DetailRow
 								label="Country"
-								value={(customer.country_of_origin ?? "Malaysia").toUpperCase()}
+								value={countryNameForCode(customer.country_of_origin)}
 							/>
 							<DetailRow
 								label="Consultant"

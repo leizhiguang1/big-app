@@ -37,7 +37,11 @@ function formatDmy(iso: string): string {
 	return `${d}/${m}/${y}`;
 }
 
-function deriveEnd(startISO: string, duration: number, halfDay: boolean) {
+function deriveDayOffEnd(
+	startISO: string,
+	duration: number,
+	halfDay: boolean,
+) {
 	const total = halfDay ? duration + 0.5 : duration;
 	const frac = Math.abs(total - Math.floor(total)) > 0.01;
 	const offset = frac ? Math.floor(total) : Math.floor(total) - 1;
@@ -47,6 +51,15 @@ function deriveEnd(startISO: string, duration: number, halfDay: boolean) {
 		period: frac ? ("AM" as const) : null,
 		totalDays: total,
 	};
+}
+
+function addMinutesToTime(hhmm: string, minutes: number): string {
+	const [h, m] = hhmm.split(":").map(Number);
+	const total = h * 60 + m + minutes;
+	const wrapped = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
+	const hh = Math.floor(wrapped / 60);
+	const mm = wrapped % 60;
+	return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
 export function AddMcDialog({
@@ -61,36 +74,88 @@ export function AddMcDialog({
 }: Props) {
 	const [slipType, setSlipType] = useState<"day_off" | "time_off">("day_off");
 	const [startDate, setStartDate] = useState(defaultStartDate);
+
 	const [duration, setDuration] = useState<number>(1);
-	const [halfDayVisible, setHalfDayVisible] = useState(false);
 	const [halfDay, setHalfDay] = useState(false);
+
+	const [startDateTime, setStartDateTime] = useState(
+		`${defaultStartDate}T09:00`,
+	);
+	const [durationHours, setDurationHours] = useState<number>(1);
+
 	const [reason, setReason] = useState("");
 	const [pending, startTransition] = useTransition();
 	const [error, setError] = useState<string | null>(null);
 
-	const derived = useMemo(
-		() => deriveEnd(startDate, duration, halfDay),
+	const dayOffDerived = useMemo(
+		() => deriveDayOffEnd(startDate, duration, halfDay),
 		[startDate, duration, halfDay],
 	);
 
-	const endLabel = derived.period
-		? `${formatDmy(derived.endISO)} (${derived.period})`
-		: formatDmy(derived.endISO);
+	const dayOffEndLabel = dayOffDerived.period
+		? `${formatDmy(dayOffDerived.endISO)} (${dayOffDerived.period})`
+		: formatDmy(dayOffDerived.endISO);
 
-	const durationLabel = useMemo(() => {
-		const total = derived.totalDays;
+	const dayOffDurationLabel = useMemo(() => {
+		const total = dayOffDerived.totalDays;
 		if (total === 0.5) return "Half day";
 		const whole = Math.floor(total);
 		const hasHalf = total - whole >= 0.5;
 		const parts: string[] = [`${whole} day${whole === 1 ? "" : "s"}`];
 		if (hasHalf) parts.push("and a half");
 		return parts.join(" ");
-	}, [derived.totalDays]);
+	}, [dayOffDerived.totalDays]);
+
+	const timeOffParts = useMemo(() => {
+		const [datePart, timePart] = startDateTime.split("T");
+		if (!datePart || !timePart) return null;
+		const normalizedTime = timePart.slice(0, 5);
+		if (!/^\d{2}:\d{2}$/.test(normalizedTime)) return null;
+		if (!durationHours || durationHours <= 0) return null;
+		const endTime = addMinutesToTime(
+			normalizedTime,
+			Math.round(durationHours * 60),
+		);
+		return { date: datePart, startTime: normalizedTime, endTime };
+	}, [startDateTime, durationHours]);
+
+	const timeOffEndLabel = timeOffParts
+		? `Ends at ${timeOffParts.endTime}`
+		: "—";
 
 	const submit = () => {
 		setError(null);
-		if (!startDate) return setError("Start date is required");
-		if (!duration || duration <= 0) return setError("Duration is required");
+
+		if (slipType === "day_off") {
+			if (!startDate) return setError("Start date is required");
+			if (!duration || duration <= 0) return setError("Duration is required");
+			startTransition(async () => {
+				try {
+					const result = await createMedicalCertificateAction({
+						appointment_id: appointmentId,
+						customer_id: customerId,
+						outlet_id: outletId,
+						issuing_employee_id: issuingEmployeeId,
+						slip_type: "day_off",
+						start_date: startDate,
+						duration_days: halfDay ? duration + 0.5 : duration,
+						has_half_day: halfDay,
+						reason: reason.trim() || undefined,
+					});
+					onCreated(result);
+					onClose();
+				} catch (err) {
+					setError(
+						err instanceof Error ? err.message : "Could not save certificate",
+					);
+				}
+			});
+			return;
+		}
+
+		if (!timeOffParts)
+			return setError("Start date/time and a positive duration are required");
+
 		startTransition(async () => {
 			try {
 				const result = await createMedicalCertificateAction({
@@ -98,10 +163,11 @@ export function AddMcDialog({
 					customer_id: customerId,
 					outlet_id: outletId,
 					issuing_employee_id: issuingEmployeeId,
-					slip_type: slipType,
-					start_date: startDate,
-					duration_days: halfDay ? duration + 0.5 : duration,
-					has_half_day: halfDay,
+					slip_type: "time_off",
+					start_date: timeOffParts.date,
+					start_time: timeOffParts.startTime,
+					end_time: timeOffParts.endTime,
+					duration_hours: durationHours,
 					reason: reason.trim() || undefined,
 				});
 				onCreated(result);
@@ -140,51 +206,74 @@ export function AddMcDialog({
 						/>
 					</div>
 
-					<div className="grid grid-cols-2 gap-3">
-						<Field label="Start (Date)">
-							<Input
-								type="date"
-								value={startDate}
-								onChange={(e) => setStartDate(e.target.value)}
-							/>
-						</Field>
-						<Field label="End">
-							<div className="flex h-9 items-center rounded-md border bg-muted/30 px-3 text-muted-foreground text-sm">
-								{endLabel}
+					{slipType === "day_off" ? (
+						<>
+							<div className="grid grid-cols-2 gap-3">
+								<Field label="Start (Date)">
+									<Input
+										type="date"
+										value={startDate}
+										onChange={(e) => setStartDate(e.target.value)}
+									/>
+								</Field>
+								<Field label="End">
+									<div className="flex h-9 items-center rounded-md border bg-muted/30 px-3 text-muted-foreground text-sm">
+										{dayOffEndLabel}
+									</div>
+								</Field>
 							</div>
-						</Field>
-					</div>
 
-					<Field label={`Duration (${durationLabel})`}>
-						<Input
-							type="number"
-							min={0.5}
-							step={0.5}
-							value={duration}
-							onChange={(e) =>
-								setDuration(Number.parseFloat(e.target.value || "0"))
-							}
-						/>
-					</Field>
+							<Field label={`Duration (${dayOffDurationLabel})`}>
+								<Input
+									type="number"
+									min={0.5}
+									step={0.5}
+									value={duration}
+									onChange={(e) =>
+										setDuration(Number.parseFloat(e.target.value || "0"))
+									}
+								/>
+							</Field>
 
-					{!halfDayVisible ? (
-						<button
-							type="button"
-							onClick={() => setHalfDayVisible(true)}
-							className="self-start text-primary text-xs underline-offset-2 hover:underline"
-						>
-							Add on half day?
-						</button>
+							<label className="flex items-center gap-2 text-sm">
+								<input
+									type="checkbox"
+									checked={halfDay}
+									onChange={(e) => setHalfDay(e.target.checked)}
+									className="size-4"
+								/>
+								<span>Add a half day</span>
+							</label>
+						</>
 					) : (
-						<label className="flex items-center gap-2 text-sm">
-							<input
-								type="checkbox"
-								checked={halfDay}
-								onChange={(e) => setHalfDay(e.target.checked)}
-								className="size-4"
-							/>
-							<span>Half Day</span>
-						</label>
+						<>
+							<div className="grid grid-cols-2 gap-3">
+								<Field label="Start Date & Time">
+									<Input
+										type="datetime-local"
+										value={startDateTime}
+										onChange={(e) => setStartDateTime(e.target.value)}
+									/>
+								</Field>
+								<Field label="Duration (hours)">
+									<Input
+										type="number"
+										min={0.5}
+										step={0.5}
+										value={durationHours}
+										onChange={(e) =>
+											setDurationHours(
+												Number.parseFloat(e.target.value || "0"),
+											)
+										}
+									/>
+								</Field>
+							</div>
+
+							<div className="text-muted-foreground text-xs">
+								{timeOffEndLabel}
+							</div>
+						</>
 					)}
 
 					<Field label="Reason">

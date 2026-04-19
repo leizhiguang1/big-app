@@ -25,7 +25,9 @@ export type AppointmentWithRelations = Appointment & {
 		email: string | null;
 		date_of_birth: string | null;
 		gender: string | null;
+		id_type: string;
 		id_number: string | null;
+		country_of_origin: string | null;
 		source: string | null;
 		profile_image_path: string | null;
 		tag: string | null;
@@ -56,7 +58,7 @@ export type AppointmentWithRelations = Appointment & {
 };
 
 const SELECT_WITH_RELATIONS =
-	"*, customer:customers!appointments_customer_id_fkey(id, code, first_name, last_name, phone, phone2, email, date_of_birth, gender, id_number, source, profile_image_path, tag, is_vip, is_staff, smoker, drug_allergies, medical_conditions, medical_alert), employee:employees!appointments_employee_id_fkey(id, code, first_name, last_name), room:rooms!appointments_room_id_fkey(id, name), lead_attended_by:employees!appointments_lead_attended_by_id_fkey(id, first_name, last_name), created_by_employee:employees!appointments_created_by_fkey(id, first_name, last_name)";
+	"*, customer:customers!appointments_customer_id_fkey(id, code, first_name, last_name, phone, phone2, email, date_of_birth, gender, id_type, id_number, country_of_origin, source, profile_image_path, tag, is_vip, is_staff, smoker, drug_allergies, medical_conditions, medical_alert), employee:employees!appointments_employee_id_fkey(id, code, first_name, last_name), room:rooms!appointments_room_id_fkey(id, name), lead_attended_by:employees!appointments_lead_attended_by_id_fkey(id, first_name, last_name), created_by_employee:employees!appointments_created_by_fkey(id, first_name, last_name)";
 
 function nz<T>(value: T | undefined | null): T | null {
 	return value === undefined || value === null ? null : value;

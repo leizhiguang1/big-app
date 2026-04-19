@@ -2,8 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export type SegmentedTab = {
@@ -30,10 +29,8 @@ export function SegmentedTabs({
 	className,
 	"aria-label": ariaLabel,
 }: Props) {
-	const router = useRouter();
-	const [isPending, startTransition] = useTransition();
 	const [pendingKey, setPendingKey] = useState<string | null>(null);
-	const displayed = isPending && pendingKey ? pendingKey : active;
+	const displayed = pendingKey ?? active;
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const [canScrollLeft, setCanScrollLeft] = useState(false);
 	const [canScrollRight, setCanScrollRight] = useState(false);
@@ -45,6 +42,10 @@ export function SegmentedTabs({
 		moved: boolean;
 	} | null>(null);
 	const justDraggedRef = useRef(false);
+
+	useEffect(() => {
+		if (pendingKey && pendingKey === active) setPendingKey(null);
+	}, [active, pendingKey]);
 
 	function checkScroll() {
 		const el = scrollRef.current;
@@ -128,8 +129,23 @@ export function SegmentedTabs({
 			? "rounded-full px-4 py-1.5 text-xs font-medium transition"
 			: "rounded-full px-5 py-2 text-sm font-medium transition";
 
+	const isNavigating = pendingKey !== null && pendingKey !== active;
+
 	return (
-		<div className={cn("flex items-center gap-1.5", className)}>
+		<div className={cn("relative flex items-center gap-1.5", className)}>
+			{isNavigating && (
+				<div
+					aria-hidden
+					className="pointer-events-none absolute inset-x-0 -bottom-1.5 h-0.5 overflow-hidden rounded-full"
+				>
+					<div
+						className="h-full w-1/3 bg-primary/70"
+						style={{
+							animation: "nav-slide 1s ease-in-out infinite",
+						}}
+					/>
+				</div>
+			)}
 			<button
 				type="button"
 				aria-label="Scroll tabs left"
@@ -183,13 +199,9 @@ export function SegmentedTabs({
 									prefetch
 									role="tab"
 									aria-selected={isActive}
-									onClick={(e) => {
+									onClick={() => {
 										if (tab.key === active) return;
-										e.preventDefault();
 										setPendingKey(tab.key);
-										startTransition(() => {
-											router.push(href);
-										});
 									}}
 									className={classes}
 								>

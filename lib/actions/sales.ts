@@ -2,6 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { getServerContext } from "@/lib/context/server";
+import { NotFoundError } from "@/lib/errors";
+import type {
+	PaymentWithProcessedBy,
+	SaleItem,
+	SalesOrderWithRelations,
+} from "@/lib/services/sales";
 import * as salesService from "@/lib/services/sales";
 
 export async function collectAppointmentPaymentAction(
@@ -17,6 +23,32 @@ export async function collectAppointmentPaymentAction(
 	revalidatePath("/appointments");
 	revalidatePath(`/appointments/${appointmentId}`);
 	return result;
+}
+
+export type SalesOrderDetailResult =
+	| {
+			ok: true;
+			order: SalesOrderWithRelations;
+			items: SaleItem[];
+			payments: PaymentWithProcessedBy[];
+	  }
+	| { ok: false; reason: "not_found" };
+
+export async function getSalesOrderDetailAction(
+	id: string,
+): Promise<SalesOrderDetailResult> {
+	const ctx = await getServerContext();
+	try {
+		const [order, items, payments] = await Promise.all([
+			salesService.getSalesOrder(ctx, id),
+			salesService.listSaleItems(ctx, id),
+			salesService.listPaymentsForOrder(ctx, id),
+		]);
+		return { ok: true, order, items, payments };
+	} catch (err) {
+		if (err instanceof NotFoundError) return { ok: false, reason: "not_found" };
+		throw err;
+	}
 }
 
 export async function cancelSalesOrderAction(

@@ -112,7 +112,7 @@ export function StatusProgressionRow({
 				title="Mark as no-show?"
 				description="The customer didn't show up. Would you like to reschedule them to another time instead of marking no-show?"
 				confirmLabel="Mark no-show"
-				cancelLabel="Keep current"
+				cancelLabel={null}
 				variant="default"
 				onConfirm={() => {
 					setNoShowPromptOpen(false);
@@ -143,23 +143,17 @@ export function StatusProgressionRow({
 											: "border-border bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground",
 									)}
 									style={
-										isActive
-											? { backgroundColor: config.solidHex }
-											: undefined
+										isActive ? { backgroundColor: config.solidHex } : undefined
 									}
 								>
 									<Icon
 										className="size-3 shrink-0 @[480px]:size-3.5"
 										aria-hidden
 									/>
-									<span className="hidden @[340px]:inline">
-										{config.label}
-									</span>
+									<span className="hidden @[340px]:inline">{config.label}</span>
 								</button>
 							</TooltipTrigger>
-							<TooltipContent side="bottom">
-								{config.label}
-							</TooltipContent>
+							<TooltipContent side="bottom">{config.label}</TooltipContent>
 						</Tooltip>
 					);
 				})}

@@ -307,13 +307,21 @@ export function AppointmentDialog({
 		);
 		const q = customerSearch.trim().toLowerCase();
 		if (!q) return sorted.slice(0, 12);
+		const qDigits = q.replace(/\D/g, "");
 		return sorted
 			.filter((c) => {
 				const name = `${c.first_name} ${c.last_name ?? ""}`.toLowerCase();
+				const phoneDigits = c.phone.replace(/\D/g, "");
+				const idRaw = (c.id_number ?? "").toLowerCase();
+				const idDigits = idRaw.replace(/\D/g, "");
 				return (
 					name.includes(q) ||
 					c.code.toLowerCase().includes(q) ||
-					c.phone.includes(q.replace(/\D/g, ""))
+					(qDigits.length > 0 && phoneDigits.includes(qDigits)) ||
+					(idRaw.length > 0 && idRaw.includes(q)) ||
+					(qDigits.length > 0 &&
+						idDigits.length > 0 &&
+						idDigits.includes(qDigits))
 				);
 			})
 			.slice(0, 12);
@@ -1028,7 +1036,7 @@ function CustomerSection({
 							<Input
 								type="search"
 								autoComplete="off"
-								placeholder="Search customer by name, code or phone…"
+								placeholder="Search customer by name, code, phone or IC…"
 								value={search}
 								onFocus={() => setPickerOpen(true)}
 								onBlur={() => setPickerOpen(false)}

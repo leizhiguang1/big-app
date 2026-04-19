@@ -3,12 +3,14 @@
 import {
 	BookMarked,
 	FileBadge,
+	FileCheck,
 	FileText,
 	Grid3x3,
 	ImagePlus,
 	Pill,
 	Save,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
@@ -28,6 +30,7 @@ import {
 } from "@/lib/actions/case-notes";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 import type { CaseNoteWithContext } from "@/lib/services/case-notes";
+import type { MedicalCertificateWithRefs } from "@/lib/services/medical-certificates";
 import { cn } from "@/lib/utils";
 
 type PendingEdit = { noteId: string; content: string };
@@ -35,7 +38,12 @@ type PendingEdit = { noteId: string; content: string };
 type Props = {
 	appointment: AppointmentWithRelations;
 	caseNotes: CaseNoteWithContext[];
-	onToast: (message: string, variant?: Toast["variant"]) => void;
+	medicalCertificates: MedicalCertificateWithRefs[];
+	onToast: (
+		message: string,
+		variant?: Toast["variant"],
+		durationMs?: number,
+	) => void;
 	pendingEdit?: PendingEdit | null;
 	onPendingEditHandled?: () => void;
 };
@@ -43,6 +51,7 @@ type Props = {
 export function CaseNotesTab({
 	appointment,
 	caseNotes,
+	medicalCertificates,
 	onToast,
 	pendingEdit,
 	onPendingEditHandled,
@@ -59,7 +68,8 @@ export function CaseNotesTab({
 	const [mcDialogOpen, setMcDialogOpen] = useState(false);
 	const [overwriteConfirmOpen, setOverwriteConfirmOpen] = useState(false);
 	const [pending, startTransition] = useTransition();
-	const [localNotes, setLocalNotes] = useState<CaseNoteWithContext[]>(caseNotes);
+	const [localNotes, setLocalNotes] =
+		useState<CaseNoteWithContext[]>(caseNotes);
 
 	useEffect(() => {
 		setLocalNotes(caseNotes);
@@ -235,7 +245,10 @@ export function CaseNotesTab({
 					<div className="text-muted-foreground text-xs uppercase tracking-wide">
 						{editingFromHistoryId ? "Editing note" : "New case note"}
 					</div>
-					<CaseNoteToolbar onAddMc={() => setMcDialogOpen(true)} />
+					<CaseNoteToolbar
+						onAddMc={() => setMcDialogOpen(true)}
+						mcCount={medicalCertificates.length}
+					/>
 				</div>
 				<textarea
 					value={draft}
@@ -266,6 +279,10 @@ export function CaseNotesTab({
 					</Button>
 				</div>
 			</div>
+
+			{medicalCertificates.length > 0 && (
+				<MedicalCertificateStrip items={medicalCertificates} />
+			)}
 
 			<div className="rounded-md border bg-card">
 				<div className="border-b px-4 py-2.5 text-muted-foreground text-xs uppercase tracking-wide">
@@ -323,8 +340,11 @@ export function CaseNotesTab({
 						.toISOString()
 						.slice(0, 10)}
 					onCreated={(result) => {
-						onToast(`Medical certificate ${result.code} saved`, "success");
-						window.open(`/medical-certificates/${result.id}`, "_blank");
+						onToast(
+							`Medical certificate ${result.code} saved`,
+							"success",
+							5000,
+						);
 						refresh();
 					}}
 				/>
@@ -352,7 +372,13 @@ export function CaseNotesTab({
 	);
 }
 
-function CaseNoteToolbar({ onAddMc }: { onAddMc: () => void }) {
+function CaseNoteToolbar({
+	onAddMc,
+	mcCount,
+}: {
+	onAddMc: () => void;
+	mcCount: number;
+}) {
 	return (
 		<div className="flex items-center gap-1">
 			<StubButton icon={ImagePlus} label="Annotate image to insert" />
@@ -360,8 +386,13 @@ function CaseNoteToolbar({ onAddMc }: { onAddMc: () => void }) {
 			<StubButton icon={Pill} label="Add prescription" />
 			<ToolbarButton
 				icon={FileBadge}
-				label="Add medical certificate"
+				label={
+					mcCount > 0
+						? `Add medical certificate (${mcCount} issued for this visit)`
+						: "Add medical certificate"
+				}
 				onClick={onAddMc}
+				badge={mcCount}
 			/>
 			<StubButton icon={BookMarked} label="ICD-10 code lookup" />
 			<StubButton icon={Grid3x3} label="Dental chart" />
@@ -373,10 +404,12 @@ function ToolbarButton({
 	icon: Icon,
 	label,
 	onClick,
+	badge,
 }: {
 	icon: React.ComponentType<{ className?: string }>;
 	label: string;
 	onClick: () => void;
+	badge?: number;
 }) {
 	return (
 		<Tooltip>
@@ -385,13 +418,88 @@ function ToolbarButton({
 					type="button"
 					onClick={onClick}
 					aria-label={label}
-					className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+					className="relative flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
 				>
 					<Icon className="size-4" />
+					{badge !== undefined && badge > 0 && (
+						<span className="-right-0.5 -top-0.5 absolute flex min-w-4 items-center justify-center rounded-full bg-sky-600 px-1 text-[10px] font-semibold leading-4 text-white">
+							{badge}
+						</span>
+					)}
 				</button>
 			</TooltipTrigger>
 			<TooltipContent side="top">{label}</TooltipContent>
 		</Tooltip>
+	);
+}
+
+function formatDmy(iso: string): string {
+	const [y, m, d] = iso.split("-");
+	return `${d}/${m}/${y}`;
+}
+
+function formatHhmm(t: string | null): string {
+	if (!t) return "";
+	return t.slice(0, 5);
+}
+
+function formatDayOffDuration(
+	days: number | null,
+	halfPeriod: string | null,
+): string {
+	if (days == null) return "";
+	const whole = Math.floor(days);
+	const hasHalf = Math.abs(days - whole) > 0.01;
+	const base = `${whole} day${whole === 1 ? "" : "s"}`;
+	if (!hasHalf) return base;
+	return `${base} + ½${halfPeriod ? ` (${halfPeriod})` : ""}`;
+}
+
+function MedicalCertificateStrip({
+	items,
+}: {
+	items: MedicalCertificateWithRefs[];
+}) {
+	return (
+		<div className="rounded-md border bg-sky-50/40">
+			<div className="flex items-center justify-between border-b border-sky-100 px-4 py-2.5">
+				<div className="flex items-center gap-2 text-sky-700 text-xs uppercase tracking-wide">
+					<FileCheck className="size-3.5" />
+					<span>Medical certificates on this visit</span>
+				</div>
+				<span className="text-[10px] font-medium tabular-nums text-sky-700/70">
+					×{items.length}
+				</span>
+			</div>
+			<div className="flex flex-col divide-y divide-sky-100">
+				{items.map((mc) => (
+					<Link
+						key={mc.id}
+						href={`/medical-certificates/${mc.id}`}
+						className="flex items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-sky-100/40"
+					>
+						<FileCheck className="size-4 shrink-0 text-sky-600" />
+						<span className="font-mono font-semibold">{mc.code}</span>
+						<span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium uppercase text-sky-700">
+							{mc.slip_type === "day_off" ? "Day-off" : "Time-off"}
+						</span>
+						<span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
+							{mc.slip_type === "day_off"
+								? `${formatDmy(mc.start_date)} → ${formatDmy(mc.end_date)} · ${formatDayOffDuration(
+										mc.duration_days == null ? null : Number(mc.duration_days),
+										mc.half_day_period,
+									)}`
+								: `${formatDmy(mc.start_date)} · ${formatHhmm(mc.start_time)}–${formatHhmm(mc.end_time)} · ${Number(mc.duration_hours ?? 0)}h`}
+						</span>
+						{mc.issuing_employee && (
+							<span className="hidden text-muted-foreground text-xs sm:inline">
+								{mc.issuing_employee.first_name} {mc.issuing_employee.last_name}
+							</span>
+						)}
+					</Link>
+				))}
+			</div>
+		</div>
 	);
 }
 

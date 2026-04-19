@@ -9,6 +9,7 @@ import {
 	RefreshCw,
 	ShoppingCart,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import {
@@ -22,6 +23,7 @@ import {
 } from "@/components/appointments/detail/collect-payment/helpers";
 import { LineItemRow } from "@/components/appointments/detail/collect-payment/LineItemRow";
 import { McCard } from "@/components/appointments/detail/collect-payment/McCard";
+import { hasMissingRequiredFields } from "@/components/appointments/detail/collect-payment/PaymentMethodFields";
 import { PaymentSection } from "@/components/appointments/detail/collect-payment/PaymentSection";
 import { TotalsPanel } from "@/components/appointments/detail/collect-payment/TotalsPanel";
 import type { Line } from "@/components/appointments/detail/collect-payment/types";
@@ -49,6 +51,7 @@ import {
 import { collectAppointmentPaymentAction } from "@/lib/actions/sales";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
+import type { BillingSettings } from "@/lib/services/billing-settings";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type {
 	EmployeeShift,
@@ -62,6 +65,7 @@ import type { PaymentMethod } from "@/lib/services/payment-methods";
 import type { ServiceWithCategory } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
 import { cn } from "@/lib/utils";
+import { resolveDefaultTaxId } from "@/lib/utils/resolve-default-tax";
 
 type Props = {
 	open: boolean;
@@ -80,6 +84,7 @@ type Props = {
 	allOutlets: OutletWithRoomCount[];
 	shifts: EmployeeShift[];
 	medicalCertificates?: MedicalCertificateWithRefs[];
+	billingSettings?: BillingSettings | null;
 	onSuccess?: (result: {
 		sales_order_id: string;
 		so_number: string;
@@ -105,9 +110,11 @@ export function CollectPaymentDialog({
 	allOutlets,
 	shifts,
 	medicalCertificates,
+	billingSettings,
 	onSuccess,
 	onError,
 }: Props) {
+	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 	const [isLoadingRepeat, startRepeatTransition] = useTransition();
 
@@ -179,6 +186,10 @@ export function CollectPaymentDialog({
 	);
 
 	const handlePickerSelect = (sel: BillingItemSelection) => {
+		const defaultTaxId = resolveDefaultTaxId(
+			appointment.customer,
+			billingSettings ?? null,
+		);
 		const newLine: Line =
 			sel.type === "service"
 				? {
@@ -190,7 +201,7 @@ export function CollectPaymentDialog({
 						sku: sel.service.sku ?? "",
 						quantity: 1,
 						unit_price: Number(sel.service.price),
-						tax_id: null,
+						tax_id: defaultTaxId,
 						discount_type: "amount",
 						discount_input: "",
 						tooth_number: "",
@@ -206,7 +217,7 @@ export function CollectPaymentDialog({
 						sku: sel.product.sku ?? "",
 						quantity: 1,
 						unit_price: Number(sel.product.selling_price ?? 0),
-						tax_id: null,
+						tax_id: defaultTaxId,
 						discount_type: "amount",
 						discount_input: "",
 						tooth_number: "",
@@ -271,6 +282,19 @@ export function CollectPaymentDialog({
 
 	const amountValid = payments.totalPaid > 0;
 
+	const missingMethodFieldRows = useMemo(
+		() =>
+			payments.payments.filter((p) => {
+				const v = Number(p.amount);
+				if (!Number.isFinite(v) || v <= 0) return false;
+				const method = payments.methodByCode.get(p.mode);
+				if (!method) return false;
+				return hasMissingRequiredFields(method, p);
+			}),
+		[payments.payments, payments.methodByCode],
+	);
+	const hasMissingMethodFields = missingMethodFieldRows.length > 0;
+
 	const disabled =
 		isPending ||
 		billing.lines.length === 0 ||
@@ -282,7 +306,34 @@ export function CollectPaymentDialog({
 		payAlloc.anyLineOverAllocated ||
 		payAlloc.allocSumMismatch ||
 		empAlloc.globalAllocInvalid ||
-		empAlloc.itemizedInvalidLineIds.size > 0;
+		empAlloc.itemizedInvalidLineIds.size > 0 ||
+		hasMissingMethodFields;
+
+	const blockerReason = disabled
+		? billing.lines.length === 0
+			? "Add at least one billing item."
+			: !amountValid
+				? "Enter the payment amount."
+				: rounding.roundingExceedsLimit
+					? "Rounding exceeds RM 1.00."
+					: payments.isOverpaid
+						? `Overpaid by RM ${money(Math.abs(payments.balanceDiff))}.`
+						: forcesFullPayment && payments.isUnderpaid
+							? "All items require full payment."
+							: payAlloc.anyRequiredUnder
+								? "A required-full line is under-allocated."
+								: payAlloc.anyLineOverAllocated
+									? "A line allocation exceeds its own total."
+									: payAlloc.allocSumMismatch
+										? `Allocated RM ${money(payAlloc.allocSum)} ≠ paid RM ${money(payments.totalPaid)}.`
+										: empAlloc.globalAllocInvalid
+											? `Employee allocation ${empAlloc.globalEmpSum.toFixed(0)}% ≠ 100%.`
+											: empAlloc.itemizedInvalidLineIds.size > 0
+												? `${empAlloc.itemizedInvalidLineIds.size} item(s) with invalid employee split.`
+												: hasMissingMethodFields
+													? "Fill the required payment-method field(s)."
+													: "Processing…"
+		: null;
 
 	const handleSubmit = () => {
 		setFormError(null);
@@ -364,6 +415,16 @@ export function CollectPaymentDialog({
 		// Open the invoice tab synchronously inside the click handler so the
 		// browser treats it as a user-initiated popup.
 		const invoiceWindow = window.open("about:blank", "_blank");
+		if (invoiceWindow) {
+			try {
+				invoiceWindow.document.write(
+					`<!doctype html><html><head><title>Preparing invoice…</title><meta charset="utf-8"/></head><body style="margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;color:#555;background:#f5f5f5"><div style="text-align:center"><div style="font-size:15px">Preparing invoice…</div></div></body></html>`,
+				);
+				invoiceWindow.document.close();
+			} catch {
+				// cross-origin or popup blocker — ignore
+			}
+		}
 
 		startTransition(async () => {
 			try {
@@ -421,18 +482,19 @@ export function CollectPaymentDialog({
 							: null,
 					frontdesk_message: frontdeskMsg.trim() || null,
 				});
-				const printUrl = `/sales/${result.sales_order_id}/print`;
+				const printUrl = `/invoices/${result.sales_order_id}`;
 				if (invoiceWindow && !invoiceWindow.closed) {
 					invoiceWindow.location.href = printUrl;
 				} else {
 					window.open(printUrl, "_blank");
 				}
-				onOpenChange(false);
 				onSuccess?.({
 					sales_order_id: result.sales_order_id,
 					so_number: result.so_number,
 					invoice_no: result.invoice_no,
 				});
+				router.push("/appointments");
+				onOpenChange(false);
 			} catch (e) {
 				if (invoiceWindow && !invoiceWindow.closed) invoiceWindow.close();
 				const message =
@@ -532,10 +594,6 @@ export function CollectPaymentDialog({
 												remarksOpen={remarksOpenIds.has(l.id)}
 												onToggleRemarks={() => toggleRemarks(l.id)}
 												updateLine={(patch) => billing.updateLine(l.id, patch)}
-												clampUnitPrice={() => billing.clampUnitPrice(l.id)}
-												clampDiscount={() =>
-													billing.clampLineDiscountInput(l.id)
-												}
 												showPaymentAlloc={
 													payments.isUnderpaid && payments.totalPaid > 0
 												}
@@ -669,32 +727,48 @@ export function CollectPaymentDialog({
 								</Tooltip>
 							</TooltipProvider>
 
-							<button
-								type="button"
-								onClick={handleSubmit}
-								disabled={disabled}
-								className={cn(
-									"flex size-12 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60",
-								)}
-								aria-label="Collect payment"
-							>
-								{isPending ? (
-									<Loader2 className="size-5 animate-spin" />
-								) : (
-									<svg
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										strokeWidth="3"
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										className="size-6"
-										aria-hidden="true"
-									>
-										<polyline points="20 6 9 17 4 12" />
-									</svg>
-								)}
-							</button>
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<span
+											className={cn(
+												"inline-flex",
+												disabled && !isPending && "cursor-not-allowed",
+											)}
+										>
+											<button
+												type="button"
+												onClick={handleSubmit}
+												disabled={disabled}
+												className={cn(
+													"flex size-12 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60",
+												)}
+												aria-label="Collect payment"
+											>
+												{isPending ? (
+													<Loader2 className="size-5 animate-spin" />
+												) : (
+													<svg
+														viewBox="0 0 24 24"
+														fill="none"
+														stroke="currentColor"
+														strokeWidth="3"
+														strokeLinecap="round"
+														strokeLinejoin="round"
+														className="size-6"
+														aria-hidden="true"
+													>
+														<polyline points="20 6 9 17 4 12" />
+													</svg>
+												)}
+											</button>
+										</span>
+									</TooltipTrigger>
+									<TooltipContent>
+										{blockerReason ?? "Collect payment"}
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
 						</div>
 
 						<div className="mt-4 flex items-start gap-2">

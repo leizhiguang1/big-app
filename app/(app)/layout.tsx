@@ -44,7 +44,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
 	return (
 		<AppointmentNotificationsProvider initialOutletId={initialOutletId}>
-			<SidebarProvider>
+			<SidebarProvider className="h-svh">
 				<AppSidebar />
 				<SidebarInset className="min-w-0">
 					<AppTopbar
@@ -54,7 +54,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 						imageUrl={mediaPublicUrl(imagePath)}
 						hasPin={hasPin}
 					/>
-					<main className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
+					<main className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
 						{children}
 					</main>
 				</SidebarInset>

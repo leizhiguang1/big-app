@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
-import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import type { PaymentWithRelations } from "@/lib/services/sales";
 
 type Props = {
 	payments: PaymentWithRelations[];
+	onOpen?: (salesOrderId: string) => void;
 };
 
 function formatDateTime(iso: string) {
@@ -46,7 +46,7 @@ function prettyCode(code: string): string {
 		.join(" ");
 }
 
-export function PaymentsTable({ payments }: Props) {
+export function PaymentsTable({ payments, onOpen }: Props) {
 	const columns: DataTableColumn<PaymentWithRelations>[] = [
 		{
 			key: "date",
@@ -67,14 +67,25 @@ export function PaymentsTable({ payments }: Props) {
 			key: "invoice_no",
 			header: "Invoice #",
 			sortable: true,
-			cell: (p) => (
-				<Link
-					href={`/sales/${p.sales_order?.id ?? ""}`}
-					className="font-mono font-medium text-blue-600 text-sm hover:underline"
-				>
-					{p.invoice_no}
-				</Link>
-			),
+			cell: (p) => {
+				const id = p.sales_order?.id;
+				if (!id || !onOpen) {
+					return (
+						<span className="font-mono font-medium text-sm">
+							{p.invoice_no}
+						</span>
+					);
+				}
+				return (
+					<button
+						type="button"
+						onClick={() => onOpen(id)}
+						className="font-mono font-medium text-blue-600 text-sm hover:underline"
+					>
+						{p.invoice_no}
+					</button>
+				);
+			},
 		},
 		{
 			key: "mode",

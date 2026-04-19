@@ -29,6 +29,15 @@ function formatDurationSentence(
 	return `${base} ${unit}${suffix ? suffix : ""}`;
 }
 
+function formatHoursSentence(hours: number): string {
+	const base = hours.toString().replace(/\.0$/, "");
+	return `${base} hour${hours === 1 ? "" : "s"}`;
+}
+
+function formatTime(t: string): string {
+	return t.slice(0, 5);
+}
+
 export default async function MedicalCertificatePrintPage({
 	params,
 }: {
@@ -61,11 +70,6 @@ export default async function MedicalCertificatePrintPage({
 	const issuerName = mc.issuing_employee
 		? `${mc.issuing_employee.first_name} ${mc.issuing_employee.last_name}`.toUpperCase()
 		: "—";
-	const durationSentence = formatDurationSentence(
-		Number(mc.duration_days),
-		mc.has_half_day,
-		mc.half_day_period,
-	);
 	const addressLine = [
 		mc.outlet.address1,
 		mc.outlet.address2,
@@ -145,12 +149,32 @@ export default async function MedicalCertificatePrintPage({
 							Identification number: <strong>{mc.customer.id_number}</strong>
 						</p>
 					)}
-					<p>
-						had undergo treatment in our dental clinic and is unfit for
-						work/school for <strong>{durationSentence}</strong> from{" "}
-						<strong>{formatDmy(mc.start_date)}</strong> to{" "}
-						<strong>{formatDmy(mc.end_date)}</strong>
-					</p>
+					{mc.slip_type === "time_off" ? (
+						<p>
+							had undergo treatment in our dental clinic and is unfit for
+							work/school for{" "}
+							<strong>
+								{formatHoursSentence(Number(mc.duration_hours ?? 0))}
+							</strong>{" "}
+							from <strong>{formatTime(mc.start_time ?? "")}</strong> to{" "}
+							<strong>{formatTime(mc.end_time ?? "")}</strong> on{" "}
+							<strong>{formatDmy(mc.start_date)}</strong>
+						</p>
+					) : (
+						<p>
+							had undergo treatment in our dental clinic and is unfit for
+							work/school for{" "}
+							<strong>
+								{formatDurationSentence(
+									Number(mc.duration_days ?? 0),
+									mc.has_half_day,
+									mc.half_day_period,
+								)}
+							</strong>{" "}
+							from <strong>{formatDmy(mc.start_date)}</strong> to{" "}
+							<strong>{formatDmy(mc.end_date)}</strong>
+						</p>
+					)}
 					{mc.reason && (
 						<p>
 							Reason: <strong>{mc.reason}</strong>

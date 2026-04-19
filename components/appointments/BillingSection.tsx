@@ -16,9 +16,15 @@ import {
 } from "@/lib/actions/appointments";
 import type { LineItemType } from "@/lib/schemas/appointments";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
+import type { AppointmentWithRelations } from "@/lib/services/appointments";
+import type { BillingSettings } from "@/lib/services/billing-settings";
 import type { InventoryItemWithRefs } from "@/lib/services/inventory";
 import type { ServiceWithCategory } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
+import {
+	isForeignCustomer,
+	resolveDefaultTaxId,
+} from "@/lib/utils/resolve-default-tax";
 
 type Props = {
 	appointmentId: string;
@@ -27,6 +33,8 @@ type Props = {
 	products: InventoryItemWithRefs[];
 	taxes: Tax[];
 	frontdeskMessage?: string | null;
+	customer?: AppointmentWithRelations["customer"];
+	billingSettings?: BillingSettings | null;
 	onChange: () => void;
 };
 
@@ -76,17 +84,40 @@ function newDraft(): Item {
 	};
 }
 
-// Pick the default tax for a newly added line item: prefer "Local" when it's
-// in the parent's available list, otherwise the first available active tax.
+// Pick the default tax for a newly added line item.
+// 1. If billing_settings has auto-foreign-tax on and the customer is foreign,
+//    prefer the configured foreign_tax_id (even if the parent service/product
+//    doesn't list it — the config is a clinic-wide override).
+// 2. Else if billing_settings.local_tax_id is set, prefer it when it appears
+//    in the parent's tax_ids.
+// 3. Else fall back to the legacy heuristic: prefer a tax named "Local" in the
+//    parent's tax_ids, otherwise the first active tax in that list.
 function defaultTaxForParent(
 	parentTaxIds: string[],
 	taxes: Tax[],
+	customer: AppointmentWithRelations["customer"] | undefined,
+	billingSettings: BillingSettings | null | undefined,
 ): string | null {
-	if (parentTaxIds.length === 0) return null;
+	const configured = resolveDefaultTaxId(
+		customer ?? null,
+		billingSettings ?? null,
+	);
+	if (
+		configured &&
+		billingSettings?.auto_foreign_tax_enabled &&
+		isForeignCustomer(customer ?? null) &&
+		configured === billingSettings.foreign_tax_id
+	) {
+		return configured;
+	}
+	if (parentTaxIds.length === 0) return configured ?? null;
 	const available = taxes.filter(
 		(t) => t.is_active && parentTaxIds.includes(t.id),
 	);
-	if (available.length === 0) return null;
+	if (available.length === 0) return configured ?? null;
+	if (configured && available.some((t) => t.id === configured)) {
+		return configured;
+	}
 	const local = available.find((t) => t.name.toLowerCase() === "local");
 	return (local ?? available[0]).id;
 }
@@ -126,8 +157,7 @@ function isDirty(item: Item, entries: AppointmentLineItem[]): boolean {
 	);
 }
 
-const COL =
-	"md:grid-cols-[1fr_56px_100px_100px_130px_100px_28px]" as const;
+const COL = "md:grid-cols-[1fr_56px_100px_100px_130px_100px_28px]" as const;
 
 export function BillingSection({
 	appointmentId,
@@ -136,6 +166,8 @@ export function BillingSection({
 	products,
 	taxes,
 	frontdeskMessage,
+	customer,
+	billingSettings,
 	onChange,
 }: Props) {
 	const [pending, startTransition] = useTransition();
@@ -220,7 +252,12 @@ export function BillingSection({
 				product_id: null,
 				description: svc.name,
 				unit_price: Number(svc.price),
-				tax_id: defaultTaxForParent(svc.tax_ids ?? [], taxes),
+				tax_id: defaultTaxForParent(
+					svc.tax_ids ?? [],
+					taxes,
+					customer,
+					billingSettings,
+				),
 			});
 		} else {
 			const prod = selection.product;
@@ -230,7 +267,12 @@ export function BillingSection({
 				service_id: null,
 				description: prod.name,
 				unit_price: Number(prod.selling_price ?? 0),
-				tax_id: defaultTaxForParent(prod.tax_ids ?? [], taxes),
+				tax_id: defaultTaxForParent(
+					prod.tax_ids ?? [],
+					taxes,
+					customer,
+					billingSettings,
+				),
 			});
 		}
 	};
@@ -424,9 +466,7 @@ export function BillingSection({
 													<span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 font-semibold text-[9px] text-primary uppercase">
 														Service
 													</span>
-													<span className="truncate text-sm">
-														{svc.name}
-													</span>
+													<span className="truncate text-sm">{svc.name}</span>
 													{!svc.allow_redemption_without_payment && (
 														<span
 															className="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-semibold text-blue-700 uppercase"
@@ -441,9 +481,7 @@ export function BillingSection({
 													<span className="shrink-0 rounded bg-emerald-500/10 px-1.5 py-0.5 font-semibold text-[9px] text-emerald-600 uppercase dark:text-emerald-400">
 														Product
 													</span>
-													<span className="truncate text-sm">
-														{prod.name}
-													</span>
+													<span className="truncate text-sm">{prod.name}</span>
 												</>
 											) : (
 												<span className="flex items-center gap-1 text-muted-foreground text-sm">
@@ -495,10 +533,7 @@ export function BillingSection({
 											value={item.tax_id ?? ""}
 											onChange={(e) =>
 												update(item.key, {
-													tax_id:
-														e.target.value === ""
-															? null
-															: e.target.value,
+													tax_id: e.target.value === "" ? null : e.target.value,
 												})
 											}
 											disabled={lineTaxes.length === 0}
@@ -540,9 +575,7 @@ export function BillingSection({
 												<span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
 													{svc.sku}
 												</span>
-												{svc.category?.name && (
-													<span>{svc.category.name}</span>
-												)}
+												{svc.category?.name && <span>{svc.category.name}</span>}
 												<span>{svc.duration_min} min</span>
 											</>
 										)}
@@ -551,9 +584,7 @@ export function BillingSection({
 												<span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
 													{prod.sku}
 												</span>
-												{prod.brand?.name && (
-													<span>{prod.brand.name}</span>
-												)}
+												{prod.brand?.name && <span>{prod.brand.name}</span>}
 												{prod.category?.name && (
 													<span>{prod.category.name}</span>
 												)}
@@ -589,9 +620,7 @@ export function BillingSection({
 														<span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 font-semibold text-[9px] text-primary uppercase">
 															Service
 														</span>
-														<span className="truncate text-sm">
-															{svc.name}
-														</span>
+														<span className="truncate text-sm">{svc.name}</span>
 														{!svc.allow_redemption_without_payment && (
 															<span
 																className="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-semibold text-blue-700 uppercase"
@@ -681,9 +710,7 @@ export function BillingSection({
 												onChange={(e) =>
 													update(item.key, {
 														tax_id:
-															e.target.value === ""
-																? null
-																: e.target.value,
+															e.target.value === "" ? null : e.target.value,
 													})
 												}
 												disabled={lineTaxes.length === 0}
@@ -741,9 +768,7 @@ export function BillingSection({
 
 				<div className="flex min-w-[240px] flex-col gap-1 text-xs md:ml-auto">
 					<SummaryRow label="Subtotal">
-						<span className="tabular-nums">
-							RM {subtotal.toFixed(2)}
-						</span>
+						<span className="tabular-nums">RM {subtotal.toFixed(2)}</span>
 					</SummaryRow>
 					{totalDiscount > 0 && (
 						<SummaryRow label="Discount">
@@ -754,9 +779,7 @@ export function BillingSection({
 					)}
 					{totalTax > 0 && (
 						<SummaryRow label="Tax">
-							<span className="tabular-nums">
-								RM {totalTax.toFixed(2)}
-							</span>
+							<span className="tabular-nums">RM {totalTax.toFixed(2)}</span>
 						</SummaryRow>
 					)}
 					<div className="mt-1 flex items-center justify-between border-t pt-2 font-semibold text-sm text-foreground">

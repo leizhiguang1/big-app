@@ -3,13 +3,21 @@ import { SalesOrderDetailView } from "@/components/sales/SalesOrderDetailView";
 import { Button } from "@/components/ui/button";
 import { getServerContext } from "@/lib/context/server";
 import { NotFoundError } from "@/lib/errors";
+import { getCustomer } from "@/lib/services/customers";
+import { getOutlet } from "@/lib/services/outlets";
 import {
 	getSalesOrder,
 	listPaymentsForOrder,
 	listSaleItems,
 } from "@/lib/services/sales";
 
-export async function SalesOrderDetailContent({ id }: { id: string }) {
+export async function SalesOrderDetailContent({
+	id,
+	autoPrint,
+}: {
+	id: string;
+	autoPrint?: boolean;
+}) {
 	const ctx = await getServerContext();
 
 	try {
@@ -19,8 +27,22 @@ export async function SalesOrderDetailContent({ id }: { id: string }) {
 			listPaymentsForOrder(ctx, id),
 		]);
 
+		const [outlet, customer] = await Promise.all([
+			order.outlet ? getOutlet(ctx, order.outlet.id) : Promise.resolve(null),
+			order.customer
+				? getCustomer(ctx, order.customer.id).catch(() => null)
+				: Promise.resolve(null),
+		]);
+
 		return (
-			<SalesOrderDetailView order={order} items={items} payments={payments} />
+			<SalesOrderDetailView
+				order={order}
+				items={items}
+				payments={payments}
+				outlet={outlet}
+				customer={customer}
+				autoPrint={autoPrint}
+			/>
 		);
 	} catch (err) {
 		if (err instanceof NotFoundError) {

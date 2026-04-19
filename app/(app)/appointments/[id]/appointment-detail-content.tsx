@@ -17,6 +17,7 @@ import {
 	listAppointmentStatusLog,
 	listCustomerAppointments,
 } from "@/lib/services/appointments";
+import { getBillingSettings } from "@/lib/services/billing-settings";
 import {
 	type CaseNoteWithContext,
 	listCaseNotesWithContext,
@@ -36,6 +37,7 @@ import {
 	listFollowUpsForCustomer,
 } from "@/lib/services/follow-ups";
 import { listSellableProducts } from "@/lib/services/inventory";
+import { listMedicalCertificatesForAppointment } from "@/lib/services/medical-certificates";
 import { listOutlets, listRooms } from "@/lib/services/outlets";
 import { listActivePaymentMethods } from "@/lib/services/payment-methods";
 import { getSalesOrderForAppointment } from "@/lib/services/sales";
@@ -103,6 +105,8 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 		taxes,
 		salesOrder,
 		paymentMethods,
+		medicalCertificates,
+		billingSettings,
 	] = await Promise.all([
 		listLineItemsForAppointment(ctx, id),
 		listIncentivesForAppointment(ctx, id),
@@ -127,6 +131,8 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 		listTaxes(ctx),
 		getSalesOrderForAppointment(ctx, id),
 		listActivePaymentMethods(ctx),
+		listMedicalCertificatesForAppointment(ctx, id),
+		getBillingSettings(ctx),
 	]);
 
 	const activeOutlets = outlets.filter((o) => o.is_active);
@@ -156,6 +162,8 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 			shifts={shifts}
 			salesOrderId={salesOrder?.id ?? null}
 			paymentMethods={paymentMethods}
+			medicalCertificates={medicalCertificates}
+			billingSettings={billingSettings}
 		/>
 	);
 }

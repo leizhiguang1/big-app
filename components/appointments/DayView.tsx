@@ -1,5 +1,6 @@
 "use client";
 
+import { CalendarX2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
 	APPOINTMENT_DRAG_MIME,
@@ -171,36 +172,41 @@ export function DayView({
 	const nowY = isToday && now ? timeToY(now.toISOString(), dayStart) : 0;
 	const showNowLine = isToday && nowY >= 0 && nowY <= TOTAL_GRID_HEIGHT_PX;
 
+	const isEmpty = columns.length === 0;
+	const gridTemplateColumns = isEmpty
+		? "64px 1fr"
+		: `64px repeat(${columns.length}, minmax(140px, 1fr))`;
+
 	return (
 		<div className="h-[calc(100vh-11rem)] min-h-[450px] overflow-auto rounded-md border bg-card">
 			<div style={{ minWidth: Math.max(900, columns.length * 160 + 64) }}>
 				{/* Header row — frozen at top */}
 				<div
 					className="sticky top-0 z-20 grid border-b bg-card"
-					style={{
-						gridTemplateColumns: `64px repeat(${columns.length}, minmax(140px, 1fr))`,
-					}}
+					style={{ gridTemplateColumns }}
 				>
 					{/* Corner cell — frozen at top-left */}
 					<div className="sticky left-0 z-30 border-r bg-muted/40" />
-					{columns.map((c) => (
-						<div
-							key={c.id ?? "_unassigned"}
-							className={cn(
-								"truncate border-r px-2 py-2.5 text-center font-semibold text-[11px] text-muted-foreground uppercase tracking-wide",
-							)}
-						>
-							{c.label}
-						</div>
-					))}
+					{isEmpty ? (
+						<div aria-hidden />
+					) : (
+						columns.map((c) => (
+							<div
+								key={c.id ?? "_unassigned"}
+								className={cn(
+									"truncate border-r px-2 py-2.5 text-center font-semibold text-[11px] text-muted-foreground uppercase tracking-wide",
+								)}
+							>
+								{c.label}
+							</div>
+						))
+					)}
 				</div>
 
 				{/* Body */}
 				<div
 					className="relative grid"
-					style={{
-						gridTemplateColumns: `64px repeat(${columns.length}, minmax(140px, 1fr))`,
-					}}
+					style={{ gridTemplateColumns }}
 				>
 					{/* Time gutter — frozen at left */}
 					<div
@@ -219,6 +225,25 @@ export function DayView({
 							))}
 						</div>
 					</div>
+
+					{isEmpty && (
+						<div
+							className="relative flex items-center justify-center"
+							style={{ height: TOTAL_GRID_HEIGHT_PX }}
+						>
+							<div className="flex flex-col items-center gap-2 px-6 text-center text-muted-foreground">
+								<CalendarX2 className="size-8 opacity-60" aria-hidden />
+								<p className="font-medium text-sm">
+									No staff rostered for this day
+								</p>
+								<p className="max-w-sm text-xs">
+									{resourceMode === "employee"
+										? "Assign a roster for this day to see staff columns here."
+										: "No resources available for this day."}
+								</p>
+							</div>
+						</div>
+					)}
 
 					{columns.map((c) => {
 						const colKey = c.id ?? "_";

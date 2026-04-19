@@ -49,34 +49,40 @@ CREATE SEQUENCE seq_invoice_no   START 1;
 -- 2. Code-generation helpers
 -- ────────────────────────────────────────────────────────────
 
--- Employee: EMP00001, EMP00002, ...
+-- All auto-generated human-readable codes follow `<PREFIX>-<digits>`.
+-- The dash is mandatory — it makes codes skimmable on receipts and in
+-- support conversations, and keeps them URL/filename safe (no slashes).
+-- Customer codes use the outlet code itself as the prefix
+-- (e.g. BDK-000001); see customers_set_code() below.
+
+-- Employee: EMP-0001, EMP-0002, ...
 CREATE OR REPLACE FUNCTION gen_employee_code() RETURNS TEXT
 LANGUAGE sql AS $$
-  SELECT 'EMP' || lpad(nextval('seq_employee_code')::text, 5, '0')
+  SELECT 'EMP-' || lpad(nextval('seq_employee_code')::text, 4, '0')
 $$;
 
--- Appointment booking ref: APT000001, APT000002, ...
+-- Appointment booking ref: APT-00000001, APT-00000002, ...
 CREATE OR REPLACE FUNCTION gen_booking_ref() RETURNS TEXT
 LANGUAGE sql AS $$
-  SELECT 'APT' || lpad(nextval('seq_booking_ref')::text, 6, '0')
+  SELECT 'APT-' || lpad(nextval('seq_booking_ref')::text, 8, '0')
 $$;
 
--- Sales order: SO000001, SO000002, ...
+-- Sales order: SO-000001, SO-000002, ...
 CREATE OR REPLACE FUNCTION gen_so_number() RETURNS TEXT
 LANGUAGE sql AS $$
-  SELECT 'SO' || lpad(nextval('seq_so_number')::text, 6, '0')
+  SELECT 'SO-' || lpad(nextval('seq_so_number')::text, 6, '0')
 $$;
 
--- Cancellation note: CN000001, CN000002, ...
+-- Cancellation note: CN-000001, CN-000002, ...
 CREATE OR REPLACE FUNCTION gen_cn_number() RETURNS TEXT
 LANGUAGE sql AS $$
-  SELECT 'CN' || lpad(nextval('seq_cn_number')::text, 6, '0')
+  SELECT 'CN-' || lpad(nextval('seq_cn_number')::text, 6, '0')
 $$;
 
--- Payment invoice: INV000001, INV000002, ...
+-- Payment invoice: IV-000001, IV-000002, ...
 CREATE OR REPLACE FUNCTION gen_invoice_no() RETURNS TEXT
 LANGUAGE sql AS $$
-  SELECT 'INV' || lpad(nextval('seq_invoice_no')::text, 6, '0')
+  SELECT 'IV-' || lpad(nextval('seq_invoice_no')::text, 6, '0')
 $$;
 
 
@@ -604,6 +610,27 @@ CREATE INDEX idx_cancellations_order ON cancellations (sales_order_id);
 CREATE TRIGGER trg_outlets_updated_at
   BEFORE UPDATE ON outlets
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- outlets.code is immutable: renaming it would silently split the
+-- customer population (existing customers.code is a stored literal;
+-- new customers would start with the new prefix). See
+-- 0066_outlets_code_immutable and docs/modules/02-customers.md.
+CREATE OR REPLACE FUNCTION outlets_prevent_code_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.code IS DISTINCT FROM OLD.code THEN
+    RAISE EXCEPTION
+      'outlets.code is immutable (outlet %, was %, tried %)',
+      OLD.id, OLD.code, NEW.code
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_outlets_code_immutable
+  BEFORE UPDATE ON outlets
+  FOR EACH ROW EXECUTE FUNCTION outlets_prevent_code_change();
 
 CREATE TRIGGER trg_rooms_updated_at
   BEFORE UPDATE ON rooms

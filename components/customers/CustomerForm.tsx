@@ -22,6 +22,7 @@ import {
 	updateCustomerAction,
 } from "@/lib/actions/customers";
 import { deleteMediaObjectAction } from "@/lib/actions/storage";
+import { COUNTRIES, DEFAULT_COUNTRY_CODE } from "@/lib/constants/countries";
 import {
 	MEDICAL_CONDITIONS,
 	type MedicalCondition,
@@ -73,7 +74,7 @@ const EMPTY: CustomerInput = {
 	phone: "",
 	phone2: undefined,
 	email: undefined,
-	country_of_origin: "Malaysia",
+	country_of_origin: DEFAULT_COUNTRY_CODE,
 	address1: undefined,
 	address2: undefined,
 	city: undefined,
@@ -110,7 +111,7 @@ function fromCustomer(c: CustomerWithRelations | null): CustomerInput {
 		phone: c.phone,
 		phone2: c.phone2 ?? undefined,
 		email: c.email ?? undefined,
-		country_of_origin: c.country_of_origin ?? "Malaysia",
+		country_of_origin: c.country_of_origin ?? DEFAULT_COUNTRY_CODE,
 		address1: c.address1 ?? undefined,
 		address2: c.address2 ?? undefined,
 		city: c.city ?? undefined,
@@ -521,11 +522,19 @@ export function CustomerFormDialog({
 											htmlFor="cus-country"
 											required
 											full
+											error={errors.country_of_origin?.message}
 										>
-											<Input
+											<select
 												id="cus-country"
+												className={SELECT_CLASS}
 												{...form.register("country_of_origin")}
-											/>
+											>
+												{COUNTRIES.map((c) => (
+													<option key={c.code} value={c.code}>
+														{c.name}
+													</option>
+												))}
+											</select>
 										</Field>
 
 										<Field

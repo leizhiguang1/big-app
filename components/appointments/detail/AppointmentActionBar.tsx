@@ -28,6 +28,7 @@ import {
 } from "@/lib/actions/appointments";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
+import type { BillingSettings } from "@/lib/services/billing-settings";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type {
 	EmployeeShift,
@@ -35,6 +36,7 @@ import type {
 } from "@/lib/services/employee-shifts";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { InventoryItemWithRefs } from "@/lib/services/inventory";
+import type { MedicalCertificateWithRefs } from "@/lib/services/medical-certificates";
 import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
 import type { PaymentMethod } from "@/lib/services/payment-methods";
 import type { ServiceWithCategory } from "@/lib/services/services";
@@ -54,6 +56,8 @@ type Props = {
 	rooms: Room[];
 	allOutlets: OutletWithRoomCount[];
 	shifts: EmployeeShift[];
+	medicalCertificates: MedicalCertificateWithRefs[];
+	billingSettings: BillingSettings;
 	onEdit: () => void;
 	onToast?: (
 		message: string,
@@ -122,6 +126,8 @@ export function AppointmentActionBar({
 	rooms,
 	allOutlets,
 	shifts,
+	medicalCertificates,
+	billingSettings,
 	onEdit,
 	onToast,
 }: Props) {
@@ -216,11 +222,7 @@ export function AppointmentActionBar({
 									disabled={isPending}
 									aria-label="Revert to pending"
 								>
-									{isPending ? (
-										<Loader2 className="animate-spin" />
-									) : (
-										<Undo2 />
-									)}
+									{isPending ? <Loader2 className="animate-spin" /> : <Undo2 />}
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">Revert to pending</TooltipContent>
@@ -240,7 +242,9 @@ export function AppointmentActionBar({
 									<Ticket />
 								</Button>
 							</TooltipTrigger>
-							<TooltipContent side="bottom">Print queue ticket (coming soon)</TooltipContent>
+							<TooltipContent side="bottom">
+								Print queue ticket (coming soon)
+							</TooltipContent>
 						</Tooltip>
 
 						<Tooltip>
@@ -271,7 +275,9 @@ export function AppointmentActionBar({
 									<ListOrdered />
 								</Button>
 							</TooltipTrigger>
-							<TooltipContent side="bottom">Add to queue (coming soon)</TooltipContent>
+							<TooltipContent side="bottom">
+								Add to queue (coming soon)
+							</TooltipContent>
 						</Tooltip>
 
 						<Tooltip>
@@ -318,11 +324,7 @@ export function AppointmentActionBar({
 									disabled={isPending}
 									aria-label="Complete appointment"
 								>
-									{isPending ? (
-										<Loader2 className="animate-spin" />
-									) : (
-										<Check />
-									)}
+									{isPending ? <Loader2 className="animate-spin" /> : <Check />}
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">
@@ -367,7 +369,7 @@ export function AppointmentActionBar({
 				title="Cancel appointment?"
 				description="This will permanently delete this appointment. Reschedule instead if the customer wants a different date or time."
 				confirmLabel="Cancel appointment"
-				cancelLabel="Keep"
+				cancelLabel={null}
 				variant="destructive"
 				onConfirm={handleCancelConfirm}
 				altLabel="Reschedule"
@@ -393,6 +395,8 @@ export function AppointmentActionBar({
 				rooms={rooms}
 				allOutlets={allOutlets}
 				shifts={shifts}
+				medicalCertificates={medicalCertificates}
+				billingSettings={billingSettings}
 				onSuccess={(r) =>
 					onToast?.(
 						`Payment collected · ${r.so_number} / ${r.invoice_no}`,

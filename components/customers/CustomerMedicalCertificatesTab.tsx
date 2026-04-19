@@ -21,6 +21,14 @@ function formatDuration(days: number, halfDayPeriod: string | null): string {
 	return `${whole + 0.5} days${halfDayPeriod ? ` (${halfDayPeriod})` : ""}`;
 }
 
+function formatHours(hours: number): string {
+	return `${hours} hour${hours === 1 ? "" : "s"}`;
+}
+
+function formatTime(t: string): string {
+	return t.slice(0, 5);
+}
+
 export function CustomerMedicalCertificatesTab({ medicalCertificates }: Props) {
 	if (medicalCertificates.length === 0) {
 		return (
@@ -46,18 +54,47 @@ export function CustomerMedicalCertificatesTab({ medicalCertificates }: Props) {
 							</span>
 						</div>
 						<span className="font-semibold text-[11px] text-muted-foreground">
-							{formatDuration(mc.duration_days, mc.half_day_period)}
+							{mc.slip_type === "time_off"
+								? formatHours(Number(mc.duration_hours ?? 0))
+								: formatDuration(
+										Number(mc.duration_days ?? 0),
+										mc.half_day_period,
+									)}
 						</span>
 					</div>
 					<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
-						<span>
-							<span className="text-muted-foreground">From: </span>
-							<span className="font-medium">{formatDate(mc.start_date)}</span>
-						</span>
-						<span>
-							<span className="text-muted-foreground">To: </span>
-							<span className="font-medium">{formatDate(mc.end_date)}</span>
-						</span>
+						{mc.slip_type === "time_off" ? (
+							<>
+								<span>
+									<span className="text-muted-foreground">Date: </span>
+									<span className="font-medium">
+										{formatDate(mc.start_date)}
+									</span>
+								</span>
+								<span>
+									<span className="text-muted-foreground">Time: </span>
+									<span className="font-medium">
+										{formatTime(mc.start_time ?? "")} –{" "}
+										{formatTime(mc.end_time ?? "")}
+									</span>
+								</span>
+							</>
+						) : (
+							<>
+								<span>
+									<span className="text-muted-foreground">From: </span>
+									<span className="font-medium">
+										{formatDate(mc.start_date)}
+									</span>
+								</span>
+								<span>
+									<span className="text-muted-foreground">To: </span>
+									<span className="font-medium">
+										{formatDate(mc.end_date)}
+									</span>
+								</span>
+							</>
+						)}
 						{mc.issuing_employee && (
 							<span className="text-muted-foreground">
 								Issued by {mc.issuing_employee.first_name}{" "}

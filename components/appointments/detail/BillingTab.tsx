@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { BillingSection } from "@/components/appointments/BillingSection";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
+import type { AppointmentWithRelations } from "@/lib/services/appointments";
+import type { BillingSettings } from "@/lib/services/billing-settings";
 import type { InventoryItemWithRefs } from "@/lib/services/inventory";
 import type { ServiceWithCategory } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
@@ -17,6 +19,8 @@ type Props = {
 	frontdeskMessage: string | null;
 	isLead: boolean;
 	isBlock: boolean;
+	customer: AppointmentWithRelations["customer"];
+	billingSettings: BillingSettings;
 };
 
 export function BillingTab({
@@ -28,6 +32,8 @@ export function BillingTab({
 	frontdeskMessage,
 	isLead,
 	isBlock,
+	customer,
+	billingSettings,
 }: Props) {
 	const router = useRouter();
 	const [, startTransition] = useTransition();
@@ -56,6 +62,8 @@ export function BillingTab({
 			products={products}
 			taxes={taxes}
 			frontdeskMessage={frontdeskMessage}
+			customer={customer}
+			billingSettings={billingSettings}
 			onChange={() => startTransition(() => router.refresh())}
 		/>
 	);

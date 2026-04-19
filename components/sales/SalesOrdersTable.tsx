@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import type { SalesOrderWithRelations } from "@/lib/services/sales";
 
 type Props = {
 	orders: SalesOrderWithRelations[];
+	onOpen?: (salesOrderId: string) => void;
 };
 
 function formatDateTime(iso: string) {
@@ -39,7 +39,7 @@ function fullName(
 	return [first, last].filter(Boolean).join(" ").trim();
 }
 
-export function SalesOrdersTable({ orders }: Props) {
+export function SalesOrdersTable({ orders, onOpen }: Props) {
 	const columns: DataTableColumn<SalesOrderWithRelations>[] = [
 		{
 			key: "date",
@@ -61,12 +61,13 @@ export function SalesOrdersTable({ orders }: Props) {
 			header: "Sales order #",
 			sortable: true,
 			cell: (o) => (
-				<Link
-					href={`/sales/${o.id}`}
+				<button
+					type="button"
+					onClick={() => onOpen?.(o.id)}
 					className="font-mono font-medium text-blue-600 text-sm hover:underline"
 				>
 					{o.so_number}
-				</Link>
+				</button>
 			),
 		},
 		{

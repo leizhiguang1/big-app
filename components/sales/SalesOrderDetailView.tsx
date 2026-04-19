@@ -13,8 +13,11 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { CancelOrderDialog } from "@/components/sales/CancelOrderDialog";
+import { ViewInvoiceDialog } from "@/components/sales/ViewInvoiceDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { CustomerWithRelations } from "@/lib/services/customers";
+import type { Outlet } from "@/lib/services/outlets";
 import type {
 	PaymentWithProcessedBy,
 	SaleItem,
@@ -25,6 +28,9 @@ type Props = {
 	order: SalesOrderWithRelations;
 	items: SaleItem[];
 	payments: PaymentWithProcessedBy[];
+	outlet: Outlet | null;
+	customer: CustomerWithRelations | null;
+	autoPrint?: boolean;
 };
 
 function money(n: number) {
@@ -112,8 +118,16 @@ function itemTypeLabel(t: string): string {
 	}
 }
 
-export function SalesOrderDetailView({ order, items, payments }: Props) {
+export function SalesOrderDetailView({
+	order,
+	items,
+	payments,
+	outlet,
+	customer,
+	autoPrint,
+}: Props) {
 	const [cancelOpen, setCancelOpen] = useState(false);
+	const [invoiceOpen, setInvoiceOpen] = useState(Boolean(autoPrint));
 	const [feedback, setFeedback] = useState<{
 		type: "success" | "error";
 		message: string;
@@ -164,11 +178,13 @@ export function SalesOrderDetailView({ order, items, payments }: Props) {
 							Cancel
 						</Button>
 					)}
-					<Button asChild variant="outline" size="sm">
-						<Link href={`/sales/${order.id}/print`} target="_blank">
-							<Printer className="mr-2 size-4" />
-							Print
-						</Link>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => setInvoiceOpen(true)}
+					>
+						<Printer className="mr-2 size-4" />
+						Print
 					</Button>
 				</div>
 			</div>
@@ -423,6 +439,15 @@ export function SalesOrderDetailView({ order, items, payments }: Props) {
 				onError={(msg) => setFeedback({ type: "error", message: msg })}
 			/>
 
+			<ViewInvoiceDialog
+				open={invoiceOpen}
+				onOpenChange={setInvoiceOpen}
+				order={order}
+				items={items}
+				payments={payments}
+				outlet={outlet}
+				customer={customer}
+			/>
 		</div>
 	);
 }
