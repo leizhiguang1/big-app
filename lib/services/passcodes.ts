@@ -1,6 +1,7 @@
 import type { Context } from "@/lib/context/types";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import {
+	type PasscodeFunction,
 	passcodeInputSchema,
 	passcodeUpdateSchema,
 } from "@/lib/schemas/passcodes";
@@ -31,9 +32,7 @@ function generatePasscodeValue(): string {
 	return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
-export async function listPasscodes(
-	ctx: Context,
-): Promise<PasscodeListItem[]> {
+export async function listPasscodes(ctx: Context): Promise<PasscodeListItem[]> {
 	const { data, error } = await ctx.db
 		.from("passcodes")
 		.select(LIST_SELECT)
@@ -90,6 +89,34 @@ export async function updatePasscode(
 	if (error) throw new ValidationError(error.message);
 	if (!data) throw new NotFoundError(`Passcode ${id} not found`);
 	return data;
+}
+
+export type RedeemPasscodeInput = {
+	passcode: string;
+	function: PasscodeFunction;
+	outletId: string;
+	appliedOn: string;
+};
+
+export async function redeemPasscode(
+	ctx: Context,
+	input: RedeemPasscodeInput,
+): Promise<Passcode> {
+	const { data, error } = await ctx.db.rpc("redeem_passcode", {
+		p_passcode: input.passcode,
+		p_function: input.function,
+		p_outlet_id: input.outletId,
+		p_applied_on: input.appliedOn,
+		p_used_by: (ctx.currentUser?.employeeId ?? null) as string,
+	});
+	if (error) {
+		if (error.message?.includes("Invalid or expired passcode")) {
+			throw new ValidationError("Invalid or expired passcode");
+		}
+		throw new ValidationError(error.message);
+	}
+	if (!data) throw new ValidationError("Invalid or expired passcode");
+	return data as Passcode;
 }
 
 export async function deletePasscode(ctx: Context, id: string): Promise<void> {

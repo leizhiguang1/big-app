@@ -67,14 +67,10 @@ export const collectPaymentInputSchema = z.object({
 export type CollectPaymentInput = z.infer<typeof collectPaymentInputSchema>;
 
 export const cancelSalesOrderInputSchema = z.object({
-	reason: z
+	reason: z.string().trim().min(1, "Cancellation reason is required").max(500),
+	passcode: z
 		.string()
 		.trim()
-		.min(1, "Cancellation reason is required")
-		.max(500),
-	amount: z.coerce.number().min(0).optional(),
-	tax: z.coerce.number().min(0).optional(),
+		.regex(/^\d{4}$/, "Passcode must be 4 digits"),
 });
-export type CancelSalesOrderInput = z.infer<
-	typeof cancelSalesOrderInputSchema
->;
+export type CancelSalesOrderInput = z.infer<typeof cancelSalesOrderInputSchema>;

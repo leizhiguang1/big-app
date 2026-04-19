@@ -59,5 +59,8 @@ export async function cancelSalesOrderAction(
 	const cn = await salesService.cancelSalesOrder(ctx, salesOrderId, input);
 	revalidatePath("/sales");
 	revalidatePath(`/sales/${salesOrderId}`);
+	revalidatePath("/appointments");
+	revalidatePath("/inventory");
+	revalidatePath("/passcode");
 	return { cnNumber: cn.cn_number };
 }

@@ -660,7 +660,6 @@ export type Database = {
           medical_conditions: string[]
           opt_in_marketing: boolean
           opt_in_notifications: boolean
-          passport_no: string | null
           phone: string
           phone2: string | null
           postcode: string | null
@@ -698,7 +697,6 @@ export type Database = {
           medical_conditions?: string[]
           opt_in_marketing?: boolean
           opt_in_notifications?: boolean
-          passport_no?: string | null
           phone: string
           phone2?: string | null
           postcode?: string | null
@@ -736,7 +734,6 @@ export type Database = {
           medical_conditions?: string[]
           opt_in_marketing?: boolean
           opt_in_notifications?: boolean
-          passport_no?: string | null
           phone?: string
           phone2?: string | null
           postcode?: string | null
@@ -2661,6 +2658,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_sales_order: {
+        Args: {
+          p_passcode: string
+          p_reason: string
+          p_sales_order_id: string
+          p_used_by: string
+        }
+        Returns: Json
+      }
       collect_appointment_payment: {
         Args: {
           p_allocations?: Json
@@ -2683,6 +2689,35 @@ export type Database = {
         Returns: string
       }
       gen_customer_code: { Args: { p_outlet_id: string }; Returns: string }
+      redeem_passcode: {
+        Args: {
+          p_applied_on: string
+          p_function: string
+          p_outlet_id: string
+          p_passcode: string
+          p_used_by: string
+        }
+        Returns: {
+          applied_on: string | null
+          created_at: string
+          created_by_employee_id: string | null
+          expires_at: string
+          function: string
+          id: string
+          outlet_id: string
+          passcode: string
+          remarks: string | null
+          updated_at: string
+          used_at: string | null
+          used_by_employee_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "passcodes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_employee_pin: {
         Args: { p_employee_id: string; p_pin: string }
         Returns: undefined
