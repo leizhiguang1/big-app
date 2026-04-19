@@ -113,7 +113,7 @@ export function StatusProgressionRow({
 				description="The customer didn't show up. Would you like to reschedule them to another time instead of marking no-show?"
 				confirmLabel="Mark no-show"
 				cancelLabel={null}
-				variant="default"
+				variant="destructive"
 				onConfirm={() => {
 					setNoShowPromptOpen(false);
 					applyStatus("noshow");
@@ -124,7 +124,7 @@ export function StatusProgressionRow({
 					onReschedule?.();
 				}}
 			/>
-			<div className="@container flex flex-wrap gap-1 @[340px]:gap-1.5 @[480px]:gap-2">
+			<div className="@container flex flex-wrap gap-1.5 @[340px]:gap-2 @[480px]:gap-2.5">
 				{PROGRESSION_STATUSES.map((s) => {
 					const config = APPOINTMENT_STATUS_CONFIG[s];
 					const Icon = config.Icon;
@@ -140,10 +140,12 @@ export function StatusProgressionRow({
 										"min-w-7 px-1 @[340px]:min-h-8 @[340px]:px-1.5 @[340px]:py-1 @[340px]:text-[11px] @[480px]:px-2.5 @[480px]:text-xs",
 										isActive
 											? "border-transparent text-white shadow-sm"
-											: "border-border bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+											: "bg-transparent hover:bg-muted/40",
 									)}
 									style={
-										isActive ? { backgroundColor: config.solidHex } : undefined
+										isActive
+											? { backgroundColor: config.solidHex }
+											: { borderColor: config.solidHex, color: config.solidHex }
 									}
 								>
 									<Icon
