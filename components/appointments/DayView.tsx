@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
 	APPOINTMENT_DRAG_MIME,
 	AppointmentCard,
@@ -9,15 +9,24 @@ import {
 	cardStyle,
 	dayStartIso,
 	durationToHeight,
+	FIRST_HOUR,
 	formatHourLabel,
 	HOUR_HEIGHT_PX,
 	HOURS,
+	LAST_HOUR,
 	layoutOverlaps,
+	minutesToY,
 	QUARTER_HEIGHT_PX,
 	TOTAL_GRID_HEIGHT_PX,
 	timeToY,
 } from "@/lib/calendar/layout";
-import { fmtDate, shiftCoversDate } from "@/lib/roster/week";
+import {
+	fmtDate,
+	getNonRosteredBands,
+	getRosteredRangesOnDate,
+	type MinuteRange,
+	shiftCoversDate,
+} from "@/lib/roster/week";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 import type {
 	EmployeeShift,
@@ -135,6 +144,33 @@ export function DayView({
 
 	const dayStart = dayStartIso(dateStr);
 
+	// Per-employee non-rostered bands (employee mode only). Used to grey out
+	// time outside the employee's roster on this date.
+	const nonRosteredBandsByEmployee = useMemo(() => {
+		const map = new Map<string, MinuteRange[]>();
+		if (resourceMode !== "employee") return map;
+		const windowStart = FIRST_HOUR * 60;
+		const windowEnd = (LAST_HOUR + 1) * 60;
+		for (const e of rosteredEmployees) {
+			const empShifts = shifts.filter((s) => s.employee_id === e.id);
+			const ranges = getRosteredRangesOnDate(empShifts, dateStr);
+			map.set(e.id, getNonRosteredBands(ranges, windowStart, windowEnd));
+		}
+		return map;
+	}, [resourceMode, rosteredEmployees, shifts, dateStr]);
+
+	// Live "now" tick for the current-time line. Initialised after mount to
+	// avoid SSR/CSR hydration drift across a minute boundary.
+	const [now, setNow] = useState<Date | null>(null);
+	useEffect(() => {
+		setNow(new Date());
+		const id = setInterval(() => setNow(new Date()), 60_000);
+		return () => clearInterval(id);
+	}, []);
+	const isToday = now !== null && fmtDate(now) === dateStr;
+	const nowY = isToday && now ? timeToY(now.toISOString(), dayStart) : 0;
+	const showNowLine = isToday && nowY >= 0 && nowY <= TOTAL_GRID_HEIGHT_PX;
+
 	return (
 		<div className="h-[calc(100vh-11rem)] min-h-[450px] overflow-auto rounded-md border bg-card">
 			<div style={{ minWidth: Math.max(900, columns.length * 160 + 64) }}>
@@ -161,7 +197,7 @@ export function DayView({
 
 				{/* Body */}
 				<div
-					className="grid"
+					className="relative grid"
 					style={{
 						gridTemplateColumns: `64px repeat(${columns.length}, minmax(140px, 1fr))`,
 					}}
@@ -188,12 +224,29 @@ export function DayView({
 						const colKey = c.id ?? "_";
 						const colApts = aptsByColumn.get(colKey) ?? [];
 						const layout = layoutOverlaps(colApts);
+						const greyBands = c.id
+							? (nonRosteredBandsByEmployee.get(c.id) ?? [])
+							: [];
 						return (
 							<div
 								key={c.id ?? "_unassigned"}
 								className="relative border-r"
 								style={{ height: TOTAL_GRID_HEIGHT_PX }}
 							>
+								{/* Non-rostered greyout — pointer-events-none so cells stay clickable */}
+								{greyBands.map((b) => {
+									const top = minutesToY(b.startMin);
+									const bottom = minutesToY(b.endMin);
+									return (
+										<div
+											key={`grey-${b.startMin}-${b.endMin}`}
+											className="pointer-events-none absolute right-0 left-0 z-0 bg-muted/60"
+											style={{ top, height: Math.max(0, bottom - top) }}
+											aria-hidden
+										/>
+									);
+								})}
+
 								{/* 15-minute grid cells */}
 								{HOURS.flatMap((h, hIdx) =>
 									QUARTERS.map((min, qIdx) => {
@@ -278,6 +331,20 @@ export function DayView({
 							</div>
 						);
 					})}
+
+					{/* Current-time line — single span across all columns. z-9 keeps
+					    it above appointment cards (max ~z-5) but below the sticky
+					    time gutter (z-10), so the gutter masks the portion that
+					    scrolls under it during horizontal scroll. */}
+					{showNowLine && (
+						<div
+							className="pointer-events-none absolute right-0 z-[9] h-px bg-red-500"
+							style={{ top: nowY, left: 64 }}
+							aria-hidden
+						>
+							<div className="-translate-x-1/2 -translate-y-1/2 absolute top-0 left-0 h-2.5 w-2.5 rounded-full bg-red-500" />
+						</div>
+					)}
 				</div>
 			</div>
 		</div>

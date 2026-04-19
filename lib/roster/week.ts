@@ -159,6 +159,80 @@ export function isWindowCoveredByShifts(
 	return false;
 }
 
+export type MinuteRange = { startMin: number; endMin: number };
+
+// Merge overlapping/adjacent minute-ranges. Returns sorted disjoint ranges.
+function mergeMinuteRanges(ranges: MinuteRange[]): MinuteRange[] {
+	if (ranges.length === 0) return ranges;
+	const sorted = [...ranges].sort((a, b) => a.startMin - b.startMin);
+	const merged: MinuteRange[] = [{ ...sorted[0] }];
+	for (let i = 1; i < sorted.length; i++) {
+		const last = merged[merged.length - 1];
+		const cur = sorted[i];
+		if (cur.startMin <= last.endMin) {
+			last.endMin = Math.max(last.endMin, cur.endMin);
+		} else {
+			merged.push({ ...cur });
+		}
+	}
+	return merged;
+}
+
+// Compute merged rostered minute-ranges (from local midnight) for a given date,
+// from the supplied shifts (already filtered to one resource if desired).
+// Overnight shifts and overnight spillovers from the previous calendar day are
+// both reflected, clipped to the [0, 1440) window.
+export function getRosteredRangesOnDate(
+	shifts: ShiftWithTimes[],
+	dateStr: string,
+): MinuteRange[] {
+	const ranges: MinuteRange[] = [];
+	for (const s of shifts) {
+		if (shiftCoversDate(s, dateStr)) {
+			const startMin = timeToMin(s.start_time);
+			const rawEnd = timeToMin(s.end_time);
+			const endMin = s.is_overnight ? rawEnd + 1440 : rawEnd;
+			ranges.push({ startMin, endMin: Math.min(endMin, 1440) });
+		}
+		if (s.is_overnight) {
+			const prevDate = fmtDate(addDays(parseDate(dateStr), -1));
+			if (shiftCoversDate(s, prevDate)) {
+				ranges.push({ startMin: 0, endMin: timeToMin(s.end_time) });
+			}
+		}
+	}
+	return mergeMinuteRanges(ranges);
+}
+
+// Return the gaps (non-rostered bands) inside [windowStartMin, windowEndMin].
+export function getNonRosteredBands(
+	rosteredRanges: MinuteRange[],
+	windowStartMin: number,
+	windowEndMin: number,
+): MinuteRange[] {
+	if (windowEndMin <= windowStartMin) return [];
+	if (rosteredRanges.length === 0) {
+		return [{ startMin: windowStartMin, endMin: windowEndMin }];
+	}
+	const sorted = [...rosteredRanges].sort((a, b) => a.startMin - b.startMin);
+	const bands: MinuteRange[] = [];
+	let cursor = windowStartMin;
+	for (const r of sorted) {
+		if (r.startMin > cursor) {
+			bands.push({
+				startMin: cursor,
+				endMin: Math.min(r.startMin, windowEndMin),
+			});
+		}
+		cursor = Math.max(cursor, r.endMin);
+		if (cursor >= windowEndMin) break;
+	}
+	if (cursor < windowEndMin) {
+		bands.push({ startMin: cursor, endMin: windowEndMin });
+	}
+	return bands;
+}
+
 // Do two shifts ever land on the same date?
 export function shiftsConflict(a: ShiftLike, b: ShiftLike): boolean {
 	const aWeekly = a.repeat_type === "weekly";

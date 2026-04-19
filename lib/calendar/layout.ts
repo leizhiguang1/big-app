@@ -33,8 +33,12 @@ export type LayoutLike = {
 // Convert an ISO datetime to a vertical pixel offset within the day grid.
 export function timeToY(iso: string, dayStartIso: string): number {
 	const t = new Date(iso).getTime() - new Date(dayStartIso).getTime();
-	const minutes = t / 60000 - FIRST_HOUR * 60;
-	return minutes * (QUARTER_HEIGHT_PX / 15);
+	return minutesToY(t / 60000);
+}
+
+// Convert minutes-from-local-midnight to a vertical pixel offset within the day grid.
+export function minutesToY(minutesFromMidnight: number): number {
+	return (minutesFromMidnight - FIRST_HOUR * 60) * (QUARTER_HEIGHT_PX / 15);
 }
 
 // Pixel height for an appointment based on duration. Min one quarter.

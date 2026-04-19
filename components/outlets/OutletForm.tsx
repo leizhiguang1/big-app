@@ -1,11 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Trash2 } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CreateButton } from "@/components/ui/create-button";
 import {
 	Dialog,
@@ -18,17 +16,14 @@ import {
 import { Input } from "@/components/ui/input";
 import {
 	createOutletAction,
-	createRoomAction,
-	deleteRoomAction,
-	listRoomsAction,
 	updateOutletAction,
-	updateRoomAction,
 } from "@/lib/actions/outlets";
+import { ImageUpload } from "@/components/ui/image-upload";
 import {
 	type OutletCreateInput,
 	outletCreateSchema,
 } from "@/lib/schemas/outlets";
-import type { Outlet, Room } from "@/lib/services/outlets";
+import type { Outlet } from "@/lib/services/outlets";
 
 type Props = {
 	open: boolean;
@@ -39,20 +34,34 @@ type Props = {
 const EMPTY: OutletCreateInput = {
 	code: "",
 	name: "",
+	nick_name: "",
+	company_reg_number: "",
+	company_reg_name: "",
+	show_reg_number_on_invoice: false,
+	tax_number: "",
+	show_tax_number_on_invoice: false,
 	address1: "",
 	address2: "",
-	city: "",
-	state: "",
 	postcode: "",
 	country: "Malaysia",
+	state: "",
+	city: "",
 	phone: "",
+	phone2: "",
 	email: "",
+	bank_name: "",
+	bank_account_number: "",
+	waze_name: "",
+	location_video_url: "",
+	location_link: "",
+	logo_url: "",
 	is_active: true,
 };
 
 export function OutletFormDialog({ open, outlet, onClose }: Props) {
 	const [pending, startTransition] = useTransition();
 	const [serverError, setServerError] = useState<string | null>(null);
+	const pendingId = useRef(crypto.randomUUID());
 
 	const form = useForm<OutletCreateInput>({
 		resolver: zodResolver(outletCreateSchema),
@@ -64,14 +73,27 @@ export function OutletFormDialog({ open, outlet, onClose }: Props) {
 			form.reset({
 				code: outlet?.code ?? "",
 				name: outlet?.name ?? "",
+				nick_name: outlet?.nick_name ?? "",
+				company_reg_number: outlet?.company_reg_number ?? "",
+				company_reg_name: outlet?.company_reg_name ?? "",
+				show_reg_number_on_invoice: outlet?.show_reg_number_on_invoice ?? false,
+				tax_number: outlet?.tax_number ?? "",
+				show_tax_number_on_invoice: outlet?.show_tax_number_on_invoice ?? false,
 				address1: outlet?.address1 ?? "",
 				address2: outlet?.address2 ?? "",
-				city: outlet?.city ?? "",
-				state: outlet?.state ?? "",
 				postcode: outlet?.postcode ?? "",
 				country: outlet?.country ?? "Malaysia",
+				state: outlet?.state ?? "",
+				city: outlet?.city ?? "",
 				phone: outlet?.phone ?? "",
+				phone2: outlet?.phone2 ?? "",
 				email: outlet?.email ?? "",
+				bank_name: outlet?.bank_name ?? "",
+				bank_account_number: outlet?.bank_account_number ?? "",
+				waze_name: outlet?.waze_name ?? "",
+				location_video_url: outlet?.location_video_url ?? "",
+				location_link: outlet?.location_link ?? "",
+				logo_url: outlet?.logo_url ?? "",
 				is_active: outlet?.is_active ?? true,
 			});
 			setServerError(null);
@@ -98,7 +120,7 @@ export function OutletFormDialog({ open, outlet, onClose }: Props) {
 
 	return (
 		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-xl">
+			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-2xl">
 				<DialogHeader>
 					<DialogTitle>{outlet ? "Edit outlet" : "New outlet"}</DialogTitle>
 					<DialogDescription>
@@ -107,10 +129,29 @@ export function OutletFormDialog({ open, outlet, onClose }: Props) {
 				</DialogHeader>
 				<form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
 					<div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+
+						{/* Logo */}
+					<div className="flex flex-col items-center gap-2 border-b pb-4">
+						<p className="text-muted-foreground text-xs">Outlet Logo</p>
+						<ImageUpload
+							value={form.watch("logo_url") || null}
+							onChange={(path) => form.setValue("logo_url", path ?? "")}
+							entity="outlets"
+							entityId={outlet?.id ?? pendingId.current}
+							shape="square"
+							sizeClass="size-24"
+							layout="stacked"
+						/>
+						<p className="text-muted-foreground text-xs">
+							JPG, PNG, or WebP · max 5 MB
+						</p>
+					</div>
+
+					{/* Code + Name + Nick Name */}
 						<div className="grid grid-cols-2 gap-3">
 							<div className="flex flex-col gap-1.5">
 								<label htmlFor="outlet-code" className="font-medium text-sm">
-									Code
+									Code <span className="text-destructive">*</span>
 								</label>
 								<Input
 									id="outlet-code"
@@ -123,44 +164,169 @@ export function OutletFormDialog({ open, outlet, onClose }: Props) {
 										{form.formState.errors.code.message}
 									</p>
 								)}
-								{outlet && (
-									<p className="text-muted-foreground text-xs">
-										Code is immutable after create.
-									</p>
-								)}
+								<p className="text-muted-foreground text-xs">
+									{outlet
+										? "Code is immutable after create."
+										: "2–6 uppercase letters/digits. Used as the prefix for every customer registered at this outlet (e.g. BDK-000001)."}
+								</p>
 							</div>
 							<div className="flex flex-col gap-1.5">
-								<label htmlFor="outlet-name" className="font-medium text-sm">
-									Name
+								<label htmlFor="outlet-nick-name" className="font-medium text-sm">
+									Outlet Nick Name
 								</label>
-								<Input id="outlet-name" {...form.register("name")} />
-								{form.formState.errors.name && (
+								<Input
+									id="outlet-nick-name"
+									placeholder="BDK"
+									{...form.register("nick_name")}
+								/>
+							</div>
+						</div>
+
+						<div className="flex flex-col gap-1.5">
+							<label htmlFor="outlet-name" className="font-medium text-sm">
+								Outlet Name <span className="text-destructive">*</span>
+							</label>
+							<Input id="outlet-name" {...form.register("name")} />
+							{form.formState.errors.name && (
+								<p className="text-destructive text-xs">
+									{form.formState.errors.name.message}
+								</p>
+							)}
+						</div>
+
+						{/* Company Registration */}
+						<div className="grid grid-cols-2 gap-3">
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-company-reg-number" className="font-medium text-sm">
+									Company Registration #
+								</label>
+								<Input
+									id="outlet-company-reg-number"
+									placeholder="202501031998 (1633410)"
+									{...form.register("company_reg_number")}
+								/>
+								<label className="flex items-center gap-2 text-xs text-muted-foreground">
+									<input
+										type="checkbox"
+										{...form.register("show_reg_number_on_invoice")}
+										className="size-3.5"
+									/>
+									Show in Invoices / Receipts
+								</label>
+							</div>
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-company-reg-name" className="font-medium text-sm">
+									Company Registration Name
+								</label>
+								<Input
+									id="outlet-company-reg-name"
+									placeholder="BIG DENTAL GROUP SDN. BHD."
+									{...form.register("company_reg_name")}
+								/>
+							</div>
+						</div>
+
+						{/* Tax Number + Email */}
+						<div className="grid grid-cols-2 gap-3">
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-tax-number" className="font-medium text-sm">
+									Tax Number
+								</label>
+								<Input
+									id="outlet-tax-number"
+									placeholder="C 60274199080"
+									{...form.register("tax_number")}
+								/>
+								<label className="flex items-center gap-2 text-xs text-muted-foreground">
+									<input
+										type="checkbox"
+										{...form.register("show_tax_number_on_invoice")}
+										className="size-3.5"
+									/>
+									Show in Invoices / Receipts
+								</label>
+							</div>
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-email" className="font-medium text-sm">
+									Outlet Email Address
+								</label>
+								<Input
+									id="outlet-email"
+									type="email"
+									{...form.register("email")}
+								/>
+								{form.formState.errors.email && (
 									<p className="text-destructive text-xs">
-										{form.formState.errors.name.message}
+										{form.formState.errors.email.message}
 									</p>
 								)}
 							</div>
 						</div>
 
+						{/* Phone 1 + Phone 2 */}
+						<div className="grid grid-cols-2 gap-3">
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-phone" className="font-medium text-sm">
+									Contact Number
+								</label>
+								<Input
+									id="outlet-phone"
+									placeholder="+60169339931"
+									{...form.register("phone")}
+								/>
+							</div>
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-phone2" className="font-medium text-sm">
+									Contact Number 2
+								</label>
+								<Input
+									id="outlet-phone2"
+									placeholder="+60 12-345 6789"
+									{...form.register("phone2")}
+								/>
+							</div>
+						</div>
+
+						{/* Address */}
 						<div className="flex flex-col gap-1.5">
 							<label htmlFor="outlet-address1" className="font-medium text-sm">
-								Address line 1
+								Address 1
 							</label>
-							<Input id="outlet-address1" {...form.register("address1")} />
+							<Input
+								id="outlet-address1"
+								placeholder="NO.28(GROUND FLOOR), JALAN LANG KUNING"
+								{...form.register("address1")}
+							/>
 						</div>
 						<div className="flex flex-col gap-1.5">
 							<label htmlFor="outlet-address2" className="font-medium text-sm">
-								Address line 2
+								Address 2
 							</label>
-							<Input id="outlet-address2" {...form.register("address2")} />
+							<Input
+								id="outlet-address2"
+								placeholder="EG: JALAN PJU 1A/2"
+								{...form.register("address2")}
+							/>
 						</div>
-						<div className="grid grid-cols-3 gap-3">
+
+						{/* Postcode + Country */}
+						<div className="grid grid-cols-2 gap-3">
 							<div className="flex flex-col gap-1.5">
-								<label htmlFor="outlet-city" className="font-medium text-sm">
-									City
+								<label htmlFor="outlet-postcode" className="font-medium text-sm">
+									Post Code
 								</label>
-								<Input id="outlet-city" {...form.register("city")} />
+								<Input id="outlet-postcode" placeholder="52100" {...form.register("postcode")} />
 							</div>
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-country" className="font-medium text-sm">
+									Country
+								</label>
+								<Input id="outlet-country" {...form.register("country")} />
+							</div>
+						</div>
+
+						{/* State + City */}
+						<div className="grid grid-cols-2 gap-3">
 							<div className="flex flex-col gap-1.5">
 								<label htmlFor="outlet-state" className="font-medium text-sm">
 									State
@@ -168,44 +334,73 @@ export function OutletFormDialog({ open, outlet, onClose }: Props) {
 								<Input id="outlet-state" {...form.register("state")} />
 							</div>
 							<div className="flex flex-col gap-1.5">
-								<label
-									htmlFor="outlet-postcode"
-									className="font-medium text-sm"
-								>
-									Postcode
+								<label htmlFor="outlet-city" className="font-medium text-sm">
+									City
 								</label>
-								<Input id="outlet-postcode" {...form.register("postcode")} />
+								<Input id="outlet-city" {...form.register("city")} />
 							</div>
 						</div>
+
+						{/* Bank */}
 						<div className="grid grid-cols-2 gap-3">
 							<div className="flex flex-col gap-1.5">
-								<label htmlFor="outlet-country" className="font-medium text-sm">
-									Country
+								<label htmlFor="outlet-bank-name" className="font-medium text-sm">
+									Bank Name
 								</label>
-								<Input id="outlet-country" {...form.register("country")} />
+								<Input
+									id="outlet-bank-name"
+									placeholder="EG: Maybank"
+									{...form.register("bank_name")}
+								/>
 							</div>
 							<div className="flex flex-col gap-1.5">
-								<label htmlFor="outlet-phone" className="font-medium text-sm">
-									Phone
+								<label htmlFor="outlet-bank-account" className="font-medium text-sm">
+									Bank Account Number
 								</label>
-								<Input id="outlet-phone" {...form.register("phone")} />
+								<Input
+									id="outlet-bank-account"
+									placeholder="EG: 114521114523"
+									{...form.register("bank_account_number")}
+								/>
 							</div>
 						</div>
+
+						{/* Waze + Location Video */}
+						<div className="grid grid-cols-2 gap-3">
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-waze-name" className="font-medium text-sm">
+									Outlet Name In Waze
+								</label>
+								<Input
+									id="outlet-waze-name"
+									placeholder="EG: Big Dental Kepong"
+									{...form.register("waze_name")}
+								/>
+							</div>
+							<div className="flex flex-col gap-1.5">
+								<label htmlFor="outlet-location-video" className="font-medium text-sm">
+									Outlet Location Video
+								</label>
+								<Input
+									id="outlet-location-video"
+									placeholder="EG: https://youtu.be/..."
+									{...form.register("location_video_url")}
+								/>
+							</div>
+						</div>
+
+						{/* Location Link */}
 						<div className="flex flex-col gap-1.5">
-							<label htmlFor="outlet-email" className="font-medium text-sm">
-								Email
+							<label htmlFor="outlet-location-link" className="font-medium text-sm">
+								Outlet Location Link
 							</label>
 							<Input
-								id="outlet-email"
-								type="email"
-								{...form.register("email")}
+								id="outlet-location-link"
+								placeholder="EG: https://maps.app.goo.gl/..."
+								{...form.register("location_link")}
 							/>
-							{form.formState.errors.email && (
-								<p className="text-destructive text-xs">
-									{form.formState.errors.email.message}
-								</p>
-							)}
 						</div>
+
 						<label className="flex items-center gap-2 text-sm">
 							<input
 								type="checkbox"
@@ -218,8 +413,6 @@ export function OutletFormDialog({ open, outlet, onClose }: Props) {
 						{serverError && (
 							<p className="text-destructive text-sm">{serverError}</p>
 						)}
-
-						{outlet && <RoomsEditor outletId={outlet.id} />}
 					</div>
 					<DialogFooter className="border-t">
 						<Button type="button" variant="outline" onClick={onClose}>
@@ -246,156 +439,5 @@ export function NewOutletButton() {
 				onClose={() => setOpen(false)}
 			/>
 		</>
-	);
-}
-
-function RoomsEditor({ outletId }: { outletId: string }) {
-	const [rooms, setRooms] = useState<Room[] | null>(null);
-	const [newName, setNewName] = useState("");
-	const [pending, startTransition] = useTransition();
-	const [error, setError] = useState<string | null>(null);
-	const [removing, setRemoving] = useState<Room | null>(null);
-
-	useEffect(() => {
-		let cancelled = false;
-		listRoomsAction(outletId).then((data) => {
-			if (!cancelled) setRooms(data);
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, [outletId]);
-
-	const refresh = async () => {
-		const data = await listRoomsAction(outletId);
-		setRooms(data);
-	};
-
-	const addRoom = () => {
-		const name = newName.trim();
-		if (!name) return;
-		setError(null);
-		startTransition(async () => {
-			try {
-				await createRoomAction(outletId, {
-					name,
-					sort_order: (rooms?.length ?? 0) + 1,
-					is_active: true,
-				});
-				setNewName("");
-				await refresh();
-			} catch (err) {
-				setError(err instanceof Error ? err.message : "Failed to add room");
-			}
-		});
-	};
-
-	const renameRoom = (room: Room, name: string) => {
-		const trimmed = name.trim();
-		if (!trimmed || trimmed === room.name) return;
-		setError(null);
-		startTransition(async () => {
-			try {
-				await updateRoomAction(outletId, room.id, {
-					name: trimmed,
-					sort_order: room.sort_order,
-					is_active: room.is_active,
-				});
-				await refresh();
-			} catch (err) {
-				setError(err instanceof Error ? err.message : "Failed to rename room");
-			}
-		});
-	};
-
-	const confirmRemove = (room: Room) => {
-		setError(null);
-		startTransition(async () => {
-			try {
-				await deleteRoomAction(outletId, room.id);
-				await refresh();
-				setRemoving(null);
-			} catch (err) {
-				setError(err instanceof Error ? err.message : "Failed to remove room");
-			}
-		});
-	};
-
-	return (
-		<div className="flex flex-col gap-2 rounded-md border p-3">
-			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm">Rooms</h3>
-				<span className="text-muted-foreground text-xs">
-					{rooms?.length ?? 0}
-				</span>
-			</div>
-			{rooms === null ? (
-				<p className="text-muted-foreground text-xs">Loading…</p>
-			) : rooms.length === 0 ? (
-				<p className="text-muted-foreground text-xs">No rooms yet.</p>
-			) : (
-				<ul className="flex flex-col gap-1">
-					{rooms.map((room) => (
-						<li key={room.id} className="flex items-center gap-2">
-							<Input
-								defaultValue={room.name}
-								className="h-8"
-								onBlur={(e) => renameRoom(room, e.currentTarget.value)}
-							/>
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon-sm"
-								disabled={pending}
-								onClick={() => setRemoving(room)}
-								aria-label="Remove"
-							>
-								<Trash2 />
-							</Button>
-						</li>
-					))}
-				</ul>
-			)}
-			<div className="flex items-center gap-2">
-				<Input
-					placeholder="New room name"
-					value={newName}
-					className="h-8"
-					onChange={(e) => setNewName(e.target.value)}
-					onKeyDown={(e) => {
-						if (e.key === "Enter") {
-							e.preventDefault();
-							addRoom();
-						}
-					}}
-				/>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					disabled={pending || !newName.trim()}
-					onClick={addRoom}
-				>
-					<Plus />
-					Add
-				</Button>
-			</div>
-			{error && <p className="text-destructive text-xs">{error}</p>}
-			<ConfirmDialog
-				open={!!removing}
-				onOpenChange={(o) => {
-					if (!o) setRemoving(null);
-				}}
-				title="Remove room?"
-				description={
-					removing
-						? `"${removing.name}" will be removed from this outlet.`
-						: undefined
-				}
-				confirmLabel="Remove"
-				pending={pending}
-				onConfirm={() => removing && confirmRemove(removing)}
-			/>
-		</div>
 	);
 }

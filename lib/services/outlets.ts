@@ -57,6 +57,12 @@ export async function createOutlet(
 		.insert({
 			code: parsed.code.trim().toUpperCase(),
 			name: parsed.name,
+			nick_name: nullable(parsed.nick_name),
+			company_reg_number: nullable(parsed.company_reg_number),
+			company_reg_name: nullable(parsed.company_reg_name),
+			show_reg_number_on_invoice: parsed.show_reg_number_on_invoice,
+			tax_number: nullable(parsed.tax_number),
+			show_tax_number_on_invoice: parsed.show_tax_number_on_invoice,
 			address1: nullable(parsed.address1),
 			address2: nullable(parsed.address2),
 			city: nullable(parsed.city),
@@ -64,7 +70,14 @@ export async function createOutlet(
 			postcode: nullable(parsed.postcode),
 			country: nullable(parsed.country) ?? "Malaysia",
 			phone: nullable(parsed.phone),
+			phone2: nullable(parsed.phone2),
 			email: nullable(parsed.email),
+			bank_name: nullable(parsed.bank_name),
+			bank_account_number: nullable(parsed.bank_account_number),
+			waze_name: nullable(parsed.waze_name),
+			location_video_url: nullable(parsed.location_video_url),
+			location_link: nullable(parsed.location_link),
+			logo_url: nullable(parsed.logo_url),
 			is_active: parsed.is_active,
 		})
 		.select("*")
@@ -74,6 +87,13 @@ export async function createOutlet(
 			throw new ConflictError("An outlet with that code already exists");
 		throw new ValidationError(error.message);
 	}
+	const { error: roomError } = await ctx.db.from("rooms").insert({
+		outlet_id: data.id,
+		name: "Room 1",
+		sort_order: 1,
+		is_active: true,
+	});
+	if (roomError) throw new ValidationError(roomError.message);
 	return data;
 }
 
@@ -87,6 +107,12 @@ export async function updateOutlet(
 		.from("outlets")
 		.update({
 			name: parsed.name,
+			nick_name: nullable(parsed.nick_name),
+			company_reg_number: nullable(parsed.company_reg_number),
+			company_reg_name: nullable(parsed.company_reg_name),
+			show_reg_number_on_invoice: parsed.show_reg_number_on_invoice,
+			tax_number: nullable(parsed.tax_number),
+			show_tax_number_on_invoice: parsed.show_tax_number_on_invoice,
 			address1: nullable(parsed.address1),
 			address2: nullable(parsed.address2),
 			city: nullable(parsed.city),
@@ -94,7 +120,14 @@ export async function updateOutlet(
 			postcode: nullable(parsed.postcode),
 			country: nullable(parsed.country) ?? "Malaysia",
 			phone: nullable(parsed.phone),
+			phone2: nullable(parsed.phone2),
 			email: nullable(parsed.email),
+			bank_name: nullable(parsed.bank_name),
+			bank_account_number: nullable(parsed.bank_account_number),
+			waze_name: nullable(parsed.waze_name),
+			location_video_url: nullable(parsed.location_video_url),
+			location_link: nullable(parsed.location_link),
+			logo_url: nullable(parsed.logo_url),
 			is_active: parsed.is_active,
 		})
 		.eq("id", id)

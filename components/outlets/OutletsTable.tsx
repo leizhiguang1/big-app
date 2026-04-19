@@ -13,9 +13,11 @@ import {
 import { deleteOutletAction } from "@/lib/actions/outlets";
 import type { OutletWithRoomCount } from "@/lib/services/outlets";
 import { OutletFormDialog } from "./OutletForm";
+import { RoomsDialog } from "./RoomsDialog";
 
 export function OutletsTable({ outlets }: { outlets: OutletWithRoomCount[] }) {
 	const [editing, setEditing] = useState<OutletWithRoomCount | null>(null);
+	const [roomsFor, setRoomsFor] = useState<OutletWithRoomCount | null>(null);
 	const [deleting, setDeleting] = useState<OutletWithRoomCount | null>(null);
 	const [actionError, setActionError] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
@@ -61,7 +63,19 @@ export function OutletsTable({ outlets }: { outlets: OutletWithRoomCount[] }) {
 			sortable: true,
 			sortValue: (o) => o.room_count,
 			cell: (o) => (
-				<span className="text-muted-foreground">{o.room_count}</span>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-7 px-2 font-normal text-muted-foreground hover:text-foreground"
+							onClick={() => setRoomsFor(o)}
+						>
+							{o.room_count}
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Manage rooms</TooltipContent>
+				</Tooltip>
 			),
 		},
 		{
@@ -135,6 +149,12 @@ export function OutletsTable({ outlets }: { outlets: OutletWithRoomCount[] }) {
 				open={!!editing}
 				outlet={editing}
 				onClose={() => setEditing(null)}
+			/>
+			<RoomsDialog
+				open={!!roomsFor}
+				outletId={roomsFor?.id ?? null}
+				outletName={roomsFor?.name ?? ""}
+				onClose={() => setRoomsFor(null)}
 			/>
 			<ConfirmDialog
 				open={!!deleting}

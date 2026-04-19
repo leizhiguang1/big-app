@@ -631,7 +631,7 @@ export type Database = {
           address1?: string | null
           address2?: string | null
           city?: string | null
-          code?: string
+          code: string
           consultant_id: string
           country_of_origin?: string | null
           created_at?: string
@@ -1405,57 +1405,122 @@ export type Database = {
         }
         Relationships: []
       }
+      outlet_customer_counters: {
+        Row: {
+          last_seq: number
+          outlet_id: string
+          updated_at: string
+        }
+        Insert: {
+          last_seq?: number
+          outlet_id: string
+          updated_at?: string
+        }
+        Update: {
+          last_seq?: number
+          outlet_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outlet_customer_counters_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: true
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outlets: {
         Row: {
           address1: string | null
           address2: string | null
+          bank_account_number: string | null
+          bank_name: string | null
           city: string | null
           code: string
+          company_reg_name: string | null
+          company_reg_number: string | null
           country: string | null
           created_at: string
           email: string | null
           id: string
           is_active: boolean
+          location_link: string | null
+          location_video_url: string | null
+          logo_url: string | null
           name: string
+          nick_name: string | null
           phone: string | null
+          phone2: string | null
           postcode: string | null
+          show_reg_number_on_invoice: boolean
+          show_tax_number_on_invoice: boolean
           state: string | null
+          tax_number: string | null
           updated_at: string
           wa_connection_id: string | null
+          waze_name: string | null
         }
         Insert: {
           address1?: string | null
           address2?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
           city?: string | null
           code: string
+          company_reg_name?: string | null
+          company_reg_number?: string | null
           country?: string | null
           created_at?: string
           email?: string | null
           id?: string
           is_active?: boolean
+          location_link?: string | null
+          location_video_url?: string | null
+          logo_url?: string | null
           name: string
+          nick_name?: string | null
           phone?: string | null
+          phone2?: string | null
           postcode?: string | null
+          show_reg_number_on_invoice?: boolean
+          show_tax_number_on_invoice?: boolean
           state?: string | null
+          tax_number?: string | null
           updated_at?: string
           wa_connection_id?: string | null
+          waze_name?: string | null
         }
         Update: {
           address1?: string | null
           address2?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
           city?: string | null
           code?: string
+          company_reg_name?: string | null
+          company_reg_number?: string | null
           country?: string | null
           created_at?: string
           email?: string | null
           id?: string
           is_active?: boolean
+          location_link?: string | null
+          location_video_url?: string | null
+          logo_url?: string | null
           name?: string
+          nick_name?: string | null
           phone?: string | null
+          phone2?: string | null
           postcode?: string | null
+          show_reg_number_on_invoice?: boolean
+          show_tax_number_on_invoice?: boolean
           state?: string | null
+          tax_number?: string | null
           updated_at?: string
           wa_connection_id?: string | null
+          waze_name?: string | null
         }
         Relationships: []
       }
@@ -2398,6 +2463,7 @@ export type Database = {
           from_me: boolean
           jid: string
           media_type: string | null
+          media_url: string | null
           raw_message: Json | null
           sender_jid: string | null
           sender_name: string | null
@@ -2413,6 +2479,7 @@ export type Database = {
           from_me?: boolean
           jid: string
           media_type?: string | null
+          media_url?: string | null
           raw_message?: Json | null
           sender_jid?: string | null
           sender_name?: string | null
@@ -2428,6 +2495,7 @@ export type Database = {
           from_me?: boolean
           jid?: string
           media_type?: string | null
+          media_url?: string | null
           raw_message?: Json | null
           sender_jid?: string | null
           sender_name?: string | null
@@ -2560,6 +2628,7 @@ export type Database = {
         Args: { prefix: string; seq_name: string; width: number }
         Returns: string
       }
+      gen_customer_code: { Args: { p_outlet_id: string }; Returns: string }
       set_employee_pin: {
         Args: { p_employee_id: string; p_pin: string }
         Returns: undefined
