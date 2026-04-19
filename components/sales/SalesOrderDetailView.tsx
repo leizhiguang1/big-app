@@ -11,7 +11,7 @@ import {
 	User,
 } from "lucide-react";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { CancelOrderDialog } from "@/components/sales/CancelOrderDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -113,7 +113,6 @@ function itemTypeLabel(t: string): string {
 }
 
 export function SalesOrderDetailView({ order, items, payments }: Props) {
-	const printRef = useRef<HTMLDivElement>(null);
 	const [cancelOpen, setCancelOpen] = useState(false);
 	const [feedback, setFeedback] = useState<{
 		type: "success" | "error";
@@ -122,37 +121,6 @@ export function SalesOrderDetailView({ order, items, payments }: Props) {
 
 	const isCancellable =
 		order.status === "completed" || order.status === "draft";
-
-	const handlePrint = () => {
-		if (!printRef.current) return;
-		const printWindow = window.open("", "_blank");
-		if (!printWindow) return;
-		printWindow.document.write(`
-			<!DOCTYPE html>
-			<html>
-			<head>
-				<title>Invoice ${payments[0]?.invoice_no ?? order.so_number}</title>
-				<style>
-					body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 800px; margin: 0 auto; padding: 24px; color: #1a1a1a; }
-					table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-					th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #e5e5e5; }
-					th { font-weight: 600; background: #f8f8f8; }
-					.text-right { text-align: right; }
-					.summary { margin-top: 12px; }
-					.summary td { border-bottom: none; padding: 4px 12px; }
-					.summary .total { font-weight: 700; font-size: 1.1em; border-top: 2px solid #1a1a1a; }
-					h1 { font-size: 1.4em; margin-bottom: 4px; }
-					.meta { color: #666; font-size: 0.9em; margin-bottom: 16px; }
-					.payment-section { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e5e5; }
-					@media print { body { padding: 0; } }
-				</style>
-			</head>
-			<body>${printRef.current.innerHTML}</body>
-			</html>
-		`);
-		printWindow.document.close();
-		printWindow.print();
-	};
 
 	const customerName = order.customer
 		? fullName(order.customer.first_name, order.customer.last_name)
@@ -196,9 +164,11 @@ export function SalesOrderDetailView({ order, items, payments }: Props) {
 							Cancel
 						</Button>
 					)}
-					<Button variant="outline" size="sm" onClick={handlePrint}>
-						<Printer className="mr-2 size-4" />
-						Print
+					<Button asChild variant="outline" size="sm">
+						<Link href={`/sales/${order.id}/print`} target="_blank">
+							<Printer className="mr-2 size-4" />
+							Print
+						</Link>
 					</Button>
 				</div>
 			</div>
@@ -453,94 +423,6 @@ export function SalesOrderDetailView({ order, items, payments }: Props) {
 				onError={(msg) => setFeedback({ type: "error", message: msg })}
 			/>
 
-			{/* Hidden printable invoice */}
-			<div className="hidden">
-				<div ref={printRef}>
-					<h1>Invoice</h1>
-					<div className="meta">
-						<div>
-							<strong>{order.so_number}</strong>
-							{payments[0]?.invoice_no && ` / ${payments[0].invoice_no}`}
-						</div>
-						<div>Date: {formatDate(order.sold_at)}</div>
-						{customerName && <div>Customer: {customerName}</div>}
-						{order.outlet?.name && <div>Outlet: {order.outlet.name}</div>}
-					</div>
-					<table>
-						<thead>
-							<tr>
-								<th>#</th>
-								<th>Item</th>
-								<th>Qty</th>
-								<th className="text-right">Unit price</th>
-								<th className="text-right">Disc.</th>
-								<th className="text-right">Tax</th>
-								<th className="text-right">Total</th>
-							</tr>
-						</thead>
-						<tbody>
-							{items.map((item, idx) => (
-								<tr key={item.id}>
-									<td>{idx + 1}</td>
-									<td>{item.item_name}</td>
-									<td>{item.quantity}</td>
-									<td className="text-right">{money(item.unit_price)}</td>
-									<td className="text-right">
-										{item.discount > 0 ? money(item.discount) : "—"}
-									</td>
-									<td className="text-right">
-										{item.tax_amount > 0 ? money(item.tax_amount) : "—"}
-									</td>
-									<td className="text-right">{money(item.total ?? 0)}</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-					<table className="summary">
-						<tbody>
-							<tr>
-								<td>Subtotal</td>
-								<td className="text-right">{money(order.subtotal)}</td>
-							</tr>
-							{order.discount > 0 && (
-								<tr>
-									<td>Discount</td>
-									<td className="text-right">-{money(order.discount)}</td>
-								</tr>
-							)}
-							{order.tax > 0 && (
-								<tr>
-									<td>Tax</td>
-									<td className="text-right">{money(order.tax)}</td>
-								</tr>
-							)}
-							{order.rounding !== 0 && (
-								<tr>
-									<td>Rounding</td>
-									<td className="text-right">{money(order.rounding)}</td>
-								</tr>
-							)}
-							<tr className="total">
-								<td>Total</td>
-								<td className="text-right">MYR {money(order.total)}</td>
-							</tr>
-						</tbody>
-					</table>
-					{payments.length > 0 && (
-						<div className="payment-section">
-							<strong>Payment</strong>
-							{payments.map((p) => (
-								<div key={p.id} style={{ marginTop: 8 }}>
-									{paymentMethodName(p)}: MYR {money(p.amount)} (
-									{formatDateTime(p.paid_at)})
-									{paymentFieldPills(p).length > 0 &&
-										` — ${paymentFieldPills(p).join(" · ")}`}
-								</div>
-							))}
-						</div>
-					)}
-				</div>
-			</div>
 		</div>
 	);
 }

@@ -61,6 +61,7 @@ const EMPTY: CustomerInput = {
 	profile_image_path: null,
 	id_type: "ic",
 	id_number: undefined,
+	passport_no: undefined,
 	phone: "",
 	phone2: undefined,
 	email: undefined,
@@ -75,6 +76,7 @@ const EMPTY: CustomerInput = {
 	source: null,
 	external_code: undefined,
 	is_vip: false,
+	is_staff: false,
 	tag: undefined,
 	smoker: null,
 	drug_allergies: undefined,
@@ -96,6 +98,7 @@ function fromCustomer(c: CustomerWithRelations | null): CustomerInput {
 		profile_image_path: c.profile_image_path ?? null,
 		id_type: (c.id_type as CustomerInput["id_type"]) ?? "ic",
 		id_number: c.id_number ?? undefined,
+		passport_no: c.passport_no ?? undefined,
 		phone: c.phone,
 		phone2: c.phone2 ?? undefined,
 		email: c.email ?? undefined,
@@ -110,6 +113,7 @@ function fromCustomer(c: CustomerWithRelations | null): CustomerInput {
 		source: (c.source as CustomerInput["source"]) ?? null,
 		external_code: c.external_code ?? undefined,
 		is_vip: c.is_vip,
+		is_staff: c.is_staff,
 		tag: c.tag ?? undefined,
 		smoker: (c.smoker as CustomerInput["smoker"]) ?? null,
 		drug_allergies: c.drug_allergies ?? undefined,
@@ -449,6 +453,14 @@ export function CustomerFormDialog({
 										This customer is a VIP
 									</span>
 								</label>
+								<label className="flex items-center gap-2 text-xs">
+									<input
+										type="checkbox"
+										className="size-3.5"
+										{...form.register("is_staff")}
+									/>
+									<span>Staff / family (auto 10% discount)</span>
+								</label>
 							</div>
 							<nav className="flex flex-col px-2 pb-4 text-sm">
 								{SECTIONS.map((s) => (
@@ -586,6 +598,19 @@ export function CustomerFormDialog({
 												<p className="text-amber-600 text-xs">{icWarning}</p>
 											) : null}
 										</div>
+										{idType === "ic" && (
+											<Field
+												label="Passport Number"
+												htmlFor="cus-passport"
+												error={errors.passport_no?.message}
+											>
+												<Input
+													id="cus-passport"
+													placeholder="Optional — for foreign travel records"
+													{...form.register("passport_no")}
+												/>
+											</Field>
+										)}
 										<Field
 											label="Email Address"
 											htmlFor="cus-email"

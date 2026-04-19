@@ -365,11 +365,16 @@ export function AppointmentActionBar({
 				open={cancelOpen}
 				onOpenChange={setCancelOpen}
 				title="Cancel appointment?"
-				description="This will permanently delete this appointment. This action cannot be undone."
+				description="This will permanently delete this appointment. Reschedule instead if the customer wants a different date or time."
 				confirmLabel="Cancel appointment"
 				cancelLabel="Keep"
 				variant="destructive"
 				onConfirm={handleCancelConfirm}
+				altLabel="Reschedule"
+				onAlt={() => {
+					setCancelOpen(false);
+					onEdit();
+				}}
 			/>
 
 			<CollectPaymentDialog

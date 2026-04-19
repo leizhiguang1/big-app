@@ -21,6 +21,8 @@ type Props = {
 	variant?: "default" | "destructive";
 	pending?: boolean;
 	onConfirm: () => void;
+	altLabel?: string;
+	onAlt?: () => void;
 };
 
 export function ConfirmDialog({
@@ -33,6 +35,8 @@ export function ConfirmDialog({
 	variant = "destructive",
 	pending = false,
 	onConfirm,
+	altLabel,
+	onAlt,
 }: Props) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -50,6 +54,16 @@ export function ConfirmDialog({
 					>
 						{cancelLabel}
 					</Button>
+					{altLabel && onAlt && (
+						<Button
+							type="button"
+							variant="secondary"
+							onClick={onAlt}
+							disabled={pending}
+						>
+							{altLabel}
+						</Button>
+					)}
 					<Button
 						type="button"
 						variant={variant}

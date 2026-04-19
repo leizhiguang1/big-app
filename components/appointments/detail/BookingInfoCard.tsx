@@ -49,6 +49,9 @@ export function BookingInfoCard({
 		? `${appointment.employee.first_name} ${appointment.employee.last_name}`
 		: null;
 	const roomName = appointment.room?.name ?? null;
+	const createdByName = appointment.created_by_employee
+		? `${appointment.created_by_employee.first_name} ${appointment.created_by_employee.last_name}`
+		: null;
 	const dur = durationLabel(appointment.start_at, appointment.end_at);
 
 	return (
@@ -77,6 +80,11 @@ export function BookingInfoCard({
 					value={
 						<span className="tabular-nums">{appointment.booking_ref}</span>
 					}
+				/>
+				<Row
+					label="Booked by"
+					value={createdByName}
+					muted={!createdByName}
 				/>
 			</dl>
 

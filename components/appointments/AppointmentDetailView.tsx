@@ -221,6 +221,7 @@ export function AppointmentDetailView({
 									appointment={appointment}
 									outletName={outletName}
 									onToast={showToast}
+									onReschedule={() => setEditOpen(true)}
 								/>
 							</div>
 						)}

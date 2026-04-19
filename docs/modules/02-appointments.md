@@ -531,7 +531,28 @@ pending → confirmed → arrived → started → billing → completed
 
 **`noshow` is not cancellation.** No-show means "booking was valid, customer didn't turn up" — the row stays, the booking ref stays, the history stays. Cancellation means "this booking should never have existed (or shouldn't now exist)" and the row goes away. Two different operations with two different UX entry points (status pill vs floating-bar Cancel).
 
-### Workflow: Cancel appointment (planned)
+### Workflow: Cancel + No-Show reschedule prompt (partial, 2026-04-18)
+
+The Cancel button on the floating action bar now fires a three-option
+dialog (`ConfirmDialog` extended with `altLabel` / `onAlt`):
+
+- **Keep** — dismiss, no change
+- **Reschedule** — closes the prompt and opens the existing
+  `AppointmentDialog` in edit mode so staff can move the date/time/staff.
+  No separate reschedule form — editing the appointment is rescheduling.
+- **Cancel appointment** (destructive) — hard-delete via
+  `deleteAppointmentAction`.
+
+The No-Show pill in the `StatusProgressionRow` is gated by the same
+pattern: clicking it opens a ConfirmDialog offering Reschedule as the
+alt. If Reschedule is chosen the pill's status change is skipped — the
+appointment stays `pending` until the reschedule succeeds.
+
+Still planned (not built): capturing a cancellation reason + writing
+it to an `appointment_cancellations` audit table. See the original
+planned spec below.
+
+### Workflow: Cancel appointment (original planned spec)
 
 Triggered by the red 🚫 Cancel button on the floating action bar.
 
@@ -758,7 +779,7 @@ components/appointments/
     DetailTabs.tsx                    (8 segmented tabs — all clickable)
     CustomerCard.tsx                  (left-top card: avatar, name, stats, next appt)
     AppointmentSummaryCard.tsx        (right-top card: title, time, outlet, room, StatusProgressionRow)
-    BookingInfoCard.tsx               (Overview left column: time, employee, room, ref)
+    BookingInfoCard.tsx               (Overview left column: date, time, employee, room, ref, booked-by)
     StatusProgressionRow.tsx          (8 pills, optimistic)
     BillingTab.tsx                    (wraps BillingSection inside the Billing tab)
     ConsumablesCard.tsx               (Overview tab: read-only per-line consumables from the service_inventory_items junction, shows default_quantity × billed_qty per linked item)

@@ -111,6 +111,7 @@ _v1 customer creation form fields:_
 | date_of_birth | date | No | |
 | id_type | text | Yes | `'ic'` (default) or `'passport'` — toggle in the form |
 | id_number | text | No | IC (Malaysian format) or passport number — label + validation swap with `id_type`. Partial unique index on `(id_number) where id_type='ic'` blocks duplicate Malaysian ICs; passports are intentionally not uniqued (different countries can issue the same number). Same shape on `employees`. |
+| passport_no | text | No | Optional, added 2026-04-18 in migration `0053_customers_passport_no`. Only shown on the form when `id_type='ic'` — the case where a local customer also carries a passport (travel / insurance paperwork). For passport-only foreign customers keep using `id_type='passport'` + `id_number`. |
 | country_of_origin | text | No | Default: Malaysia |
 | phone | text | Yes | Primary, with country code (+60) |
 | phone2 | text | No | Secondary contact |
@@ -125,6 +126,7 @@ _v1 customer creation form fields:_
 | source | text | No | walk_in, referral, ads, online_booking (free text in DB, constrained in Zod) |
 | external_code | text | No | Max 15 chars, external system reference |
 | is_vip | boolean | No | Default: false |
+| is_staff | boolean | No | Default: false, added 2026-04-18 in migration `0052_customers_is_staff`. Flags customers who are employees or family — surfaced as a sidebar checkbox. Wave 2 billing work (backlog item #8) will read this to auto-apply the 10% staff-benefit discount during Collect Payment. |
 | tag | text | No | Single free-text customer tag (e.g. "UNABLE TO WALK"). May become `tags[]` later |
 | smoker | text | No | `yes` \| `no` \| `occasionally`, CHECK-constrained |
 | drug_allergies | text | No | Free text drug allergies |

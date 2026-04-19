@@ -22,24 +22,41 @@ the underlying feature stabilises.
 ## Screenshots
 
 Reference screenshots were captured from the live
-`bigdental.aoikumo.com` tenant of the KumoDent product on 2026-04-15
-and live in `docs/screenshots/`. Tab lists below are **verified from
-these screenshots**, not from the local aoikumo source code (the
-on-disk prototype is an older simplified branch and diverges from the
-live product — see "Prototype vs live product" below).
+`bigdental.aoikumo.com` tenant of the KumoDent product. The initial
+batch was captured 2026-04-15; a full per-tab re-capture was done
+2026-04-19 using Playwright MCP. All screenshots live in
+`docs/screenshots/`. Tab lists below are **verified from these
+screenshots**, not from the local aoikumo source code (the on-disk
+prototype is an older simplified branch and diverges from the live
+product — see "Prototype vs live product" below).
 
 | # | Screenshot | Category | Tab shown |
 |---|---|---|---|
-| 12 | `12 - Config.png` | Config landing | grid of 15 tiles |
-| 12.1 | `12.1 - Config - General.png` | General | General (Business Details + Social Media) |
+| 12 | `12 - Config.png` | Config landing | grid of 13 tiles |
+| 12.1.1 | `12.1.1 - Config - General.png` | General | General (Business Details + Social Media) |
+| 12.1.2 | `12.1.2.png` | General | Timezone (per-outlet timezone table) |
+| 12.1.3 | `12.1.3.png` | General | Remarks (per-action reason-code lists) |
+| 12.1.4 | `12.1.4.png` | General | Salutation (CRUD list: Dr / Mr / Mrs / Ms) |
+| 12.1.5 | `12.1.5.png` | General | Security (password policy + system lock) |
 | 12.2 | `12.2 - Config - Dashboard.png` | Dashboard | Display (single page, no tabs) |
-| 12.3 | `12.3 - Config - Appointments.png` | Appointments | Appointment Settings |
-| 12.4 | `12.4 - Config - Customers.png` | Customers | General (Language / Occupation / Race / Religion / Source lists) |
-| 12.5 | `12.5 - Config - Sales.png` | Sales | Discounts (Outlet Discount Capping table) |
-| 12.6 | `12.6 - Config - Services.png` | Services | Category (service category table) |
+| 12.3.1 | `12.3.1 - Config - Appointments - Settings.png` | Appointments | Appointment Settings |
+| 12.3.2 | `12.3.2 - Config - Appointments - Online Booking.png` | Appointments | Online Booking |
+| 12.3.3 | `12.3.3 - Config - Appointments - Tag.png` | Appointments | Appointment Tag (colour-coded tag table) |
+| 12.3.4 | `12.3.4 - Config - Appointments - Queue Display.png` | Appointments | Queue Display (overlay + banner/video) |
+| 12.4.1 | `12.4.1 - Config - Customers - General.png` | Customers | General (lookup list tables) |
+| 12.4.2 | `12.4.2 - Config - Customers - Leads.png` | Customers | Leads |
+| 12.4.3 | `12.4.3 - Config - Customers - Security.png` | Customers | Security (passcode settings) |
+| 12.5.1 | `12.5.1 - Config - Sales - Discounts.png` | Sales | Discounts (per-outlet cap table) |
+| 12.5.2 | `12.5.2 - Config - Sales - Billing.png` | Sales | Billing (billing options, tax, T&C) |
+| 12.5.3 | `12.5.3 - Config - Sales - Payment.png` | Sales | Payment (payment rule + method list) |
+| 12.6.1 | `12.6.1 - Config - Services - Receipt.png` | Services | Service Receipt |
+| 12.6.2 | `12.6.2 - Config - Services - Category.png` | Services | Category (service category table) |
 | 12.7 | `12.7 - Config - Inventory.png` | Inventory | Product Redemption |
 | 12.8 | `12.8 - Config - Employees.png` | Employees | Security (Passcode Settings table) |
-| 12.9 | `12.9 - Config - Outlets.png` | Outlets | Outlets Listing |
+| 12.9.1 | `12.9.1 - Config - Outlets - Daily Email.png` | Outlets | Daily Summary Email (per-outlet recipients) |
+| 12.9.2 | `12.9.2 - Config - Outlets - Listing.png` | Outlets | Outlets Listing (full outlet table) |
+| 12.9.3 | `12.9.3 - Config - Outlets - Print Type.png` | Outlets | Print Type (A4/logo/footer/signature per outlet) |
+| 12.9.4 | `12.9.4 - Config - Outlets - Security.png` | Outlets | Security (device / MAC address listing) |
 | 12.10 | `12.10 - Config - Notification.png` | Notifications | E-Mail Settings |
 | 12.11 | `12.11 - Config - Clinical Features.png` | Clinical Features | Case Note |
 | 12.12 | `12.12 - Config - Migration.png` | Migration | Step 1 — Employees → Step 1(A) Roles |
@@ -148,11 +165,11 @@ in a screenshot, the content is inferred from the tab label and marked
 **(inferred)** — confirm before building.
 
 #### General (12.1)
-- **General** — business details form (name, nickname, contact, sub-domain, currency, QR code) + social media handles panel (Facebook, LinkedIn, Twitter, etc.) with per-channel visibility toggles
-- **Timezone** — per-outlet timezone override **(inferred)**
-- **Remarks** — admin-managed picklist of reason codes for operations like "Add Stock" / "Cancel Sales" **(inferred from prototype)**
-- **Salutation** — enable/disable salutation values (Dr / Mr / Mrs / Ms / custom). Today hardcoded in [lib/schemas/employees.ts](../../lib/schemas/employees.ts) and the customer schema
-- **Security** — password expiry (days), failed-login attempts lockout threshold, system lock duration **(inferred)**
+- **General** *(confirmed — 12.1.1)* — two-panel layout. Left: **Business Details** card with QR code at top (scan-with-mobile-app label), Business Name\*, Nickname\*, Business Contact\* (country flag + phone), Business Sub-Domain (text + `.aoikumo.com` suffix), Currency\* (dropdown), save button. Right: **Social Media** card with per-platform rows — platform icon, URL input, visibility toggle. Observed platforms: Facebook, Instagram, LinkedIn, Pinterest, Twitter, Website (http:// prefix), TripAdvisor (tripadvisor.com/ prefix), Lazada, Shopee. Save button at bottom-right
+- **Timezone** *(confirmed — 12.1.2)* — **Timezone Settings** table with columns Outlet ID, Outlet Name, Outlet Nickname, Time Zone (dropdown per outlet). Observed values: all three outlets set to `(UTC+08:00) Kuala Lumpur, Singapore`. Per-outlet timezone means the same server can service multiple geographies
+- **Remarks** *(confirmed — 12.1.3)* — outlet selector dropdown at top. Then a multi-section page where each operational action type has its own mini-panel with: section title, toggle list of reason codes per code (name + on/off toggle + delete), and a `+` button to add a new reason code. Observed action types: **Add Stock** (From Store, From EM, New Stock From Supplier, Stock Adjustment), **Reduce Stock** (Damaged Items, Expired Stock, Staff Benefit, Sample, Wrong Delivery, Utility Remove), **Return Stock** (Damaged Stock), **Cancel Sales** (Duplicate Sales, Outlet Change, Duplicate Invoice, Return Back to Customer, Wrong Customer), **Receipt Return**, **Attendance** (Public Holiday), **Appointment Consumable** (No Line, Customer Registration For Botox), **Cancel Appointment** (Doctors Cancellation, Customer Cancelled, Doctors Not Available, Patient Not Selected, Wrong Discount), **Revert Appointment** (Not Appointment, Incorrect Staff Requires, Zero Sales), **Edit Employee** (Internal Use Only, Close To Due, Not Verified, Edit Employee Profile), **Lead Unsuccessful** (Engaged, Unreachable), **Customer Lead List** (Patient To Be Called, Patient To Be Messaged). Each group is toggled per outlet
+- **Salutation** *(confirmed — 12.1.4)* — **Salutation** table with `+` add button, columns Name + Status (toggle) + Delete. Observed rows: DR (active), MR (active), MRS (active), MS (active). Today these values are hardcoded in [lib/schemas/employees.ts](../../lib/schemas/employees.ts) and customer schemas — this table replaces that hardcoded enum
+- **Security** *(confirmed — 12.1.5)* — two-panel layout. Left: **Password Settings** card with inline-editable fields: Password Expiry (Days) (default 0 = disabled), Failed Login Attempts (default 0 = disabled). Right: **System Lock Duration** card with a single dropdown, observed options include `3 HOURS`
 
 #### Dashboard (12.2)
 Single flat page, no sub-tabs.
@@ -160,22 +177,22 @@ Single flat page, no sub-tabs.
 
 #### Appointments (12.3)
 - **Appointment Settings** — appointment interval dropdown (15 min default); toggle list covering: Allow Overlapping, Allow selection of employees for Hands-On Incentive calculations, Disable sound effects, Enable PIN for Appointments (with nested "required when editing/cancelling" and "required when creating" sub-toggles), Enable selection of branch, Fit appointment columns to single screen, Hide Appointment Value on mouse-over, Hide outlet-specific appointments from all outlets, Hide customer's Address
-- **Online Booking** — online booking rules, slot availability, advance booking days **(inferred)**
-- **Appointment Tag** — coloured/labelled tag system for appointments (e.g. VIP, Follow-up) **(inferred)**
-- **Queue Display** — waiting room / queue board configuration **(inferred)**
+- **Online Booking** *(confirmed — 12.3.2)* — master toggle "Enable Online Booking" (link shown: `https://bigdental.aoikumo.com/website/A0`). Sub-toggles: "Allow Online Booking without login" (link shown: `../webstore/BookAppointment`), "Allow overlapping at online bookings" (premium feature). "Show Employee Roles" toggle. Category/Outlet Flow dropdown (Outlet first / Category first) — premium. Employee/Date Flow dropdown (Date first). Two side-by-side tables: **Bookable Outlets** (outlet image + name + bookable toggle) and **Bookable Employee** (name / role / position / outlet / contacts — paginated)
+- **Appointment Tag** *(confirmed — 12.3.3)* — CRUD table with columns Name / Color / Status / Delete. Observed tags: CROWN (#FFE6CA), DENTURE (#AF7AB3), EXTRACTION/MOS (#F46060), FILLING (#FBBEDF), IMPLANT (#dfd9ff), ORTHODONTICS (#B9FFFC), SCALING (#F3D179). Colour is a hex picker stored per tag
+- **Queue Display** *(confirmed — 12.3.4)* — two toggles at top: "Automatically notify customers once appointment status changed to Started", "Hide customer names in queue display list". **Overlay Settings** card: Selected Outlet dropdown, Font Size (Pixels) dropdown (observed: 32), "Apply to all outlets" checkbox. **Queue Display Banner Image** upload card and **Queue Display Video** upload card (side by side) with video/playlist URL input field
 
 #### Customers (12.4)
 - **General** — View Control (validation type: passport dependent), and admin-managed lookup lists rendered as CRUD tables: Department, Language, Occupation, Payer Origin, Race, Religion, Reminder Method, Source. Each table has add/toggle/delete per row. These are the picklists customer records pull from
-- **Leads** — lead-specific settings and fields **(inferred)**
-- **Security** — customer data security toggles (hide contact from staff, require verification) **(inferred)**
+- **Leads** *(confirmed — 12.4.2)* — **Lead Settings** card with one toggle: "Allow selection of outlet during lead conversion"
+- **Security** *(confirmed — 12.4.3)* — **Passcode Settings** table with columns Module / Action / Description / Status. Rows: Customer → Create ("Passcode will be asked when user tries to create a customer"), Customer → View ("Passcode is required for users to access customer details"), Customer → Edit ("Passcode is required for users to edit customer profile")
 
 #### Sales (12.5)
 - **Discounts** — per-outlet discount capping table with columns `Product Maximum Cap %`, `Consumable Maximum Cap %`, `Service Maximum Cap %`, `Medication Maximum Cap %`. Per-outlet rows allow different caps per location
-- **Billing** — billing-flow rules (draft handling, edit permissions, cancellation) **(inferred)**
-- **Payment** *(implemented 2026-04-17)* — CRUD of `payment_methods` at `/config/sales/payment`. DataTable with columns Order / Name / Code / Fields / Built-in / Active / Actions. Built-in methods (Cash, Credit Card, Debit Card, EPS, Online Transaction, QR Pay, Touch N Go) can be renamed, reordered, or toggled inactive but not deleted. Custom methods are remarks-only. The Collect Payment dialog renders fields per-method based on the flags set here. See [docs/design/payment-methods.md](../design/payment-methods.md) for the full design and [04-sales.md](./04-sales.md) for the data model
+- **Billing** *(confirmed — 12.5.2)* — **Billing Options** card: toggles including "All billed items are billable once", "Auto-assign FOREIGN SST 5% to all customers of Country of Origin non-Malaysia", "Auto-inherit the selected employee during the appointment the assessment was assigned to", "Find Doctor by default instead of Doctor", "Itemise Invoice but Not Bill Price", "For Items that use Charge Type:", radio for "ENABLE MEDICATION OR BILLING AND PRICE" / another option, "Show Service Billing payment receipt", "Show age (in invoice: e.g. Newborn)", "Always allow a credit note on payment receipts", "Show allied billee number on receipts/payments", "Show Bill Billee number on receipts/payments", "Show and Print Financed Invoice", "Allow Patients to be Billable Group", "Show Credit Discounts Grouping", "Show Credit Discounts Group 2". **Other Charges Type** CRUD table (Name column; observed: OTHERS). **Other Charges** CRUD table with columns Name / Outlet (Out-Clinic Procedure Description). **Tax Details** table: Tax Name / Tax Rate (%) / Effective Date / Disable / Status — observed rows: (LOCAL) 3% effective 20/03/2025, (FOREIGNER) SST 4% effective 24/03/2025. **Sales Options** per outlet table with toggles for Viewing Sales / Event Sales. **Terms & Conditions** rich-text editor with tabs Invoice & Receipts / Proforma Invoice; T&C Details field showing company registration info
+- **Payment** *(confirmed — 12.5.3; implemented 2026-04-17)* — **Payment Rule** card: radio "Allow partial payment" / "Only full payment is allowed". **Payment Method** CRUD table with columns Name / Status. Observed methods (12 total, paginated): CASH (no toggle — always on), BEAUTI PASS, CHEQUE, CREDIT CARD, DEBIT CARD, EPS, ONLINE TRANSACTION, QR PAY, ROOM CHARGE, TEST, + 2 more on page 2. Blue-highlighted rows (BEAUTI PASS, QR PAY) appear to be custom/integrated methods. big-app implements a superset of this: CRUD of `payment_methods` at `/config/sales/payment` with columns Order / Name / Code / Fields / Built-in / Active / Actions. See [docs/design/payment-methods.md](../design/payment-methods.md) and [04-sales.md](./04-sales.md)
 
 #### Services (12.6)
-- **Service Receipt** — receipt format and display toggles **(inferred from prototype)**
+- **Service Receipt** *(confirmed — 12.6.1)* — **Service Redemption Receipt** card with one toggle: "Include balance services in printed and e-mailed Service Redemption Receipt"
 - **Category** — CRUD table of service categories. Live data shows ~15 categories (Consultation, Denture, Diagnostic, Endodontics, Implant, Medication, Oral Surgery, Orthodontic Treatment (Braces), Others, Pedodontics Treatment (Child), Preventive Care, Prosthodontics, Restorative Care, Whitening, X-Ray). Each has Name + External Code column and a delete action. This is where service categories live in the live product — **not** in `services-form.md`'s scope
 
 #### Inventory (12.7)
@@ -189,10 +206,10 @@ Single flat page, no sub-tabs.
 - **Security** — `Passcode Settings` table listing per-action passcode requirements. Columns: Module / Action / Description / Status. Observed rows: Employee → Create ("Passcode is required for users to create new employee record"), Employee → Edit ("Passcode is required for users to edit other employee profiles"). This is per-module, per-action passcode gating — a general-purpose security matrix, not just employees-specific. **Likely mirrors big-app's existing `/passcode` module** — could be where the live product manages it
 
 #### Outlets (12.9)
-- **Daily Summary Email** — enable + recipient + send-time settings **(inferred from prototype)**
-- **Outlets Listing** — table of outlets with columns Outlet Images, Outlet ID, Name, Nick Name, Room Name(s), Contact #1, Contact #2, E-mail, State, City. Big-app already implements this today at `/config/outlets`
-- **Print Type** — receipt format (thermal 80mm / A4 / A5) **(inferred)**
-- **Security** — outlet-level security (PIN, auto-lock, IP restriction) **(inferred)**
+- **Daily Summary Email** *(confirmed — 12.9.1)* — **Daily E-mailer** table with columns Outlet / Employee. Per outlet row shows assigned recipient employees as avatar chips with a `+` add button and `×` remove per employee. Observed: KLINIK PERGIGIAN BIG DENTAL has 3 recipients assigned; BIG DENTAL JADEHILLS and BIG DENTAL SETIAWALK show "No employee selected"
+- **Outlets Listing** *(confirmed — 12.9.2)* — table of outlets with columns Outlet Images, Outlet ID, Name, Nick Name, Room Name(s), Contact #1, Contact #2, E-mail, State, City. Big-app already implements this today at `/config/outlets`
+- **Print Type** *(confirmed — 12.9.3)* — **Print Settings** table per outlet with columns: Outlet / Printing Settings (A4 toggle button) / Logo (Yes/No) / Footer (Yes/No) / Signature (Yes/No) / Signature Annotation (Yes/No, disabled unless signature on) / Label Printer Settings (edit icon). All 3 outlets show A4, Logo Yes, Footer Yes, Signature No
+- **Security** *(confirmed — 12.9.4)* — **Device Listing** CRUD table with columns MAC Address / Device Name / Device Type / Outlet Nick Name. Used for whitelisting devices by MAC address to restrict which terminals can access the system. Currently empty in this tenant
 
 #### Taxes (big-app-specific, no prototype screenshot)
 - **Tax Rates** — CRUD of tax rates (**implemented today**). Not a top-level category in the live product — the live product stuffs tax toggles under Sales → Discounts / Billing. big-app broke it out because MY SST + PH VAT + SG GST needs real rate management. See "Open questions"

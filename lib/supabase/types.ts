@@ -607,6 +607,7 @@ export type Database = {
           id: string
           id_number: string | null
           id_type: string
+          is_staff: boolean
           is_vip: boolean
           join_date: string
           last_name: string | null
@@ -614,6 +615,7 @@ export type Database = {
           medical_conditions: string[]
           opt_in_marketing: boolean
           opt_in_notifications: boolean
+          passport_no: string | null
           phone: string
           phone2: string | null
           postcode: string | null
@@ -643,6 +645,7 @@ export type Database = {
           id?: string
           id_number?: string | null
           id_type?: string
+          is_staff?: boolean
           is_vip?: boolean
           join_date?: string
           last_name?: string | null
@@ -650,6 +653,7 @@ export type Database = {
           medical_conditions?: string[]
           opt_in_marketing?: boolean
           opt_in_notifications?: boolean
+          passport_no?: string | null
           phone: string
           phone2?: string | null
           postcode?: string | null
@@ -679,6 +683,7 @@ export type Database = {
           id?: string
           id_number?: string | null
           id_type?: string
+          is_staff?: boolean
           is_vip?: boolean
           join_date?: string
           last_name?: string | null
@@ -686,6 +691,7 @@ export type Database = {
           medical_conditions?: string[]
           opt_in_marketing?: boolean
           opt_in_notifications?: boolean
+          passport_no?: string | null
           phone?: string
           phone2?: string | null
           postcode?: string | null

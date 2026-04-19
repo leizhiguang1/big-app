@@ -9,6 +9,7 @@ type Props = {
 	appointment: AppointmentWithRelations;
 	outletName: string | null;
 	onToast: (message: string, variant?: Toast["variant"]) => void;
+	onReschedule?: () => void;
 };
 
 function formatDateTime(iso: string): string {
@@ -40,6 +41,7 @@ export function AppointmentSummaryCard({
 	appointment,
 	outletName,
 	onToast,
+	onReschedule,
 }: Props) {
 	const title = appointment.is_time_block
 		? (appointment.block_title ?? "Time block")
@@ -76,7 +78,11 @@ export function AppointmentSummaryCard({
 			</div>
 			<div className="min-w-0">
 				<div className="sr-only">Appointment status</div>
-				<StatusProgressionRow appointment={appointment} onToast={onToast} />
+				<StatusProgressionRow
+					appointment={appointment}
+					onToast={onToast}
+					onReschedule={onReschedule}
+				/>
 			</div>
 		</div>
 	);

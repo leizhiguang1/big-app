@@ -1,8 +1,9 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
 import { useAppointmentNotifications } from "@/components/notifications/AppointmentNotificationsProvider";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
 	Tooltip,
 	TooltipContent,
@@ -21,6 +22,7 @@ import { cn } from "@/lib/utils";
 type Props = {
 	appointment: AppointmentWithRelations;
 	onToast: (message: string, variant?: Toast["variant"]) => void;
+	onReschedule?: () => void;
 };
 
 // `completed` is excluded from the progression pills. Completion is only
@@ -33,18 +35,22 @@ const PROGRESSION_STATUSES = APPOINTMENT_STATUSES.filter(
 	(s) => s !== "completed",
 );
 
-export function StatusProgressionRow({ appointment, onToast }: Props) {
+export function StatusProgressionRow({
+	appointment,
+	onToast,
+	onReschedule,
+}: Props) {
 	const initial = (appointment.status as AppointmentStatus) ?? "pending";
 	const [optimistic, setOptimistic] = useOptimistic<
 		AppointmentStatus,
 		AppointmentStatus
 	>(initial, (_prev, next) => next);
 	const [, startTransition] = useTransition();
+	const [noShowPromptOpen, setNoShowPromptOpen] = useState(false);
 	const { showStatusToast, suppressNextRealtime } =
 		useAppointmentNotifications();
 
-	const handleClick = (status: AppointmentStatus) => {
-		if (status === optimistic) return;
+	const applyStatus = (status: AppointmentStatus) => {
 		suppressNextRealtime(appointment.id);
 		showStatusToast(
 			{
@@ -72,6 +78,15 @@ export function StatusProgressionRow({ appointment, onToast }: Props) {
 		});
 	};
 
+	const handleClick = (status: AppointmentStatus) => {
+		if (status === optimistic) return;
+		if (status === "noshow" && onReschedule) {
+			setNoShowPromptOpen(true);
+			return;
+		}
+		applyStatus(status);
+	};
+
 	if (appointment.is_time_block) return null;
 
 	// Terminal state — show a static indicator, not a clickable journey.
@@ -91,6 +106,24 @@ export function StatusProgressionRow({ appointment, onToast }: Props) {
 
 	return (
 		<TooltipProvider delayDuration={200}>
+			<ConfirmDialog
+				open={noShowPromptOpen}
+				onOpenChange={setNoShowPromptOpen}
+				title="Mark as no-show?"
+				description="The customer didn't show up. Would you like to reschedule them to another time instead of marking no-show?"
+				confirmLabel="Mark no-show"
+				cancelLabel="Keep current"
+				variant="default"
+				onConfirm={() => {
+					setNoShowPromptOpen(false);
+					applyStatus("noshow");
+				}}
+				altLabel="Reschedule"
+				onAlt={() => {
+					setNoShowPromptOpen(false);
+					onReschedule?.();
+				}}
+			/>
 			<div className="@container flex flex-wrap gap-1 @[340px]:gap-1.5 @[480px]:gap-2">
 				{PROGRESSION_STATUSES.map((s) => {
 					const config = APPOINTMENT_STATUS_CONFIG[s];

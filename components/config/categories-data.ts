@@ -86,19 +86,21 @@ export const CATEGORIES: ConfigCategory[] = [
 		icon: Settings,
 		color: "sky",
 		sections: [
-			{ key: "general", label: "General" },
-			{ key: "timezone", label: "Timezone" },
-			{ key: "remarks", label: "Remarks" },
-			{ key: "salutation", label: "Salutation" },
-			{ key: "security", label: "Security" },
+			{ key: "general", label: "General", implemented: true },
+			{ key: "timezone", label: "Timezone", implemented: true },
+			{ key: "remarks", label: "Remarks", implemented: true },
+			{ key: "salutation", label: "Salutation", implemented: true },
+			{ key: "security", label: "Security", implemented: true },
 		],
+		external: true,
 	},
 	{
 		slug: "dashboard",
 		title: "Dashboard",
 		icon: LayoutDashboard,
 		color: "pink",
-		sections: [{ key: "display", label: "Display" }],
+		sections: [{ key: "display", label: "Display", implemented: true }],
+		external: true,
 	},
 	{
 		slug: "appointments",
@@ -106,11 +108,12 @@ export const CATEGORIES: ConfigCategory[] = [
 		icon: CalendarCheck,
 		color: "amber",
 		sections: [
-			{ key: "settings", label: "Appointment Settings" },
-			{ key: "online-booking", label: "Online Booking" },
-			{ key: "appointment-tag", label: "Appointment Tag" },
-			{ key: "queue-display", label: "Queue Display" },
+			{ key: "settings", label: "Appointment Settings", implemented: true },
+			{ key: "online-booking", label: "Online Booking", implemented: true },
+			{ key: "appointment-tag", label: "Appointment Tag", implemented: true },
+			{ key: "queue-display", label: "Queue Display", implemented: true },
 		],
+		external: true,
 	},
 	{
 		slug: "customers",
@@ -118,10 +121,11 @@ export const CATEGORIES: ConfigCategory[] = [
 		icon: Users,
 		color: "violet",
 		sections: [
-			{ key: "general", label: "General" },
-			{ key: "leads", label: "Leads" },
-			{ key: "security", label: "Security" },
+			{ key: "general", label: "General", implemented: true },
+			{ key: "leads", label: "Leads", implemented: true },
+			{ key: "security", label: "Security", implemented: true },
 		],
+		external: true,
 	},
 	{
 		slug: "sales",
@@ -129,8 +133,8 @@ export const CATEGORIES: ConfigCategory[] = [
 		icon: Receipt,
 		color: "orange",
 		sections: [
-			{ key: "discounts", label: "Discounts" },
-			{ key: "billing", label: "Billing" },
+			{ key: "discounts", label: "Discounts", implemented: true },
+			{ key: "billing", label: "Billing", implemented: true },
 			{
 				key: "payment",
 				label: "Payment",
@@ -138,6 +142,7 @@ export const CATEGORIES: ConfigCategory[] = [
 				href: "/config/sales/payment",
 			},
 		],
+		external: true,
 	},
 	{
 		slug: "services",
@@ -145,9 +150,10 @@ export const CATEGORIES: ConfigCategory[] = [
 		icon: Sparkles,
 		color: "teal",
 		sections: [
-			{ key: "receipt", label: "Service Receipt" },
-			{ key: "category", label: "Category" },
+			{ key: "receipt", label: "Service Receipt", implemented: true },
+			{ key: "category", label: "Category", implemented: true },
 		],
+		external: true,
 	},
 	{
 		slug: "inventory",
@@ -155,11 +161,12 @@ export const CATEGORIES: ConfigCategory[] = [
 		icon: Package,
 		color: "yellow",
 		sections: [
-			{ key: "redemption", label: "Product Redemption" },
-			{ key: "barcode-scanning", label: "Barcode Scanning" },
-			{ key: "locations", label: "Locations" },
-			{ key: "others", label: "Others" },
+			{ key: "redemption", label: "Product Redemption", implemented: true },
+			{ key: "barcode-scanning", label: "Barcode Scanning", implemented: true },
+			{ key: "locations", label: "Locations", implemented: true },
+			{ key: "others", label: "Others", implemented: true },
 		],
+		external: true,
 	},
 	{
 		slug: "employees",
@@ -167,9 +174,10 @@ export const CATEGORIES: ConfigCategory[] = [
 		icon: UserCog,
 		color: "blue",
 		sections: [
-			{ key: "profile", label: "Profile" },
-			{ key: "security", label: "Security" },
+			{ key: "profile", label: "Profile", implemented: true },
+			{ key: "security", label: "Security", implemented: true },
 		],
+		external: true,
 	},
 	{
 		slug: "outlets",
@@ -198,11 +206,12 @@ export const CATEGORIES: ConfigCategory[] = [
 		icon: Bell,
 		color: "rose",
 		sections: [
-			{ key: "email", label: "E-Mail Settings" },
-			{ key: "message", label: "Message Settings" },
-			{ key: "whatsapp", label: "WhatsApp Settings" },
-			{ key: "line", label: "LINE Settings" },
+			{ key: "email", label: "E-Mail Settings", implemented: true },
+			{ key: "message", label: "Message Settings", implemented: true },
+			{ key: "whatsapp", label: "WhatsApp Settings", implemented: true },
+			{ key: "line", label: "LINE Settings", implemented: true },
 		],
+		external: true,
 	},
 	{
 		slug: "clinical",

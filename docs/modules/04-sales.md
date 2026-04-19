@@ -1,6 +1,22 @@
 # Module: Sales
 
-> Status: v1 complete — Collect Payment RPC, Sales dashboard (Summary + Sales + Payment + Cancelled tabs), SO detail view, cancellation flow, and bidirectional appointment↔sales linking all shipped.
+> Status: v1 complete — Collect Payment RPC, Sales dashboard (Summary + Sales + Payment + Cancelled tabs), SO detail view, cancellation flow, printable invoice route, and bidirectional appointment↔sales linking all shipped.
+
+## Invoice printing (2026-04-18)
+
+Printable route at `/sales/[id]/print` (see
+[app/(app)/sales/[id]/print/page.tsx](../../app/(app)/sales/[id]/print/page.tsx)).
+One A4 sheet per sales order — header (outlet name + address + contact),
+SO number / date / status block, Bill-To + Consultant + Prepared-By
+section, line-items table, totals ladder (subtotal / discount / tax /
+rounding / total / amount paid / outstanding), payments audit table, and
+free-text remarks. Rendered by
+[components/sales/PrintableInvoice.tsx](../../components/sales/PrintableInvoice.tsx)
+as a pure server component; the screen chrome (sidebar + topbar from the
+`(app)` layout) is hidden at print time via `visibility: hidden` on
+`body *` + re-enabled on `.invoice-sheet *`. The Print button on the SO
+detail view opens this route in a new tab — the old inline
+`window.open(...)` handler was removed. No new schema.
 
 ## Implementation status (Phase 1)
 

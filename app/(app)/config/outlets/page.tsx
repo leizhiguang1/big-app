@@ -1,6 +1,9 @@
 import { Suspense } from "react";
 import { ComingSoonCard } from "@/components/config/ComingSoonCard";
 import { ConfigSectionHeader } from "@/components/config/ConfigSectionHeader";
+import { DailySummaryEmailTab } from "@/components/config/outlets/DailySummaryEmailTab";
+import { PrintTypeTab } from "@/components/config/outlets/PrintTypeTab";
+import { SecurityTab } from "@/components/config/outlets/SecurityTab";
 import {
 	findCategory,
 	resolveSection,
@@ -25,13 +28,17 @@ export default async function OutletsPage({ searchParams }: PageProps) {
 				categoryTitle={category.title}
 				sectionLabel={active.label}
 			/>
-			{active.key === "listing" ? (
+			{active.key === "daily-summary-email" && <DailySummaryEmailTab />}
+			{active.key === "listing" && (
 				<Suspense
 					fallback={<TableSkeleton columns={5} rows={6} showHeader={false} />}
 				>
 					<OutletsContent />
 				</Suspense>
-			) : (
+			)}
+			{active.key === "print-type" && <PrintTypeTab />}
+			{active.key === "security" && <SecurityTab />}
+			{!["daily-summary-email", "listing", "print-type", "security"].includes(active.key) && (
 				<ComingSoonCard sectionLabel={active.label} />
 			)}
 		</>
