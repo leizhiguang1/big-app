@@ -152,3 +152,33 @@
 body.dragging-appt [data-appt-card]:not([data-dragging="true"]) {
 	pointer-events: none;
 }
+
+@keyframes appt-card-shake {
+	0%,
+	100% {
+		transform: translateX(0);
+	}
+	15% {
+		transform: translateX(-1.5px) rotate(-0.6deg);
+	}
+	30% {
+		transform: translateX(1.5px) rotate(0.6deg);
+	}
+	45% {
+		transform: translateX(-1.5px) rotate(-0.6deg);
+	}
+	60% {
+		transform: translateX(1.5px) rotate(0.6deg);
+	}
+	75% {
+		transform: translateX(-1px) rotate(-0.3deg);
+	}
+	90% {
+		transform: translateX(1px) rotate(0.3deg);
+	}
+}
+
+[data-appt-card][data-shake="true"]:not([data-dragging="true"]) {
+	animation: appt-card-shake 0.9s ease-in-out infinite;
+	transform-origin: center;
+}

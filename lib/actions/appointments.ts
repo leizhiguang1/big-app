@@ -156,14 +156,18 @@ export async function convertLeadToCustomerAction(
 	return result;
 }
 
-export async function saveAppointmentNotesAction(
+// Saves the shared "Message to frontdesk" shown in BOTH the Billing tab
+// (BillingSection) and the bottom-right of CollectPaymentDialog. Distinct
+// from `appointments.notes` (the appointment-level notes edited in the
+// create/edit dialog) and from per-line `appointment_line_items.notes`.
+export async function saveFrontdeskMessageAction(
 	id: string,
-	notes: string | null,
+	message: string | null,
 ) {
 	const ctx = await getServerContext();
 	const { error } = await ctx.db
 		.from("appointments")
-		.update({ notes })
+		.update({ frontdesk_message: message })
 		.eq("id", id);
 	if (error) throw new Error(error.message);
 	revalidatePath(`/appointments/${id}`);

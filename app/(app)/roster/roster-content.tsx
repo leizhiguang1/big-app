@@ -4,7 +4,7 @@ import { RosterGrid } from "@/components/roster/RosterGrid";
 import { getServerContext } from "@/lib/context/server";
 import { addDays, fmtDate, getWeekStart, parseDate } from "@/lib/roster/week";
 import {
-	listBookableEmployeesForOutlet,
+	listEmployeesForOutlet,
 	listShiftsForWeek,
 } from "@/lib/services/employee-shifts";
 import { listOutlets } from "@/lib/services/outlets";
@@ -45,7 +45,7 @@ export async function RosterContent({
 	const weekEnd = fmtDate(addDays(weekStartDate, 6));
 
 	const [employees, shifts] = await Promise.all([
-		listBookableEmployeesForOutlet(ctx, outletId),
+		listEmployeesForOutlet(ctx, outletId),
 		listShiftsForWeek(ctx, { outletId, weekStart, weekEnd }),
 	]);
 

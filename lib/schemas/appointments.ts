@@ -4,6 +4,7 @@ import {
 	APPOINTMENT_STATUSES,
 	PAYMENT_STATUSES,
 } from "@/lib/constants/appointment-status";
+import { SOURCE_LABEL, SOURCES, type Source } from "@/lib/schemas/customers";
 
 const isoDateTime = z
 	.string()
@@ -19,20 +20,12 @@ const optionalText = (max: number) =>
 		.optional()
 		.or(z.literal("").transform(() => undefined));
 
-export const LEAD_SOURCES = [
-	"walk_in",
-	"referral",
-	"ads",
-	"online_booking",
-] as const;
-export type LeadSource = (typeof LEAD_SOURCES)[number];
-
-export const LEAD_SOURCE_LABEL: Record<LeadSource, string> = {
-	walk_in: "Walk In",
-	referral: "Referral",
-	ads: "Ads",
-	online_booking: "Online Booking",
-};
+// Lead source shares the customer source vocabulary — every source a lead can
+// walk in from is also a valid customer source. Re-exported here as an alias
+// so existing callers keep working.
+export const LEAD_SOURCES = SOURCES;
+export type LeadSource = Source;
+export const LEAD_SOURCE_LABEL = SOURCE_LABEL;
 
 export const appointmentInputSchema = z
 	.object({
@@ -102,6 +95,13 @@ export const appointmentInputSchema = z
 					message: "Source is required for walk-in leads",
 				});
 			}
+			if (data.lead_name && !data.lead_attended_by_id) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["lead_attended_by_id"],
+					message: "Lead attended by is required for walk-in leads",
+				});
+			}
 		}
 	});
 
@@ -168,17 +168,6 @@ export const appointmentFollowUpSchema = z.object({
 export type AppointmentFollowUpInput = z.infer<
 	typeof appointmentFollowUpSchema
 >;
-
-// Lead → customer conversion input. Small subset of customerInputSchema so the
-// action can stay a one-click flow. The service fills in defaults for the rest.
-export const convertLeadInputSchema = z.object({
-	first_name: z.string().trim().min(1, "First name is required").max(80),
-	last_name: optionalText(80),
-	phone: z.string().trim().min(1, "Phone is required").max(40),
-	home_outlet_id: z.string().uuid("Home outlet is required"),
-	consultant_id: z.string().uuid("Consultant is required"),
-});
-export type ConvertLeadInput = z.infer<typeof convertLeadInputSchema>;
 
 // ─── Appointment line items ─────────────────────────────────────────────────
 // The `appointment_line_items` table is the source of truth for what

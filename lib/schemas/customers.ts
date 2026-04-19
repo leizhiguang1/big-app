@@ -21,10 +21,27 @@ export const GENDERS = ["male", "female"] as const;
 export const SALUTATIONS = ["Mr", "Ms", "Mrs", "Dr"] as const;
 export const SOURCES = [
 	"walk_in",
-	"referral",
-	"ads",
-	"online_booking",
+	"friend_or_family",
+	"employee",
+	"facebook",
+	"instagram",
+	"tiktok",
+	"kol",
+	"webstore",
+	"whatsapp",
 ] as const;
+
+export const SOURCE_LABEL: Record<(typeof SOURCES)[number], string> = {
+	walk_in: "Walk In",
+	friend_or_family: "Friend or Family",
+	employee: "Employee",
+	facebook: "Facebook",
+	instagram: "Instagram",
+	tiktok: "TikTok",
+	kol: "KOL",
+	webstore: "Webstore",
+	whatsapp: "WhatsApp",
+};
 
 export type IdType = (typeof ID_TYPES)[number];
 export type Gender = (typeof GENDERS)[number];

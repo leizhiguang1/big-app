@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { Input } from "@/components/ui/input";
+import { convertLeadToCustomerAction } from "@/lib/actions/appointments";
 import {
 	createCustomerAction,
 	updateCustomerAction,
@@ -32,6 +33,7 @@ import {
 	customerInputSchema,
 	type Gender,
 	SALUTATIONS,
+	SOURCE_LABEL,
 	SOURCES,
 } from "@/lib/schemas/customers";
 import type { Customer, CustomerWithRelations } from "@/lib/services/customers";
@@ -39,12 +41,18 @@ import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { OutletWithRoomCount } from "@/lib/services/outlets";
 import { cn } from "@/lib/utils";
 
+type LeadContext = {
+	appointmentId: string;
+	prefill: Partial<CustomerInput>;
+};
+
 type Props = {
 	open: boolean;
 	customer: CustomerWithRelations | null;
 	outlets: OutletWithRoomCount[];
 	employees: EmployeeWithRelations[];
 	defaultConsultantId: string | null;
+	leadContext?: LeadContext | null;
 	onClose: () => void;
 	onCreated?: (customer: Customer) => void;
 };
@@ -285,6 +293,7 @@ export function CustomerFormDialog({
 	outlets,
 	employees,
 	defaultConsultantId,
+	leadContext = null,
 	onClose,
 	onCreated,
 }: Props) {
@@ -312,6 +321,9 @@ export function CustomerFormDialog({
 			if (!customer) {
 				if (defaultConsultantId) base.consultant_id = defaultConsultantId;
 				if (outlets.length === 1) base.home_outlet_id = outlets[0].id;
+				if (leadContext?.prefill) {
+					Object.assign(base, leadContext.prefill);
+				}
 				const id = crypto.randomUUID();
 				base.id = id;
 				setPendingId(id);
@@ -323,7 +335,7 @@ export function CustomerFormDialog({
 			setServerError(null);
 			setSection("personal");
 		}
-	}, [open, customer, form, defaultConsultantId, outlets]);
+	}, [open, customer, form, defaultConsultantId, outlets, leadContext]);
 
 	// Auto-derive DOB + gender from Malaysian IC.
 	// Re-runs whenever the IC value changes so edits always re-sync the
@@ -354,6 +366,12 @@ export function CustomerFormDialog({
 			try {
 				if (customer) {
 					await updateCustomerAction(customer.id, values);
+				} else if (leadContext) {
+					const result = await convertLeadToCustomerAction(
+						leadContext.appointmentId,
+						{ ...values, id: pendingId ?? undefined },
+					);
+					onCreated?.(result.customer);
 				} else {
 					const created = await createCustomerAction({
 						...values,
@@ -714,7 +732,7 @@ export function CustomerFormDialog({
 												<option value="">— Select —</option>
 												{SOURCES.map((s) => (
 													<option key={s} value={s}>
-														{s.replace("_", " ").toUpperCase()}
+														{SOURCE_LABEL[s].toUpperCase()}
 													</option>
 												))}
 											</select>
@@ -845,8 +863,7 @@ export function CustomerFormDialog({
 											{...form.register("medical_alert")}
 										/>
 									</Field>
-
-												</div>
+								</div>
 							)}
 
 							{section === "notifications" && (

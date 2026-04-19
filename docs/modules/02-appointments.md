@@ -28,7 +28,7 @@
 - Floating action bar right-side icons: queue ticket, create-new-for-customer, add-to-queue, edit. (**Complete** *is* wired — it opens the confirm dialog → `CollectPaymentDialog`. **Cancel** is wired — hard-deletes the appointment with a confirmation dialog. **Revert** is wired — reverts a completed appointment back to pending.)
 - Overview tab: **Status Change Log** is live — displays the `appointment_status_log` entries as a formatted timeline. Consumables and Hands-on Incentives are **live** — see §Overview tab cards below.
 - **BookingInfoCard** shows a "Sales Order → View invoice" link when the appointment has a linked SO (via `getSalesOrderForAppointment()`), linking to `/sales/[id]`.
-- `CollectPaymentDialog` parked controls: Itemised Allocation toggle, secondary staff avatars, Repeat Previous Items, Apply Auto Discount, Attachments card, Backdate Invoice toggle, Add Payment Type row, Reference / Tag fields, message-to-frontdesk textarea. The dialog collects payments end-to-end today — these are UI-first stubs to be wired later.
+- `CollectPaymentDialog` parked controls: Itemised Allocation toggle, secondary staff avatars, Repeat Previous Items, Apply Auto Discount, Attachments card, Backdate Invoice toggle, Add Payment Type row, Reference / Tag fields. The dialog collects payments end-to-end today — these are UI-first stubs to be wired later. (The message-to-frontdesk textarea is now fully wired — see §Billing tab and `appointments.frontdesk_message`.)
 
 **Still pending**
 - Drag-to-reschedule (`rescheduleAppointment()` service method exists; HTML5 drag wiring TBD).
@@ -410,7 +410,7 @@ Large centered modal (`sm:max-w-6xl`), two-column layout.
 - `ATTACHMENTS` section with a dummy `ATTACH-<id>` card (print + paperclip icons, disabled).
 - `PAYMENT` section: `Backdate Invoice?` toggle (UI only), payment-mode select (from `SALES_PAYMENT_MODES`), amount input, remarks input, `Add Payment Type` link (disabled), sales-target outlet display.
 - **Primary submit — the big green checkmark button** — calls `collectAppointmentPaymentAction(appointment.id, …)`. On success, fires the `onSuccess` toast `Payment collected · <so_number> / <invoice_no>`, closes the dialog, and calls `router.refresh()`.
-- Message-to-frontdesk textarea (UI only — not currently sent to the action payload).
+- Message-to-frontdesk textarea — shared field with the Billing tab. Both bind to `appointments.frontdesk_message` via `saveFrontdeskMessageAction` (onBlur). The value is also snapshotted into `sales_orders.frontdesk_message` when Collect Payment commits. Migration `0060_appointments_frontdesk_message`.
 
 Validation:
 - Button disabled while the mutation is pending, when `lines.length === 0`, or when the amount field is empty/NaN/non-positive.
@@ -618,7 +618,8 @@ Option 1 is the right call — cancellation data is exactly the kind of thing so
 | payment_status | text | Yes | CHECK `unpaid / partial / paid`, default `unpaid`. Denormalised mirror. |
 | paid_via | text | No | `cash / credit_card / debit_card / online_transfer / e_wallet` |
 | payment_remark | text | No | Free-text; transaction IDs, card refs, partial-payment notes |
-| notes | text | No | |
+| notes | text | No | Appointment-level notes (context for the visit). Edited in the Appointment create/edit dialog. Distinct from `frontdesk_message` and `payment_remark`. |
+| frontdesk_message | text | No | "Message to frontdesk" — shared between the Billing tab (BillingSection) and the bottom-right of CollectPaymentDialog. Single source of truth; edits in either place round-trip via `saveFrontdeskMessageAction`. Snapshotted to `sales_orders.frontdesk_message` at collect time. Migration `0060_appointments_frontdesk_message`. |
 | tags | text[] | Yes | Default `'{}'`; CHECK `appointments_tags_single_chk` caps to one element (single-select) |
 | is_time_block | bool | Yes | Default false |
 | block_title | text | No | CHECK: required when `is_time_block = true` |

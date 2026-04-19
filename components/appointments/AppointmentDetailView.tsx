@@ -269,7 +269,7 @@ export function AppointmentDetailView({
 							services={services}
 							products={products}
 							taxes={taxes}
-							appointmentNotes={appointment.notes}
+							frontdeskMessage={appointment.frontdesk_message}
 						/>
 					)}
 

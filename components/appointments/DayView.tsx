@@ -298,12 +298,12 @@ export function DayView({
 														"bg-primary/20 ring-2 ring-inset ring-primary/60",
 													// hour boundary (bottom of :45 quarter)
 													qIdx === 3
-														? "border-b border-border/30"
+														? "border-b border-border"
 														: // half-hour mark (:30)
 															qIdx === 1
-															? "border-b border-dashed border-muted/70"
+															? "border-b border-dashed border-border/70"
 															: // quarter marks (:15, top of hour handled by prev hour's :45)
-																"border-b border-dashed border-muted/40",
+																"border-b border-dashed border-border/40",
 												)}
 												style={{
 													top: hIdx * HOUR_HEIGHT_PX + qIdx * QUARTER_HEIGHT_PX,

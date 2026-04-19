@@ -231,23 +231,20 @@ A text field for the doctor to leave a message to the receptionist/frontdesk sta
 - **BillingSection** (appointment detail page, Billing tab) — `batchNote` local state
 - **CollectPaymentDialog** (right column) — `frontdeskMsg` state
 
-### Current state
+### Decision (landed — migration `0060_appointments_frontdesk_message`)
 
-These are two separate, unconnected fields:
-- BillingSection's "Message to frontdesk" → local state `batchNote`, used as default note for new line items, NOT persisted
-- CollectPaymentDialog's "Message to frontdesk" → saved to `sales_orders.frontdesk_message`
-
-### Decision
-
-They should be the **same field** — the appointment's `notes` column. The doctor writes a message in the Billing tab, and the same text appears in the Collect Payment dialog (pre-filled). The frontdesk reads it when processing the payment.
+Both textareas share ONE column: `appointments.frontdesk_message`. Separate from `appointments.notes` (appointment-level notes edited in the Appointment create/edit dialog) and from per-line `appointment_line_items.notes`. Three distinct fields, three distinct scopes.
 
 **Implementation:**
-1. BillingSection saves to `appointments.notes` (via a server action that updates the appointment)
-2. CollectPaymentDialog reads `appointment.notes` as initial value for `frontdeskMsg`
-3. On collect, the value is saved to `sales_orders.frontdesk_message` (already wired)
-4. Both places show the same underlying data
+1. `appointments.frontdesk_message text` column added (migration `0060_appointments_frontdesk_message`).
+2. `saveFrontdeskMessageAction(id, message)` in `lib/actions/appointments.ts` writes to that column and `revalidatePath`s the appointment detail route.
+3. BillingSection saves on `onBlur` with a small "Saving…" / "Saved" indicator next to the label — no per-keystroke writes, no clearing after "Save billing".
+4. CollectPaymentDialog reads `appointment.frontdesk_message` as initial value and also persists on `onBlur` so edits in the dialog round-trip back to the same column.
+5. On collect, the value is still snapshotted into `sales_orders.frontdesk_message` via the RPC (existing wiring).
 
-**Migration:** None — `appointments.notes` already exists. Just need to wire the BillingSection to persist it and the dialog to read it.
+**Why not reuse `appointments.notes`:** that's the appointment-level notes field (what the booking is about). Conflating it with the billing/payment message would break the three-fields rule and cause the Appointment dialog's Notes field to stomp on (or be stomped by) the Billing tab's message.
+
+**Why not reuse `appointments.payment_remark`:** that's for transaction IDs / card refs / partial-payment annotations. Different semantic.
 
 ---
 

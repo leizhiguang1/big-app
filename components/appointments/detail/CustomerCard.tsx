@@ -2,28 +2,37 @@
 
 import {
 	Bell,
+	BriefcaseMedical,
 	CakeSlice,
 	CalendarClock,
 	CalendarDays,
+	Cigarette,
 	Compass,
+	Crown,
 	FileText,
 	IdCard,
+	Pill,
 	Printer,
 	Sparkles,
 	Star,
+	UserCog,
+	UserPlus,
 	UserRound,
 	UserX,
 	Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { LeadConvertDialog } from "@/components/appointments/detail/LeadConvertDialog";
+import { CustomerFormDialog } from "@/components/customers/CustomerForm";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { buildLeadPrefill } from "@/lib/appointments/lead-prefill";
+import { SMOKER_LABELS } from "@/lib/constants/medical";
+import type { LeadSource } from "@/lib/schemas/appointments";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { OutletWithRoomCount } from "@/lib/services/outlets";
@@ -162,8 +171,17 @@ export function CustomerCard({
 	const source = customer?.source ?? null;
 	const medicalConditions = customer?.medical_conditions ?? [];
 	const medicalAlert = customer?.medical_alert ?? null;
+	const drugAllergies = customer?.drug_allergies ?? null;
+	const smoker = customer?.smoker ?? null;
 	const customerTag = customer?.tag ?? null;
-	const hasMedicalInfo = medicalConditions.length > 0 || Boolean(medicalAlert);
+	const isVip = customer?.is_vip ?? false;
+	const isStaff = customer?.is_staff ?? false;
+	const hasFlags = isVip || isStaff || Boolean(customerTag);
+	const hasMedicalInfo =
+		medicalConditions.length > 0 ||
+		Boolean(medicalAlert) ||
+		Boolean(drugAllergies) ||
+		(!!smoker && smoker !== "no");
 	const wa1 = phone1 ? whatsAppHref(phone1) : null;
 	const wa2 = phone2 ? whatsAppHref(phone2) : null;
 
@@ -334,31 +352,67 @@ export function CustomerCard({
 					/>
 				</div>
 
-				{customerTag && (
-					<div className="flex">
-						<span className="inline-flex items-center gap-1 rounded-md bg-violet-100 px-1.5 py-0.5 font-semibold text-[10px] text-violet-800 uppercase tracking-wide">
-							<Sparkles className="size-3" />
-							{customerTag}
-						</span>
+				{hasFlags && (
+					<div className="flex flex-wrap gap-1">
+						{isVip && (
+							<FlagBadge
+								icon={<Crown className="size-3" />}
+								label="VIP"
+								className="bg-amber-100 text-amber-800"
+							/>
+						)}
+						{isStaff && (
+							<FlagBadge
+								icon={<UserCog className="size-3" />}
+								label="Staff"
+								className="bg-sky-100 text-sky-800"
+							/>
+						)}
+						{customerTag && (
+							<FlagBadge
+								icon={<Sparkles className="size-3" />}
+								label={customerTag}
+								className="bg-violet-100 text-violet-800"
+							/>
+						)}
 					</div>
 				)}
 
 				{hasMedicalInfo && (
-					<div className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-2">
-						<Bell className="size-3.5 shrink-0 text-amber-600" />
-						<div className="flex min-w-0 flex-col gap-0.5 text-[11px] leading-tight">
-							<div className="font-semibold text-amber-900 uppercase tracking-wide">
-								Medical History
-							</div>
-							{medicalConditions.length > 0 && (
-								<div className="text-amber-900/90">
-									{medicalConditions.join(", ")}
-								</div>
-							)}
+					<div className="flex flex-col gap-1.5 rounded-md border border-amber-300 bg-amber-50 p-2">
+						<div className="flex items-center gap-1.5 font-semibold text-[10px] text-amber-900 uppercase tracking-wide">
+							<Bell className="size-3.5 text-amber-600" />
+							Medical history
+						</div>
+						<div className="flex flex-col gap-1 text-[11px] leading-tight">
 							{medicalAlert && (
-								<div className="whitespace-pre-wrap text-amber-800">
-									{medicalAlert}
-								</div>
+								<MedicalRow
+									icon={<Bell className="size-3.5" />}
+									label="Alert"
+									value={medicalAlert}
+									tone="alert"
+								/>
+							)}
+							{medicalConditions.length > 0 && (
+								<MedicalRow
+									icon={<BriefcaseMedical className="size-3.5" />}
+									label="Conditions"
+									value={medicalConditions.join(", ")}
+								/>
+							)}
+							{drugAllergies && (
+								<MedicalRow
+									icon={<Pill className="size-3.5" />}
+									label="Drug allergies"
+									value={drugAllergies}
+								/>
+							)}
+							{smoker && smoker !== "no" && (
+								<MedicalRow
+									icon={<Cigarette className="size-3.5" />}
+									label="Smoker"
+									value={SMOKER_LABELS[smoker]}
+								/>
 							)}
 						</div>
 					</div>
@@ -401,24 +455,40 @@ export function CustomerCard({
 						<button
 							type="button"
 							onClick={() => setConvertOpen(true)}
-							className="ml-auto inline-flex h-7 items-center rounded-md border bg-background px-2 font-medium text-[11px] hover:bg-muted"
+							className="ml-auto inline-flex h-7 items-center gap-1.5 rounded-full bg-emerald-600 px-3 font-semibold text-[11px] text-white shadow-sm ring-1 ring-emerald-700/20 hover:bg-emerald-700"
 						>
-							Register
+							<UserPlus className="size-3.5" />
+							Register to Customer
 						</button>
 					)}
 				</div>
 
-				{isLead && (
-					<LeadConvertDialog
+				{isLead && convertOpen && (
+					<CustomerFormDialog
 						open={convertOpen}
-						onClose={() => setConvertOpen(false)}
-						appointmentId={appointment.id}
-						defaultName={appointment.lead_name ?? ""}
-						defaultPhone={appointment.lead_phone ?? ""}
-						defaultOutletId={appointment.outlet_id}
-						defaultConsultantId={appointment.lead_attended_by_id}
+						customer={null}
 						outlets={allOutlets}
 						employees={allEmployees}
+						defaultConsultantId={
+							appointment.lead_attended_by_id ??
+							appointment.employee_id ??
+							allEmployees[0]?.id ??
+							null
+						}
+						leadContext={{
+							appointmentId: appointment.id,
+							prefill: buildLeadPrefill({
+								leadName: appointment.lead_name,
+								leadPhone: appointment.lead_phone,
+								leadSource:
+									(appointment.lead_source as LeadSource | null) ?? null,
+								leadAttendedById: appointment.lead_attended_by_id,
+								outletId: appointment.outlet_id,
+								fallbackConsultantId:
+									appointment.employee_id ?? allEmployees[0]?.id ?? null,
+							}),
+						}}
+						onClose={() => setConvertOpen(false)}
 					/>
 				)}
 			</div>
@@ -446,6 +516,74 @@ function InfoItem({
 				<TooltipContent side="left">{label}</TooltipContent>
 			</Tooltip>
 			<span className="min-w-0 truncate leading-tight">{value}</span>
+		</div>
+	);
+}
+
+function FlagBadge({
+	icon,
+	label,
+	className,
+}: {
+	icon: React.ReactNode;
+	label: string;
+	className?: string;
+}) {
+	return (
+		<span
+			className={cn(
+				"inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-semibold text-[10px] uppercase tracking-wide",
+				className,
+			)}
+		>
+			{icon}
+			{label}
+		</span>
+	);
+}
+
+function MedicalRow({
+	icon,
+	label,
+	value,
+	tone = "default",
+}: {
+	icon: React.ReactNode;
+	label: string;
+	value: string;
+	tone?: "default" | "alert";
+}) {
+	return (
+		<div className="flex min-w-0 items-start gap-1.5">
+			<span
+				className={cn(
+					"mt-px shrink-0",
+					tone === "alert" ? "text-amber-700" : "text-amber-700/70",
+				)}
+				aria-hidden
+			>
+				{icon}
+			</span>
+			<div className="flex min-w-0 flex-1 flex-col">
+				<span
+					className={cn(
+						"font-medium text-[10px] uppercase tracking-wide",
+						tone === "alert" ? "text-amber-700" : "text-amber-700/70",
+					)}
+				>
+					{label}
+				</span>
+				<span
+					className={cn(
+						"whitespace-pre-wrap break-words",
+						tone === "alert"
+							? "font-semibold text-amber-900"
+							: "text-amber-900/90",
+					)}
+				>
+					{value}
+				</span>
+			</div>
 		</div>
 	);
 }

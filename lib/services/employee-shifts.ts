@@ -82,6 +82,29 @@ export async function listBookableEmployeesForOutlet(
 	return employees;
 }
 
+export async function listEmployeesForOutlet(
+	ctx: Context,
+	outletId: string,
+): Promise<RosterEmployee[]> {
+	const { data, error } = await ctx.db
+		.from("employee_outlets")
+		.select(
+			"employee:employees!inner(id, code, first_name, last_name, salutation, profile_image_path, is_bookable, is_active, position:positions(id, name), role:roles(id, name))",
+		)
+		.eq("outlet_id", outletId)
+		.eq("employee.is_active", true);
+	if (error) throw new ValidationError(error.message);
+
+	const rows = (data ?? []) as unknown as {
+		employee: RosterEmployee | null;
+	}[];
+	const employees = rows
+		.map((r) => r.employee)
+		.filter((e): e is RosterEmployee => e !== null);
+	employees.sort((a, b) => a.code.localeCompare(b.code));
+	return employees;
+}
+
 export async function listShiftsForWeek(
 	ctx: Context,
 	args: { outletId: string; weekStart: string; weekEnd: string },

@@ -74,6 +74,7 @@ export function AppointmentCard({
 				type="button"
 				data-appt-card
 				data-dragging={isDragging ? "true" : undefined}
+				data-shake={!isBlock && statusKey === "billing" ? "true" : undefined}
 				draggable={draggable}
 				onDragStart={(e) => {
 					e.stopPropagation();

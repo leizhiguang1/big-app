@@ -291,6 +291,7 @@ export type Database = {
           employee_id: string | null
           end_at: string
           follow_up: string | null
+          frontdesk_message: string | null
           id: string
           is_time_block: boolean
           lead_attended_by_id: string | null
@@ -317,6 +318,7 @@ export type Database = {
           employee_id?: string | null
           end_at: string
           follow_up?: string | null
+          frontdesk_message?: string | null
           id?: string
           is_time_block?: boolean
           lead_attended_by_id?: string | null
@@ -343,6 +345,7 @@ export type Database = {
           employee_id?: string | null
           end_at?: string
           follow_up?: string | null
+          frontdesk_message?: string | null
           id?: string
           is_time_block?: boolean
           lead_attended_by_id?: string | null
@@ -2771,4 +2774,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

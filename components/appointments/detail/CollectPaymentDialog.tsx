@@ -25,7 +25,10 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { listPastLineItemsForCustomerAction } from "@/lib/actions/appointments";
+import {
+	listPastLineItemsForCustomerAction,
+	saveAllocationsForAppointmentAction,
+} from "@/lib/actions/appointments";
 import { collectAppointmentPaymentAction } from "@/lib/actions/sales";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import {
@@ -33,7 +36,6 @@ import {
 	type BillingItemSelection,
 } from "@/components/appointments/BillingItemPickerDialog";
 import { EmployeePicker } from "@/components/employees/EmployeePicker";
-import { saveAllocationsForAppointmentAction } from "@/lib/actions/appointments";
 import {
 	PAYMENT_BANKS,
 	PAYMENT_CARD_TYPES,
@@ -365,7 +367,7 @@ export function CollectPaymentDialog({
 
 	const [remarks, setRemarks] = useState("");
 	const [frontdeskMsg, setFrontdeskMsg] = useState(
-		appointment.notes ?? "",
+		appointment.frontdesk_message ?? "",
 	);
 	const [backdate, setBackdate] = useState(false);
 	const [backdateValue, setBackdateValue] = useState("");
@@ -2035,8 +2037,7 @@ export function CollectPaymentDialog({
 								<textarea
 									value={frontdeskMsg}
 									onChange={(e) => setFrontdeskMsg(e.target.value)}
-									className="mt-1 min-h-[50px] w-full resize-none rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none placeholder:italic placeholder:text-muted-foreground/50 focus-visible:border-ring"
-									placeholder="Optional message..."
+									className="mt-1 min-h-[50px] w-full resize-none rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring"
 								/>
 							</div>
 						</div>

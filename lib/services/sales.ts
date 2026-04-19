@@ -83,6 +83,10 @@ export async function collectAppointmentPayment(
 	const parsed: CollectPaymentInput = collectPaymentInputSchema.parse(input);
 	await assertLineDiscountCaps(ctx, parsed.items);
 	const normalizedPayments = await assertPaymentFields(ctx, parsed.payments);
+	// Only forward p_sold_at when the operator actually chose a backdate —
+	// the RPC column is timestamptz and rejects "" with
+	// "invalid input syntax for type timestamp with time zone". Letting
+	// the argument default to NULL lets the RPC fall back to now().
 	const { data, error } = await ctx.db.rpc("collect_appointment_payment", {
 		p_appointment_id: appointmentId,
 		p_items: parsed.items.map((i) => ({
@@ -112,7 +116,6 @@ export async function collectAppointmentPayment(
 		})),
 		p_remarks: parsed.remarks ?? "",
 		p_processed_by: (ctx.currentUser?.employeeId ?? null) as string,
-		p_sold_at: parsed.sold_at ?? "",
 		p_frontdesk_message: parsed.frontdesk_message ?? "",
 		p_allocations: parsed.allocations
 			? parsed.allocations.map((a) => ({
@@ -120,6 +123,7 @@ export async function collectAppointmentPayment(
 					amount: a.amount,
 				}))
 			: null,
+		...(parsed.sold_at ? { p_sold_at: parsed.sold_at } : {}),
 	});
 	if (error) throw new ValidationError(error.message);
 	if (!data) throw new ValidationError("Collect payment returned no result");

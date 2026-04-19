@@ -14,7 +14,7 @@ type Props = {
 	services: ServiceWithCategory[];
 	products: InventoryItemWithRefs[];
 	taxes: Tax[];
-	appointmentNotes?: string | null;
+	frontdeskMessage: string | null;
 };
 
 export function BillingTab({
@@ -23,7 +23,7 @@ export function BillingTab({
 	services,
 	products,
 	taxes,
-	appointmentNotes,
+	frontdeskMessage,
 }: Props) {
 	const router = useRouter();
 	const [, startTransition] = useTransition();
@@ -35,7 +35,7 @@ export function BillingTab({
 			services={services}
 			products={products}
 			taxes={taxes}
-			appointmentNotes={appointmentNotes}
+			frontdeskMessage={frontdeskMessage}
 			onChange={() => startTransition(() => router.refresh())}
 		/>
 	);

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import {
 	createLineItemsBulkAction,
 	deleteLineItemAction,
-	saveAppointmentNotesAction,
+	saveFrontdeskMessageAction,
 	updateLineItemAction,
 } from "@/lib/actions/appointments";
 import type { LineItemType } from "@/lib/schemas/appointments";
@@ -26,7 +26,7 @@ type Props = {
 	services: ServiceWithCategory[];
 	products: InventoryItemWithRefs[];
 	taxes: Tax[];
-	appointmentNotes?: string | null;
+	frontdeskMessage?: string | null;
 	onChange: () => void;
 };
 
@@ -135,20 +135,14 @@ export function BillingSection({
 	services,
 	products,
 	taxes,
-	appointmentNotes,
+	frontdeskMessage,
 	onChange,
 }: Props) {
 	const [pending, startTransition] = useTransition();
 	const [items, setItems] = useState<Item[]>(() => entries.map(toItem));
-	const [batchNote, setBatchNote] = useState(appointmentNotes ?? "");
-	const batchNoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const saveBatchNote = (value: string) => {
-		setBatchNote(value);
-		if (batchNoteTimerRef.current) clearTimeout(batchNoteTimerRef.current);
-		batchNoteTimerRef.current = setTimeout(() => {
-			saveAppointmentNotesAction(appointmentId, value.trim() || null);
-		}, 800);
-	};
+	const initialMessage = frontdeskMessage ?? "";
+	const [message, setMessage] = useState(initialMessage);
+	const savedMessageRef = useRef(initialMessage);
 	const [error, setError] = useState<string | null>(null);
 	const [pickerKey, setPickerKey] = useState<string | null>(null);
 	const [savingKeys, setSavingKeys] = useState<ReadonlySet<string>>(
@@ -162,9 +156,19 @@ export function BillingSection({
 	useEffect(() => {
 		return () => {
 			if (justSavedTimerRef.current) clearTimeout(justSavedTimerRef.current);
-			if (batchNoteTimerRef.current) clearTimeout(batchNoteTimerRef.current);
 		};
 	}, []);
+
+	// Re-sync local message after a server refresh, but only when the user
+	// hasn't diverged locally — never stomp in-progress typing.
+	useEffect(() => {
+		const incoming = frontdeskMessage ?? "";
+		if (incoming === savedMessageRef.current) return;
+		if (message === savedMessageRef.current) {
+			setMessage(incoming);
+		}
+		savedMessageRef.current = incoming;
+	}, [frontdeskMessage, message]);
 
 	useEffect(() => {
 		setItems((prev) => {
@@ -257,11 +261,13 @@ export function BillingSection({
 
 	const newCreates = items.filter((i) => i.id === null && isReady(i));
 	const dirtyEdits = items.filter((i) => isDirty(i, entries));
-	const canSave = (newCreates.length > 0 || dirtyEdits.length > 0) && !pending;
+	const messageDirty = message !== savedMessageRef.current;
+	const canSave =
+		(newCreates.length > 0 || dirtyEdits.length > 0 || messageDirty) &&
+		!pending;
 
 	const onSave = () => {
 		setError(null);
-		const sharedNote = batchNote.trim() || null;
 		const createdKeys = new Set(newCreates.map((i) => i.key));
 		const creates = newCreates.map((i) => ({
 			appointment_id: appointmentId,
@@ -272,7 +278,7 @@ export function BillingSection({
 			quantity: i.quantity,
 			unit_price: i.unit_price,
 			tax_id: i.tax_id,
-			notes: i.notes || sharedNote,
+			notes: i.notes || null,
 		}));
 
 		if (createdKeys.size > 0) setSavingKeys(createdKeys);
@@ -300,7 +306,14 @@ export function BillingSection({
 				if (creates.length > 0) {
 					await createLineItemsBulkAction(appointmentId, creates);
 				}
-				setBatchNote("");
+				if (messageDirty) {
+					const trimmed = message.trim();
+					await saveFrontdeskMessageAction(
+						appointmentId,
+						trimmed.length > 0 ? trimmed : null,
+					);
+					savedMessageRef.current = message;
+				}
 				setJustSaved(true);
 				justSavedTimerRef.current = setTimeout(() => {
 					setJustSaved(false);
@@ -708,20 +721,19 @@ export function BillingSection({
 				</div>
 			)}
 
-			{/* Footer: batch note + summary */}
+			{/* Footer: frontdesk message + summary */}
 			<div className="flex flex-col gap-3 border-t pt-3 md:flex-row md:items-start md:justify-between md:gap-6">
 				<div className="flex w-full flex-col gap-1 md:max-w-[260px]">
 					<label
-						htmlFor="billing-batch-note"
+						htmlFor="billing-frontdesk-message"
 						className="text-muted-foreground text-xs"
 					>
 						Message to frontdesk
 					</label>
 					<textarea
-						id="billing-batch-note"
-						placeholder="Optional — e.g. waive deposit, follow-up call needed"
-						value={batchNote}
-						onChange={(e) => saveBatchNote(e.target.value)}
+						id="billing-frontdesk-message"
+						value={message}
+						onChange={(e) => setMessage(e.target.value)}
 						rows={2}
 						className="w-full resize-y rounded-md border bg-background px-2 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 					/>

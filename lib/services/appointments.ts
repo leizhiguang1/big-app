@@ -8,8 +8,8 @@ import {
 	appointmentRescheduleSchema,
 	appointmentStatusSchema,
 	appointmentTagsSchema,
-	convertLeadInputSchema,
 } from "@/lib/schemas/appointments";
+import { createCustomer } from "@/lib/services/customers";
 import type { Tables, TablesUpdate } from "@/lib/supabase/types";
 
 export type Appointment = Tables<"appointments">;
@@ -29,6 +29,10 @@ export type AppointmentWithRelations = Appointment & {
 		source: string | null;
 		profile_image_path: string | null;
 		tag: string | null;
+		is_vip: boolean;
+		is_staff: boolean;
+		smoker: "yes" | "no" | "occasionally" | null;
+		drug_allergies: string | null;
 		medical_conditions: string[];
 		medical_alert: string | null;
 	} | null;
@@ -52,7 +56,7 @@ export type AppointmentWithRelations = Appointment & {
 };
 
 const SELECT_WITH_RELATIONS =
-	"*, customer:customers!appointments_customer_id_fkey(id, code, first_name, last_name, phone, phone2, email, date_of_birth, gender, id_number, source, profile_image_path, tag, medical_conditions, medical_alert), employee:employees!appointments_employee_id_fkey(id, code, first_name, last_name), room:rooms!appointments_room_id_fkey(id, name), lead_attended_by:employees!appointments_lead_attended_by_id_fkey(id, first_name, last_name), created_by_employee:employees!appointments_created_by_fkey(id, first_name, last_name)";
+	"*, customer:customers!appointments_customer_id_fkey(id, code, first_name, last_name, phone, phone2, email, date_of_birth, gender, id_number, source, profile_image_path, tag, is_vip, is_staff, smoker, drug_allergies, medical_conditions, medical_alert), employee:employees!appointments_employee_id_fkey(id, code, first_name, last_name), room:rooms!appointments_room_id_fkey(id, name), lead_attended_by:employees!appointments_lead_attended_by_id_fkey(id, first_name, last_name), created_by_employee:employees!appointments_created_by_fkey(id, first_name, last_name)";
 
 function nz<T>(value: T | undefined | null): T | null {
 	return value === undefined || value === null ? null : value;
@@ -446,16 +450,20 @@ export async function deleteAppointment(
 	if (error) throw new ValidationError(error.message);
 }
 
-// Convert a lead appointment into a real customer, then back-link every
-// appointment with the same (lead_phone, customer_id IS NULL) pair to the
-// new customer. Mirrors the reference prototype's one-click flow.
+// Convert a lead appointment into a real customer using the full customer
+// form, then back-link every appointment with the same (lead_phone,
+// customer_id IS NULL) pair to the new customer.
+//
+// We *preserve* lead_name/lead_phone/lead_source/lead_attended_by_id on the
+// back-linked appointments — those are the audit breadcrumb that answers
+// "did this customer originate from a lead?" after the fact. Rendering keys
+// off customer_id, so once it's set the UI shows the customer; the lead_*
+// columns stay quietly underneath.
 export async function convertLeadToCustomer(
 	ctx: Context,
 	leadAppointmentId: string,
 	input: unknown,
-): Promise<{ customerId: string; linkedAppointments: number }> {
-	const p = convertLeadInputSchema.parse(input);
-
+): Promise<{ customer: Tables<"customers">; linkedAppointments: number }> {
 	const { data: lead, error: leadErr } = await ctx.db
 		.from("appointments")
 		.select("id, outlet_id, lead_phone, customer_id, is_time_block")
@@ -468,40 +476,9 @@ export async function convertLeadToCustomer(
 	if (lead.is_time_block)
 		throw new ValidationError("Cannot convert a time block to a customer");
 
-	const { data: created, error: createErr } = await ctx.db
-		.from("customers")
-		.insert({
-			salutation: "Mr",
-			first_name: p.first_name,
-			last_name: p.last_name ?? null,
-			id_type: "ic",
-			phone: p.phone,
-			home_outlet_id: p.home_outlet_id,
-			consultant_id: p.consultant_id,
-			source: "walk_in",
-			is_vip: false,
-			opt_in_notifications: true,
-			opt_in_marketing: true,
-		})
-		.select("id")
-		.single();
-	if (createErr || !created) {
-		if (createErr?.code === "23505")
-			throw new ConflictError("A customer with that phone already exists");
-		throw new ValidationError(
-			createErr?.message ?? "Failed to create customer",
-		);
-	}
+	const customer = await createCustomer(ctx, input);
 
-	// Back-link every matching lead appointment: same phone, no customer,
-	// not a time block. Cleanest when two bookings share the same walk-in.
-	const link: TablesUpdate<"appointments"> = {
-		customer_id: created.id,
-		lead_name: null,
-		lead_phone: null,
-		lead_source: null,
-		lead_attended_by_id: null,
-	};
+	const link: TablesUpdate<"appointments"> = { customer_id: customer.id };
 	const linkQuery = ctx.db
 		.from("appointments")
 		.update(link)
@@ -513,7 +490,7 @@ export async function convertLeadToCustomer(
 	if (linkErr) throw new ValidationError(linkErr.message);
 
 	return {
-		customerId: created.id,
+		customer,
 		linkedAppointments: linked?.length ?? 0,
 	};
 }
