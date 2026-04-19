@@ -270,6 +270,8 @@ export function AppointmentDetailView({
 							products={products}
 							taxes={taxes}
 							frontdeskMessage={appointment.frontdesk_message}
+							isLead={!appointment.is_time_block && !appointment.customer_id}
+							isBlock={appointment.is_time_block}
 						/>
 					)}
 

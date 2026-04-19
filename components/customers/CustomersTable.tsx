@@ -63,9 +63,6 @@ export function CustomersTable({
 						>
 							{c.salutation} {c.first_name} {c.last_name ?? ""}
 						</Link>
-						{c.medical_alert && (
-							<div className="text-destructive text-xs">⚠ {c.medical_alert}</div>
-						)}
 					</div>
 					{c.is_vip && (
 						<span className="rounded-full bg-amber-500/15 px-2 py-0.5 font-medium text-amber-600 text-xs">

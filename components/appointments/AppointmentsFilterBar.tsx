@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
+import { MonthYearPicker } from "@/components/appointments/MonthYearPicker";
+import { Calendar } from "@/components/ui/calendar";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -23,6 +25,11 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import {
 	Tooltip,
 	TooltipContent,
@@ -110,6 +117,7 @@ export function AppointmentsFilterBar({
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [pending, startTransition] = useTransition();
+	const [datePickerOpen, setDatePickerOpen] = useState(false);
 
 	// Local search state — debounced into URL param `q`
 	const [inputValue, setInputValue] = useState(searchParams.get("q") ?? "");
@@ -332,10 +340,41 @@ export function AppointmentsFilterBar({
 				</button>
 			</div>
 
-			{/* Date label */}
-			<span className="shrink-0 font-semibold text-foreground text-xs">
-				{dateLabel}
-			</span>
+			{/* Date label — click to open calendar picker */}
+			<Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+				<PopoverTrigger asChild>
+					<button
+						type="button"
+						className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold text-foreground text-xs hover:bg-muted"
+					>
+						{dateLabel}
+					</button>
+				</PopoverTrigger>
+				<PopoverContent align="start" className="w-auto p-0">
+					{scope === "month" ? (
+						<MonthYearPicker
+							value={date}
+							onSelect={(d) => {
+								navigate({ date: fmtDate(d) });
+								setDatePickerOpen(false);
+							}}
+						/>
+					) : (
+						<Calendar
+							mode="single"
+							selected={date}
+							defaultMonth={date}
+							onSelect={(d) => {
+								if (!d) return;
+								navigate({ date: fmtDate(d) });
+								setDatePickerOpen(false);
+							}}
+							showOutsideDays
+							captionLayout="dropdown"
+						/>
+					)}
+				</PopoverContent>
+			</Popover>
 
 			<div className="flex-1" />
 

@@ -15,6 +15,8 @@ type Props = {
 	products: InventoryItemWithRefs[];
 	taxes: Tax[];
 	frontdeskMessage: string | null;
+	isLead: boolean;
+	isBlock: boolean;
 };
 
 export function BillingTab({
@@ -24,9 +26,27 @@ export function BillingTab({
 	products,
 	taxes,
 	frontdeskMessage,
+	isLead,
+	isBlock,
 }: Props) {
 	const router = useRouter();
 	const [, startTransition] = useTransition();
+
+	if (isBlock) {
+		return (
+			<div className="rounded-md border bg-muted/20 p-6 text-center text-muted-foreground text-sm">
+				Billing doesn't apply to time blocks.
+			</div>
+		);
+	}
+
+	if (isLead) {
+		return (
+			<div className="rounded-md border bg-amber-50 p-6 text-center text-amber-900 text-sm">
+				Register this walk-in lead as a customer to start billing.
+			</div>
+		);
+	}
 
 	return (
 		<BillingSection
