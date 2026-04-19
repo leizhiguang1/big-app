@@ -12,6 +12,7 @@ import {
 	Mail,
 	MapPin,
 	Megaphone,
+	Pencil,
 	Phone,
 	Pill,
 	Plus,
@@ -32,20 +33,29 @@ import { CustomerProductsTab } from "@/components/customers/CustomerProductsTab"
 import { CustomerSalesTab } from "@/components/customers/CustomerSalesTab";
 import { CustomerServicesTab } from "@/components/customers/CustomerServicesTab";
 import { CustomerVisualsTab } from "@/components/customers/CustomerVisualsTab";
+import { Button } from "@/components/ui/button";
 import { SegmentedTabs } from "@/components/ui/segmented-tabs";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { CustomerLineItem } from "@/lib/services/appointment-line-items";
 import type { CustomerTimelineAppointment } from "@/lib/services/appointments";
 import type { CaseNoteWithContext } from "@/lib/services/case-notes";
 import type { CustomerDocumentWithRefs } from "@/lib/services/customer-documents";
 import type { CustomerWithRelations } from "@/lib/services/customers";
+import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { FollowUpWithRefs } from "@/lib/services/follow-ups";
 import type { MedicalCertificateWithRefs } from "@/lib/services/medical-certificates";
+import type { OutletWithRoomCount } from "@/lib/services/outlets";
 import type {
 	PaymentWithRelations,
 	SalesOrderWithRelations,
 } from "@/lib/services/sales";
 import { mediaPublicUrl } from "@/lib/storage/urls";
 import { cn } from "@/lib/utils";
+import { CustomerFormDialog } from "./CustomerForm";
 
 type Props = {
 	customer: CustomerWithRelations;
@@ -57,6 +67,9 @@ type Props = {
 	followUps: FollowUpWithRefs[];
 	documents: CustomerDocumentWithRefs[];
 	medicalCertificates: MedicalCertificateWithRefs[];
+	outlets: OutletWithRoomCount[];
+	employees: EmployeeWithRelations[];
+	defaultConsultantId: string | null;
 };
 
 type TabKey =
@@ -150,8 +163,12 @@ export function CustomerDetailView({
 	followUps,
 	documents,
 	medicalCertificates,
+	outlets,
+	employees,
+	defaultConsultantId,
 }: Props) {
 	const [activeTab, setActiveTab] = useState<TabKey>("timeline");
+	const [editing, setEditing] = useState(false);
 
 	const displayName = `${customer.first_name} ${customer.last_name ?? ""}`
 		.trim()
@@ -237,6 +254,20 @@ export function CustomerDetailView({
 						<div className="font-mono text-muted-foreground text-xs">
 							{customer.code}
 						</div>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="ghost"
+									size="icon-sm"
+									className="ml-auto"
+									onClick={() => setEditing(true)}
+									aria-label="Edit customer"
+								>
+									<Pencil />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Edit customer</TooltipContent>
+						</Tooltip>
 					</div>
 
 					<div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm">
@@ -515,6 +546,14 @@ export function CustomerDetailView({
 					)}
 				</main>
 			</div>
+			<CustomerFormDialog
+				open={editing}
+				customer={editing ? customer : null}
+				outlets={outlets}
+				employees={employees}
+				defaultConsultantId={defaultConsultantId}
+				onClose={() => setEditing(false)}
+			/>
 		</div>
 	);
 }

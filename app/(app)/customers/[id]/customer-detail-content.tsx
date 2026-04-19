@@ -8,8 +8,10 @@ import { listCustomerTimeline } from "@/lib/services/appointments";
 import { listCaseNotesWithContext } from "@/lib/services/case-notes";
 import { listCustomerDocuments } from "@/lib/services/customer-documents";
 import { getCustomer } from "@/lib/services/customers";
+import { listEmployees } from "@/lib/services/employees";
 import { listFollowUpsForCustomer } from "@/lib/services/follow-ups";
 import { listMedicalCertificatesForCustomer } from "@/lib/services/medical-certificates";
+import { listOutlets } from "@/lib/services/outlets";
 import { listPayments, listSalesOrders } from "@/lib/services/sales";
 
 export async function CustomerDetailContent({ id }: { id: string }) {
@@ -26,6 +28,8 @@ export async function CustomerDetailContent({ id }: { id: string }) {
 			followUps,
 			documents,
 			medicalCertificates,
+			outlets,
+			employees,
 		] = await Promise.all([
 			listCustomerTimeline(ctx, id),
 			listLineItemsForCustomer(ctx, id),
@@ -35,7 +39,10 @@ export async function CustomerDetailContent({ id }: { id: string }) {
 			listFollowUpsForCustomer(ctx, id),
 			listCustomerDocuments(ctx, id),
 			listMedicalCertificatesForCustomer(ctx, id),
+			listOutlets(ctx),
+			listEmployees(ctx),
 		]);
+		const defaultConsultantId = ctx.currentUser?.employeeId ?? null;
 		return (
 			<CustomerDetailView
 				customer={customer}
@@ -47,6 +54,9 @@ export async function CustomerDetailContent({ id }: { id: string }) {
 				followUps={followUps}
 				documents={documents}
 				medicalCertificates={medicalCertificates}
+				outlets={outlets}
+				employees={employees}
+				defaultConsultantId={defaultConsultantId}
 			/>
 		);
 	} catch (err) {
