@@ -1,7 +1,10 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { Ban, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { CancelOrderDialog } from "@/components/sales/CancelOrderDialog";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -103,11 +106,18 @@ export function SalesOrderDetailDialog({
 	onOpenChange,
 	salesOrderId,
 }: Props) {
+	const router = useRouter();
 	const [state, setState] = useState<LoadState>({ status: "idle" });
+	const [cancelOpen, setCancelOpen] = useState(false);
+	const [feedback, setFeedback] = useState<{
+		type: "success" | "error";
+		message: string;
+	} | null>(null);
 
 	useEffect(() => {
 		if (!open || !salesOrderId) {
 			setState({ status: "idle" });
+			setFeedback(null);
 			return;
 		}
 		let cancelled = false;
@@ -138,36 +148,96 @@ export function SalesOrderDetailDialog({
 		};
 	}, [open, salesOrderId]);
 
+	const order = state.status === "ready" ? state.order : null;
+	const isCancellable =
+		order !== null &&
+		(order.status === "completed" || order.status === "draft");
+
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="flex max-h-[92vh] w-[calc(100vw-2rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
-				<DialogHeader className="sr-only">
-					<DialogTitle>Sales order detail</DialogTitle>
-					<DialogDescription>
-						Items, payment details and payment history for this sales order.
-					</DialogDescription>
-				</DialogHeader>
-				<div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-slate-50 p-4 sm:flex-row sm:p-6">
-					{state.status === "loading" && <LoadingSkeleton />}
-					{state.status === "not_found" && (
-						<div className="flex flex-1 items-center justify-center rounded-md border bg-white p-12 text-muted-foreground text-sm">
-							Sales order not found.
+		<>
+			<Dialog open={open} onOpenChange={onOpenChange}>
+				<DialogContent className="flex max-h-[92vh] w-[calc(100vw-2rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
+					<DialogHeader className="sr-only">
+						<DialogTitle>Sales order detail</DialogTitle>
+						<DialogDescription>
+							Items, payment details and payment history for this sales order.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-slate-50 p-4 sm:flex-row sm:p-6">
+						{state.status === "loading" && <LoadingSkeleton />}
+						{state.status === "not_found" && (
+							<div className="flex flex-1 items-center justify-center rounded-md border bg-white p-12 text-muted-foreground text-sm">
+								Sales order not found.
+							</div>
+						)}
+						{state.status === "error" && (
+							<div className="flex flex-1 items-center justify-center rounded-md border border-red-200 bg-red-50 p-12 text-red-800 text-sm">
+								{state.message}
+							</div>
+						)}
+						{state.status === "ready" && (
+							<TooltipProvider delayDuration={200}>
+								<LeftPanel order={state.order} items={state.items} />
+								<RightPanel order={state.order} payments={state.payments} />
+							</TooltipProvider>
+						)}
+					</div>
+					{order !== null && (
+						<div className="flex flex-col gap-2 border-t bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+							<div className="min-h-[20px] text-sm">
+								{feedback && (
+									<span
+										className={
+											feedback.type === "success"
+												? "text-green-700"
+												: "text-red-700"
+										}
+									>
+										{feedback.message}
+									</span>
+								)}
+								{!feedback && order.status === "cancelled" && (
+									<span className="text-muted-foreground">
+										This sales order is cancelled.
+									</span>
+								)}
+							</div>
+							{isCancellable && (
+								<Button
+									variant="outline"
+									size="sm"
+									className="self-end text-red-600 hover:bg-red-50 hover:text-red-700 sm:self-auto"
+									onClick={() => {
+										setFeedback(null);
+										setCancelOpen(true);
+									}}
+								>
+									<Ban className="mr-2 size-4" />
+									Cancel order
+								</Button>
+							)}
 						</div>
 					)}
-					{state.status === "error" && (
-						<div className="flex flex-1 items-center justify-center rounded-md border border-red-200 bg-red-50 p-12 text-red-800 text-sm">
-							{state.message}
-						</div>
-					)}
-					{state.status === "ready" && (
-						<TooltipProvider delayDuration={200}>
-							<LeftPanel order={state.order} items={state.items} />
-							<RightPanel order={state.order} payments={state.payments} />
-						</TooltipProvider>
-					)}
-				</div>
-			</DialogContent>
-		</Dialog>
+				</DialogContent>
+			</Dialog>
+
+			{order !== null && (
+				<CancelOrderDialog
+					open={cancelOpen}
+					onOpenChange={setCancelOpen}
+					salesOrderId={order.id}
+					soNumber={order.so_number}
+					onSuccess={(cnNumber) => {
+						setFeedback({
+							type: "success",
+							message: `Order cancelled. Cancellation note: ${cnNumber}`,
+						});
+						router.refresh();
+					}}
+					onError={(msg) => setFeedback({ type: "error", message: msg })}
+				/>
+			)}
+		</>
 	);
 }
 

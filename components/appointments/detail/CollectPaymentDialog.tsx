@@ -10,7 +10,14 @@ import {
 	ShoppingCart,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	useTransition,
+} from "react";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import {
 	BillingItemPickerDialog,
@@ -47,6 +54,7 @@ import {
 import {
 	listPastLineItemsForCustomerAction,
 	saveAllocationsForAppointmentAction,
+	saveFrontdeskMessageAction,
 } from "@/lib/actions/appointments";
 import { collectAppointmentPaymentAction } from "@/lib/actions/sales";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
@@ -167,9 +175,40 @@ export function CollectPaymentDialog({
 	);
 
 	const [remarks, setRemarks] = useState("");
-	const [frontdeskMsg, setFrontdeskMsg] = useState(
-		appointment.frontdesk_message ?? "",
-	);
+	const initialFrontdeskMsg = appointment.frontdesk_message ?? "";
+	const [frontdeskMsg, setFrontdeskMsg] = useState(initialFrontdeskMsg);
+	const savedFrontdeskRef = useRef(initialFrontdeskMsg);
+
+	// Re-sync the local message when the server prop changes (e.g. user edited
+	// it in BillingSection while the dialog was closed). Don't stomp in-progress
+	// typing — only adopt the new value if the user hasn't diverged locally.
+	useEffect(() => {
+		const incoming = appointment.frontdesk_message ?? "";
+		if (incoming === savedFrontdeskRef.current) return;
+		if (frontdeskMsg === savedFrontdeskRef.current) {
+			setFrontdeskMsg(incoming);
+		}
+		savedFrontdeskRef.current = incoming;
+	}, [appointment.frontdesk_message, frontdeskMsg]);
+
+	const persistFrontdeskMessage = useCallback(async () => {
+		const next = frontdeskMsg.trim();
+		const prev = savedFrontdeskRef.current.trim();
+		if (next === prev) return;
+		try {
+			await saveFrontdeskMessageAction(
+				appointment.id,
+				next.length > 0 ? next : null,
+			);
+			savedFrontdeskRef.current = frontdeskMsg;
+			router.refresh();
+		} catch {
+			// Swallow — Collect submit re-sends the value via p_frontdesk_message
+			// as a second line of defence, and a transient autosave failure
+			// shouldn't block the operator at the counter.
+		}
+	}, [appointment.id, frontdeskMsg, router]);
+
 	const [backdate, setBackdate] = useState(false);
 	const [backdateValue, setBackdateValue] = useState("");
 	const [pickerOpen, setPickerOpen] = useState(false);
@@ -779,6 +818,7 @@ export function CollectPaymentDialog({
 								<textarea
 									value={frontdeskMsg}
 									onChange={(e) => setFrontdeskMsg(e.target.value)}
+									onBlur={persistFrontdeskMessage}
 									className="mt-1 min-h-[50px] w-full resize-none rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring"
 								/>
 							</div>

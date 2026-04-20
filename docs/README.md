@@ -25,7 +25,10 @@ docs/
     ├── 05-roster.md
     ├── 06-services.md
     ├── 08-employees.md
+    ├── 11-conversations.md ← channel-agnostic inbox (WhatsApp v1 provider via wa-connector)
     ├── 12.9-outlets.md    ← lives under Config sub-page 12.9
+    ├── 13-crm.md          ← tags, notes, tasks, unknown-sender handling
+    ├── 14-automations.md  ← trigger→action engine; templates; hard-coded in Phase 3 v1
     └── _template.md       ← template for future module docs
 ```
 
@@ -61,7 +64,7 @@ _Deep dive each module in this order. For each: spec the detailed fields, write 
 |-----------|--------|
 | Surface pass (all modules) | Done |
 | PRD v1 (structure, modules, dependency map, phases) | Done — being refreshed as build reveals deviations |
-| Architecture decisions | Done ([ARCHITECTURE.md](./ARCHITECTURE.md)). wa-connector integration decision updated 2026-04-14. |
+| Architecture decisions | Done ([ARCHITECTURE.md](./ARCHITECTURE.md)). Messaging-stack layering + conversations contract finalized 2026-04-20 (see §2, §2.1, §3, §3a + [modules/11-conversations.md](./modules/11-conversations.md), [modules/13-crm.md](./modules/13-crm.md), [modules/14-automations.md](./modules/14-automations.md)). |
 | Module deep dives (Phase 1 modules) | **7/7 drafted** (Outlets, Employees, Services, Customers, Roster, Appointments, Sales) + Auth stub + Inventory stub. Mid-build refresh in progress. |
 | Database schema | Incremental per-module via Supabase MCP. `initial_schema.sql` is **reference target only** — never applied. ~17 tables live. See [SCHEMA.md](./SCHEMA.md) for inventory + ownership rules. |
 | New repo setup | Superseded — this IS the big-app repo. [NEW_REPO_SETUP.md](./NEW_REPO_SETUP.md) kept as historical kickoff context. |

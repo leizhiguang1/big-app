@@ -244,16 +244,35 @@ Write tests only for things that break silently and cost money:
 - Commission calculation (Phase 2)
 - Inventory / products (Phase 2 deep)
 - Clinical sub-modules — case notes, dental charting, prescriptions (Phase 2)
-- WhatsApp / messaging (Phase 3 — handled by **wa-connector**, a separate
-  Node+Baileys process in its own repo. wa-connector shares this Supabase
-  project but owns the `wa_service` schema plus a set of legacy
-  `public.wa_*` + `public.messages` tables. **Never create a migration in
-  this repo that touches those tables** — any WA schema change is made
-  from the wa-connector repo. Never query those tables directly from
-  `lib/services/**`; big-app will talk to wa-connector over its HTTP API
-  when the Phase 3 integration lands. See `docs/ARCHITECTURE.md` §2 and
-  `docs/SCHEMA.md` "Schemas owned by other services".)
-- Automation / workflows (Phase 3)
+- Messaging stack (Phase 3 — three sibling modules layered on top of
+  clinic core, built and shipped independently. See `docs/ARCHITECTURE.md`
+  §3a for the layering rule):
+  - **Conversations** (module 11) — channel-agnostic inbox. v1 provider is
+    WhatsApp, via **wa-connector** (a separate Node+Baileys process at
+    `/Users/leizhiguang/Documents/Programming/1-FunnelDuo/wa-connector/`).
+    wa-connector shares this Supabase project and owns every `public.wa_*`
+    table it creates (`wa_api_keys`, `wa_connections`, `wa_webhook_log`,
+    `wa_message_log`, `wa_chat_cache`, `wa_message_cache`) plus the
+    `wa-media` Storage bucket. **Never create a migration in this repo
+    that touches those tables** — any WA-transport schema change is made
+    from the wa-connector repo. Never query them from `lib/services/**`;
+    big-app talks to wa-connector over its REST API and receives HMAC-
+    signed webhooks. big-app's own Conversations module adds
+    channel-agnostic mirror tables (`conversations`,
+    `conversation_messages`, `channel_accounts`, `conversation_channels`)
+    — those ARE big-app's and their migrations belong here. Build plan in
+    `docs/modules/11-conversations.md`. See `docs/ARCHITECTURE.md` §2 +
+    §2.1 for the cross-service rules — notably: never use Supabase
+    Realtime for service-to-service events.
+  - **CRM** (module 13) — tags, notes, tasks, unknown-sender handling.
+    Build plan in `docs/modules/13-crm.md`.
+  - **Automations** (module 14) — trigger→action engine; in-app hybrid:
+    hard-coded trigger points in `lib/services/notifications.ts` in
+    Phase 3 v1, extracted to a standalone flow-engine service only when a
+    second consumer forces it. Templates and the audit log
+    (`notification_templates`, `automation_runs`) belong here, not in
+    Conversations. Build plan in `docs/modules/14-automations.md`. See
+    `docs/ARCHITECTURE.md` §3.
 - NestJS backend extraction (Phase 2 trigger — not a date; see
   `docs/ARCHITECTURE.md` §7)
 - Multi-tenant (Phase 4)

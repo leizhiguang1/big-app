@@ -37,19 +37,22 @@ helper are introduced in the first MCP migration before any feature table.
 
 ## Schemas owned by other services
 
-Big-app is not the only writer on its Supabase project. **wa-connector** (a separate Node+Baileys process, its own repo) shares this project and owns:
+Big-app is not the only writer on its Supabase project. **wa-connector** (a separate Node+Baileys process, its own repo at `/Users/leizhiguang/Documents/Programming/1-FunnelDuo/wa-connector/`) shares this project and owns:
 
-- The entire `wa_service` Postgres schema — `wa_service.projects`, `wa_service.channel_accounts`, `wa_service.contacts`, `wa_service.contact_channels`, `wa_service.conversations`, `wa_service.messages`.
-- A set of **legacy `public.wa_*` + `public.messages` tables** — `public.messages`, `public.wa_api_keys`, `public.wa_connections`, `public.wa_webhook_log`, `public.wa_message_log`, `public.wa_chat_cache`, `public.wa_message_cache`. These predate the `wa_service` schema split and are still owned by wa-connector, not yet dropped.
+- **Every `public.wa_*` table created by wa-connector's schema** — `wa_api_keys`, `wa_connections`, `wa_webhook_log`, `wa_message_log`, `wa_chat_cache`, `wa_message_cache`. Definitions in [wa-connector/backend/schema.sql](../../wa-connector/backend/schema.sql).
+- **Supabase Storage bucket `wa-media`** — inbound media uploads. Created by wa-connector migration 0055.
+- (Target future state) A dedicated `wa_connector` Postgres schema — planned, not yet migrated. Moving the `wa_*` tables into their own schema removes the naming-collision risk against big-app's own mirror tables (see note below).
 
 **Rules (load-bearing — these are how two services sharing one DB don't step on each other):**
 
-1. Do **not** include any of the above in big-app's table inventory below.
-2. Do **not** create migrations in this repo that `CREATE`, `ALTER`, `DROP`, or otherwise touch them — not even to add an RLS policy or a comment. Any schema change to those tables is made in the wa-connector repo and applied from there.
-3. Do **not** read from them in `lib/services/**` code. Big-app's services only touch `public.*` tables owned by big-app. When big-app's Phase 3 WhatsApp module lands, it will talk to wa-connector over its HTTP API — never by querying wa-connector's tables directly.
-4. Their RLS state (some have RLS disabled) and their naming drift from big-app's conventions are intentionally out of scope for this repo. Don't "fix" them here.
+1. Do **not** include wa-connector's tables in big-app's table inventory below.
+2. Do **not** create migrations in this repo that `CREATE`, `ALTER`, `DROP`, or otherwise touch them — not even to add an RLS policy or a comment. Any schema change to wa-connector's tables is made in the wa-connector repo and applied from there.
+3. Do **not** read from them in `lib/services/**` code. Big-app's services only touch tables it owns. Big-app's WhatsApp module talks to wa-connector over its HTTP API and mirrors what it needs into its own tables.
+4. Their RLS state and naming are intentionally out of scope for this repo. Don't "fix" them here.
 
-See [ARCHITECTURE.md §2](./ARCHITECTURE.md#2-whatsapp--separate-service-wa-connector-shared-supabase-project-via-isolated-schema-fork-and-strip-build) for the full decision.
+**No naming collision with wa-connector's tables.** big-app's Conversations module ([modules/11-conversations.md](./modules/11-conversations.md)) uses channel-agnostic names (`conversations`, `conversation_messages`, `channel_accounts`, `conversation_channels`) — intentionally no `wa_` prefix, so there's zero ambiguity in `list_tables` output. If the prefix is `wa_`, it's wa-connector's transport-level table. If it's `conversation_*` or `channel_*`, it's big-app's Conversations module.
+
+See [ARCHITECTURE.md §2 + §2.1](./ARCHITECTURE.md) for the full decision and the communication rules.
 
 ## Storage (Supabase Storage buckets)
 
@@ -72,7 +75,7 @@ Status column: ✅ = built, ○ = target (not yet built), ⏸ = deferred (was in
 
 ## Table Inventory
 
-> **Note:** This lists big-app's `public.*` tables only. wa-connector's `wa_service.*` schema and the legacy `public.wa_*` / `public.messages` tables are intentionally excluded — see "Schemas owned by other services" above. Run `mcp__big-supabase__list_tables` against schemas `["public"]` for the current live shape.
+> **Note:** This lists big-app's `public.*` tables only. wa-connector's `public.wa_*` tables (`wa_api_keys`, `wa_connections`, `wa_webhook_log`, `wa_message_log`, `wa_chat_cache`, `wa_message_cache`) are intentionally excluded — see "Schemas owned by other services" above. Run `mcp__big-supabase__list_tables` against schemas `["public"]` for the current live shape (you'll see wa-connector's tables in that output — they are not in big-app's scope).
 
 | # | Module | Table | Status | Purpose |
 |---|--------|-------|--------|---------|
@@ -257,7 +260,10 @@ Tables to add after Phase 1 is built:
 | Loyalty | `wallet_transactions`, `voucher_schemes`, `vouchers`, `discount_schemes` | Loyalty points, vouchers, wallets |
 | Operations | `commissions`, `petty_cash` | Staff commissions, cash float |
 | Config | `config_settings` | Per-module/per-outlet settings |
-| Messaging | Owned by wa-connector in `wa_service.*` + legacy `public.wa_*` (see "Schemas owned by other services" above) | WhatsApp integration. Big-app adds a thin mapping concept at most — decision deferred to Phase 3. |
+| Messaging (wa-connector) | Owned by wa-connector — `public.wa_api_keys`, `wa_connections`, `wa_webhook_log`, `wa_message_log`, `wa_chat_cache`, `wa_message_cache` + `wa-media` Storage bucket | WhatsApp transport. Big-app never reads these — see "Schemas owned by other services". |
+| Conversations (11) | `conversation_channels`, `channel_accounts`, `conversations`, `conversation_messages` | Channel-agnostic inbox. WhatsApp is v1 provider via wa-connector. See [modules/11-conversations.md](./modules/11-conversations.md). |
+| CRM (13) | `customer_tags`, `customer_notes`, `customer_tasks`, `unknown_senders` | Contact enrichment attached to `customers`. See [modules/13-crm.md](./modules/13-crm.md). |
+| Automations (14) | `notification_templates`, `automation_runs` + `appointments.reminder_sent_at` | Trigger→action engine; hard-coded triggers in Phase 3 v1. See [modules/14-automations.md](./modules/14-automations.md). |
 
 ## Seed Data
 

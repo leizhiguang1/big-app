@@ -1,7 +1,7 @@
 # BIG — Architecture Decisions
 
 > Living document. Updated as decisions are made.
-> Last updated: 2026-04-12
+> Last updated: 2026-04-20
 
 ## Product & naming
 
@@ -21,53 +21,73 @@ These are separate systems — passcodes authorize specific operations, PINs ver
 ## System Overview
 
 ```
-┌──────────────────────────────────────────────┐
-│  BIG — service-business management platform  │
-│  Phase 1: Next.js 16 + Supabase              │
-│  Phase 2+: Next.js 16 (frontend) +           │
-│            NestJS (backend API) + Supabase   │
-│                                              │
-│  - Customers, appointments, calendar         │
-│  - Sales, billing, inventory                 │
-│  - Employees & permissions                   │
-│  - CRM (tags, notes, tasks)                  │
-│  - Reports & dashboard                       │
-│  - Automation / workflows (built-in module)  │
-│                                              │
-│  DB: Supabase (Postgres)                     │
-│  Everything except WhatsApp lives here       │
-└────────────┬─────────────────────────────────┘
-             │ REST API + webhooks
+┌──────────────────────────────────────────────────┐
+│  BIG — service-business management platform      │
+│  Phase 1: Next.js 16 + Supabase                  │
+│  Phase 2+: Next.js 16 (frontend) +               │
+│            NestJS (backend API) + Supabase       │
+│                                                  │
+│  CLINIC CORE (modules 01–09, 12) — ships first:  │
+│  - Auth, Outlets, Employees, Roles, Passcode     │
+│  - Services, Customers, Roster, Appointments     │
+│  - Sales / billing / inventory                   │
+│  - Reports & dashboard, Config                   │
+│                                                  │
+│  MESSAGING STACK (modules 11, 13, 14) — layered: │
+│  - 11 Conversations (channel-agnostic inbox)     │
+│  - 13 CRM (tags, notes, tasks)                   │
+│  - 14 Automations (trigger → action)             │
+│                                                  │
+│  Integration seam: lib/services/notifications.ts │
+│  (called from clinic core after business commit) │
+│                                                  │
+│  DB: Supabase (Postgres)                         │
+└────────────┬─────────────────────────────────────┘
+             │ REST API + HMAC-signed webhooks
              ▼
-┌──────────────────────────────────────────────┐
-│  wa-connector (separate process)             │
-│  Node.js + Baileys                           │
-│                                              │
-│  - WhatsApp connection (Baileys WebSocket)   │
-│  - Conversations & messages                  │
-│  - Contact registry (phone-based)            │
-│  - Templates                                 │
-│  - Webhooks → notify app of inbound messages │
-│                                              │
-│  DB: SAME Supabase project as big-app,       │
-│      isolated in the `wa_service` schema     │
-│      (+ legacy public.wa_*, public.messages) │
-│  Linked to big-app via connection UUID       │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│  wa-connector (separate process)                 │
+│  Node.js + Baileys + BullMQ                      │
+│                                                  │
+│  v1 provider for the Conversations module.       │
+│  Pure transport — no CRM, no automations, no AI. │
+│                                                  │
+│  - WhatsApp connection (Baileys WebSocket)       │
+│  - REST API: send / edit / react / presence      │
+│  - HMAC-signed webhooks out (message inbound,    │
+│    status, connection state, reactions, history) │
+│  - Media → Supabase Storage (wa-media bucket)    │
+│                                                  │
+│  DB: SAME Supabase project as big-app,           │
+│      owns every `public.wa_*` table + the        │
+│      `wa-media` Storage bucket                   │
+└──────────────────────────────────────────────────┘
+
+  Future providers (slot into Conversations module
+  without schema changes): SMS (Twilio), Instagram
+  DM (Meta Cloud), Email (Postmark/Resend), Webchat.
 ```
 
-### Why only WhatsApp is separated
+**Communication between every pair of services is always HTTP.** Outbound from big-app: REST calls with Bearer API key. Inbound to big-app: HMAC-signed webhooks. **Never** direct DB reads across the boundary, **never** Supabase Realtime for service-to-service events. See §2.1. Within big-app, **clinic core and messaging stack touch only via `lib/services/notifications.ts`** — see §3a.
 
-- WhatsApp runs a **persistent WebSocket** (Baileys) — fundamentally different from the request/response clinic app
-- Message volume is high and unpredictable — shouldn't impact clinic DB performance
-- This is the one piece planned for **reuse across future products** (GHL clone, other businesses)
-- Clean boundary from day 1 means no untangling later
+### Why wa-connector is a separate process (not in big-app)
 
-### Why automation stays inside the app
+- WhatsApp runs a **persistent WebSocket** (Baileys) — fundamentally different from the request/response Next.js app.
+- Message volume is high and unpredictable — shouldn't impact clinic DB performance or share a runtime with the booking UI.
+- This is the one piece planned for **reuse across future products** (GHL clone, other service-business verticals).
+- Clean boundary from day 1 means no untangling later.
 
-- Over-engineering to extract it before there's a second consumer
-- Workflow logic (triggers, actions, scheduling) is tightly coupled to clinic events
-- Can extract later if/when GHL clone needs it — design the module cleanly, but don't split prematurely
+### Why Conversations / CRM / Automations stay inside big-app (as separate modules, not separate services)
+
+- No second consumer exists. Building a generic messaging-stack service for a party of one is premature infrastructure.
+- Keeping them as **three separate modules** inside big-app (not mashed together à la Aoikumo / whatsapp-crm-main) means the extraction boundary already exists at the code level — no refactor needed when the second consumer arrives.
+- The messaging stack is a **layer** on top of clinic core, not a peer — see §3a. It touches clinic core at exactly one seam (`lib/services/notifications.ts`).
+
+### Why big-app builds clinic-core first, messaging-stack second
+
+- Clinic core is the viable product. If messaging never ships, the app is still a complete service-business management platform.
+- Shipping clinic core to production first forces real-world validation of the business model, schemas, and flows — before adding the cross-cutting concerns that messaging introduces (opt-out, scheduled sends, webhook delivery guarantees).
+- Messaging-stack modules assume a stable clinic-core schema. Building them in parallel means churning two layers at once. Serial beats parallel here.
 
 ## Decisions Made
 
@@ -77,26 +97,81 @@ These are separate systems — passcodes authorize specific operations, PINs ver
 - **Terminology:** "Customer" (not "patient") — supports cross-industry use (dental, salon, beauty).
 - **Future link:** `customer_contacts` mapping table or phone-number matching when messaging is integrated.
 
-### 2. WhatsApp = Separate Service (wa-connector), Shared Supabase Project via Isolated Schema, Fork-and-Strip Build
-- **Decision:** WhatsApp is handled by a standalone Node.js process called **wa-connector** (repo: `wa-connector`, lives at `/Users/leizhiguang/Documents/Programming/1-FunnelDuo/wa-service/` on disk for historical reasons). It maintains a persistent Baileys WebSocket and exposes HTTP endpoints. Big-app talks to it over HTTP (and later, webhooks).
-- **Build strategy:** Fork `whatsapp-crm-main/backend` wholesale and strip out the Aoikumo-shaped bits (AI replies, automations, Google Sheets, tenant formatters). **Do not rewrite the protocol layer from scratch** — the Baileys lifecycle, error 515 fix, LID resolution, send queue, and 24h gap detection are battle-tested and stay as-is. See wa-connector `PRD.md` for the full plan.
-- **Why:** Persistent WebSocket process (Baileys) is operationally different from the clinic app. Will be reused by future products (BIG = offline services, a future GHL clone = online services — completely different apps, shared WhatsApp layer).
-- **Why fork-and-strip instead of rewrite:** whatsapp-crm-main contains ~2,400 lines of protocol code that took months to stabilize. Re-deriving those bug fixes is waste. Inherit the working code and remove what doesn't belong.
-- **Database sharing — shared Supabase project, isolated by schema.** Earlier drafts of this document called for wa-connector to have its *own* Supabase project. That was superseded during build. Current reality: **wa-connector and big-app share one Supabase project**, and wa-connector keeps all of its tables in a dedicated `wa_service` Postgres schema (`wa_service.projects`, `wa_service.channel_accounts`, `wa_service.contacts`, `wa_service.contact_channels`, `wa_service.conversations`, `wa_service.messages`). There are also legacy `public.wa_*` + `public.messages` tables in the same project that predate the schema-isolation decision — still owned by wa-connector, not yet dropped.
-- **Schema ownership rule (load-bearing):** big-app owns `public.*` *except* for the legacy `public.wa_*` and `public.messages` tables. **Big-app must never create a migration that touches the `wa_service` schema, the legacy `public.wa_*` tables, or `public.messages`.** Any WhatsApp-side schema change — adding a column, renaming a table, dropping the legacy tables — is made in the wa-connector repo and applied from there. This rule is the only thing keeping the two services from stepping on each other, now that they share a DB.
-- **What wa-connector's schema holds:** sessions (Baileys auth state), channel accounts (connections), contacts (phone-based), conversations, messages. No CRM, no AI, no automation, no business logic. No customer names, no appointments, no sales.
-- **Link to big-app:** the eventual bridge is `outlets.whatsapp_connection_id` (nullable) — one outlet, one connection, one WhatsApp number in v1. Big-app stores wa-connector's stable channel-account UUID, never the phone number. If staff re-pair with a different SIM, the phone changes in wa-connector but big-app's FK doesn't move (see wa-connector PRD §4a — connection is durable, phone is mutable). Multi-number-per-outlet is deferred until a real need appears; at that point big-app adds a junction table, wa-connector stays unchanged. **This column does not exist yet** — it lands in Phase 3 together with the rest of the WhatsApp module.
-- **Metadata passthrough:** When big-app creates a connection in wa-connector, it passes `metadata: { outlet_id, outlet_name, consumer_product: "big-app" }`. wa-connector echoes this back in every webhook event, so big-app's webhook handler can route by `metadata.outlet_id` without a DB lookup. See wa-connector PRD §4b.
-- **Integration pattern — still undecided, Phase 3 concern.** Whether big-app *mirrors* wa-connector's contacts/messages into its own tables or does a *match-on-arrival* against `customers.phone` inside the webhook handler is an open design question. Neither is implemented. The directory `app/api/webhooks/whatsapp/` currently exists as an empty placeholder — no handler, no service, no mapping table. Revisit when Phase 3 kicks off.
-- **Socket.IO vs webhooks:** wa-connector keeps Socket.IO internally for its own future inbox frontend (v3). For big-app and other backend consumers, it uses webhooks (standard server-to-server pattern). These coexist — same event goes out both channels.
-- **Local dev:** wa-connector backend on `:3001`, big-app on `:3000`, same machine; wa-connector posts webhooks to `http://localhost:3000/api/webhooks/whatsapp`. No tunnels needed. Prod: separate deployments (wa-connector on Railway, big-app wherever it lands), still pointing at the same Supabase project.
-- **V1 scope of wa-connector:** scan QR, receive messages to DB, send messages via HTTP. Everything else (REST API for external consumers, API keys, webhook layer, rename `tenant`→`connection`, media, groups, status tracking) is v2+. See wa-connector PRD §5.
-- **Sequencing — big-app's WhatsApp work is blocked on wa-connector V2.** V1 of wa-connector is a standalone protocol proof; there is no webhook layer, no API-key system, and no public REST contract for external consumers yet. Big-app's Phase 3 WhatsApp module cannot start shipping until wa-connector ships V2 (REST API + API keys + webhooks) — which is wa-connector PRD §9 V4's "first consumer integration".
+### 2. WhatsApp = Separate Service (wa-connector), Shared Supabase Project via `wa_*` Prefix
+- **Decision:** WhatsApp is handled by a standalone Node.js process called **wa-connector**, repo at `/Users/leizhiguang/Documents/Programming/1-FunnelDuo/wa-connector/`. It maintains a persistent Baileys WebSocket and exposes a REST + HMAC-signed-webhook contract. Big-app talks to it exclusively over HTTP.
+- **Why a separate service (not in-app):** Persistent WebSocket process is operationally different from request/response Next.js. wa-connector is also the one piece planned for reuse across future products (BIG = offline services, future GHL clone = online services, etc.) — baking it into big-app would mean extracting it twice later.
+- **Status (2026-04-20):** wa-connector is **production-ready**. All 17 planned build steps are done: REST API, per-connection API keys, HMAC webhooks with BullMQ+retry, media uploads to Supabase Storage, message caching, contract tests. See [wa-connector/BIG_APP_INTEGRATION.md](../../wa-connector/BIG_APP_INTEGRATION.md) for the frozen contract. An earlier parallel repo `wa-service/` was a scaffolding exploration that was **abandoned** — treat it as archived.
+- **Database arrangement — shared Supabase project, isolated by prefix.** wa-connector and big-app share big-app's Supabase project. wa-connector owns **every `public.wa_*` table** (`wa_api_keys`, `wa_connections`, `wa_webhook_log`, `wa_message_log`, `wa_chat_cache`, `wa_message_cache`) plus the **Storage bucket `wa-media`**. Its schema lives at [wa-connector/backend/schema.sql](../../wa-connector/backend/schema.sql).
+- **Schema ownership rule (load-bearing):** big-app **never** creates a migration that touches any `wa_*` table, and **never** executes `SELECT ... FROM wa_*` from application code. Any WhatsApp-side schema change is made in the wa-connector repo. If big-app needs message history in its UI, it **mirrors** incoming messages (via the webhook handler) into **its own, big-app-owned, channel-agnostic** tables (`public.conversations`, `public.conversation_messages`). See §2.1 and [modules/11-conversations.md](modules/11-conversations.md).
+- **Link to big-app:** the bridge is `channel_accounts` (`outlet_id`, `channel`, `provider_account_id`) — not a column on `outlets`. For WhatsApp v1: one `channel_accounts` row per outlet with `channel='whatsapp'`, `provider_account_id` = wa-connector's stable connection UUID. Big-app never stores the phone number. If staff re-pair with a different SIM, the phone changes in wa-connector but big-app's `provider_account_id` doesn't move. Multi-account-per-channel-per-outlet is deferred; when needed, drop the `(outlet_id, channel)` uniqueness. **These tables do not exist yet** — they land when Conversations module is built (see [modules/11-conversations.md](modules/11-conversations.md)).
+- **Metadata passthrough:** When big-app creates a connection, it passes `metadata: { outlet_id, outlet_name, consumer_product: "big-app" }`. wa-connector echoes this back in every webhook event so big-app's handler can route by `metadata.outlet_id` without a DB lookup.
+- **Integration pattern — DECIDED (2026-04-20): mirror-on-arrival, via channel-agnostic tables.** big-app's webhook handler writes inbound messages into channel-agnostic mirror tables (`conversations`, `conversation_messages`) *and* resolves the sender against `customers.phone` / `customers.phone2` / `appointments.lead_phone`. This is preferred over pure match-on-arrival because (a) conversation UIs need history without calling wa-connector on every render, (b) big-app can index/search/filter its own mirror tables, (c) big-app can power "unknown sender" inbox without coupling to wa-connector internals, (d) the same tables hold SMS/IG/email/webchat when those providers land. The mirror is write-only from the webhook — big-app never back-fills from wa-connector's tables.
+- **Socket.IO vs webhooks:** wa-connector keeps Socket.IO internally for its **own** dev-frontend (chat/inbox UI that ships with the repo). For big-app and any future external consumer, the contract is **webhooks only**. The two coexist; big-app never opens a Socket.IO connection to wa-connector.
+- **Local dev:** big-app on `:3000`, wa-connector on `:3001` (set `PORT=3001` in wa-connector `.env`). wa-connector posts webhooks to `http://localhost:3000/api/webhooks/whatsapp`. No tunnels needed. Prod: separate deployments (wa-connector on Railway with a persistent volume for Baileys auth state, big-app wherever it lands), still pointing at the same Supabase project.
 
-### 3. Automation = Built-in Module
-- **Decision:** Workflow/automation engine is a module inside the clinic app, not a separate service
-- **Why:** No second consumer exists yet. Extracting prematurely adds infra complexity for no benefit. Can extract later when GHL clone needs it.
-- **Design principle:** Keep the module cleanly separated internally (own tables, clear interfaces) so extraction is possible later, but don't pay the microservice tax now.
+### 2.1 Cross-service communication = HTTP + HMAC webhooks only, never Supabase Realtime
+
+Every cross-service boundary — today (big-app ↔ wa-connector) and tomorrow (GHL-clone ↔ wa-connector, or big-app ↔ a future flow-engine service) — uses the same pattern:
+
+- **Outbound calls: signed REST.** Consumer calls wa-connector's REST API with `Authorization: Bearer <api-key>`.
+- **Inbound events: HMAC-signed webhooks, delivered via a durable queue.** wa-connector enqueues to BullMQ, signs each delivery with `X-WA-Signature: sha256=<HMAC(webhook_secret, rawBody)>`, retries with exponential backoff, and logs to `wa_webhook_log`. Consumer verifies the signature, writes to its own mirror table, returns 200 fast, processes async.
+
+**Supabase Realtime is forbidden for service-to-service events** — even though both services share one project and the `wa_*` tables are technically subscribable. Reasons:
+
+| Property | Webhook (BullMQ + HMAC) | Supabase Realtime |
+|---|---|---|
+| Retry on failure | Yes, exponential backoff | No — miss once, gone |
+| Survives consumer restart | Yes, durable queue | No — in-session only |
+| Idempotency / dedup | Yes, via idempotency key | No |
+| Signed / tamper-proof | Yes, HMAC | No |
+| Dead-letter & observability | Yes (`wa_webhook_log`) | No |
+
+Realtime **is** still the right tool for **browser ↔ DB** updates (e.g. [`AppointmentNotificationsProvider`](../components/notifications/AppointmentNotificationsProvider.tsx) refreshing the calendar on an appointment update). The rule: **Realtime for UI ↔ DB, webhooks for backend ↔ backend.**
+
+**Corollary:** This rule is what makes "one Supabase project today" and "split into separate projects later" a config change instead of a rewrite. Do not weaken it to take a "shortcut."
+
+### 3. Automation = Hybrid (in-app first, extract when a second consumer forces it)
+- **Decision (2026-04-20):** Automations live **inside big-app** as a regular service-layer module until a second consumer exists. Extract into a standalone flow-engine service only when triggered by one of: (a) a second product (GHL clone) needs the same flows, (b) end-users demand a no-code flow-builder UI that doesn't belong in the business app. Neither is true today.
+- **What "in-app" means concretely:**
+  - Business events (appointment booked, payment received, appointment completed, etc.) are hard-coded to call `lib/services/notifications.ts` after the business write commits. No event bus, no queue, no pub/sub — direct function call in the same service transaction boundary.
+  - `lib/services/notifications.ts` composes a message (template + variable substitution) and calls `lib/services/wa-client.ts` → wa-connector REST.
+  - Templates live in a big-app table (`notification_templates`) because template content is a big-app feature, not a WA-transport feature. wa-connector sends whatever plain text big-app hands it.
+  - Scheduled sends (appointment reminder N hours before, birthday greeting) run via `pg_cron` → server action → `notifications.ts`. No separate worker in Phase 1.
+- **Why not extract now:**
+  - No second consumer exists. Building a generic flow engine for a party of one is the textbook distributed monolith.
+  - Aoikumo and whatsapp-crm-main both proved that in-process automations are cheap to build; the pain starts at multi-tenant, multi-consumer scale, which we don't have.
+  - wa-connector stays pure transport. Adding automation logic to it would couple every consumer's business rules to the transport layer — the exact anti-pattern we split wa-connector *out* to avoid.
+- **Design discipline so extraction stays cheap:**
+  1. `notifications.ts` is framework-free (same rules as every other service — see §8). The NestJS portability rule applies.
+  2. Trigger points are always `await notifications.onX(ctx, entityId)` calls inside the relevant business service, **never** DB triggers or Realtime subscribers. This keeps the call graph inspectable and the transaction boundary explicit.
+  3. Templates are a flat table with variables in `{{double_braces}}` — the same shape aoikumo's automation-runner used. If we later extract a flow engine, this table moves with it unchanged.
+- **What to NOT build in Phase 1:** a visual flow builder, a DSL for conditional branching, an event bus, a scheduler service separate from pg_cron, a "rule engine." All premature. Hard-coded trigger points cover the real Phase 1 needs (booking confirmation, payment receipt, appointment reminder).
+- **Extraction plan (when triggered):** `notifications.ts` + `notification_templates` become a new `flow-engine` service with its own DB. Big-app's business services change from `notifications.onX(ctx, id)` to `await fetch(FLOW_ENGINE_URL, …)` with an HMAC signature — the same contract wa-connector uses. Everything else is unchanged.
+
+### 3a. Module layering — clinic core vs. messaging stack
+
+Big-app's modules divide into **two layers** that are built, tested, and shipped **independently**:
+
+**Clinic core (modules 01–09, 12)** — the service-business management platform that can run entirely without any messaging:
+- Auth, Outlets, Employees, Roles, Services, Customers, Roster, Appointments, Sales/Billing, Inventory, Reports, Config. Passcode.
+- Ships first. Production-ready before the messaging stack begins.
+- Never imports from `lib/services/conversations/**`, `lib/services/crm/**`, or `lib/services/automations/**`.
+
+**Messaging stack (modules 11, 13, 14)** — layered on top, independently replaceable:
+- **11 Conversations** — channel-agnostic inbox. v1 provider: WhatsApp via wa-connector. Future: SMS, IG DM, email, webchat.
+- **13 CRM** — tags, notes, tasks, unknown-sender handling on `customers`.
+- **14 Automations** — trigger → action engine. Phase 3 v1 is hard-coded triggers in `lib/services/notifications.ts`; Phase 4+ may extract into a flow-engine service.
+
+**The one integration seam:** [`lib/services/notifications.ts`](../lib/services/notifications.ts). Clinic-core services call it from inside their own service functions after the business write commits. No other coupling is allowed — no DB triggers, no Realtime subscribers, no direct imports from clinic-core into messaging-stack services or vice versa.
+
+**Why this layering:**
+
+1. **Clinic core can ship without messaging.** The product is viable as a pure management platform. Messaging is an upsell layer.
+2. **Messaging stack can be disabled per deployment.** A customer who doesn't want WhatsApp gets a clinic-only install; flipping the feature on is a config change, not a migration.
+3. **Within the messaging stack, Conversations / CRM / Automations evolve independently.** Aoikumo and whatsapp-crm-main mashed these into one codebase and paid the price in every refactor. Separating them up front costs almost nothing (they legitimately have different tables, different UIs, different concerns) and unlocks future extraction.
+4. **The messaging stack is the extraction candidate, not the clinic core.** When the GHL-clone or another product needs the same messaging, we lift modules 11+13+14 out — clinic core stays put.
+
+**Rule of thumb:** if you're writing code in `lib/services/appointments.ts` and you find yourself importing from `lib/services/conversations/` or `lib/services/automations/`, stop. Call `lib/services/notifications.ts` instead. That's the boundary.
 
 ### 4. Multi-Tenant = Defer, Design Clean
 - **Decision:** Build for one tenant first. No tenant_id. Design clean boundaries so adding isolation later isn't painful.
@@ -138,8 +213,8 @@ When we onboard a second owner (e.g., another dental clinic chain or a beauty br
 - **Frontend:** Next.js 16 stays, but becomes frontend-only. Server actions are deleted. Reads and writes go through a client-side data layer that calls the NestJS API over HTTP. **This is where TanStack Query enters the project** — it becomes the primary client cache because there's no more server-action magic to paper over the loss of RSC freshness. Installing it in Phase 1 would be premature; installing it in Phase 2 is non-optional.
 - **Package layout:** pnpm workspace — `apps/web` (Next) + `apps/api` (NestJS) + `packages/shared` (Zod schemas + types + service layer + errors + context types). See §7.
 
-**wa-connector (separate repo — Phase 3):**
-- Node.js + Baileys. Runs as its own process but currently shares the big-app Supabase project, isolated in the `wa_service` schema (see §2). Out of big-app's current scope. Whether it adopts NestJS or stays plain Node is decided when that work starts.
+**wa-connector (separate repo — production-ready, big-app integration pending):**
+- Node.js + Express + Baileys + BullMQ. Runs as its own process. Shares the big-app Supabase project, owns the `public.wa_*` tables and the `wa-media` Storage bucket (see §2). Out of big-app's code scope — big-app calls it over HTTP and never imports Baileys.
 
 **Auth (both phases):**
 - Supabase Auth is the identity provider. JWT-based. Works identically for Next server actions (cookie-based session) and NestJS (`Authorization: Bearer <jwt>` header). No auth rewrite when NestJS arrives.
@@ -438,8 +513,13 @@ This keeps files out of the Next.js server entirely (no body-size limits, no mem
 - [x] Product name — **BIG** (our brand). Repo name: `big-app`.
 - [ ] Hosting: Vercel + Railway? AWS? Supabase-only? (must also answer "where does NestJS run in Phase 2" — Railway is the obvious default)
 - [ ] Exact Phase 2 trigger for NestJS extraction — define a concrete signal, not a date
-- [ ] WhatsApp: Baileys (unofficial) vs Meta Cloud API (official) for production
-- [ ] wa-connector hosting — where to run the persistent Baileys process (Railway / VPS / EC2?)
+- [ ] WhatsApp: Baileys (unofficial, current) vs Meta Cloud API (official) for production scale
+- [ ] wa-connector hosting — Railway is the current default (needs persistent volume for Baileys auth)
 - [ ] Offline support / PWA requirements
 - [x] File storage strategy — Supabase Storage, two buckets (`media` public, `documents` private), paths stored on domain rows (see §11)
-- [ ] Notification strategy (push, email, in-app)
+- [x] WhatsApp ↔ big-app integration pattern — **mirror-on-arrival** via HMAC-signed webhooks (2026-04-20, see §2)
+- [x] Cross-service communication transport — **HTTP + HMAC webhooks only, no Supabase Realtime for backend-to-backend** (2026-04-20, see §2.1)
+- [x] Automation engine placement — **in-app hybrid**, extract on second consumer (2026-04-20, see §3)
+- [ ] Notification strategy for non-WhatsApp channels (push, email, in-app) — Phase 3+
+
+_(The wa-connector schema layout — `public.wa_*` today, possibly a dedicated `wa_connector` schema later — is tracked in the wa-connector repo, not here. big-app's only job is to never touch those tables.)_
