@@ -7,8 +7,10 @@ import {
 	CalendarDays,
 	KeyRound,
 	LayoutDashboard,
+	MessageCircle,
 	Settings,
 	ShoppingCart,
+	Smartphone,
 	Stethoscope,
 	Store,
 	Ticket,
@@ -44,10 +46,12 @@ const navItems: SidebarNavItemData[] = [
 	{ label: "Passcode", href: "/passcode", icon: KeyRound },
 	{ label: "Reports", href: "/reports", icon: BarChart2 },
 	{ label: "Webstore", href: "/webstore", icon: Store },
+	{ label: "Config", href: "/config", icon: Settings },
 ];
 
-const footerNavItems: SidebarNavItemData[] = [
-	{ label: "Config", href: "/config", icon: Settings },
+const whatsappNavItems: SidebarNavItemData[] = [
+	{ label: "Conversations", href: "/conversations", icon: MessageCircle },
+	{ label: "WhatsApp", href: "/whatsapp", icon: Smartphone },
 ];
 
 export function AppSidebar() {
@@ -75,15 +79,20 @@ export function AppSidebar() {
 						</SidebarMenu>
 					</SidebarGroupContent>
 				</SidebarGroup>
+
+				<SidebarGroup className="border-sidebar-border border-t px-2 py-3">
+					<SidebarGroupContent>
+						<SidebarMenu className="gap-0.5">
+							{whatsappNavItems.map((item) => (
+								<SidebarNavItem key={item.href} item={item} />
+							))}
+						</SidebarMenu>
+					</SidebarGroupContent>
+				</SidebarGroup>
 			</SidebarContent>
 
 			<SidebarFooter className="border-sidebar-border border-t">
-				<SidebarMenu className="gap-0.5 px-2 py-2">
-					{footerNavItems.map((item) => (
-						<SidebarNavItem key={item.href} item={item} />
-					))}
-				</SidebarMenu>
-				<div className="px-3 pb-2 text-[11px] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
+				<div className="px-3 py-2 text-[11px] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
 					BIG App v1.0.0
 				</div>
 			</SidebarFooter>
