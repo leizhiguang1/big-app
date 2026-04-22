@@ -1,6 +1,10 @@
 # Module: Conversations
 
-> Status: Not started — contract frozen, v1 provider (WhatsApp) implementation pending. Phase 3.
+> **Status (2026-04-22):** This module as originally specced (mirror tables in big-app's Supabase, HMAC-signed webhook handler, channel-agnostic `conversations` / `conversation_messages` tables) is **deferred indefinitely.**
+>
+> v1 of the inbox shipped as a **client-side Socket.IO integration** to wa-crm at `/inbox` — message history lives in wa-crm, not in big-app's DB. See [docs/WA_CRM_INTEGRATION.md](../WA_CRM_INTEGRATION.md).
+>
+> The mirror-tables design below is preserved as a reference for when/if a second channel (SMS, IG, email) forces us to persist messages in big-app's own DB. Treat everything below as a proposal, not current architecture.
 
 ## Overview
 

@@ -1,8 +1,14 @@
 # Module: Automations
 
-> Status: Not started. Phase 3, messaging-stack layer.
+> **Status (2026-04-22):** Deferred. Engine location undecided.
 >
-> **Read first:** [docs/WA_CRM_INTEGRATION.md](../WA_CRM_INTEGRATION.md) — the contract between big-app and whatsapp-crm.
+> Big-app does **not** currently have a `lib/services/notifications.ts`, a `notification_templates` table, or any `pg_cron` scans for reminders. Earlier plans that pinned the engine to whatsapp-crm are superseded by the 2026-04-22 pivot — see `docs/ARCHITECTURE.md` §3.
+>
+> When we build this, the two paths on the table are (a) enable wa-crm's built-in automation runner and call it via one new endpoint there, or (b) build big-app's own engine using `pg_cron` + HTTP sends to wa-crm. Pick after WhatsApp runs on real traffic.
+>
+> **Read first:** [docs/WA_CRM_INTEGRATION.md](../WA_CRM_INTEGRATION.md) — current wa-crm integration shape.
+>
+> The rest of this document is a preserved reference from the archived HTTP-adapter plan. Treat everything below as design notes, not current architecture.
 
 ## Overview
 

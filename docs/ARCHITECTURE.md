@@ -109,61 +109,43 @@ These are separate systems — passcodes authorize specific operations, PINs ver
 - **Terminology:** "Customer" (not "patient") — supports cross-industry use (dental, salon, beauty).
 - **Future link:** `customer_contacts` mapping table or phone-number matching when messaging is integrated.
 
-### 2. WhatsApp + Automations = Separate Service (whatsapp-crm), Shared Supabase Project with `wa_crm` Schema
-- **Decision (revised 2026-04-21):** WhatsApp transport + the automation engine + chat-originated CRM live together in a standalone Node.js process called **whatsapp-crm**, a fresh clone of the reference whatsapp-crm repo deployed to Railway. big-app talks to it exclusively over HTTP (REST out, HMAC webhooks in). See [docs/WA_CRM_INTEGRATION.md](./WA_CRM_INTEGRATION.md) for the contract.
-- **Why a separate service (not in-app):** Persistent WebSocket process (Baileys) is operationally different from request/response Next.js and can't run on Vercel/serverless. Railway hosts it. It's also the piece planned for reuse across future products (BIG = offline services, future GHL clone = online services, etc.) — baking it into big-app would mean extracting it twice later.
-- **Why combined (not split into transport + separate automations service):** Automation templates, trigger firings, and audit rows all reference WhatsApp message IDs that only this service has primary handles on. Splitting them creates double-write / sync bugs. The reference whatsapp-crm ships them together and works — cloning preserves the working seam.
-- **Status (2026-04-21):** whatsapp-crm is **to be cloned and deployed**. big-app already has the consumer-side scaffolding — [lib/wa/client.ts](../lib/wa/client.ts), [lib/services/whatsapp.ts](../lib/services/whatsapp.ts), the pairing UI, and a stub HMAC-verifying webhook handler — built during the earlier wa-connector direction. These files survive the pivot: they get retargeted to whatsapp-crm's base URL and auth, not rewritten.
-- **Predecessors (archaeology):** An earlier repo `wa-connector/` (pure transport + in-app automations) is **deprecated, being decommissioned once whatsapp-crm is live**. An even earlier repo `wa-service/` was scaffolding exploration that was abandoned. Neither is the current direction.
-- **Database arrangement — shared Supabase project, isolated by schema.** whatsapp-crm and big-app share big-app's Supabase project. whatsapp-crm owns **every table in the `wa_crm` schema** (connections, message cache, webhook log, automation templates + runs + schedules, chat-CRM tables like WA labels, conversation tags, unknown senders) plus its own Storage bucket for chat media. big-app owns `public` (clinic core + Conversations mirror + business-relationship CRM).
-- **Schema ownership rule (load-bearing):** big-app **never** creates a migration that touches the `wa_crm` schema, and **never** executes `SELECT ... FROM wa_crm.*` from application code. whatsapp-crm **never** creates a migration in `public` and never reads big-app's customer / appointment tables. Any schema change crosses the boundary as a REST contract change, not a shared-table change. If big-app needs message history in its UI, it **mirrors** incoming messages (via the webhook handler) into **its own, big-app-owned, channel-agnostic** tables (`public.conversations`, `public.conversation_messages`). See §2.1 and [modules/11-conversations.md](modules/11-conversations.md).
-- **Link to big-app:** the bridge is `channel_accounts` (`outlet_id`, `channel`, `provider_account_id`) — not a column on `outlets`. For WhatsApp v1: one `channel_accounts` row per outlet with `channel='whatsapp'`, `provider_account_id` = whatsapp-crm's stable connection UUID. big-app never stores the phone number. If staff re-pair with a different SIM, the phone changes in whatsapp-crm but big-app's `provider_account_id` doesn't move. Multi-account-per-channel-per-outlet is deferred; when needed, drop the `(outlet_id, channel)` uniqueness. **These tables do not exist yet** — they land when Conversations module is built (see [modules/11-conversations.md](modules/11-conversations.md)).
-- **Metadata passthrough:** When big-app creates a connection, it passes `metadata: { outlet_id, outlet_name, consumer_product: "big-app" }`. whatsapp-crm echoes this back in every webhook event so big-app's handler can route by `metadata.outlet_id` without a DB lookup.
-- **Integration pattern — mirror-on-arrival, via channel-agnostic tables.** big-app's webhook handler writes inbound messages into channel-agnostic mirror tables (`conversations`, `conversation_messages`) *and* resolves the sender against `customers.phone` / `customers.phone2` / `appointments.lead_phone`. This is preferred over pure match-on-arrival because (a) conversation UIs need history without calling whatsapp-crm on every render, (b) big-app can index/search/filter its own mirror tables, (c) big-app can power "unknown sender" inbox without coupling to whatsapp-crm internals, (d) the same tables hold SMS/IG/email/webchat when those providers land. The mirror is write-only from the webhook — big-app never back-fills from whatsapp-crm's tables.
-- **Socket.IO vs webhooks:** whatsapp-crm may keep Socket.IO internally for its **own** admin / dev frontend. For big-app, the contract is **webhooks only**. big-app never opens a Socket.IO connection to whatsapp-crm. Live inbox UX in big-app uses Supabase Realtime subscribed to big-app's own mirror tables (browser ↔ DB — see §2.1).
-- **Local dev:** big-app on `:3000`, whatsapp-crm on `:3001` (set `PORT=3001` in its `.env`). whatsapp-crm posts webhooks to `http://localhost:3000/api/webhooks/whatsapp`. No tunnels needed. Prod: separate deployments (whatsapp-crm on Railway with a persistent volume for Baileys auth state, big-app wherever it lands), still pointing at the same Supabase project.
+### 2. WhatsApp = Separate Service (wa-crm on Railway), Socket.IO from the Browser
+- **Decision (revised 2026-04-22):** big-app's **browser** connects directly to wa-crm over Socket.IO from `/inbox`. Big-app's server stays out of the loop. This mirrors how archived `aoikumo ↔ whatsapp-crm-old` worked. See [docs/WA_CRM_INTEGRATION.md](./WA_CRM_INTEGRATION.md) for the full contract.
+- **Why this shape** (chosen over HTTP+HMAC webhooks): simpler — no webhook handler, no HMAC signing, no HTTP client, no mirror tables, no new big-app migrations. wa-crm needs **zero** code changes. Matches an already-proven pattern. Defers hard problems (automations engine location, mirror-tables) until there's a concrete need.
+- **Why a separate service (not in-app):** Persistent WebSocket process (Baileys) is operationally different from request/response Next.js and can't run on Vercel/serverless. Railway hosts it. It's also the piece planned for reuse across future products.
+- **Status (2026-04-22):** big-app's `/inbox` is a Next 16 client component that ports wa-crm's `App.jsx` / `ChatList.jsx` / `ChatWindow.jsx` / `MessageInput.jsx` / `QRScreen.jsx` to Next + shadcn. The earlier HTTP-shaped scaffolding (`lib/wa/client.ts`, `lib/services/whatsapp.ts`, `lib/actions/whatsapp.ts`, webhook route, `/whatsapp` pairing UI) has been deleted.
+- **Predecessors (archaeology):** An earlier repo `wa-connector/` (pure transport + in-app automations, HTTP+HMAC) is deprecated. A briefly-considered "combined wa-crm on HTTP+HMAC" plan (dated 2026-04-21) is also superseded. Neither is the current direction.
+- **Database arrangement — fully separated.** wa-crm runs in file-storage mode (`SUPABASE_URL` unset) so it **does not** touch big-app's Supabase project. big-app's Supabase stays untouched by this feature. The only big-app-side code is the `/inbox` client component + Socket.IO client dependency.
+- **Mirror tables — not created.** No `channel_accounts`, `conversations`, `conversation_messages` in big-app today. Message history lives in wa-crm on Railway (Baileys + file stores on the persistent volume). Revisit if we later want history persisted independently of wa-crm's uptime, or if we add cross-provider channels (SMS, IG, email).
+- **Outlet → WhatsApp line mapping:** v1 uses wa-crm's `DEFAULT_PROJECT_ID` — one WhatsApp line globally. When outlets need per-outlet lines, pass `auth: { projectId: outlet.id }` in the Socket.IO handshake; wa-crm spins up a per-outlet tenant transparently. No schema migration needed in big-app.
+- **Socket.IO vs webhooks:** The big-app **browser** uses Socket.IO against wa-crm (the whole integration). Big-app's backend **does not** talk to wa-crm at all today. When server-triggered sends become necessary (reminders, post-appointment follow-ups), we add **one** HTTP endpoint to wa-crm with Bearer auth (prompt archived in the project plan file) — not an HMAC webhook stream.
+- **Local dev:** big-app on `:3000`, wa-crm on `:3001` (`PORT=3001` or `npm run dev` inside `wa-crm/backend`). Big-app's `.env.local` sets `NEXT_PUBLIC_WA_CRM_URL=http://localhost:3001`. No tunnels needed. Prod: wa-crm on Railway with persistent volume; big-app on Vercel with the Railway URL in its env.
 
-### 2.1 Cross-service communication = HTTP + HMAC webhooks only, never Supabase Realtime (for backend ↔ backend)
+### 2.1 Cross-service communication patterns
 
-Every cross-service boundary — today (big-app ↔ whatsapp-crm) and tomorrow (GHL-clone ↔ whatsapp-crm, or big-app ↔ any future extracted service) — uses the same pattern:
+Three distinct patterns, used for distinct jobs:
 
-- **Outbound calls: signed REST.** Consumer calls whatsapp-crm's REST API with `Authorization: Bearer <api-key>`.
-- **Inbound events: HMAC-signed webhooks, delivered via a durable queue.** whatsapp-crm signs each delivery with `X-WA-Signature: sha256=<HMAC(webhook_secret, rawBody)>`, retries with exponential backoff, and logs internally. Consumer verifies the signature, writes to its own mirror table, returns 200 fast, processes async.
+- **Browser ↔ service (wa-crm today).** The user's browser opens Socket.IO from `/inbox` to wa-crm. This is the **only** live wa-crm integration. Unauthenticated today; CORS allowlist gates origin in prod. Reverts to aoikumo's proven same-LAN-style trust model, now over public internet.
+- **Browser ↔ big-app DB (Supabase Realtime).** Still the right tool for live UI updates on big-app's **own** tables. Used today by `AppointmentNotificationsProvider`. Would be used for a future mirror-table inbox if we build one.
+- **Backend ↔ backend (HTTP + HMAC webhooks).** Pattern reserved for when a future cross-service boundary needs signed, retryable, auditable event delivery. **Not currently in use** — no big-app service calls wa-crm today, and wa-crm does not push webhooks to big-app. When we add server-triggered sends (appointment reminders), it'll be **outbound REST with Bearer auth** (one endpoint on wa-crm) — still not a webhook stream.
 
-**Supabase Realtime is forbidden for service-to-service events** — even though both services share one project. Reasons:
+**Supabase Realtime is forbidden for service ↔ service events.** It's session-only, no retry, no idempotency, no signing — fine for UI, unacceptable as a backend event bus.
 
-| Property | Webhook (durable queue + HMAC) | Supabase Realtime |
-|---|---|---|
-| Retry on failure | Yes, exponential backoff | No — miss once, gone |
-| Survives consumer restart | Yes, durable queue | No — in-session only |
-| Idempotency / dedup | Yes, via idempotency key | No |
-| Signed / tamper-proof | Yes, HMAC | No |
-| Dead-letter & observability | Yes (webhook log) | No |
+**What this means in practice for contributors:**
 
-Realtime **is** still the right tool for **browser ↔ DB** updates — and this is how big-app's `/inbox` gets the aoikumo-style "messages appear live without refresh" UX: big-app's webhook handler writes to its own `conversation_messages` mirror, and every open browser tab subscribed via Supabase Realtime receives the row instantly. The same pattern already runs for appointments ([`AppointmentNotificationsProvider`](../components/notifications/AppointmentNotificationsProvider.tsx)). **The rule: Realtime for UI ↔ DB on big-app's own tables; webhooks for backend ↔ backend.** Big-app never subscribes to `wa_crm.*` over Realtime; whatsapp-crm never subscribes to `public.*` over Realtime.
+- If you're about to add a Socket.IO client from big-app's **server** (a server action, a route handler, a `lib/services/*`) — **stop.** Socket.IO lives client-side. If you need a server-triggered send, add a new big-app server-side HTTP call to wa-crm, and have the user's wa-crm AI add the matching endpoint (prompt in plan file).
+- If you're about to subscribe a big-app backend process to a Supabase Realtime channel to react to wa-crm data — **stop.** Cross-service events use HTTP+HMAC (if/when introduced); Realtime is for browser-side UX only.
+- If you're about to add a webhook handler at `/api/webhooks/whatsapp` — **stop.** That route was deleted on 2026-04-22. Inbound messages reach the browser via Socket.IO directly. Re-introducing the handler means reversing the architectural decision above.
 
-**Corollary:** This rule is what makes "one Supabase project today" and "split into separate projects later" a config change instead of a rewrite. Do not weaken it to take a "shortcut."
-
-### 3. Automation engine lives in whatsapp-crm; big-app's `notifications.ts` is a thin HTTP adapter
-- **Decision (revised 2026-04-21):** The automation engine moved **out** of big-app and into whatsapp-crm. `notification_templates` and `automation_runs` are `wa_crm.*` tables, not `public.*` tables. big-app's `lib/services/notifications.ts` survives, but as a **framework-free HTTP adapter** — it assembles the trigger payload and POSTs `/automations/fire` to whatsapp-crm. Zero business logic, zero template rendering, zero scheduling.
-- **What big-app still owns (on the automation side):**
-  - **Trigger sources.** Clinic-core services (`appointments.ts`, `sales.ts`, etc.) still call `notifications.onAppointmentBooked(ctx, id)` / `onPaymentReceived(ctx, id)` / etc. after their DB commits. The call-site shape is unchanged from the old plan.
-  - **Scheduled triggers.** `pg_cron` still runs in big-app's DB because it's scanning `public.appointments`. The scan finds candidate rows (e.g. appointments 24h out with `reminder_sent_at IS NULL`) and POSTs each one to whatsapp-crm via the adapter, then stamps `reminder_sent_at` on success. whatsapp-crm doesn't need a copy of `appointments` to know when "24h before" is — big-app tells it.
-  - **Opt-out pre-check.** The adapter reads `customers.opt_in_notifications` and includes it in the payload. whatsapp-crm trusts the flag.
-  - **Audit mirror (optional).** big-app may keep a lightweight `automation_fires` log in `public` so "did we try to notify this customer?" can be answered without a REST call to whatsapp-crm. Populated from the `automation.fired` webhook.
-- **What whatsapp-crm owns:**
-  - Template storage + editor UI. Admin edits template bodies inside whatsapp-crm's admin surface.
-  - Variable substitution at send time.
-  - Template enable/disable flags.
-  - The actual send (via its own Baileys connection).
-  - The authoritative audit log (`wa_crm.automation_runs`).
-- **Why the pivot (vs. keeping it in big-app):** Template storage and trigger-audit rows both reference WhatsApp message IDs. Keeping them in big-app meant the audit log had stale / divergent message-id state whenever wa-connector webhooks lagged. Putting them in the same service that mints the message IDs closes that loop. It also matches the reference whatsapp-crm repo shape — we're no longer fighting its architecture to keep a pure-transport layer.
-- **Design discipline — why this is still "clean":**
-  1. big-app's clinic-core call-sites look identical: `await notifications.onX(ctx, id)`. Clinic-core code doesn't know or care that the engine is external.
-  2. `notifications.ts` is framework-free (same rules as every other service — see §8). The NestJS portability rule still applies — the function becomes a NestJS service when big-app splits.
-  3. Trigger points are always direct function calls after a business write, **never** DB triggers or Realtime subscribers. Call graph stays inspectable.
-- **What to NOT build in big-app:** a template table, a flow builder, a DSL, a `notification_templates` / `automation_runs` migration, a scheduler service separate from pg_cron. Anything template- or engine-shaped belongs in whatsapp-crm.
-- **Template editor UI (v1):** lives in whatsapp-crm's own admin UI. big-app does **not** ship a pass-through template editor in v1. Revisit if UX demands tighter integration.
+### 3. Automations — deferred; engine location undecided
+- **Status (2026-04-22):** The automation engine location question is **reopened**. It's not "in big-app" and it's not definitively "in wa-crm." Big-app has **no** `lib/services/notifications.ts` today; there is **no** `notification_templates` or `automation_runs` schema in either place that we've committed to.
+- **Why deferred:** Shipping the WhatsApp inbox was the first priority. Automations are layered on top — we decide the engine location after the inbox runs on real traffic for some weeks. The previously-committed "engine in whatsapp-crm + `notifications.ts` HTTP adapter in big-app" plan (dated 2026-04-21) is archived, not erased — the design details live in the git history of this file.
+- **What big-app does today for "automated" WhatsApp actions:** nothing. No scheduled reminders. No post-appointment follow-ups. No birthday messages. Operators send messages manually from the inbox.
+- **When we do build this, two viable paths:**
+  1. **Lean on wa-crm's built-in engine.** wa-crm's monolith already ships an automation runner, template system, and scheduler. Enable it. Big-app posts trigger payloads to a wa-crm endpoint (we ask the user's wa-crm AI to add one — prompt in the plan file). Minimal big-app code.
+  2. **Build it in big-app.** `pg_cron` scans appointments; big-app server code formats the message; POSTs to a wa-crm `/api/send` endpoint. More control, more code, tighter coupling to our schema. Matches the "one seam" principle from §3a.
+- **What NOT to build without a decision:** a template table in big-app, a flow builder UI, a `notification_templates` migration, a `automation_runs` audit table, a scheduler service. Anything engine-shaped waits on the decision above.
+- **Triggering pattern (stable across either choice):** When we do build this, clinic-core services (`appointments.ts`, `sales.ts`, etc.) will call a single `notifications.onX(ctx, id)` adapter after their DB commits — call-site shape unchanged from the archived plan. Whether that adapter POSTs to wa-crm or processes in-app is the question we're deferring.
 
 ### 3a. Module layering — clinic core vs. messaging stack
 
@@ -175,11 +157,11 @@ Big-app's modules divide into **two layers** that are built, tested, and shipped
 - Never imports from `lib/services/conversations/**`, `lib/services/crm/**`, or `lib/services/automations/**`.
 
 **Messaging stack (big-app side: modules 11, 13, 14)** — layered on top, independently replaceable:
-- **11 Conversations** — channel-agnostic inbox MIRROR + `/inbox` UI. v1 provider: WhatsApp via whatsapp-crm. Future: SMS, IG DM, email, webchat.
-- **13 CRM** — business-relationship CRM (tags, notes, tasks on `customers`). Chat-originated CRM (WA labels, convo tags authored in chat, unknown senders) lives in whatsapp-crm — see the CRM split in §3 and [docs/WA_CRM_INTEGRATION.md](./WA_CRM_INTEGRATION.md).
-- **14 Automations** — big-app's side is a thin HTTP adapter (`notifications.ts`) + `pg_cron` scheduled-trigger scans. The engine, templates, and audit log live in whatsapp-crm.
+- **11 Conversations** — shipped v1 as `/inbox`, a client-side Socket.IO integration to wa-crm. Mirror-tables plan deferred (no `conversations` / `conversation_messages` in big-app's DB today). Future: SMS, IG DM, email, webchat — revisit the mirror-tables plan when a second channel arrives.
+- **13 CRM** — business-relationship CRM (tags, notes, tasks on `customers`) still planned and untouched. Chat-originated CRM (WA labels, convo tags, unknown senders) stays in wa-crm.
+- **14 Automations** — deferred. Engine location undecided (see §3). No `notifications.ts` adapter today. No `pg_cron` scans wired.
 
-**The one integration seam:** [`lib/services/notifications.ts`](../lib/services/notifications.ts). Clinic-core services call it from inside their own service functions after the business write commits. The adapter POSTs to whatsapp-crm. No other coupling is allowed — no DB triggers, no Realtime subscribers, no direct imports from clinic-core into messaging-stack services or vice versa.
+**The one integration seam (when automations land):** `lib/services/notifications.ts` — not yet built. Until then the messaging stack has **no server-side coupling to clinic core**; big-app's server doesn't talk to wa-crm at all. When the adapter is built, clinic-core services will call it after their DB commits; no DB triggers, no Realtime subscribers, no direct imports from clinic-core into messaging-stack services or vice versa.
 
 **Why this layering:**
 

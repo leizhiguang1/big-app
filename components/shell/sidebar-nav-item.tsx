@@ -13,6 +13,7 @@ export type SidebarNavItemData = {
 	label: string;
 	href: string;
 	icon: LucideIcon;
+	variant?: "default" | "whatsapp";
 };
 
 export function SidebarNavItem({ item }: { item: SidebarNavItemData }) {
@@ -26,13 +27,20 @@ export function SidebarNavItem({ item }: { item: SidebarNavItemData }) {
 		if (pending && isActive) setPending(false);
 	}, [pending, isActive]);
 
+	const whatsappClasses =
+		"hover:bg-[#25d366]/10 hover:text-[#25d366] data-active:bg-[#25d366]/10 data-active:text-[#25d366]";
+
 	return (
 		<SidebarMenuItem>
 			<SidebarMenuButton
 				asChild
 				isActive={isActive || pending}
 				tooltip={item.label}
-				className="gap-3 px-3"
+				className={
+					item.variant === "whatsapp"
+						? `gap-3 px-3 ${whatsappClasses}`
+						: "gap-3 px-3"
+				}
 			>
 				<Link
 					href={item.href}

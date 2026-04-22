@@ -10,7 +10,6 @@ import {
 	MessageCircle,
 	Settings,
 	ShoppingCart,
-	Smartphone,
 	Stethoscope,
 	Store,
 	Ticket,
@@ -50,8 +49,7 @@ const navItems: SidebarNavItemData[] = [
 ];
 
 const whatsappNavItems: SidebarNavItemData[] = [
-	{ label: "Conversations", href: "/conversations", icon: MessageCircle },
-	{ label: "WhatsApp", href: "/whatsapp", icon: Smartphone },
+	{ label: "Inbox", href: "/inbox", icon: MessageCircle, variant: "whatsapp" },
 ];
 
 export function AppSidebar() {
