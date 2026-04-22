@@ -9,6 +9,7 @@ export const getServerContext = cache(async (): Promise<Context> => {
 	const dbAdmin = createSupabaseAdminClient();
 
 	let currentUser: CurrentUser | null = null;
+	let brandId: string | null = null;
 	const {
 		data: { user: authUser },
 	} = await db.auth.getUser();
@@ -16,7 +17,7 @@ export const getServerContext = cache(async (): Promise<Context> => {
 	if (authUser) {
 		const { data: employee } = await dbAdmin
 			.from("employees")
-			.select("id, email")
+			.select("id, email, brand_id")
 			.eq("auth_user_id", authUser.id)
 			.maybeSingle();
 		currentUser = {
@@ -24,12 +25,14 @@ export const getServerContext = cache(async (): Promise<Context> => {
 			employeeId: employee?.id ?? null,
 			email: authUser.email ?? employee?.email ?? "",
 		};
+		brandId = employee?.brand_id ?? null;
 	}
 
 	return {
 		db,
 		dbAdmin,
 		currentUser,
+		brandId,
 		outletIds: [],
 		requestId: randomUUID(),
 	};

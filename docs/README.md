@@ -12,6 +12,8 @@ docs/
 ├── PRD.md                 ← master PRD: vision, all modules, dependency map, build phases
 ├── ARCHITECTURE.md        ← system architecture decisions + multi-tenant exit plan
 ├── SCHEMA.md              ← database schema decisions
+├── BRAND_SCOPING.md       ← Tier-A brand_id checklist
+├── WA_CRM_INTEGRATION.md  ← contract between big-app and the whatsapp-crm service
 ├── NEW_REPO_SETUP.md      ← kickoff guide for the v2 rebuild
 ├── screenshots/           ← reference screenshots from the competitor product
 ├── schema/
@@ -25,10 +27,10 @@ docs/
     ├── 05-roster.md
     ├── 06-services.md
     ├── 08-employees.md
-    ├── 11-conversations.md ← channel-agnostic inbox (WhatsApp v1 provider via wa-connector)
+    ├── 11-conversations.md ← channel-agnostic inbox mirror (WhatsApp v1 provider via whatsapp-crm)
     ├── 12.9-outlets.md    ← lives under Config sub-page 12.9
-    ├── 13-crm.md          ← tags, notes, tasks, unknown-sender handling
-    ├── 14-automations.md  ← trigger→action engine; templates; hard-coded in Phase 3 v1
+    ├── 13-crm.md          ← business-relationship CRM (tags, notes, tasks)
+    ├── 14-automations.md  ← thin HTTP adapter; engine lives in whatsapp-crm
     └── _template.md       ← template for future module docs
 ```
 

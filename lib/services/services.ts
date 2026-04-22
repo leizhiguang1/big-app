@@ -7,6 +7,7 @@ import {
 	serviceUpdateSchema,
 } from "@/lib/schemas/services";
 import { listTaxIdsForService, setTaxesForService } from "@/lib/services/taxes";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type Service = Tables<"services">;
@@ -139,6 +140,7 @@ export async function createService(
 	const { data, error } = await ctx.db
 		.from("services")
 		.insert({
+			brand_id: assertBrandId(ctx),
 			...(parsed.id ? { id: parsed.id } : {}),
 			sku: parsed.sku,
 			name: parsed.name,

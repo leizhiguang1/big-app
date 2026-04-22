@@ -51,16 +51,20 @@ export async function getSalesOrderDetailAction(
 	}
 }
 
-export async function cancelSalesOrderAction(
+export async function voidSalesOrderAction(
 	salesOrderId: string,
 	input: unknown,
 ) {
 	const ctx = await getServerContext();
-	const cn = await salesService.cancelSalesOrder(ctx, salesOrderId, input);
+	const result = await salesService.voidSalesOrder(ctx, salesOrderId, input);
 	revalidatePath("/sales");
 	revalidatePath(`/sales/${salesOrderId}`);
 	revalidatePath("/appointments");
 	revalidatePath("/inventory");
 	revalidatePath("/passcode");
-	return { cnNumber: cn.cn_number };
+	return {
+		cnNumber: result.cn_number,
+		rnNumber: result.rn_number,
+		refundAmount: result.refund_amount,
+	};
 }

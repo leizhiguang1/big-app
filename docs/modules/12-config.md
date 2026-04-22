@@ -223,7 +223,7 @@ combination (channel × type) has its own template.
 
 - **E-Mail Settings** — master toggle "Enable E-Mail Notification Messages", then per-type tab with: left panel for message template variables (CUSTOMER_NAME, BUSINESS_CONTACT, WEBSITE, OUTLET_NAME, etc.) and a Message Template textarea; right panel for Email Subject and Email Content fields
 - **Message Settings** — SMS equivalent with the same nested type structure **(inferred)**
-- **WhatsApp Settings** — WhatsApp notification equivalent (note: big-app routes WA through the separate wa-connector service — see CLAUDE.md "What to defer"). This config's templates will eventually feed wa-connector
+- **WhatsApp Settings** — WhatsApp notification equivalent (note: big-app routes WA through the separate whatsapp-crm service — see CLAUDE.md "What to defer" and [docs/WA_CRM_INTEGRATION.md](../WA_CRM_INTEGRATION.md)). WhatsApp template content lives in whatsapp-crm's own admin UI in v1; a big-app pass-through editor is optional future work.
 - **LINE Settings** — LINE messaging (Asian markets) **(inferred)**
 
 #### Clinical Features (12.11)
@@ -618,8 +618,8 @@ hardcoded enums that are in our way. Draft order:
    PIN requirements, overlap rules. High-impact for appointment UX and
    replaces hardcoded toggles in the appointments module.
 6. **Notifications → E-Mail Settings** — once reminders start sending,
-   admins will want per-type templates. Pair with wa-connector for
-   WhatsApp Settings later.
+   admins will want per-type templates. WhatsApp templates live in
+   whatsapp-crm's admin UI, not here.
 7. **Outlets → Print Type / Daily Summary Email / Security** — finish
    what's already half-implemented.
 8. **General → Business Details, Timezone, Remarks, Security** — admin

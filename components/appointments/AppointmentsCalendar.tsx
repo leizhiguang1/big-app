@@ -378,6 +378,31 @@ export function AppointmentsCalendar({
 		});
 	};
 
+	const handleResize = (id: string, endIso: string) => {
+		const apt = optimisticAppointments.find((a) => a.id === id);
+		if (!apt || apt.end_at === endIso) return;
+		startTransition(async () => {
+			applyOptimistic({
+				kind: "reschedule",
+				id,
+				start_at: apt.start_at,
+				end_at: endIso,
+			});
+			try {
+				await rescheduleAppointmentAction(id, {
+					start_at: apt.start_at,
+					end_at: endIso,
+				});
+				showToast("Duration updated", "success");
+			} catch (err) {
+				showToast(
+					err instanceof Error ? err.message : "Resize failed",
+					"error",
+				);
+			}
+		});
+	};
+
 	const handleDelete = (a: AppointmentWithRelations) => {
 		const label = a.is_time_block
 			? a.block_title || "Time block"
@@ -441,6 +466,7 @@ export function AppointmentsCalendar({
 					onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
 					onAppointmentContextMenu={handleContextMenu}
 					onReschedule={handleReschedule}
+					onResize={handleResize}
 				/>
 			);
 		}
@@ -456,6 +482,7 @@ export function AppointmentsCalendar({
 				onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
 				onAppointmentContextMenu={handleContextMenu}
 				onReschedule={handleReschedule}
+				onResize={handleResize}
 			/>
 		);
 	};

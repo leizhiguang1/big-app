@@ -2,6 +2,12 @@
 
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { SalesOrderWithRelations } from "@/lib/services/sales";
 
 type Props = {
@@ -69,6 +75,25 @@ export function SalesOrdersTable({ orders, onOpen }: Props) {
 					{o.so_number}
 				</button>
 			),
+		},
+		{
+			key: "outlet",
+			header: "Outlet",
+			sortable: true,
+			sortValue: (o) => o.outlet?.code ?? "",
+			cell: (o) =>
+				o.outlet ? (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span className="cursor-help font-mono text-xs uppercase">
+								{o.outlet.code}
+							</span>
+						</TooltipTrigger>
+						<TooltipContent>{o.outlet.name}</TooltipContent>
+					</Tooltip>
+				) : (
+					<span className="text-muted-foreground text-sm">—</span>
+				),
 		},
 		{
 			key: "status",
@@ -153,12 +178,14 @@ export function SalesOrdersTable({ orders, onOpen }: Props) {
 	];
 
 	return (
-		<DataTable
-			data={orders}
-			columns={columns}
-			getRowKey={(o) => o.id}
-			searchPlaceholder="Search sales orders…"
-			emptyMessage="No sales orders yet."
-		/>
+		<TooltipProvider delayDuration={200}>
+			<DataTable
+				data={orders}
+				columns={columns}
+				getRowKey={(o) => o.id}
+				searchPlaceholder="Search sales orders…"
+				emptyMessage="No sales orders yet."
+			/>
+		</TooltipProvider>
 	);
 }

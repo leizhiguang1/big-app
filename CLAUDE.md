@@ -204,10 +204,16 @@ a Next import, that move breaks. Fix it before merging.
     `docs/ARCHITECTURE.md` §1. (Note: historical commits in the reference
     prototype used "patient"; the rebuild uses "customer" everywhere.)
 
-11. **Brand-agnostic.** Do not add `tenant_id` or `brand_id` columns.
-    Multi-tenant is Phase 4 and the migration path is in
-    `docs/ARCHITECTURE.md` §4. The prototype already has `brand_id` columns
-    — do not carry them over.
+11. **Tier-A tables carry `brand_id`.** Top-level business entities get
+    `brand_id uuid not null references brands(id) on delete restrict`
+    from their first migration; children/junctions inherit via parent
+    FK (no column); lookups are global. Services stamp `brand_id:
+    assertBrandId(ctx)` on insert (from `@/lib/supabase/query`); reads
+    are unfiltered today (Phase 4 tightens). `ctx.brandId` comes from
+    `employees.brand_id`, never a hardcoded constant. **Full rules,
+    tier classification, migration template, common mistakes:
+    [docs/BRAND_SCOPING.md](docs/BRAND_SCOPING.md).** Read that before
+    adding a new table or module.
 
 12. **Don't install TanStack Query in Phase 1 at all.** Every Phase 1
     interaction — lists, details, creates, updates, drag-and-drop on the
@@ -244,35 +250,55 @@ Write tests only for things that break silently and cost money:
 - Commission calculation (Phase 2)
 - Inventory / products (Phase 2 deep)
 - Clinical sub-modules — case notes, dental charting, prescriptions (Phase 2)
-- Messaging stack (Phase 3 — three sibling modules layered on top of
-  clinic core, built and shipped independently. See `docs/ARCHITECTURE.md`
-  §3a for the layering rule):
-  - **Conversations** (module 11) — channel-agnostic inbox. v1 provider is
-    WhatsApp, via **wa-connector** (a separate Node+Baileys process at
-    `/Users/leizhiguang/Documents/Programming/1-FunnelDuo/wa-connector/`).
-    wa-connector shares this Supabase project and owns every `public.wa_*`
-    table it creates (`wa_api_keys`, `wa_connections`, `wa_webhook_log`,
-    `wa_message_log`, `wa_chat_cache`, `wa_message_cache`) plus the
-    `wa-media` Storage bucket. **Never create a migration in this repo
-    that touches those tables** — any WA-transport schema change is made
-    from the wa-connector repo. Never query them from `lib/services/**`;
-    big-app talks to wa-connector over its REST API and receives HMAC-
-    signed webhooks. big-app's own Conversations module adds
-    channel-agnostic mirror tables (`conversations`,
-    `conversation_messages`, `channel_accounts`, `conversation_channels`)
-    — those ARE big-app's and their migrations belong here. Build plan in
-    `docs/modules/11-conversations.md`. See `docs/ARCHITECTURE.md` §2 +
-    §2.1 for the cross-service rules — notably: never use Supabase
-    Realtime for service-to-service events.
-  - **CRM** (module 13) — tags, notes, tasks, unknown-sender handling.
-    Build plan in `docs/modules/13-crm.md`.
-  - **Automations** (module 14) — trigger→action engine; in-app hybrid:
-    hard-coded trigger points in `lib/services/notifications.ts` in
-    Phase 3 v1, extracted to a standalone flow-engine service only when a
-    second consumer forces it. Templates and the audit log
-    (`notification_templates`, `automation_runs`) belong here, not in
-    Conversations. Build plan in `docs/modules/14-automations.md`. See
-    `docs/ARCHITECTURE.md` §3.
+- Messaging stack (Phase 3 — three sibling modules on big-app's side,
+  layered on top of clinic core, built and shipped independently. The
+  WhatsApp transport + automation engine + chat-originated CRM live in a
+  **separate service called whatsapp-crm** — a fresh clone of the reference
+  whatsapp-crm repo deployed to Railway. See `docs/ARCHITECTURE.md` §3a for
+  the layering rule and `docs/WA_CRM_INTEGRATION.md` for the full contract):
+  - **Conversations** (module 11) — channel-agnostic inbox MIRROR + `/inbox`
+    UI. v1 provider is WhatsApp via whatsapp-crm. whatsapp-crm shares this
+    Supabase project under the `wa_crm` schema (connections, message cache,
+    webhook log, templates, automation runs, chat-CRM tables). **Never
+    create a migration in big-app that touches the `wa_crm` schema** — any
+    transport/automation schema change is made from the whatsapp-crm repo.
+    Never query `wa_crm.*` from `lib/services/**`; big-app talks to
+    whatsapp-crm over its REST API and receives HMAC-signed webhooks.
+    big-app's own Conversations module adds channel-agnostic mirror tables
+    (`conversations`, `conversation_messages`, `channel_accounts`,
+    `conversation_channels`) in `public` — those ARE big-app's and their
+    migrations belong here. Live inbox UX uses Supabase Realtime on these
+    mirror tables (browser ↔ DB is allowed; backend ↔ backend is not).
+    Build plan in `docs/modules/11-conversations.md`. See
+    `docs/ARCHITECTURE.md` §2 + §2.1 for the cross-service rules — notably:
+    never use Supabase Realtime for service-to-service events.
+  - **CRM** (module 13) — big-app owns **business-relationship** CRM
+    (customer profile tags, notes, tasks on `customers`). **Chat-originated**
+    CRM (WhatsApp labels, conversation tags authored in the inbox, chat
+    notes, unknown senders) lives in whatsapp-crm's `wa_crm` schema. Bridge
+    is phone-number match; optional `customer_id` stamp back on whatsapp-crm's
+    contact row once a staff member attaches a chat. No two-way sync of the
+    same field — single authority per domain. Build plan in
+    `docs/modules/13-crm.md`.
+  - **Automations** (module 14) — engine lives in **whatsapp-crm**, not in
+    big-app. big-app's `lib/services/notifications.ts` is a **thin HTTP
+    adapter** that POSTs trigger payloads to whatsapp-crm; it has no
+    template rendering, no send logic, no audit writes of its own.
+    Templates, runs, and scheduled-send tables are `wa_crm.*`. big-app still
+    owns trigger **sources** (clinic-core services call
+    `notifications.onAppointmentBooked(ctx, id)` etc. after business
+    commits) and `pg_cron` scheduled scans that fire reminders from
+    `public.appointments`. Do NOT create `notification_templates` or
+    `automation_runs` migrations in big-app. Build plan in
+    `docs/modules/14-automations.md`. See `docs/ARCHITECTURE.md` §3.
+
+  A predecessor service called **wa-connector** (pure transport, all `wa_*`
+  tables in `public`) is being decommissioned in favor of whatsapp-crm.
+  Treat references to wa-connector in old commits / external docs as
+  archaeology. big-app's existing WhatsApp scaffolding (`lib/wa/client.ts`,
+  `lib/services/whatsapp.ts`, `lib/actions/whatsapp.ts`, pairing UI, stub
+  webhook handler) survives the pivot and gets retargeted to whatsapp-crm's
+  base URL when we wire in.
 - NestJS backend extraction (Phase 2 trigger — not a date; see
   `docs/ARCHITECTURE.md` §7)
 - Multi-tenant (Phase 4)

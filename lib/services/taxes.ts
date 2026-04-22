@@ -1,6 +1,7 @@
 import type { Context } from "@/lib/context/types";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { taxInputSchema } from "@/lib/schemas/taxes";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type Tax = Tables<"taxes">;
@@ -30,7 +31,7 @@ export async function createTax(ctx: Context, input: unknown): Promise<Tax> {
 	const parsed = taxInputSchema.parse(input);
 	const { data, error } = await ctx.db
 		.from("taxes")
-		.insert(parsed)
+		.insert({ ...parsed, brand_id: assertBrandId(ctx) })
 		.select("*")
 		.single();
 	if (error) {

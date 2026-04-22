@@ -2,39 +2,118 @@
 
 > Status: v1 complete — Collect Payment RPC, Sales dashboard (Summary + Sales + Payment + Cancelled tabs), SO detail view, passcode-gated cancellation with full side-effect unwind, printable invoice route, and bidirectional appointment↔sales linking all shipped.
 
-## Cancel-sales-order with side-effect unwind (2026-04-20)
+## Void sales order — prototype-parity flow (2026-04-21)
 
-Cancelling a sales order is the one "undo the bill" action — there is no
-separate `void` button. The earlier plan to ship both `cancel` (with CN)
-and `void` (erase, no CN) was collapsed into a single operation: users
-only ever think about one thing ("undo this bill"), and the prior split
-just produced two UIs for the same intent.
+The 2026-04-20 single-step "Cancel" was upgraded to match the reference
+prototype's **Void** flow — same core behaviour (CN + inventory reversal
++ appointment reset), now with a three-step wizard, a selectable refund
+method, an admin-fee option, and a separate Refund Note audit record.
 
-**What happens when staff clicks Cancel and submits reason + passcode:**
+**UI terminology is "Void" everywhere.** Internal SO status still flips
+to `cancelled` — the DB value wasn't renamed (no data migration). The
+`cancellations` table name also stays; think of it as "void audit log".
 
-1. `redeem_passcode` verifies the 4-digit code (function
-   `VOID_SALES_ORDER_INVOICE`, same outlet as the SO) and marks it used.
-2. A `cancellations` row is inserted with `CN-000XXX`, `reason`,
-   `amount = order.total`, `tax = order.tax`, `processed_by`.
-3. `sales_orders.status` flips to `cancelled`.
-4. **Inventory is un-deducted.** Every `inventory_movements` row the
-   Collect Payment RPC inserted for this SO (reason `sale` or
-   `service_use`, ref `sales_order` or `sale_item`) gets a compensating
-   row with the negated delta, `reason = 'cancellation'`, `ref_type =
-   'cancellation'`, `ref_id = cn.id`. `inventory_items.stock` is updated
-   in lockstep.
-5. If the SO is linked to an appointment: the appointment's
-   `payment_status` is reset to `unpaid`, `paid_via` nulled, and `status`
-   rolled back to `confirmed` iff Collect Payment was what flipped it to
-   `completed` (other statuses left alone — don't stomp manual transitions).
+### The three-step wizard
 
-All five steps run inside the `cancel_sales_order` Postgres RPC's implicit
-transaction. Any failure (bad passcode, missing SO, DB hiccup) rolls
-everything back, including the passcode redemption.
+Component: [components/sales/VoidSalesOrderDialog.tsx](../../components/sales/VoidSalesOrderDialog.tsx).
+Button lives in two places: the bottom-right footer of the SO popup
+([SalesOrderDetailDialog](../../components/sales/SalesOrderDetailDialog.tsx))
+and the header of the SO detail page
+([SalesOrderDetailView](../../components/sales/SalesOrderDetailView.tsx)).
 
-**Status model:** SO `status` CHECK still allows `void`, but the value is
-unused. A later cleanup migration may drop it. `cancelled` is the single
-terminal post-cancel state.
+1. **Items** — line-items list with checkboxes. **All checkboxes are
+   currently pre-selected and disabled** (partial-item void is deferred).
+   Shows the refundable total.
+2. **Confirm** — "MYR X will be returned to the customer" with the four
+   effects spelled out (SO → Cancelled, RN generated, CN created, stock
+   reversed). Mirrors the prototype's amber-alert confirmation modal.
+3. **Authorize** — 4-digit passcode + reason dropdown + refund-method
+   dropdown + Include Admin Fee toggle. Submit fires the
+   `void_sales_order` RPC.
+
+### `void_sales_order` RPC (migration `0070_void_sales_order_rpc`)
+
+Signature:
+```sql
+void_sales_order(
+  p_sales_order_id     uuid,
+  p_passcode           text,
+  p_reason             text,       -- one of VOID_REASONS codes
+  p_refund_method      text,       -- payment_methods.code
+  p_include_admin_fee  boolean,
+  p_admin_fee          numeric,    -- MYR, ignored unless include flag true
+  p_sale_item_ids      uuid[],     -- scaffold for partial-void
+  p_used_by            uuid
+) returns jsonb  -- { cn_id, cn_number, rn_id, rn_number, refund_amount, sales_order_id }
+```
+
+Atomic steps inside the RPC's implicit transaction:
+
+1. Lock + validate the SO (not already cancelled / voided).
+2. `redeem_passcode` (function `VOID_SALES_ORDER_INVOICE`, same outlet).
+3. Insert `cancellations` row — `amount = order.total`, `tax =
+   order.tax`, plus the new `admin_fee` and `refund_method` columns.
+4. Insert `refund_notes` row — `amount = order.total - admin_fee`,
+   `refund_method`, `include_admin_fee`, `admin_fee`, FK to the CN.
+5. Flip `sales_orders.status = 'cancelled'`.
+6. **Inventory compensation**: for every `inventory_movements` row the
+   Collect Payment RPC wrote against this SO/its sale_items (reason
+   `sale` or `service_use`), insert a compensating row with negated
+   `delta`, `reason = 'cancellation'`, `ref_type = 'cancellation'`,
+   `ref_id = cn.id`; update `inventory_items.stock` in lockstep.
+7. **Appointment is NOT touched.** The visit happened; only the sale was
+   cancelled. Earlier revisions of this RPC flipped `payment_status` back
+   to `unpaid` and demoted `status` from `completed` to `confirmed`, but
+   that made the appointment lie about what actually occurred. The CN/RN
+   rows carry the money-side truth instead.
+
+Any failure rolls everything back — including the passcode redemption,
+so the code stays reusable.
+
+### Reasons (5 codes; config-driven later)
+
+Enum lives in [lib/schemas/sales.ts](../../lib/schemas/sales.ts) as
+`VOID_REASONS` with labels in `VOID_REASON_LABELS`:
+
+- `CUSTOMER_RETURN_ITEM`
+- `DUPLICATE_SALES`
+- `INCORRECT_SALES_ITEM_SERVICE`
+- `RETURN_BACK_TO_CUSTOMER`
+- `WRONG_CUSTOMER`
+
+A `void_reasons` config table is planned but not built — when it lands,
+migrate the enum to FK + seed these five values.
+
+### Refund Notes (new table, migration `0069_void_schema_parity`)
+
+```
+refund_notes (
+  id, rn_number (auto RN-000XXX), cancellation_id, sales_order_id,
+  outlet_id, amount (net of admin fee), refund_method (FK payment_methods.code),
+  include_admin_fee, admin_fee, processed_by, refunded_at,
+  created_at, updated_at
+)
+```
+
+Tier C (inherits brand via `sales_orders.outlet_id.brand_id`). Dual
+anon/authenticated temp RLS policies pending per-role tightening.
+
+### What's NOT built yet (explicit gaps)
+
+- **Partial-item void.** UI shows the item checkboxes greyed & pre-ticked
+  with the note "Per-item selection is coming in a later update." The
+  RPC signature takes `p_sale_item_ids uuid[]` so the wire is ready —
+  when enabled, the RPC body needs: CN/RN amount = sum of selected
+  items, inventory compensation limited to selected items, SO status
+  stays `completed` when any item remains, skip appointment reset on
+  partial.
+- **Config-driven reasons table.** Hardcoded in Zod for now.
+- **RN listing UI.** No `/sales` tab surfaces refund_notes rows yet — CN
+  list already works and shows the same cancellations.
+- **Payor / petty cash / self bill.** Unchanged from the prior deferral.
+- **Void status value**: `sales_orders.status = 'void'` still exists in
+  the CHECK constraint but is unreachable. Candidate for a cleanup
+  migration after a few weeks of data.
 
 ## Invoice printing (2026-04-20)
 
@@ -82,7 +161,7 @@ What actually exists in code as of migration `0048_cancellations`:
 - `listSaleItems(ctx, salesOrderId)` — line items for a specific SO.
 - `listPaymentsForOrder(ctx, salesOrderId)` — payments for a specific SO with processed_by join.
 - `listPayments(ctx, opts)` — all payment records across orders with nested SO→customer→consultant relations. Powers the Payment tab.
-- `cancelSalesOrder(ctx, salesOrderId, input)` — thin wrapper over the `cancel_sales_order` RPC. Zod-validates `{ reason, passcode }`, passes through, maps `'Invalid or expired passcode'` to `ValidationError`. Returns `{ cn_id, cn_number, sales_order_id }`. Full side-effect unwind (inventory + appointment reset) lives in the RPC.
+- `voidSalesOrder(ctx, salesOrderId, input)` — thin wrapper over the `void_sales_order` RPC. Zod-validates `{ reason, passcode, refund_method, include_admin_fee, admin_fee, sale_item_ids }`, passes through, maps `'Invalid or expired passcode'` to `ValidationError`. Returns `{ cn_id, cn_number, rn_id, rn_number, refund_amount, sales_order_id }`. Full side-effect unwind (inventory compensation + refund-note row; appointment is intentionally left unchanged) lives in the RPC.
 - `listCancellations(ctx, opts)` — all cancellation records with SO→customer and processed_by relations.
 - `getSalesSummary(ctx, opts)` — daily totals (total sales MYR, total payments MYR, order count, payment count) for the Summary tab.
 
@@ -96,7 +175,7 @@ What actually exists in code as of migration `0048_cancellations`:
 **Schemas — [lib/schemas/sales.ts](../../lib/schemas/sales.ts):**
 - `collectPaymentItemSchema` / `collectPaymentInputSchema` Zod schemas feeding both the dialog and the service.
 - `paymentEntrySchema` — `mode` is now a free-form string (resolved at runtime against `payment_methods.code`); carries all per-method optional fields (`remarks`, `bank`, `card_type`, `trace_no`, `approval_code`, `reference_no`, `months`). Zod doesn't cross-validate required fields per method — the service layer does that via `assertPaymentFields` against the method's flags.
-- `cancelSalesOrderInputSchema` — `reason` (required, 1–500 chars) + `passcode` (required, exactly 4 digits). Amount/tax are always the order totals now; per-call overrides were removed.
+- `voidSalesOrderInputSchema` — `reason` (enum of 5 `VOID_REASONS`), `passcode` (4 digits), `refund_method` (payment_methods.code), `include_admin_fee` (bool), `admin_fee` (MYR ≥ 0, effective only when the flag is true), `sale_item_ids` (uuid[], min 1 — always the full set until partial-void ships). `VOID_REASON_LABELS` exports display strings.
 
 **Schemas — [lib/schemas/payment-methods.ts](../../lib/schemas/payment-methods.ts) (new):**
 - `paymentMethodInputSchema` — edit payload (name / is_active / sort_order only; field flags are not user-editable in v1).
@@ -104,7 +183,7 @@ What actually exists in code as of migration `0048_cancellations`:
 
 **Server actions — [lib/actions/sales.ts](../../lib/actions/sales.ts):**
 - `collectAppointmentPaymentAction(appointmentId, input)` — builds context, calls the service, revalidates `/appointments` and `/appointments/[id]`. Under 10 lines.
-- `cancelSalesOrderAction(salesOrderId, input)` — builds context, calls the service, revalidates `/sales`, `/sales/[id]`, `/appointments`, `/inventory`, `/passcode` (all four sees the state flip). Returns `{ cnNumber }`.
+- `voidSalesOrderAction(salesOrderId, input)` — builds context, calls the service, revalidates `/sales`, `/sales/[id]`, `/appointments`, `/inventory`, `/passcode`. Returns `{ cnNumber, rnNumber, refundAmount }`.
 
 **Server actions — [lib/actions/payment-methods.ts](../../lib/actions/payment-methods.ts) (new):**
 - `createPaymentMethodAction` / `updatePaymentMethodAction` / `deletePaymentMethodAction` — thin wrappers around the service; revalidate `/config/sales/payment` + `/appointments`.
@@ -214,7 +293,7 @@ behaviour, which causes the "numbers jumping under my cursor" trap.
 - [app/(app)/sales/[id]/page.tsx](../../app/(app)/sales/[id]/page.tsx) + [sales-order-detail-content.tsx](../../app/(app)/sales/[id]/sales-order-detail-content.tsx) — server component fetching order, items, payments in parallel.
 - [components/sales/SalesOrderDetailView.tsx](../../components/sales/SalesOrderDetailView.tsx) — full detail page: header (back link, SO#, status badge, invoice#, Print button, Cancel button), info cards (Date, Customer, Outlet, Consultant), line items table (Item, Type, Qty, Unit price, Discount, Tax, Total), totals summary, payment records list, appointment link, remarks.
 - Print: opens new window with styled invoice HTML, triggers `window.print()`.
-- Cancel: [components/sales/CancelOrderDialog.tsx](../../components/sales/CancelOrderDialog.tsx) — reason + 4-digit passcode dialog → `cancelSalesOrderAction` → runs the full unwind described at the top of this doc. Manager generates the passcode beforehand at `/passcode` with function `[VOID/REVERT] Sales Order/Invoice`.
+- Void: [components/sales/VoidSalesOrderDialog.tsx](../../components/sales/VoidSalesOrderDialog.tsx) — three-step wizard (Items → Confirm → Authorize) → `voidSalesOrderAction` → runs the full unwind described at the top of this doc. Manager generates the passcode beforehand at `/passcode` with function `[VOID/REVERT] Sales Order/Invoice`.
 
 **UI — Appointment ↔ Sales linking:**
 - [components/appointments/detail/BookingInfoCard.tsx](../../components/appointments/detail/BookingInfoCard.tsx) — shows "Sales Order → View invoice" link when `salesOrderId` is present.
@@ -391,9 +470,9 @@ cleanup migration.
 - **Tax:** flat-percent at the order level, default 0 (Malaysian dental usually tax-exempt). Configurable later.
 - **Payor** (third-party payer like insurance) is **deferred** — v1 assumes customer = payor.
 - **Petty Cash** and **Self Bill** tabs are rendered as empty-state placeholders in v1. No schema.
-- **Cancellation requires a passcode (live).** The `cancel_sales_order` RPC calls `redeem_passcode` with function `VOID_SALES_ORDER_INVOICE` against the SO's outlet before it touches any other table. A failed redemption rolls the whole transaction back — no partial cancellation, no dangling CN, passcode stays usable. Managers generate 4-digit codes at `/passcode`; staff types it into the Cancel dialog.
-- **One cancel action, not cancel vs void.** The original docs distinguished `cancelled` (CN + reason) from `void` (erase, no CN). In practice they're the same intent — "undo this bill" — so they were collapsed into one operation that flips status to `cancelled`, creates a CN row, and unwinds inventory + appointment state. The SO `void` status value is still in the CHECK constraint but is unreachable from the UI (a future cleanup may drop it).
-- **Side-effect unwind is part of cancellation, not a separate step.** Inventory movements from Collect Payment are compensated (not deleted — the audit trail keeps both the forward and reverse rows). Linked appointments are reset to `unpaid` + `confirmed` if Collect Payment had completed them.
+- **Void requires a passcode (live).** The `void_sales_order` RPC calls `redeem_passcode` with function `VOID_SALES_ORDER_INVOICE` against the SO's outlet before it touches any other table. A failed redemption rolls the whole transaction back — no partial void, no dangling CN/RN, passcode stays usable. Managers generate 4-digit codes at `/passcode`; staff types it into the Void wizard's Authorize step.
+- **One void action, UI terminology unified.** "Void" is the user-facing word; internal SO status still flips to `cancelled`. The `cancellations` table is reused as the void audit log — plus a new `refund_notes` table captures the customer-facing refund record. The SO `void` status value lingers in the CHECK constraint but is unreachable from the UI.
+- **Side-effect unwind is part of void, not a separate step.** Inventory movements from Collect Payment are compensated (not deleted — the audit trail keeps both the forward and reverse rows). The linked appointment is intentionally left untouched: reverting `completed → confirmed` or flipping `payment_status` back to `unpaid` made the appointment state misrepresent what actually happened. Voiding is a money-side reversal; the visit itself is not undone.
 
 ## Data Fields
 

@@ -13,6 +13,7 @@ import {
 	supplierInputSchema,
 	uomInputSchema,
 } from "@/lib/schemas/inventory";
+import { assertBrandId } from "@/lib/supabase/query";
 import {
 	listTaxIdsForInventoryItem,
 	setTaxesForInventoryItem,
@@ -37,7 +38,7 @@ export type InventoryItemWithRefs = InventoryItem & {
 
 const SELECT_WITH_REFS = `
 	*,
-	brand:inventory_brands!inventory_items_brand_id_fkey(id, name),
+	brand:inventory_brands!inventory_items_manufacturer_brand_id_fkey(id, name),
 	category:inventory_categories!inventory_items_category_id_fkey(id, name),
 	supplier:suppliers!inventory_items_supplier_id_fkey(id, name),
 	purchasing_uom:inventory_uoms!inventory_items_purchasing_uom_id_fkey(id, name),
@@ -107,7 +108,7 @@ function buildItemRow(parsed: InventoryItemCreateInput) {
 		barcode: parsed.barcode,
 		is_sellable: parsed.is_sellable,
 		is_active: parsed.is_active,
-		brand_id: parsed.brand_id,
+		manufacturer_brand_id: parsed.manufacturer_brand_id,
 		category_id: parsed.category_id,
 		supplier_id: parsed.supplier_id,
 		purchasing_uom_id: parsed.purchasing_uom_id,
@@ -180,7 +181,7 @@ export async function createInventoryItem(
 	const parsed = parseCreate(input);
 	const { data, error } = await ctx.db
 		.from("inventory_items")
-		.insert(buildItemRow(parsed))
+		.insert({ ...buildItemRow(parsed), brand_id: assertBrandId(ctx) })
 		.select("*")
 		.single();
 	if (error) {

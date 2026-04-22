@@ -7,6 +7,7 @@ import {
 	paymentMethodInputSchema,
 } from "@/lib/schemas/payment-methods";
 import type { PaymentEntry } from "@/lib/schemas/sales";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type PaymentMethod = Tables<"payment_methods">;
@@ -78,6 +79,7 @@ export async function createPaymentMethod(
 	const { data, error } = await ctx.db
 		.from("payment_methods")
 		.insert({
+			brand_id: assertBrandId(ctx),
 			code,
 			name: parsed.name,
 			is_builtin: false,

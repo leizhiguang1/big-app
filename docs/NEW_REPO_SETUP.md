@@ -53,9 +53,9 @@ None of these Phase 1 approaches are hacks — they are the documented Next 16 +
 
 Repo becomes a pnpm workspace: `apps/web` (Next 16), `apps/api` (NestJS), `packages/shared` (Zod schemas + service layer + context types + errors). TanStack Query is installed and becomes the primary data layer in `apps/web`. Migration is mechanical, not a rewrite — see [ARCHITECTURE.md §7](./ARCHITECTURE.md).
 
-**wa-connector (separate repo — Phase 3):**
+**whatsapp-crm (separate repo — Phase 3):**
 
-Node.js + Baileys. Runs as its own process but currently shares the big-app Supabase project, isolated in the `wa_service` schema (plus a set of legacy `public.wa_*` + `public.messages` tables). Not touched in Phase 1. Big-app never migrates those tables — any WA schema change is made from the wa-connector repo. Whether wa-connector adopts NestJS or stays plain Node is a Phase 3 decision. See [ARCHITECTURE.md §2](./ARCHITECTURE.md).
+Node.js + Baileys, cloned from the reference whatsapp-crm repo, deployed to its own Railway service. Shares the big-app Supabase project, isolated in the `wa_crm` schema. Owns WhatsApp transport + automation engine + chat-originated CRM. Not touched in Phase 1. Big-app never migrates `wa_crm.*` — any WA / automation schema change is made from the whatsapp-crm repo. A predecessor called wa-connector (pure transport, `public.wa_*`) is being decommissioned. See [ARCHITECTURE.md §2](./ARCHITECTURE.md) and [docs/WA_CRM_INTEGRATION.md](./WA_CRM_INTEGRATION.md).
 
 **What we are NOT using:**
 
@@ -337,8 +337,7 @@ Write tests only for things that break silently and cost money:
 - Commission calculation (Phase 2)
 - Inventory / products (Phase 2 deep)
 - Clinical sub-modules — case notes, dental charting, prescriptions (Phase 2)
-- WhatsApp / messaging (Phase 3 — handled by wa-connector, a separate Node+Baileys process in its own repo. Shares this Supabase project but owns the `wa_service` schema + legacy `public.wa_*` / `public.messages` tables; never migrated from this repo. See [ARCHITECTURE.md §2](./ARCHITECTURE.md) and [SCHEMA.md](./SCHEMA.md) "Schemas owned by other services".)
-- Automation / workflows (Phase 3)
+- WhatsApp / messaging / automations (Phase 3 — handled by **whatsapp-crm**, a separate Node+Baileys process in its own repo cloned from the reference whatsapp-crm. Shares this Supabase project but owns the `wa_crm` schema; never migrated from this repo. Big-app is a consumer — it mirrors messages into its own `public.conversation_*` tables and calls whatsapp-crm's REST `/automations/fire` endpoint from a thin adapter in `lib/services/notifications.ts`. See [ARCHITECTURE.md §2](./ARCHITECTURE.md), [docs/WA_CRM_INTEGRATION.md](./WA_CRM_INTEGRATION.md), and [SCHEMA.md](./SCHEMA.md) "Schemas owned by other services".)
 - NestJS backend extraction (Phase 2 trigger — not a date; see
   `docs/ARCHITECTURE.md` §7)
 - Multi-tenant (Phase 4)

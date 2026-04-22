@@ -38,7 +38,7 @@ type FormState = {
 	barcode: string;
 	is_sellable: boolean;
 	is_active: boolean;
-	brand_id: string;
+	manufacturer_brand_id: string;
 	category_id: string;
 	supplier_id: string;
 	purchasing_uom_id: string;
@@ -72,7 +72,7 @@ const EMPTY: FormState = {
 	barcode: "",
 	is_sellable: true,
 	is_active: true,
-	brand_id: "",
+	manufacturer_brand_id: "",
 	category_id: "",
 	supplier_id: "",
 	purchasing_uom_id: "",
@@ -107,7 +107,7 @@ function fromItem(item: InventoryItemWithRefs): FormState {
 		barcode: item.barcode ?? "",
 		is_sellable: item.is_sellable,
 		is_active: item.is_active,
-		brand_id: item.brand_id ?? "",
+		manufacturer_brand_id: item.manufacturer_brand_id ?? "",
 		category_id: item.category_id ?? "",
 		supplier_id: item.supplier_id ?? "",
 		purchasing_uom_id: item.purchasing_uom_id,
@@ -211,7 +211,7 @@ export function ItemFormDialog({
 			barcode: nullableStr(state.barcode),
 			is_sellable: state.is_sellable,
 			is_active: state.is_active,
-			brand_id: nullableUuid(state.brand_id),
+			manufacturer_brand_id: nullableUuid(state.manufacturer_brand_id),
 			category_id: nullableUuid(state.category_id),
 			supplier_id: nullableUuid(state.supplier_id),
 			purchasing_uom_id: state.purchasing_uom_id,
@@ -378,8 +378,8 @@ export function ItemFormDialog({
 							<Two>
 								<Field label="Brand">
 									<SelectInput
-										value={state.brand_id}
-										onChange={(v) => set("brand_id", v)}
+										value={state.manufacturer_brand_id}
+										onChange={(v) => set("manufacturer_brand_id", v)}
 										placeholder="— None —"
 										options={brands.map((b) => ({
 											value: b.id,

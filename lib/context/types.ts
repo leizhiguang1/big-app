@@ -11,6 +11,7 @@ export type Context = {
 	db: SupabaseClient<Database>;
 	dbAdmin: SupabaseClient<Database>;
 	currentUser: CurrentUser | null;
+	brandId: string | null;
 	outletIds: string[];
 	requestId: string;
 };

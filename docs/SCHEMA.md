@@ -31,28 +31,36 @@
    `anon` policy marked `-- TEMP: pre-auth, replace when login lands`.
    Post-auth: tightened per module.
 7. No denormalized text columns — always JOIN.
+8. **Brand scoping (added 2026-04-21):** top-level business entities
+   carry `brand_id uuid not null references brands(id) on delete restrict`.
+   Children/junctions inherit via parent FK — do NOT denormalize.
+   Lookups stay global. Full rules, tier classification, migration
+   template, service patterns, and common mistakes:
+   [BRAND_SCOPING.md](./BRAND_SCOPING.md) — **read before adding a new
+   table**.
 
 The shared `set_updated_at()` function and `gen_code(prefix, seq_name)`
 helper are introduced in the first MCP migration before any feature table.
 
 ## Schemas owned by other services
 
-Big-app is not the only writer on its Supabase project. **wa-connector** (a separate Node+Baileys process, its own repo at `/Users/leizhiguang/Documents/Programming/1-FunnelDuo/wa-connector/`) shares this project and owns:
+Big-app is not the only writer on its Supabase project. **whatsapp-crm** (a separate Node+Baileys process, fresh clone of the reference whatsapp-crm repo, deployed to its own Railway service) shares this project and owns:
 
-- **Every `public.wa_*` table created by wa-connector's schema** — `wa_api_keys`, `wa_connections`, `wa_webhook_log`, `wa_message_log`, `wa_chat_cache`, `wa_message_cache`. Definitions in [wa-connector/backend/schema.sql](../../wa-connector/backend/schema.sql).
-- **Supabase Storage bucket `wa-media`** — inbound media uploads. Created by wa-connector migration 0055.
-- (Target future state) A dedicated `wa_connector` Postgres schema — planned, not yet migrated. Moving the `wa_*` tables into their own schema removes the naming-collision risk against big-app's own mirror tables (see note below).
+- **Every table in the `wa_crm` schema** — connections, message cache, webhook log, automation templates, automation runs, scheduled sends, chat-CRM tables (WA labels, unknown senders, conversation tags authored from chat). Defined and migrated from the whatsapp-crm repo, not here.
+- **A Supabase Storage bucket for chat media** — inbound media uploads from WhatsApp. Created and managed by whatsapp-crm.
+
+A predecessor service called **wa-connector** (pure transport, all `public.wa_*` tables) is being decommissioned in favor of whatsapp-crm. For as long as `public.wa_*` tables still exist (`wa_api_keys`, `wa_connections`, `wa_webhook_log`, `wa_message_log`, `wa_chat_cache`, `wa_message_cache` plus the `wa-media` Storage bucket), the same ownership rules apply — they are out of big-app's scope. They disappear when cutover is complete.
 
 **Rules (load-bearing — these are how two services sharing one DB don't step on each other):**
 
-1. Do **not** include wa-connector's tables in big-app's table inventory below.
-2. Do **not** create migrations in this repo that `CREATE`, `ALTER`, `DROP`, or otherwise touch them — not even to add an RLS policy or a comment. Any schema change to wa-connector's tables is made in the wa-connector repo and applied from there.
-3. Do **not** read from them in `lib/services/**` code. Big-app's services only touch tables it owns. Big-app's WhatsApp module talks to wa-connector over its HTTP API and mirrors what it needs into its own tables.
+1. Do **not** include external-service tables (`wa_crm.*` or legacy `public.wa_*`) in big-app's table inventory below.
+2. Do **not** create migrations in this repo that `CREATE`, `ALTER`, `DROP`, or otherwise touch them — not even to add an RLS policy or a comment. Any schema change is made in the whatsapp-crm repo and applied from there.
+3. Do **not** read from them in `lib/services/**` code. Big-app's services only touch tables it owns. Big-app's WhatsApp / Conversations modules talk to whatsapp-crm over its HTTP API and mirror what they need into their own `public.*` tables.
 4. Their RLS state and naming are intentionally out of scope for this repo. Don't "fix" them here.
 
-**No naming collision with wa-connector's tables.** big-app's Conversations module ([modules/11-conversations.md](./modules/11-conversations.md)) uses channel-agnostic names (`conversations`, `conversation_messages`, `channel_accounts`, `conversation_channels`) — intentionally no `wa_` prefix, so there's zero ambiguity in `list_tables` output. If the prefix is `wa_`, it's wa-connector's transport-level table. If it's `conversation_*` or `channel_*`, it's big-app's Conversations module.
+**No naming collision.** big-app's Conversations module ([modules/11-conversations.md](./modules/11-conversations.md)) uses channel-agnostic names in `public` (`conversations`, `conversation_messages`, `channel_accounts`, `conversation_channels`) — intentionally no `wa_` prefix, so there's zero ambiguity in `list_tables` output. External-service tables are either in a separate schema (`wa_crm.*`) or use the `wa_` prefix in `public` during the transition.
 
-See [ARCHITECTURE.md §2 + §2.1](./ARCHITECTURE.md) for the full decision and the communication rules.
+See [ARCHITECTURE.md §2 + §2.1](./ARCHITECTURE.md) and [docs/WA_CRM_INTEGRATION.md](./WA_CRM_INTEGRATION.md) for the full decision and the communication rules.
 
 ## Storage (Supabase Storage buckets)
 
@@ -75,7 +83,7 @@ Status column: ✅ = built, ○ = target (not yet built), ⏸ = deferred (was in
 
 ## Table Inventory
 
-> **Note:** This lists big-app's `public.*` tables only. wa-connector's `public.wa_*` tables (`wa_api_keys`, `wa_connections`, `wa_webhook_log`, `wa_message_log`, `wa_chat_cache`, `wa_message_cache`) are intentionally excluded — see "Schemas owned by other services" above. Run `mcp__big-supabase__list_tables` against schemas `["public"]` for the current live shape (you'll see wa-connector's tables in that output — they are not in big-app's scope).
+> **Note:** This lists big-app's `public.*` tables only. External-service tables — the `wa_crm.*` schema (owned by whatsapp-crm) and any legacy `public.wa_*` tables (owned by the deprecated wa-connector) — are intentionally excluded. See "Schemas owned by other services" above. Run `mcp__big-supabase__list_tables` for the current live shape (you'll see those tables in the output — they are not in big-app's scope).
 
 | # | Module | Table | Status | Purpose |
 |---|--------|-------|--------|---------|
@@ -260,10 +268,10 @@ Tables to add after Phase 1 is built:
 | Loyalty | `wallet_transactions`, `voucher_schemes`, `vouchers`, `discount_schemes` | Loyalty points, vouchers, wallets |
 | Operations | `commissions`, `petty_cash` | Staff commissions, cash float |
 | Config | `config_settings` | Per-module/per-outlet settings |
-| Messaging (wa-connector) | Owned by wa-connector — `public.wa_api_keys`, `wa_connections`, `wa_webhook_log`, `wa_message_log`, `wa_chat_cache`, `wa_message_cache` + `wa-media` Storage bucket | WhatsApp transport. Big-app never reads these — see "Schemas owned by other services". |
-| Conversations (11) | `conversation_channels`, `channel_accounts`, `conversations`, `conversation_messages` | Channel-agnostic inbox. WhatsApp is v1 provider via wa-connector. See [modules/11-conversations.md](./modules/11-conversations.md). |
-| CRM (13) | `customer_tags`, `customer_notes`, `customer_tasks`, `unknown_senders` | Contact enrichment attached to `customers`. See [modules/13-crm.md](./modules/13-crm.md). |
-| Automations (14) | `notification_templates`, `automation_runs` + `appointments.reminder_sent_at` | Trigger→action engine; hard-coded triggers in Phase 3 v1. See [modules/14-automations.md](./modules/14-automations.md). |
+| Messaging (whatsapp-crm) | Owned by whatsapp-crm in the `wa_crm` schema — connections, message cache, webhook log, automation templates + runs + schedules, chat-originated CRM. Plus its own chat-media Storage bucket. Legacy `public.wa_*` tables from the deprecated wa-connector live here until cutover, then drop. | WhatsApp transport + automation engine + chat-CRM. Big-app never reads these — see "Schemas owned by other services" and [docs/WA_CRM_INTEGRATION.md](./WA_CRM_INTEGRATION.md). |
+| Conversations (11) | `conversation_channels`, `channel_accounts`, `conversations`, `conversation_messages` | Channel-agnostic inbox MIRROR. WhatsApp is v1 provider via whatsapp-crm. See [modules/11-conversations.md](./modules/11-conversations.md). |
+| CRM (13) | `customer_tags`, `customer_notes`, `customer_tasks` | Business-relationship CRM attached to `customers`. Chat-originated CRM lives in `wa_crm`. See [modules/13-crm.md](./modules/13-crm.md). |
+| Automations (14) | (optional) `automation_fires` audit mirror + `appointments.reminder_sent_at` idempotency column | big-app side of the trigger adapter. The engine, templates, and authoritative audit live in whatsapp-crm. See [modules/14-automations.md](./modules/14-automations.md). |
 
 ## Seed Data
 

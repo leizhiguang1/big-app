@@ -1,6 +1,7 @@
 import type { Context } from "@/lib/context/types";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { customerInputSchema } from "@/lib/schemas/customers";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type Customer = Tables<"customers">;
@@ -13,6 +14,19 @@ export type CustomerWithRelations = Customer & {
 		last_name: string;
 		code: string;
 	} | null;
+};
+
+export type CustomerIdentity = {
+	id: string;
+	code: string;
+	first_name: string;
+	last_name: string | null;
+	profile_image_path: string | null;
+	phone?: string | null;
+	id_number?: string | null;
+	is_vip?: boolean | null;
+	is_staff?: boolean | null;
+	tag?: string | null;
 };
 
 const SELECT_WITH_RELATIONS =
@@ -91,7 +105,7 @@ export async function createCustomer(
 	input: unknown,
 ): Promise<Customer> {
 	const row = normalize(input);
-	const insert = { ...row };
+	const insert = { ...row, brand_id: assertBrandId(ctx) };
 	if (insert.id === undefined) {
 		delete (insert as { id?: string }).id;
 	}

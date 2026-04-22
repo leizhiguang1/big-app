@@ -6,6 +6,7 @@ import {
 	ValidationError,
 } from "@/lib/errors";
 import { employeeInputSchema, pinField } from "@/lib/schemas/employees";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type Employee = Tables<"employees">;
@@ -215,7 +216,7 @@ export async function createEmployee(
 		}
 	}
 
-	const insert = { ...row, auth_user_id: authUserId };
+	const insert = { ...row, auth_user_id: authUserId, brand_id: assertBrandId(ctx) };
 	if (insert.id === undefined) {
 		delete (insert as { id?: string }).id;
 	}

@@ -38,6 +38,7 @@ type Props = {
 		id: string,
 		args: { dateStr: string; hour: number; minute: number },
 	) => void;
+	onResize?: (id: string, endIso: string) => void;
 };
 
 // 15-minute subdivisions within each hour
@@ -70,6 +71,7 @@ export function WeekView({
 	onAppointmentClick,
 	onAppointmentContextMenu,
 	onReschedule,
+	onResize,
 }: Props) {
 	const weekDays = useMemo(
 		() => getWeekDays(parseDate(weekStart)),
@@ -220,6 +222,7 @@ export function WeekView({
 											style={cardStyle(slot, top, height)}
 											onClick={() => onAppointmentClick(a)}
 											onContextMenu={onAppointmentContextMenu}
+											onResize={onResize}
 										/>
 									);
 								})}

@@ -3,7 +3,8 @@
 import { Ban, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CancelOrderDialog } from "@/components/sales/CancelOrderDialog";
+import { CustomerIdentityCard } from "@/components/customers/CustomerIdentityCard";
+import { VoidSalesOrderDialog } from "@/components/sales/VoidSalesOrderDialog";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -108,11 +109,12 @@ export function SalesOrderDetailDialog({
 }: Props) {
 	const router = useRouter();
 	const [state, setState] = useState<LoadState>({ status: "idle" });
-	const [cancelOpen, setCancelOpen] = useState(false);
+	const [voidOpen, setVoidOpen] = useState(false);
 	const [feedback, setFeedback] = useState<{
 		type: "success" | "error";
 		message: string;
 	} | null>(null);
+	const [reloadKey, setReloadKey] = useState(0);
 
 	useEffect(() => {
 		if (!open || !salesOrderId) {
@@ -121,7 +123,9 @@ export function SalesOrderDetailDialog({
 			return;
 		}
 		let cancelled = false;
-		setState({ status: "loading" });
+		setState((prev) =>
+			prev.status === "ready" ? prev : { status: "loading" },
+		);
 		getSalesOrderDetailAction(salesOrderId)
 			.then((res: SalesOrderDetailResult) => {
 				if (cancelled) return;
@@ -146,7 +150,7 @@ export function SalesOrderDetailDialog({
 		return () => {
 			cancelled = true;
 		};
-	}, [open, salesOrderId]);
+	}, [open, salesOrderId, reloadKey]);
 
 	const order = state.status === "ready" ? state.order : null;
 	const isCancellable =
@@ -163,6 +167,32 @@ export function SalesOrderDetailDialog({
 							Items, payment details and payment history for this sales order.
 						</DialogDescription>
 					</DialogHeader>
+					{order !== null && (
+						<div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b bg-white px-4 py-2.5 sm:px-6">
+							<span className="font-mono font-semibold text-base">
+								{order.so_number}
+							</span>
+							{order.outlet && (
+								<span className="text-muted-foreground text-xs">
+									<span className="font-mono font-medium uppercase">
+										{order.outlet.code}
+									</span>{" "}
+									· {order.outlet.name}
+								</span>
+							)}
+						</div>
+					)}
+					{order?.status === "cancelled" && (
+						<div className="flex items-center gap-2 border-b border-red-200 bg-red-50 px-4 py-2.5 text-red-800 text-sm sm:px-6">
+							<Ban className="size-4 shrink-0" />
+							<span className="font-semibold uppercase tracking-wide">
+								Voided
+							</span>
+							<span className="text-red-700/80">
+								· This sales order has been cancelled.
+							</span>
+						</div>
+					)}
 					<div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-slate-50 p-4 sm:flex-row sm:p-6">
 						{state.status === "loading" && <LoadingSkeleton />}
 						{state.status === "not_found" && (
@@ -209,11 +239,11 @@ export function SalesOrderDetailDialog({
 									className="self-end text-red-600 hover:bg-red-50 hover:text-red-700 sm:self-auto"
 									onClick={() => {
 										setFeedback(null);
-										setCancelOpen(true);
+										setVoidOpen(true);
 									}}
 								>
 									<Ban className="mr-2 size-4" />
-									Cancel order
+									Void
 								</Button>
 							)}
 						</div>
@@ -221,17 +251,21 @@ export function SalesOrderDetailDialog({
 				</DialogContent>
 			</Dialog>
 
-			{order !== null && (
-				<CancelOrderDialog
-					open={cancelOpen}
-					onOpenChange={setCancelOpen}
-					salesOrderId={order.id}
-					soNumber={order.so_number}
-					onSuccess={(cnNumber) => {
+			{state.status === "ready" && (
+				<VoidSalesOrderDialog
+					open={voidOpen}
+					onOpenChange={setVoidOpen}
+					salesOrderId={state.order.id}
+					soNumber={state.order.so_number}
+					outletName={state.order.outlet?.name ?? null}
+					orderTotal={Number(state.order.total ?? 0)}
+					items={state.items}
+					onSuccess={({ cnNumber, rnNumber, refundAmount }) => {
 						setFeedback({
 							type: "success",
-							message: `Order cancelled. Cancellation note: ${cnNumber}`,
+							message: `Voided. CN ${cnNumber} · RN ${rnNumber} · Refund MYR ${refundAmount.toFixed(2)}`,
 						});
+						setReloadKey((k) => k + 1);
 						router.refresh();
 					}}
 					onError={(msg) => setFeedback({ type: "error", message: msg })}
@@ -262,9 +296,6 @@ function LeftPanel({
 	order: SalesOrderWithRelations;
 	items: SaleItem[];
 }) {
-	const customerName = order.customer
-		? fullName(order.customer.first_name, order.customer.last_name)
-		: "Walk-in";
 	const consultantName = order.consultant
 		? fullName(order.consultant.first_name, order.consultant.last_name)
 		: null;
@@ -284,21 +315,12 @@ function LeftPanel({
 					</div>
 				</div>
 				<div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-					<div className="flex items-center gap-2 text-sm">
-						<span className="flex size-7 items-center justify-center rounded-full bg-sky-100 font-semibold text-[11px] text-sky-800 uppercase">
-							{customerName.slice(0, 2)}
-						</span>
-						<div>
-							<div className="font-semibold text-blue-700 uppercase">
-								{customerName}
-							</div>
-							{order.customer?.code && (
-								<div className="text-[11px] text-muted-foreground">
-									({order.customer.code})
-								</div>
-							)}
-						</div>
-					</div>
+					<CustomerIdentityCard
+						customer={order.customer}
+						size="sm"
+						showFlags
+						fallbackLabel="Walk-in"
+					/>
 					<div className="flex flex-wrap gap-2">
 						<PlaceholderPill tooltip="Payment reallocation — Phase 2">
 							Enable Payment Reallocation

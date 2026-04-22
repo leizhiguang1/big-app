@@ -4,26 +4,28 @@
 
 ## Overview
 
-The Conversations module is big-app's **channel-agnostic inbox**. It owns every customer-facing message — inbound and outbound — regardless of which channel the message came through. v1 ships with one provider (WhatsApp, via wa-connector); SMS, Instagram DM, Email, and a web-chat widget are future providers that slot into the same data model without schema changes.
+The Conversations module is big-app's **channel-agnostic inbox mirror + `/inbox` UI**. It owns a local mirror of every customer-facing message — inbound and outbound — regardless of which channel the message came through. v1 ships with one provider (WhatsApp, via the separate **whatsapp-crm** service); SMS, Instagram DM, Email, and a web-chat widget are future providers that slot into the same data model without schema changes.
+
+**The WhatsApp transport + automation engine + chat-originated CRM are NOT in this module and NOT in big-app.** They live in the separate whatsapp-crm service. This module is the consumer side: it mirrors what whatsapp-crm sends, renders the inbox, and provides a composer that POSTs outbound sends back to whatsapp-crm.
 
 This module is part of the **messaging stack** (Conversations + CRM + Automations) which is deliberately kept **separate from the clinic core** (modules 01–09, 12). The stack ships after the clinic core is production-stable. The two layers touch at one seam: [`lib/services/notifications.ts`](../../lib/services/notifications.ts), called from clinic-core services after a business write commits. See [ARCHITECTURE.md §3a](../ARCHITECTURE.md) for the layering rule.
 
 **Sibling modules in the messaging stack:**
-- [13-crm.md](./13-crm.md) — tags, notes, tasks on customers; unknown-sender handling.
-- [14-automations.md](./14-automations.md) — trigger→action engine; sends messages via this module.
+- [13-crm.md](./13-crm.md) — big-app's business-relationship CRM (tags, notes, tasks on customers). Chat-originated CRM lives in whatsapp-crm.
+- [14-automations.md](./14-automations.md) — big-app's thin HTTP adapter (`notifications.ts`) + `pg_cron` scheduled-trigger scans. The engine lives in whatsapp-crm.
 
 **Read first:**
 - [ARCHITECTURE.md §2 + §2.1 + §3 + §3a](../ARCHITECTURE.md) — service boundary + messaging-stack layering rules.
-- [wa-connector/BIG_APP_INTEGRATION.md](../../../wa-connector/BIG_APP_INTEGRATION.md) — frozen contract for the WhatsApp provider.
+- [docs/WA_CRM_INTEGRATION.md](../WA_CRM_INTEGRATION.md) — the contract between big-app and whatsapp-crm.
 
 ## The five load-bearing rules
 
 Break any of these and extraction/channel-addition becomes weeks of work instead of hours.
 
 1. **Code never hardcodes `"whatsapp"` outside the WhatsApp provider adapter.** Service functions take `channel` as a parameter. UI filters render from a `CHANNELS` registry. Templates reference `channel_code`, not `whatsapp`.
-2. **big-app never imports `@whiskeysockets/baileys`.** WhatsApp I/O goes through wa-connector REST via `lib/services/conversations/providers/whatsapp/client.ts`.
-3. **big-app never does `SELECT ... FROM wa_*`.** Those tables belong to wa-connector. big-app reads only from its own `conversations` + `conversation_messages` mirror tables.
-4. **Cross-service = HMAC-signed webhook in, REST out. Never Supabase Realtime.** Realtime is used only for browser ↔ DB refreshes of big-app's own tables.
+2. **big-app never imports `@whiskeysockets/baileys`.** WhatsApp I/O goes through whatsapp-crm REST via `lib/services/conversations/providers/whatsapp/client.ts` (or the existing [lib/wa/client.ts](../../lib/wa/client.ts) retargeted to whatsapp-crm).
+3. **big-app never does `SELECT ... FROM wa_crm.*`.** That schema belongs to whatsapp-crm. big-app reads only from its own `public.conversations` + `public.conversation_messages` mirror tables.
+4. **Cross-service = HMAC-signed webhook in, REST out. Never Supabase Realtime for backend ↔ backend.** Realtime IS used for browser ↔ DB — the `/inbox` page subscribes to `conversation_messages` for live updates. That's the intended pattern.
 5. **The messaging stack talks to clinic core at exactly one place: `lib/services/notifications.ts`.** No DB triggers, no cross-module service imports, no shared-table coupling.
 
 ## Channel architecture
@@ -39,7 +41,7 @@ Break any of these and extraction/channel-addition becomes weeks of work instead
 │                                                      │
 │ Provider adapters (lib/services/conversations/       │
 │                    providers/):                      │
-│   whatsapp/  → wa-connector (shipped)                │
+│   whatsapp/  → whatsapp-crm (combined service)       │
 │   sms/       → Twilio/Vonage (future)                │
 │   instagram/ → Meta Cloud API (future)               │
 │   email/     → Postmark / Resend (future)            │
@@ -77,7 +79,7 @@ Phase-3 v1: text-only. Media shown as a link. Rich rendering (image preview, voi
 
 **Key elements:**
 - Per-channel card showing connection status badge (`disconnected | pairing | connected | reconnecting`).
-- WhatsApp: "Pair new number" button → dialog that calls `POST /connections` on wa-connector, polls QR, shows QR code.
+- WhatsApp: "Pair new number" button → dialog that calls `POST /connections` on whatsapp-crm, polls QR, shows QR code. (The existing pairing UI at [app/(app)/whatsapp/page.tsx](../../app/(app)/whatsapp/page.tsx) already implements this shape against wa-connector and gets retargeted to whatsapp-crm; the pairing flow itself does not need to be rewritten.)
 - Future channels: their own pairing/config flow (e.g. SMS = phone-number provisioning; Email = domain SPF/DKIM setup).
 
 ### Screen: Message Templates (moved to Automations module)
@@ -95,7 +97,7 @@ One row per channel supported. Seeded with `'whatsapp'` in v1.
 | `code` | text | yes | PK. `'whatsapp'`, `'sms'`, `'instagram_dm'`, `'email'`, `'webchat'` |
 | `display_name` | text | yes | UI label |
 | `enabled` | bool | yes | Feature flag — disabled channels are hidden from UI |
-| `provider` | text | yes | Which backend provides this channel (`'wa-connector'`, `'twilio'`, `'meta-cloud'`, …) |
+| `provider` | text | yes | Which backend provides this channel (`'whatsapp-crm'`, `'twilio'`, `'meta-cloud'`, …) |
 | `created_at` | timestamptz | yes | |
 
 ### `public.channel_accounts` (per-outlet provider configuration)
@@ -107,7 +109,7 @@ One row per "this outlet is paired with this channel via this provider account."
 | `id` | uuid | yes | PK |
 | `outlet_id` | uuid | yes | FK to `outlets` |
 | `channel` | text | yes | FK to `conversation_channels.code` |
-| `provider_account_id` | text | yes | Provider-specific stable ID — for WA, this is wa-connector's `connection_id` UUID |
+| `provider_account_id` | text | yes | Provider-specific stable ID — for WA, this is whatsapp-crm's `connection_id` UUID |
 | `display_label` | text | no | Staff-visible nickname ("Front Desk WhatsApp") |
 | `status` | text | yes | `disconnected | pairing | connected | reconnecting` — updated by provider webhook |
 | `last_status_at` | timestamptz | yes | |
@@ -141,7 +143,7 @@ Unique on `(channel_account_id, counterparty_identifier)` — one conversation p
 | `conversation_id` | uuid | yes | FK to `conversations` |
 | `direction` | text | yes | `'inbound' | 'outbound'` |
 | `channel` | text | yes | Denormalized from conversation — query-friendly |
-| `provider_message_id` | text | yes | Provider-native ID; idempotency key — e.g. wa-connector's message id |
+| `provider_message_id` | text | yes | Provider-native ID; idempotency key — e.g. whatsapp-crm's message id |
 | `type` | text | yes | `'text' | 'image' | 'video' | 'audio' | 'file' | 'reaction' | 'system'` |
 | `text` | text | no | |
 | `media_url` | text | no | Opaque URL — may be provider-hosted, may be Supabase Storage |
@@ -164,19 +166,21 @@ Unique on `(conversation_id, provider_message_id)` — prevents duplicate insert
 ### Inbound: customer sends a message
 
 ```
-Customer sends WhatsApp → wa-connector receives via Baileys
-  → wa-connector normalizes, enqueues signed webhook (BullMQ)
+Customer sends WhatsApp → whatsapp-crm receives via Baileys
+  → whatsapp-crm normalizes, enqueues signed webhook
   → POST /api/webhooks/whatsapp (big-app)
   → big-app handler:
       verify X-WA-Signature HMAC (reject 401)
       resolve channel_account_id from metadata.outlet_id + channel='whatsapp'
       upsert conversations (counterparty_identifier=from_phone)
-      resolve customer_id via CRM module's phone-match helper
+      resolve customer_id via phone-match against customers.phone/phone2
       insert conversation_messages (direction='inbound')
       update conversations.last_message_at, last_message_preview, unread_count++
       return 200 fast
   → Supabase Realtime notifies inbox UI (browser ↔ DB — allowed)
-  → Automations module's 'inbound_message' trigger fires (if matched)
+  → whatsapp-crm's own automation engine may also fire inbound-keyword
+    triggers (that happens on whatsapp-crm's side; big-app just mirrors
+    the eventual outbound send it receives back)
 ```
 
 ### Outbound: staff replies or automation sends
@@ -223,24 +227,26 @@ Note the clean layering: clinic-core modules never import from `lib/services/con
 
 **WhatsApp is the only v1 provider.** Additional channels are parked until a real need appears.
 
-### Week 1 — Deploy the transport (no big-app code yet)
+### Week 1 — Deploy the combined service (no big-app code yet)
 
-- [ ] Deploy wa-connector to Railway with a persistent volume for Baileys auth state.
+- [ ] Clone the reference whatsapp-crm repo into a sibling directory, rename.
+- [ ] Deploy to a new Railway service with a persistent volume for Baileys auth state.
+- [ ] Create the `wa_crm` schema in the shared Supabase project; apply the cloned service's migrations into it.
 - [ ] Issue a big-app API key.
-- [ ] Manually pair a dev phone via the wa-connector dev frontend.
-- [ ] Local dev: wa-connector on `:3001`, big-app on `:3000`.
+- [ ] Manually pair a dev phone via whatsapp-crm's own admin UI.
+- [ ] Local dev: whatsapp-crm on `:3001`, big-app on `:3000`.
 
 Exit: `curl -X POST http://localhost:3001/connections/:id/messages -H "Authorization: Bearer …"` sends a real WhatsApp message.
 
 ### Week 2 — Wire the contract (no inbox UI yet)
 
-- [ ] Migration: `conversation_channels` (seeded with `'whatsapp'`), `channel_accounts`, `conversations`, `conversation_messages`. Follow [CLAUDE.md](../../CLAUDE.md) schema conventions (RLS + temp dual policies, no `code` column on log tables, hard-delete by default).
-- [ ] `lib/services/conversations/providers/whatsapp/client.ts` — thin wrapper around wa-connector REST (`createConnection`, `getConnectionStatus`, `sendText`, `checkNumber`).
+- [ ] Migration: `conversation_channels` (seeded with `'whatsapp'`), `channel_accounts`, `conversations`, `conversation_messages` in `public`. Follow [CLAUDE.md](../../CLAUDE.md) schema conventions (RLS + temp dual policies, no `code` column on log tables, hard-delete by default). Do NOT create any table in `wa_crm` — that's whatsapp-crm's territory.
+- [ ] Retarget [lib/wa/client.ts](../../lib/wa/client.ts) to whatsapp-crm's base URL + `WA_CRM_*` env vars. Rename only the env-var constants; the function surface stays.
 - [ ] `lib/services/conversations/index.ts` — channel-agnostic service: `sendMessage(ctx, { conversation_id, text, sent_via })`, `listConversations(ctx, filters)`, `getThread(ctx, conversation_id)`.
-- [ ] `app/api/webhooks/whatsapp/route.ts` — HMAC-verify, upsert conversation, insert message, 200-fast.
-- [ ] Seed one Automations trigger (hard-coded) to prove the send path works end-to-end: `notifications.onAppointmentBooked` → `conversations.sendMessage` → WA.
+- [ ] Flesh out `app/api/webhooks/whatsapp/route.ts` — already HMAC-verifies; add: upsert conversation, insert message, 200-fast.
+- [ ] Thin [notifications.ts](../../lib/services/notifications.ts) adapter with one trigger (`onAppointmentBooked`) that POSTs `/automations/fire` to whatsapp-crm. Template lives on whatsapp-crm's side.
 
-Exit: booking an appointment sends a real WhatsApp confirmation to the customer's real phone. Inbound replies appear in `conversation_messages` (checked via SQL).
+Exit: booking an appointment sends a real WhatsApp confirmation to the customer's real phone (rendered from a template stored in whatsapp-crm). Inbound replies appear in big-app's `conversation_messages` mirror (checked via SQL).
 
 ### Week 3 — Inbox UI (read-only first, then send)
 
@@ -263,7 +269,7 @@ Exit: channel-agnostic inbox works end-to-end with WhatsApp.
 
 ## Gaps & Improvements vs. reference implementations
 
-- **vs. Aoikumo / whatsapp-crm-main:** both were WhatsApp-only monoliths. They put channel, inbox, CRM, and automations in one bag. We split them into three sibling modules that communicate by ID, which is what makes "add SMS" or "extract automation service" a days-long project instead of months.
+- **vs. Aoikumo / whatsapp-crm-main:** both were WhatsApp-only monoliths. They put channel, inbox, CRM, and automations in one bag. We split along a different axis: the **transport + automation engine + chat-originated CRM** stays combined (in whatsapp-crm) because those legitimately share WhatsApp message IDs and template state, but the **channel-agnostic mirror + business-relationship CRM** lives in big-app so non-WA channels (SMS, IG DM, email, webchat) can layer in without touching whatsapp-crm. Adding SMS is "new provider adapter + new row in `conversation_channels`" — no change to whatsapp-crm required.
 - **vs. GHL:** GHL's Conversations surface is the canonical reference for what this should feel like. We're deliberately scoping out of the v1: channel-unified contact identity (same person across WA/SMS/email collapses to one conversation), broadcasts, message scheduling within a conversation, internal notes on a thread, message templates in the composer. All revisitable.
 - **Deliberate omissions for Phase 3 v1:** broadcasts, group chats, message scheduling, internal notes on a conversation, unified identity across channels, read-receipt privacy controls, business-hours auto-reply, AI-assisted reply.
 
@@ -283,4 +289,4 @@ Indexes that matter on day 1:
 
 RLS: temp dual (anon + authenticated) at creation, tightened in the auth-module pass.
 
-**Naming-collision note:** wa-connector owns `public.wa_*` tables (transport-level). big-app's Conversations module owns `public.conversation_*` and `public.channel_*` — different prefix on purpose so there's zero ambiguity in `list_tables` output.
+**Naming-collision note:** whatsapp-crm owns the `wa_crm` schema (transport, automations, chat-CRM). big-app's Conversations module owns `public.conversation_*` and `public.channel_*`. Different schema + different prefix — zero ambiguity in `list_tables` output.

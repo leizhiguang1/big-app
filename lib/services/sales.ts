@@ -1,11 +1,11 @@
 import type { Context } from "@/lib/context/types";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import {
-	type CancelSalesOrderInput,
 	type CollectPaymentInput,
 	type CollectPaymentItem,
-	cancelSalesOrderInputSchema,
 	collectPaymentInputSchema,
+	type VoidSalesOrderInput,
+	voidSalesOrderInputSchema,
 } from "@/lib/schemas/sales";
 import { assertPaymentFields } from "@/lib/services/payment-methods";
 import type { Tables } from "@/lib/supabase/types";
@@ -30,13 +30,19 @@ export type SalesOrderWithRelations = SalesOrder & {
 		code: string;
 		first_name: string;
 		last_name: string | null;
+		profile_image_path: string | null;
+		phone: string | null;
+		id_number: string | null;
+		is_vip: boolean | null;
+		is_staff: boolean | null;
+		tag: string | null;
 	} | null;
 	consultant: {
 		id: string;
 		first_name: string;
 		last_name: string;
 	} | null;
-	outlet: { id: string; name: string } | null;
+	outlet: { id: string; code: string; name: string } | null;
 	created_by_employee: {
 		id: string;
 		first_name: string;
@@ -45,7 +51,7 @@ export type SalesOrderWithRelations = SalesOrder & {
 };
 
 const SALES_ORDER_SELECT =
-	"*, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name), consultant:employees!sales_orders_consultant_id_fkey(id, first_name, last_name), outlet:outlets!sales_orders_outlet_id_fkey(id, name), created_by_employee:employees!sales_orders_created_by_fkey(id, first_name, last_name)";
+	"*, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name, profile_image_path, phone, id_number, is_vip, is_staff, tag), consultant:employees!sales_orders_consultant_id_fkey(id, first_name, last_name), outlet:outlets!sales_orders_outlet_id_fkey(id, code, name), created_by_employee:employees!sales_orders_created_by_fkey(id, first_name, last_name)";
 
 export async function listSalesOrders(
 	ctx: Context,
@@ -322,34 +328,40 @@ export async function listCancellations(
 	return (data ?? []) as unknown as CancellationWithRelations[];
 }
 
-export type CancelSalesOrderResult = {
+export type VoidSalesOrderResult = {
 	cn_id: string;
 	cn_number: string;
+	rn_id: string;
+	rn_number: string;
+	refund_amount: number;
 	sales_order_id: string;
 };
 
-export async function cancelSalesOrder(
+export async function voidSalesOrder(
 	ctx: Context,
 	salesOrderId: string,
 	input: unknown,
-): Promise<CancelSalesOrderResult> {
-	const parsed: CancelSalesOrderInput =
-		cancelSalesOrderInputSchema.parse(input);
+): Promise<VoidSalesOrderResult> {
+	const parsed: VoidSalesOrderInput = voidSalesOrderInputSchema.parse(input);
 
-	const { data, error } = await ctx.db.rpc("cancel_sales_order", {
+	const { data, error } = await ctx.db.rpc("void_sales_order", {
 		p_sales_order_id: salesOrderId,
 		p_passcode: parsed.passcode,
 		p_reason: parsed.reason,
+		p_refund_method: parsed.refund_method,
+		p_include_admin_fee: parsed.include_admin_fee,
+		p_admin_fee: parsed.admin_fee,
+		p_sale_item_ids: parsed.sale_item_ids,
 		p_used_by: (ctx.currentUser?.employeeId ?? null) as string,
 	});
 	if (error) {
-		const msg = error.message || "Failed to cancel sales order";
+		const msg = error.message || "Failed to void sales order";
 		if (msg.includes("Invalid or expired passcode")) {
 			throw new ValidationError("Invalid or expired passcode");
 		}
 		throw new ValidationError(msg);
 	}
-	return data as unknown as CancelSalesOrderResult;
+	return data as unknown as VoidSalesOrderResult;
 }
 
 // ---------------------------------------------------------------------------

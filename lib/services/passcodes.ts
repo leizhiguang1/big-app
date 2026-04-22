@@ -5,6 +5,7 @@ import {
 	passcodeInputSchema,
 	passcodeUpdateSchema,
 } from "@/lib/schemas/passcodes";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type Passcode = Tables<"passcodes">;
@@ -62,6 +63,7 @@ export async function createPasscode(
 	const { data, error } = await ctx.db
 		.from("passcodes")
 		.insert({
+			brand_id: assertBrandId(ctx),
 			passcode: generatePasscodeValue(),
 			outlet_id: parsed.outlet_id,
 			function: parsed.function,

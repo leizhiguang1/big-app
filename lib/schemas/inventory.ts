@@ -42,7 +42,7 @@ const sharedBase = z.object({
 	is_sellable: z.boolean(),
 	is_active: z.boolean(),
 
-	brand_id: uuidNullable,
+	manufacturer_brand_id: uuidNullable,
 	category_id: uuidNullable,
 	supplier_id: uuidNullable,
 

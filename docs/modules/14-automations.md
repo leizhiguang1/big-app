@@ -1,104 +1,126 @@
 # Module: Automations
 
 > Status: Not started. Phase 3, messaging-stack layer.
+>
+> **Read first:** [docs/WA_CRM_INTEGRATION.md](../WA_CRM_INTEGRATION.md) — the contract between big-app and whatsapp-crm.
 
 ## Overview
 
-The Automations module is big-app's **trigger → action engine**. A trigger is a business event (appointment booked, payment received, inbound message matched a keyword, a scheduled time arrived); an action is something the system does in response (send a message via Conversations, add a tag via CRM, create a task, set a customer field).
+Automations is a **trigger → action engine**. A trigger is a business event (appointment booked, payment received, inbound message matched a keyword, a scheduled time arrived); an action is something the system does in response (send a message, add a tag, create a task).
 
-This module is part of the **messaging stack** alongside [Conversations](./11-conversations.md) and [CRM](./13-crm.md). It's deliberately separated from the clinic core so the flow engine can later be extracted into its own service without touching clinic-core code. See [ARCHITECTURE.md §3 + §3a](../ARCHITECTURE.md).
+**Important architectural split (revised 2026-04-21):** the automation engine itself — templates, variable substitution, audit log, scheduled-send machinery — lives in the separate **whatsapp-crm** service, not in big-app. This module is big-app's **consumer-side slice**:
 
-## Two-phase build
+- Clinic-core services (`appointments.ts`, `sales.ts`, etc.) still call `notifications.onAppointmentBooked(ctx, appointmentId)` after their DB commits — exactly the shape they'd have had if the engine were in-app.
+- `lib/services/notifications.ts` is now a **thin HTTP adapter**. It assembles a trigger payload (recipient, variables, source entity) and POSTs `/automations/fire` to whatsapp-crm. No template rendering, no send, no audit of its own.
+- Scheduled triggers (e.g. 24h reminder) still run via `pg_cron` in big-app's DB, because the scan is looking at `public.appointments` — whatsapp-crm doesn't have a copy. The cron job finds candidate rows and POSTs each one via the adapter.
 
-**Phase 3 v1 — hard-coded triggers in `lib/services/notifications.ts`.** No flow builder, no DSL, no UI for defining automations. Each trigger is a named function (`onAppointmentBooked`, `onPaymentReceived`, `onAppointmentReminder24h`, etc.) that business services call after a commit. The "automation" is literally TypeScript code. Templates and enable-flags are admin-editable via the Templates UI.
+**What this module is NOT responsible for:**
+- Storing templates (they live in `wa_crm.notification_templates` or whatever the clone names them).
+- Rendering templates / substituting variables (whatsapp-crm does this at send time).
+- Persisting the authoritative audit log (that's `wa_crm.automation_runs`).
+- Running a flow builder or DSL (not in v1 anywhere).
 
-This is enough for the real Phase 3 needs: booking confirmation, payment receipt, 24h reminder, maybe birthday greeting. It avoids the "no-code builder for a party of one" tax that sank earlier attempts.
+This module IS part of the **messaging stack** alongside [Conversations](./11-conversations.md) and [CRM](./13-crm.md). It's deliberately separated from the clinic core so trigger call-sites have one consistent seam. See [ARCHITECTURE.md §3 + §3a](../ARCHITECTURE.md).
 
-**Phase 4+ — flow builder.** Triggered by one of: (a) a second consumer product needs the same flows, (b) admins want to author their own flows without a developer. At that point the trigger registry + action registry become data-driven, a visual builder lands under `/automations`, and the engine either stays in big-app or gets extracted into a standalone `flow-engine` service. The extraction is mechanical because the contract (`notifications.onX(ctx, id)` → HTTP call) is the same shape wa-connector already uses for Conversations.
+## Why the engine moved to whatsapp-crm
 
-## Scope in Phase 3 v1
+The original plan (pre-2026-04-21) kept the engine inside big-app as `lib/services/notifications.ts` with `notification_templates` and `automation_runs` tables in `public`. The pivot happened because:
+
+- Template content, trigger firings, and audit rows all reference **WhatsApp message IDs** that only whatsapp-crm has a primary handle on. Keeping them in big-app meant the audit log had stale / divergent message-id state whenever webhook delivery lagged.
+- The reference whatsapp-crm repo ships transport + templates + engine together and works. Cloning it preserves a working seam rather than re-implementing one.
+- big-app stays clinic-core-focused. It doesn't grow a template editor, a flow runner, or a scheduled-send worker.
+
+## Scope in Phase 3 v1 (big-app's side)
 
 In scope:
-- `notification_templates` table — admin-editable template body, per trigger code, with `{{variable}}` substitution.
-- Hard-coded trigger functions in `lib/services/notifications.ts`:
+- `lib/services/notifications.ts` — framework-free HTTP adapter with named trigger functions:
   - `onAppointmentBooked(ctx, appointmentId)`
   - `onAppointmentReminder24h(ctx, appointmentId)` — called from pg_cron scan
   - `onAppointmentCompleted(ctx, appointmentId)` — optional thank-you
   - `onPaymentReceived(ctx, paymentId)` — receipt
   - `onAppointmentCancelled(ctx, appointmentId)` — optional apology
   - Pick the three that matter most for v1; add others later.
-- Template editor UI at `/config/notifications` (WhatsApp tab in v1, generic "templates" tab as more channels arrive).
-- Opt-out enforcement: check `customers.opt_in_notifications = false` before sending.
-- Variable substitution: `{{customer_name}}`, `{{appointment_date}}`, `{{appointment_time}}`, `{{service_name}}`, `{{employee_name}}`, `{{outlet_name}}`, `{{payment_amount}}`, etc. — a flat list, no conditionals.
+- Trigger call-sites wired into the relevant clinic-core services, after DB commit.
+- `pg_cron` job for scheduled reminders, scanning `public.appointments`.
+- Opt-out pre-check: read `customers.opt_in_notifications` and include it in the trigger payload. whatsapp-crm respects the flag.
+- `appointments.reminder_sent_at timestamptz null` — idempotency guard for the 24h cron scan.
+- Optional lightweight `public.automation_fires` table (audit mirror, populated from `automation.fired` webhooks) so "did we try?" can be answered without calling whatsapp-crm. Decide during build — skip if the webhook push is reliable.
 
-Out of scope in Phase 3 v1 (explicit non-goals):
+Out of scope (lives in whatsapp-crm):
+- `notification_templates` table — schema is `wa_crm.*`.
+- `automation_runs` audit log — schema is `wa_crm.*`.
+- Template editor UI — v1 uses whatsapp-crm's own admin surface.
+- Variable substitution / template rendering.
+- Inbound-message keyword automations (those fire on whatsapp-crm's side).
+- Scheduler service separate from pg_cron.
+
+Out of scope everywhere (revisit later):
 - Visual flow builder.
 - Conditional branching (`if/else`, `and/or`).
 - Delay / wait actions.
 - Multi-step flows ("send message, wait 3 days, if no reply send follow-up").
 - User-defined triggers or actions.
-- Inbound-message keyword automations — if they're needed, they're a separate `onInboundMessage(conversation_id, message_id)` function that pattern-matches hard-coded.
-- Scheduler service — pg_cron is enough.
 
-## Data Fields (draft)
+## Data fields (big-app side)
 
-### `public.notification_templates`
+### `appointments.reminder_sent_at timestamptz null` (new column)
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `id` | uuid | yes | PK |
-| `code` | text | yes | **Opt-in code column** per [CLAUDE.md](../../CLAUDE.md) rule 2 — templates are referenced by stable code from `notifications.ts`. E.g. `appointment_booked`, `appointment_reminder_24h`, `payment_receipt`. Unique. |
-| `name` | text | yes | Admin-facing label |
-| `channel` | text | yes | FK to `conversation_channels.code`. Determines which provider sends. Same code can have different bodies per channel. |
-| `body` | text | yes | Plain text with `{{variable}}` placeholders |
-| `enabled` | bool | yes | Off disables the corresponding trigger entirely |
-| `updated_at` | timestamptz | yes | |
+Idempotency guard for the 24h reminder pg_cron scan. Stamped on successful trigger-fire. Overlapping cron runs cannot double-send.
 
-Unique on `(code, channel)` — one body per channel per trigger.
-
-### `public.automation_runs` (audit log)
+### `public.automation_fires` (optional audit mirror)
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | uuid | yes | PK |
-| `trigger_code` | text | yes | Matches a template code |
-| `customer_id` | uuid | no | Subject of the automation |
-| `source_entity_type` | text | yes | `'appointment' | 'payment' | 'conversation' | 'scheduled'` |
-| `source_entity_id` | uuid | yes | FK to the triggering row |
-| `channel` | text | no | Which channel was used (if any) |
-| `conversation_message_id` | uuid | no | FK to the message created, if a send happened |
-| `status` | text | yes | `'skipped_opt_out' | 'skipped_template_disabled' | 'skipped_no_contact_info' | 'sent' | 'failed'` |
-| `error` | text | no | If failed |
-| `occurred_at` | timestamptz | yes | default now() |
+| `trigger_code` | text | yes | E.g. `appointment_booked`. Mirrored from webhook payload. |
+| `customer_id` | uuid | no | Subject of the automation, resolved from the payload. |
+| `source_entity_type` | text | yes | `'appointment' | 'payment' | 'scheduled'` |
+| `source_entity_id` | uuid | yes | |
+| `status` | text | yes | `'queued' | 'sent' | 'skipped_opt_out' | 'skipped_template_disabled' | 'failed'` — mirrored from whatsapp-crm's authoritative log |
+| `wa_crm_run_id` | uuid | no | FK into `wa_crm.automation_runs` for deep-dive lookups. |
+| `brand_id` | uuid | yes | Tier-A brand scoping. |
+| `created_at` | timestamptz | yes | default now() |
 
-This table earns its keep by answering the inevitable support question "did we actually send the reminder to this customer?" without re-deriving from logs.
+Whether to build this table is a Week 3 decision. If `automation.fired` webhooks prove reliable and `wa_crm.automation_runs` is queryable by support staff directly, big-app can skip the mirror.
 
-### Column additions on clinic-core tables
+### No new tables for templates or the authoritative run log
 
-- `appointments.reminder_sent_at timestamptz null` — idempotency guard for the 24h reminder pg_cron scan.
+Those live in whatsapp-crm's `wa_crm` schema. big-app does not create migrations that touch them.
 
-No other clinic-core schema changes.
-
-## Key Flows
+## Key flows
 
 **Booking confirmation.**
+
 ```
 Staff creates appointment
-  → appointments.ts after DB commit:
+  → lib/services/appointments.ts after DB commit:
       await notifications.onAppointmentBooked(ctx, appointmentId)
-  → notifications.onAppointmentBooked:
+  → lib/services/notifications.ts (adapter):
       load appointment + customer + service + employee + outlet
-      check customers.opt_in_notifications — if false, insert automation_runs(status='skipped_opt_out'), return
-      load template (code='appointment_booked', channel='whatsapp')
-      if not enabled, insert automation_runs(status='skipped_template_disabled'), return
-      render body (substitute variables)
-      resolve channel_account by outlet + channel
-      find-or-create conversation with counterparty_identifier = customer.phone
-      conversations.sendMessage(ctx, { conversation_id, text, sent_via: 'automation:appointment_booked', template_id })
-      insert automation_runs(status='sent', conversation_message_id)
+      build payload:
+        {
+          trigger_code: 'appointment_booked',
+          metadata: { outlet_id, outlet_name, consumer_product: 'big-app' },
+          recipient: { channel: 'whatsapp', counterparty_identifier: customer.phone,
+                       display_name: customer.name,
+                       opt_in_notifications: customer.opt_in_notifications },
+          variables: { customer_name, appointment_date, appointment_time,
+                       service_name, employee_name, outlet_name },
+          source: { entity_type: 'appointment', entity_id: appointmentId }
+        }
+      POST WA_CRM_URL/automations/fire with Bearer WA_CRM_API_KEY
+      return (fire and forget — don't block the caller on WhatsApp latency)
+  → whatsapp-crm looks up template by (trigger_code, channel)
+    respects opt_in_notifications flag
+    renders body with variables
+    sends via the matching connection (resolved from metadata.outlet_id)
+    writes wa_crm.automation_runs row
+    emits automation.fired webhook
+  → big-app's webhook handler (optional) mirrors the run into public.automation_fires
 ```
 
 **24h reminder (scheduled).**
+
 ```
 pg_cron every 10 minutes:
   select appointment.id
@@ -113,45 +135,44 @@ pg_cron every 10 minutes:
 The `reminder_sent_at` stamp is the idempotency guard. Overlapping cron runs cannot double-send.
 
 **Payment receipt.**
+
 ```
 sales.collectAppointmentPayment() after the RPC succeeds
   → notifications.onPaymentReceived(ctx, paymentId)
-  → (same flow as booking confirmation, different template code)
+  → (same adapter flow as booking confirmation, different trigger_code)
 ```
 
-## Business Rules
+## Business rules
 
-- **Opt-out is respected for all automations, never for manual sends.** The check lives in `notifications.ts`, not in `conversations.sendMessage` — because staff pressing "send" in the inbox is always intentional.
-- **Disabled template = skipped trigger.** Turning off a template body fully disables that automation type without code changes.
-- **Every attempt is logged.** Including skips. `automation_runs` is the source of truth for "did we try to notify this customer."
-- **Variables are lazy — resolved at send time, not at template write time.** Changing a customer's name between appointment booking and 24h reminder reflects in the reminder.
-- **No retry in v1.** If the send fails at the wa-connector call, the `automation_runs` row records the error; staff can manually retry via the inbox. Automated retry is complexity that's only worth it if failure rates are bad in practice.
+- **Opt-out is respected for all automations, never for manual sends.** The adapter includes `opt_in_notifications` in every payload. Manual inbox sends bypass whatsapp-crm's automation path entirely (they hit the plain `POST /messages` endpoint), so opt-out never blocks staff judgment.
+- **Template enable/disable lives in whatsapp-crm.** Turning off a template body over there fully disables the corresponding trigger. big-app's adapter doesn't need to know.
+- **Every fire is logged — authoritatively in `wa_crm.automation_runs`, optionally mirrored in `public.automation_fires`.** Support questions like "did we notify this customer about the appointment?" resolve against the mirror if it exists, otherwise via direct REST read from whatsapp-crm.
+- **Variables are lazy — resolved at send time.** Big-app's adapter does resolve values at the fire call (not at template write time), so a customer rename between booking and 24h reminder reflects in the reminder.
+- **No retry in v1 from big-app's side.** The adapter's POST is fire-and-forget. If the request fails, big-app does NOT re-queue — whatsapp-crm's own webhook-retry machinery handles cross-service delivery once the trigger is accepted. Network failures at the adapter level are logged and surface in the next support ticket.
 
-## Relationships to Other Modules
+## Relationships to other modules
 
 | Related Module | Relationship |
 |---|---|
-| **Conversations** (11) | Automations call `conversations.sendMessage` to send. |
-| **CRM** (13) | Future: actions like `add_tag`, `create_task`, `create_note` will call CRM services. v1 has no CRM-touching actions. |
+| **Conversations** (11) | Automation sends produce `message.outbound` webhooks that the Conversations module's handler mirrors into `conversation_messages`. |
+| **CRM** (13) | Future: actions like `add_tag` / `create_task` could call big-app's CRM services. v1 has no CRM-touching actions. |
 | **Clinic core — Appointments** (02), **Sales** (04) | Automations is called *from* these modules' services, after commit. Never the other direction. |
-| **Config — Notifications** (12) | Template editor UI lives under Config. |
+| **whatsapp-crm (external)** | The engine, templates, scheduled-send machinery, authoritative audit. Owned entirely by the external service. |
 
-## Extraction plan (for when the trigger lands)
+## Extraction / replacement plan (for when triggered)
 
-When a second consumer arrives or a flow builder is genuinely needed:
+If the day comes that big-app switches from whatsapp-crm to a different engine (e.g. a unified flow service serving multiple products):
 
-1. `notifications.ts` + `notification_templates` + `automation_runs` move into a new `flow-engine` service with its own DB.
-2. Clinic-core services change from `notifications.onX(ctx, id)` to `await fetch(FLOW_ENGINE_URL, …)` with HMAC — the same contract wa-connector already uses.
-3. The flow engine gets its own UI for building flows graphically.
-4. Nothing else in big-app changes.
+1. The `lib/services/notifications.ts` adapter is the ONLY place that needs to change — it points at the new engine's URL and payload shape.
+2. Clinic-core services are untouched. They still call `notifications.onAppointmentBooked(ctx, id)`.
+3. `pg_cron` scans are untouched (they live in big-app, not the engine).
+4. Template content migrates from `wa_crm.*` into the new engine's store (one-off migration).
 
-The discipline to keep this cheap:
-- `notifications.ts` is framework-free (see [ARCHITECTURE.md §8](../ARCHITECTURE.md) service-layer rules).
-- Trigger points are always `await notifications.onX(...)` calls in business services, never DB triggers or Realtime subscribers.
-- Templates use `{{double_braces}}` — the same shape every major flow engine accepts.
+That's the whole point of keeping the adapter framework-free and the call-sites stable. Swapping engines is a days-long project, not a rewrite.
 
-## Schema Notes
+## Schema notes
 
-Follows [CLAUDE.md](../../CLAUDE.md) conventions: uuid PK, timestamps, RLS on + temp dual policies.
+big-app side follows [CLAUDE.md](../../CLAUDE.md) conventions: uuid PK, timestamps, RLS on + temp dual policies at creation, `brand_id` per [BRAND_SCOPING.md](../BRAND_SCOPING.md) Tier A.
 
-Template table gets a `code` column because templates **are** referenced by stable human-readable code (`appointment_booked`) from TypeScript — this fits the opt-in code-column rule. `automation_runs` does **not** get a code column — nobody types an audit-log row's code into a search box.
+- `automation_fires` (if built): `brand_id` present (Tier A); no `code` column (log table — users don't type row codes into search boxes).
+- `appointments.reminder_sent_at` is an additive column; no other clinic-core schema changes.

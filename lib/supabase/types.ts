@@ -411,6 +411,7 @@ export type Database = {
       billing_settings: {
         Row: {
           auto_foreign_tax_enabled: boolean
+          brand_id: string
           created_at: string
           foreign_tax_id: string | null
           local_tax_id: string | null
@@ -419,6 +420,7 @@ export type Database = {
         }
         Insert: {
           auto_foreign_tax_enabled?: boolean
+          brand_id: string
           created_at?: string
           foreign_tax_id?: string | null
           local_tax_id?: string | null
@@ -427,6 +429,7 @@ export type Database = {
         }
         Update: {
           auto_foreign_tax_enabled?: boolean
+          brand_id?: string
           created_at?: string
           foreign_tax_id?: string | null
           local_tax_id?: string | null
@@ -434,6 +437,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "billing_settings_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "billing_settings_foreign_tax_id_fkey"
             columns: ["foreign_tax_id"]
@@ -450,8 +460,36 @@ export type Database = {
           },
         ]
       }
+      brands: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cancellations: {
         Row: {
+          admin_fee: number
           amount: number
           cancelled_at: string
           cn_number: string
@@ -460,11 +498,13 @@ export type Database = {
           outlet_id: string
           processed_by: string | null
           reason: string | null
+          refund_method: string | null
           sales_order_id: string
           tax: number
           updated_at: string
         }
         Insert: {
+          admin_fee?: number
           amount?: number
           cancelled_at?: string
           cn_number: string
@@ -473,11 +513,13 @@ export type Database = {
           outlet_id: string
           processed_by?: string | null
           reason?: string | null
+          refund_method?: string | null
           sales_order_id: string
           tax?: number
           updated_at?: string
         }
         Update: {
+          admin_fee?: number
           amount?: number
           cancelled_at?: string
           cn_number?: string
@@ -486,6 +528,7 @@ export type Database = {
           outlet_id?: string
           processed_by?: string | null
           reason?: string | null
+          refund_method?: string | null
           sales_order_id?: string
           tax?: number
           updated_at?: string
@@ -504,6 +547,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "employees"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cancellations_refund_method_fkey"
+            columns: ["refund_method"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["code"]
           },
           {
             foreignKeyName: "cancellations_sales_order_id_fkey"
@@ -637,6 +687,7 @@ export type Database = {
         Row: {
           address1: string | null
           address2: string | null
+          brand_id: string
           city: string | null
           code: string
           consultant_id: string
@@ -674,6 +725,7 @@ export type Database = {
         Insert: {
           address1?: string | null
           address2?: string | null
+          brand_id: string
           city?: string | null
           code?: string
           consultant_id: string
@@ -711,6 +763,7 @@ export type Database = {
         Update: {
           address1?: string | null
           address2?: string | null
+          brand_id?: string
           city?: string | null
           code?: string
           consultant_id?: string
@@ -746,6 +799,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "customers_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "customers_consultant_id_fkey"
             columns: ["consultant_id"]
@@ -868,6 +928,7 @@ export type Database = {
           address3: string | null
           appointment_sequencing: number | null
           auth_user_id: string | null
+          brand_id: string
           city: string | null
           code: string
           country: string | null
@@ -906,6 +967,7 @@ export type Database = {
           address3?: string | null
           appointment_sequencing?: number | null
           auth_user_id?: string | null
+          brand_id: string
           city?: string | null
           code?: string
           country?: string | null
@@ -944,6 +1006,7 @@ export type Database = {
           address3?: string | null
           appointment_sequencing?: number | null
           auth_user_id?: string | null
+          brand_id?: string
           city?: string | null
           code?: string
           country?: string | null
@@ -977,6 +1040,13 @@ export type Database = {
           web_login_enabled?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "employees_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "employees_position_id_fkey"
             columns: ["position_id"]
@@ -1074,7 +1144,7 @@ export type Database = {
       inventory_items: {
         Row: {
           barcode: string | null
-          brand_id: string | null
+          brand_id: string
           category_id: string | null
           cost_price: number
           created_at: string
@@ -1090,6 +1160,7 @@ export type Database = {
           kind: string
           location: string | null
           locked: number
+          manufacturer_brand_id: string | null
           name: string
           needs_replenish_reminder: boolean | null
           prescription_default_billing_qty: number | null
@@ -1114,7 +1185,7 @@ export type Database = {
         }
         Insert: {
           barcode?: string | null
-          brand_id?: string | null
+          brand_id: string
           category_id?: string | null
           cost_price?: number
           created_at?: string
@@ -1130,6 +1201,7 @@ export type Database = {
           kind: string
           location?: string | null
           locked?: number
+          manufacturer_brand_id?: string | null
           name: string
           needs_replenish_reminder?: boolean | null
           prescription_default_billing_qty?: number | null
@@ -1154,7 +1226,7 @@ export type Database = {
         }
         Update: {
           barcode?: string | null
-          brand_id?: string | null
+          brand_id?: string
           category_id?: string | null
           cost_price?: number
           created_at?: string
@@ -1170,6 +1242,7 @@ export type Database = {
           kind?: string
           location?: string | null
           locked?: number
+          manufacturer_brand_id?: string | null
           name?: string
           needs_replenish_reminder?: boolean | null
           prescription_default_billing_qty?: number | null
@@ -1197,7 +1270,7 @@ export type Database = {
             foreignKeyName: "inventory_items_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
-            referencedRelation: "inventory_brands"
+            referencedRelation: "brands"
             referencedColumns: ["id"]
           },
           {
@@ -1205,6 +1278,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "inventory_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_items_manufacturer_brand_id_fkey"
+            columns: ["manufacturer_brand_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_brands"
             referencedColumns: ["id"]
           },
           {
@@ -1488,6 +1568,7 @@ export type Database = {
           address2: string | null
           bank_account_number: string | null
           bank_name: string | null
+          brand_id: string
           city: string | null
           code: string
           company_reg_name: string | null
@@ -1518,6 +1599,7 @@ export type Database = {
           address2?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
+          brand_id: string
           city?: string | null
           code: string
           company_reg_name?: string | null
@@ -1548,6 +1630,7 @@ export type Database = {
           address2?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
+          brand_id?: string
           city?: string | null
           code?: string
           company_reg_name?: string | null
@@ -1573,11 +1656,20 @@ export type Database = {
           wa_connection_id?: string | null
           waze_name?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "outlets_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       passcodes: {
         Row: {
           applied_on: string | null
+          brand_id: string
           created_at: string
           created_by_employee_id: string | null
           expires_at: string
@@ -1592,6 +1684,7 @@ export type Database = {
         }
         Insert: {
           applied_on?: string | null
+          brand_id: string
           created_at?: string
           created_by_employee_id?: string | null
           expires_at?: string
@@ -1606,6 +1699,7 @@ export type Database = {
         }
         Update: {
           applied_on?: string | null
+          brand_id?: string
           created_at?: string
           created_by_employee_id?: string | null
           expires_at?: string
@@ -1619,6 +1713,13 @@ export type Database = {
           used_by_employee_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "passcodes_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "passcodes_created_by_employee_id_fkey"
             columns: ["created_by_employee_id"]
@@ -1683,6 +1784,7 @@ export type Database = {
       }
       payment_methods: {
         Row: {
+          brand_id: string
           code: string
           created_at: string
           id: string
@@ -1700,6 +1802,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          brand_id: string
           code: string
           created_at?: string
           id?: string
@@ -1717,6 +1820,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          brand_id?: string
           code?: string
           created_at?: string
           id?: string
@@ -1733,7 +1837,15 @@ export type Database = {
           sort_order?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "payment_methods_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payments: {
         Row: {
@@ -1847,6 +1959,90 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      refund_notes: {
+        Row: {
+          admin_fee: number
+          amount: number
+          cancellation_id: string
+          created_at: string
+          id: string
+          include_admin_fee: boolean
+          outlet_id: string
+          processed_by: string | null
+          refund_method: string | null
+          refunded_at: string
+          rn_number: string
+          sales_order_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_fee?: number
+          amount?: number
+          cancellation_id: string
+          created_at?: string
+          id?: string
+          include_admin_fee?: boolean
+          outlet_id: string
+          processed_by?: string | null
+          refund_method?: string | null
+          refunded_at?: string
+          rn_number: string
+          sales_order_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_fee?: number
+          amount?: number
+          cancellation_id?: string
+          created_at?: string
+          id?: string
+          include_admin_fee?: boolean
+          outlet_id?: string
+          processed_by?: string | null
+          refund_method?: string | null
+          refunded_at?: string
+          rn_number?: string
+          sales_order_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refund_notes_cancellation_id_fkey"
+            columns: ["cancellation_id"]
+            isOneToOne: false
+            referencedRelation: "cancellations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refund_notes_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refund_notes_processed_by_fkey"
+            columns: ["processed_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refund_notes_refund_method_fkey"
+            columns: ["refund_method"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "refund_notes_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       roles: {
         Row: {
@@ -2210,6 +2406,7 @@ export type Database = {
         Row: {
           allow_cash_price_range: boolean
           allow_redemption_without_payment: boolean
+          brand_id: string
           category_id: string | null
           created_at: string
           discount_cap: number | null
@@ -2231,6 +2428,7 @@ export type Database = {
         Insert: {
           allow_cash_price_range?: boolean
           allow_redemption_without_payment?: boolean
+          brand_id: string
           category_id?: string | null
           created_at?: string
           discount_cap?: number | null
@@ -2252,6 +2450,7 @@ export type Database = {
         Update: {
           allow_cash_price_range?: boolean
           allow_redemption_without_payment?: boolean
+          brand_id?: string
           category_id?: string | null
           created_at?: string
           discount_cap?: number | null
@@ -2271,6 +2470,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "services_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "services_category_id_fkey"
             columns: ["category_id"]
@@ -2351,6 +2557,7 @@ export type Database = {
       }
       taxes: {
         Row: {
+          brand_id: string
           created_at: string
           id: string
           is_active: boolean
@@ -2359,6 +2566,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          brand_id: string
           created_at?: string
           id?: string
           is_active?: boolean
@@ -2367,6 +2575,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          brand_id?: string
           created_at?: string
           id?: string
           is_active?: boolean
@@ -2374,7 +2583,15 @@ export type Database = {
           rate_pct?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "taxes_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wa_api_keys: {
         Row: {
@@ -2658,15 +2875,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      cancel_sales_order: {
-        Args: {
-          p_passcode: string
-          p_reason: string
-          p_sales_order_id: string
-          p_used_by: string
-        }
-        Returns: Json
-      }
       collect_appointment_payment: {
         Args: {
           p_allocations?: Json
@@ -2699,6 +2907,7 @@ export type Database = {
         }
         Returns: {
           applied_on: string | null
+          brand_id: string
           created_at: string
           created_by_employee_id: string | null
           expires_at: string
@@ -2727,6 +2936,19 @@ export type Database = {
       verify_employee_pin: {
         Args: { p_employee_id: string; p_pin: string }
         Returns: boolean
+      }
+      void_sales_order: {
+        Args: {
+          p_admin_fee: number
+          p_include_admin_fee: boolean
+          p_passcode: string
+          p_reason: string
+          p_refund_method: string
+          p_sale_item_ids: string[]
+          p_sales_order_id: string
+          p_used_by: string
+        }
+        Returns: Json
       }
     }
     Enums: {
@@ -2860,3 +3082,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

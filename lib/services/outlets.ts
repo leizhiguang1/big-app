@@ -5,6 +5,7 @@ import {
 	outletUpdateSchema,
 	roomInputSchema,
 } from "@/lib/schemas/outlets";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type Outlet = Tables<"outlets">;
@@ -55,6 +56,7 @@ export async function createOutlet(
 	const { data, error } = await ctx.db
 		.from("outlets")
 		.insert({
+			brand_id: assertBrandId(ctx),
 			code: parsed.code.trim().toUpperCase(),
 			name: parsed.name,
 			nick_name: nullable(parsed.nick_name),

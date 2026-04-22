@@ -32,3 +32,8 @@ export async function deletePaymentMethodAction(id: string) {
 	await paymentMethodsService.deletePaymentMethod(ctx, id);
 	revalidate();
 }
+
+export async function listActivePaymentMethodsAction() {
+	const ctx = await getServerContext();
+	return paymentMethodsService.listActivePaymentMethods(ctx);
+}

@@ -8,12 +8,12 @@ import {
 	FileText,
 	Printer,
 	Store,
-	User,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { CancelOrderDialog } from "@/components/sales/CancelOrderDialog";
+import { CustomerIdentityCard } from "@/components/customers/CustomerIdentityCard";
 import { ViewInvoiceDialog } from "@/components/sales/ViewInvoiceDialog";
+import { VoidSalesOrderDialog } from "@/components/sales/VoidSalesOrderDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { CustomerWithRelations } from "@/lib/services/customers";
@@ -126,7 +126,7 @@ export function SalesOrderDetailView({
 	customer,
 	autoPrint,
 }: Props) {
-	const [cancelOpen, setCancelOpen] = useState(false);
+	const [voidOpen, setVoidOpen] = useState(false);
 	const [invoiceOpen, setInvoiceOpen] = useState(Boolean(autoPrint));
 	const [feedback, setFeedback] = useState<{
 		type: "success" | "error";
@@ -136,16 +136,21 @@ export function SalesOrderDetailView({
 	const isCancellable =
 		order.status === "completed" || order.status === "draft";
 
-	const customerName = order.customer
-		? fullName(order.customer.first_name, order.customer.last_name)
-		: null;
-
 	const consultantName = order.consultant
 		? fullName(order.consultant.first_name, order.consultant.last_name)
 		: null;
 
 	return (
 		<div className="flex flex-col gap-6">
+			{order.status === "cancelled" && (
+				<div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2.5 text-red-800 text-sm">
+					<Ban className="size-4 shrink-0" />
+					<span className="font-semibold uppercase tracking-wide">Voided</span>
+					<span className="text-red-700/80">
+						· This sales order has been cancelled.
+					</span>
+				</div>
+			)}
 			{/* Header */}
 			<div className="flex flex-wrap items-center justify-between gap-y-3">
 				<div className="flex items-center gap-3">
@@ -158,6 +163,14 @@ export function SalesOrderDetailView({
 						<div className="flex items-center gap-2">
 							<h2 className="font-semibold text-lg">{order.so_number}</h2>
 							{statusBadge(order.status)}
+							{order.outlet && (
+								<span className="text-muted-foreground text-xs">
+									<span className="font-mono font-medium uppercase">
+										{order.outlet.code}
+									</span>{" "}
+									· {order.outlet.name}
+								</span>
+							)}
 						</div>
 						{payments[0]?.invoice_no && (
 							<p className="text-muted-foreground text-sm">
@@ -172,10 +185,10 @@ export function SalesOrderDetailView({
 							variant="outline"
 							size="sm"
 							className="text-red-600 hover:bg-red-50 hover:text-red-700"
-							onClick={() => setCancelOpen(true)}
+							onClick={() => setVoidOpen(true)}
 						>
 							<Ban className="mr-2 size-4" />
-							Cancel
+							Void
 						</Button>
 					)}
 					<Button
@@ -196,12 +209,17 @@ export function SalesOrderDetailView({
 					label="Date"
 					value={formatDate(order.sold_at)}
 				/>
-				<InfoCard
-					icon={<User className="size-4" />}
-					label="Customer"
-					value={customerName ?? "Walk-in"}
-					sub={order.customer?.code}
-				/>
+				<div className="rounded-md border p-3">
+					<p className="mb-2 text-muted-foreground text-xs">Customer</p>
+					<CustomerIdentityCard
+						customer={order.customer}
+						size="md"
+						showCode
+						showPhone
+						showFlags
+						fallbackLabel="Walk-in"
+					/>
+				</div>
 				<InfoCard
 					icon={<Store className="size-4" />}
 					label="Outlet"
@@ -425,15 +443,18 @@ export function SalesOrderDetailView({
 				</div>
 			)}
 
-			<CancelOrderDialog
-				open={cancelOpen}
-				onOpenChange={setCancelOpen}
+			<VoidSalesOrderDialog
+				open={voidOpen}
+				onOpenChange={setVoidOpen}
 				salesOrderId={order.id}
 				soNumber={order.so_number}
-				onSuccess={(cnNumber) =>
+				outletName={order.outlet?.name ?? null}
+				orderTotal={Number(order.total ?? 0)}
+				items={items}
+				onSuccess={({ cnNumber, rnNumber, refundAmount }) =>
 					setFeedback({
 						type: "success",
-						message: `Order cancelled. Cancellation note: ${cnNumber}`,
+						message: `Voided. CN ${cnNumber} · RN ${rnNumber} · Refund MYR ${refundAmount.toFixed(2)}`,
 					})
 				}
 				onError={(msg) => setFeedback({ type: "error", message: msg })}

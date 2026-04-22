@@ -67,6 +67,7 @@ type Props = {
 			roomId: string | null;
 		},
 	) => void;
+	onResize?: (id: string, endIso: string) => void;
 };
 
 type Column = {
@@ -88,6 +89,7 @@ export function DayView({
 	onAppointmentClick,
 	onAppointmentContextMenu,
 	onReschedule,
+	onResize,
 }: Props) {
 	const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
@@ -350,6 +352,7 @@ export function DayView({
 											style={cardStyle(slot, top, height)}
 											onClick={() => onAppointmentClick(a)}
 											onContextMenu={onAppointmentContextMenu}
+											onResize={onResize}
 										/>
 									);
 								})}

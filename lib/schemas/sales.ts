@@ -66,11 +66,33 @@ export const collectPaymentInputSchema = z.object({
 });
 export type CollectPaymentInput = z.infer<typeof collectPaymentInputSchema>;
 
-export const cancelSalesOrderInputSchema = z.object({
-	reason: z.string().trim().min(1, "Cancellation reason is required").max(500),
+export const VOID_REASONS = [
+	"CUSTOMER_RETURN_ITEM",
+	"DUPLICATE_SALES",
+	"INCORRECT_SALES_ITEM_SERVICE",
+	"RETURN_BACK_TO_CUSTOMER",
+	"WRONG_CUSTOMER",
+] as const;
+
+export type VoidReason = (typeof VOID_REASONS)[number];
+
+export const VOID_REASON_LABELS: Record<VoidReason, string> = {
+	CUSTOMER_RETURN_ITEM: "Customer Return Item",
+	DUPLICATE_SALES: "Duplicate Sales",
+	INCORRECT_SALES_ITEM_SERVICE: "Incorrect Sales Item/Service",
+	RETURN_BACK_TO_CUSTOMER: "Return Back To Customer",
+	WRONG_CUSTOMER: "Wrong Customer",
+};
+
+export const voidSalesOrderInputSchema = z.object({
+	reason: z.enum(VOID_REASONS),
 	passcode: z
 		.string()
 		.trim()
 		.regex(/^\d{4}$/, "Passcode must be 4 digits"),
+	refund_method: z.string().trim().min(1, "Refund method is required"),
+	include_admin_fee: z.boolean().default(false),
+	admin_fee: z.coerce.number().min(0).default(0),
+	sale_item_ids: z.array(z.string().uuid()).min(1, "Select at least one item"),
 });
-export type CancelSalesOrderInput = z.infer<typeof cancelSalesOrderInputSchema>;
+export type VoidSalesOrderInput = z.infer<typeof voidSalesOrderInputSchema>;

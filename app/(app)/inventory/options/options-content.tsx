@@ -20,8 +20,11 @@ export async function OptionsContent() {
 	const categoryCounts = new Map<string, number>();
 	const supplierCounts = new Map<string, number>();
 	for (const item of items) {
-		if (item.brand_id)
-			brandCounts.set(item.brand_id, (brandCounts.get(item.brand_id) ?? 0) + 1);
+		if (item.manufacturer_brand_id)
+			brandCounts.set(
+				item.manufacturer_brand_id,
+				(brandCounts.get(item.manufacturer_brand_id) ?? 0) + 1,
+			);
 		if (item.category_id)
 			categoryCounts.set(
 				item.category_id,

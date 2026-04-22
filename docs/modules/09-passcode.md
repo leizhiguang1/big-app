@@ -112,14 +112,14 @@ Status is **derived**, not stored. Query-time logic:
 |---------------|-------------|---------|
 | Outlets | FK `outlet_id` | Passcode is scoped to one outlet |
 | Employees | FK `created_by_employee_id`, `used_by_employee_id` | Audit trail |
-| Sales | Consumer (live) | Cancel-sales-order flow redeems a passcode (function `VOID_SALES_ORDER_INVOICE`) |
+| Sales | Consumer (live) | Void-sales-order flow redeems a passcode (function `VOID_SALES_ORDER_INVOICE`) |
 | Customers | Consumer (future) | View/edit-gated actions will redeem a passcode |
 
 ## Redemption (live, 2026-04-20)
 
 Redemption happens server-side via the `redeem_passcode` RPC, called from
 [redeemPasscode](../../lib/services/passcodes.ts) and from downstream RPCs
-(e.g. [cancel_sales_order](../../lib/services/sales.ts)). The RPC is
+(e.g. [void_sales_order](../../lib/services/sales.ts)). The RPC is
 atomic — either it finds a matching active row and marks it used, or it
 raises `'Invalid or expired passcode'` with no mutation.
 
