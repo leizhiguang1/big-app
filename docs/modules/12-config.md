@@ -1,6 +1,146 @@
 # Module: Config
 
-> Status: Shell complete (rail + content pane, all 47 section stubs reachable). Individual section implementations pending.
+> Status: Shell complete (rail + content pane, all 47 section stubs reachable). Individual section implementations pending. **Shape-1 generic store (`brand_config_items`) and Shape-2 generic store (`brand_settings`) live as of 2026-04-23** — see the register below.
+
+## Configurable-surface tier register
+
+This is the **single source of truth** for every configurable surface across all
+modules. Every PR that promotes, defers, or registers a configurable must
+update this section in the same commit.
+
+### App UI vs Config — the decision rule
+
+Before adding anything to this register, decide whether it's **App UI** or
+**Config**:
+
+- **App UI** = anything that defines the product's visual language and
+  workflow. Identical across every brand. Changing it per-brand fractures the
+  product: staff transferring from Brand A to Brand B shouldn't need to
+  re-learn colors, icons, or status names.
+- **Config** = business vocabulary and policy a brand admin would reasonably
+  want to tailor: reason lists, tag sets, picklists, toggles, rates.
+
+**Test question**: "If an employee moved from Brand A to Brand B, should
+this look identical so they don't re-learn the product?" → App UI. "Does
+this encode business-specific data (a reason, a vocab, a policy)?" → Config.
+
+**Examples of App UI (deliberately NOT configurable):**
+- Appointment status **codes + labels + colors + icons** — `pending` is always
+  "Pending" in blue with `HelpCircle`, `completed` is always gray with `Check`.
+  The workflow IS the product.
+- Payment status visual language (paid/partial/unpaid colors).
+- All lucide icons, all Tailwind palette decisions, all dialog/table shapes.
+
+**Examples of Config (per-brand):**
+- Void / cancel reasons — wording differs by business.
+- Appointment tag set — `CROWN/FILLING` is dental; a salon needs a completely
+  different palette. This is the entire reason we reskinned from KumoDent.
+- Customer tag vocabulary, salutations, languages, occupations, etc.
+- Slot duration, overbook policy, tax rates — business rules, not visuals.
+
+Three **shapes** of Config:
+- **Shape 1 — Lists** (reasons, tags, vocab): stored in the generic
+  `brand_config_items` table, category-keyed. Adding a new list is a TS
+  registry entry in [lib/brand-config/categories.ts](../../lib/brand-config/categories.ts)
+  — no migration.
+- **Shape 2 — Scalar settings** (booleans, numbers, enums): stored in the
+  generic `brand_settings` key-value table, typed at the TS/Zod layer via
+  [lib/brand-config/settings.ts](../../lib/brand-config/settings.ts).
+  Adding a new setting is a TS registry entry — no migration. Zero-row means
+  default from the registry.
+- **Shape 3 — Rules** (user-definable `IF x THEN y`): built per module as
+  domain-specific tables (e.g. `commission_rules`). No generic rules table;
+  rules are designed when a real use case proves a brand admin needs to
+  define the `if` clause.
+
+**FK-bearing settings exception**: settings whose value references a lookup
+row (e.g. `billing_settings.foreign_tax_id → taxes.id`) stay in their own
+typed table; the generic `brand_settings` cannot express FK integrity.
+
+### Shape 1 — Lists stored in `brand_config_items`
+
+| Category key | Label | UI status |
+|---|---|---|
+| `void_reason` | Void / cancel reasons | **live** — `/config/sales?section=void-reasons` |
+| `appointment_tag` | Appointment tags | **live** — `/config/appointments?section=appointment-tag` |
+| `customer_tag` | Customer tag vocabulary | **live** — `/config/customers?section=tags` |
+| `salutation` | Salutations | registry only (TS) |
+| `customer_language` | Languages | registry only (TS) |
+| `customer_race` | Races | registry only (TS) |
+| `customer_religion` | Religions | registry only (TS) |
+| `customer_occupation` | Occupations | registry only (TS) |
+| `customer_source` | Customer sources | registry only (TS) |
+| `customer_reminder_method` | Reminder methods | registry only (TS) |
+| `reason.stock_add` | Stock-add reasons | registry only (TS) |
+| `reason.stock_reduce` | Stock-reduce reasons | registry only (TS) |
+| `reason.appointment_cancel` | Appointment cancel reasons | registry only (TS) |
+
+### Shape 1 — Lists in existing typed tables
+
+| Surface | Table | Notes |
+|---|---|---|
+| Payment methods | `payment_methods` | Per-brand; field-requirement flags per method. |
+| Service categories | `service_categories` | Per-brand. |
+| Roles | `roles` | Per-brand; permissions JSONB. |
+| Positions | `positions` | Per-brand. |
+| Taxes | `taxes` | Per-outlet, per-effective-date. |
+| Inventory categories | `inventory_categories` | Per-brand. |
+
+### Shape 2 — Scalar settings stored in `brand_settings`
+
+| Key | Group | UI status |
+|---|---|---|
+| `appointment.default_slot_minutes` | appointment | **live** — read at RSC; not yet propagated to calendar layout |
+| `appointment.allow_overbook` | appointment | **live** — read at RSC; not yet propagated to conflict detection |
+| `appointment.hide_value_on_hover` | appointment | **live** — hover card hides value when true |
+| `appointment.booking_lead_hours` | appointment | registry only |
+| `appointment.enable_pin` | appointment | registry only |
+| `appointment.disable_sounds` | appointment | registry only |
+| `security.password_expiry_days` | security | registry only |
+| `security.failed_login_limit` | security | registry only |
+| `billing.show_age_on_invoice` | billing | registry only |
+| `customer.require_passcode_to_create` | customer | registry only |
+| `customer.require_passcode_to_view` | customer | registry only |
+
+### Shape 2 — Scalar settings in existing typed tables
+
+| Table | Fields | Why not generic |
+|---|---|---|
+| `billing_settings` | `auto_foreign_tax_enabled`, `foreign_tax_id`, `local_tax_id` | FK to `taxes`; generic KV can't express FK integrity |
+
+### Shape 3 — Rule tables
+
+| Rule set | Table | Phase |
+|---|---|---|
+| Commission rules | `commission_rules` | Phase 2 (commissions module) |
+| Discount eligibility rules | `discount_rules` | Not planned |
+
+### App UI — intentionally hardcoded
+
+Surfaces that stay identical across brands so staff read one visual language.
+Not configurable, not in any registry.
+
+| Surface | Location | Rationale |
+|---|---|---|
+| Appointment status codes + labels + colors + icons | `lib/constants/appointment-status.ts` (`APPOINTMENT_STATUSES`, `APPOINTMENT_STATUS_CONFIG`) | App UI. The workflow and its visual language are the product. |
+| Payment status labels + colors | `lib/constants/appointment-status.ts` (`PAYMENT_STATUS_CONFIG`) | App UI. |
+| `APPOINTMENT_PAYMENT_MODES` enum | `lib/constants/appointment-status.ts` | DB CHECK constraint; `payment_methods` table already covers the per-brand UX need. |
+
+### Deferred config candidates (not yet promoted)
+
+| Surface | Location | Rationale |
+|---|---|---|
+| Notification toast copy | `lib/constants/appointment-notifications.ts` | Owned by Automations module (14). |
+
+### Rules of engagement
+
+- Every PR that adds, promotes, or defers a configurable updates this
+  register in the same commit.
+- TS const files that are intentionally still hardcoded carry the comment
+  `// Brand-configurable candidate (deferred) — see docs/modules/12-config.md`.
+- Promoting a category/setting from "registry only" to "live" requires
+  exposing a UI surface AND wiring the consumer site to the live read —
+  both in the same PR.
 
 ## Overview
 

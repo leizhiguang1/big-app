@@ -66,26 +66,19 @@ export const collectPaymentInputSchema = z.object({
 });
 export type CollectPaymentInput = z.infer<typeof collectPaymentInputSchema>;
 
-export const VOID_REASONS = [
-	"CUSTOMER_RETURN_ITEM",
-	"DUPLICATE_SALES",
-	"INCORRECT_SALES_ITEM_SERVICE",
-	"RETURN_BACK_TO_CUSTOMER",
-	"WRONG_CUSTOMER",
-] as const;
-
-export type VoidReason = (typeof VOID_REASONS)[number];
-
-export const VOID_REASON_LABELS: Record<VoidReason, string> = {
-	CUSTOMER_RETURN_ITEM: "Customer Return Item",
-	DUPLICATE_SALES: "Duplicate Sales",
-	INCORRECT_SALES_ITEM_SERVICE: "Incorrect Sales Item/Service",
-	RETURN_BACK_TO_CUSTOMER: "Return Back To Customer",
-	WRONG_CUSTOMER: "Wrong Customer",
-};
-
+// Void reasons are per-brand rows in brand_config_items (category=void_reason).
+// The schema validates code shape only; the set of valid codes is checked
+// against the brand's live list in the service. See lib/brand-config/categories.ts.
 export const voidSalesOrderInputSchema = z.object({
-	reason: z.enum(VOID_REASONS),
+	reason: z
+		.string()
+		.trim()
+		.min(1, "Reason is required")
+		.max(64)
+		.regex(
+			/^[A-Z0-9_./-]+$/,
+			"Reason must be uppercase letters, digits, or _ . / -",
+		),
 	passcode: z
 		.string()
 		.trim()

@@ -5,6 +5,7 @@ import {
 	BarChart2,
 	Calendar,
 	CalendarDays,
+	Contact,
 	KeyRound,
 	LayoutDashboard,
 	MessageCircle,
@@ -15,7 +16,10 @@ import {
 	Ticket,
 	UserCog,
 	Users,
+	Zap,
 } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import {
 	SidebarNavItem,
 	type SidebarNavItemData,
@@ -26,6 +30,7 @@ import {
 	SidebarFooter,
 	SidebarGroup,
 	SidebarGroupContent,
+	SidebarGroupLabel,
 	SidebarHeader,
 	SidebarMenu,
 	SidebarRail,
@@ -49,10 +54,28 @@ const navItems: SidebarNavItemData[] = [
 ];
 
 const whatsappNavItems: SidebarNavItemData[] = [
-	{ label: "Inbox", href: "/inbox", icon: MessageCircle, variant: "whatsapp" },
+	{ label: "Chats", href: "/chats", icon: MessageCircle, variant: "whatsapp" },
+	{ label: "Contacts", href: "/contacts", icon: Contact, variant: "whatsapp" },
+	{
+		label: "Automations",
+		href: "/automations",
+		icon: Zap,
+		variant: "whatsapp",
+	},
 ];
 
 export function AppSidebar() {
+	const pathname = usePathname();
+	const [pendingHref, setPendingHref] = useState<string | null>(null);
+
+	useEffect(() => {
+		setPendingHref(null);
+	}, [pathname]);
+
+	const handlePending = useCallback((href: string) => {
+		setPendingHref(href);
+	}, []);
+
 	return (
 		<Sidebar collapsible="icon">
 			<SidebarHeader className="border-sidebar-border border-b">
@@ -72,17 +95,30 @@ export function AppSidebar() {
 					<SidebarGroupContent>
 						<SidebarMenu className="gap-0.5">
 							{navItems.map((item) => (
-								<SidebarNavItem key={item.href} item={item} />
+								<SidebarNavItem
+									key={item.href}
+									item={item}
+									pendingHref={pendingHref}
+									onPending={handlePending}
+								/>
 							))}
 						</SidebarMenu>
 					</SidebarGroupContent>
 				</SidebarGroup>
 
 				<SidebarGroup className="border-sidebar-border border-t px-2 py-3">
+					<SidebarGroupLabel className="px-3 text-[10px] uppercase tracking-wider text-sidebar-foreground/50">
+						WhatsApp
+					</SidebarGroupLabel>
 					<SidebarGroupContent>
 						<SidebarMenu className="gap-0.5">
 							{whatsappNavItems.map((item) => (
-								<SidebarNavItem key={item.href} item={item} />
+								<SidebarNavItem
+									key={item.href}
+									item={item}
+									pendingHref={pendingHref}
+									onPending={handlePending}
+								/>
 							))}
 						</SidebarMenu>
 					</SidebarGroupContent>

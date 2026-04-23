@@ -3,7 +3,6 @@
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import {
 	SidebarMenuButton,
 	SidebarMenuItem,
@@ -16,25 +15,29 @@ export type SidebarNavItemData = {
 	variant?: "default" | "whatsapp";
 };
 
-export function SidebarNavItem({ item }: { item: SidebarNavItemData }) {
+export function SidebarNavItem({
+	item,
+	pendingHref,
+	onPending,
+}: {
+	item: SidebarNavItemData;
+	pendingHref: string | null;
+	onPending: (href: string) => void;
+}) {
 	const pathname = usePathname();
-	const [pending, setPending] = useState(false);
-	const isActive =
+	const routeMatches =
 		pathname === item.href || pathname.startsWith(`${item.href}/`);
+	const isActive = routeMatches || pendingHref === item.href;
 	const Icon = item.icon;
 
-	useEffect(() => {
-		if (pending && isActive) setPending(false);
-	}, [pending, isActive]);
-
 	const whatsappClasses =
-		"hover:bg-[#25d366]/10 hover:text-[#25d366] data-active:bg-[#25d366]/10 data-active:text-[#25d366]";
+		"hover:bg-whatsapp/10 hover:text-whatsapp active:bg-whatsapp/10 active:text-whatsapp data-active:bg-whatsapp/10 data-active:text-whatsapp";
 
 	return (
 		<SidebarMenuItem>
 			<SidebarMenuButton
 				asChild
-				isActive={isActive || pending}
+				isActive={isActive}
 				tooltip={item.label}
 				className={
 					item.variant === "whatsapp"
@@ -46,8 +49,9 @@ export function SidebarNavItem({ item }: { item: SidebarNavItemData }) {
 					href={item.href}
 					prefetch
 					onClick={(e) => {
-						if (isActive || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-						setPending(true);
+						if (routeMatches || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+							return;
+						onPending(item.href);
 					}}
 				>
 					<Icon />

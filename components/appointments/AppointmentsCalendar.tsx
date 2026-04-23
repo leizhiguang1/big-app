@@ -28,6 +28,7 @@ import {
 	setAppointmentStatusAction,
 } from "@/lib/actions/appointments";
 import { writeActiveOutletId } from "@/lib/appointments/active-outlet";
+import type { ColumnKey } from "@/lib/appointments/columns";
 import {
 	buildLocalIso,
 	type DisplayStyle,
@@ -73,6 +74,8 @@ type Props = {
 	allOutlets: OutletWithRoomCount[];
 	allEmployees: EmployeeWithRelations[];
 	shifts: EmployeeShift[];
+	columnOrder: ColumnKey[];
+	visibleColumns: ColumnKey[];
 	onDrillInToDay: (dateStr: string) => void;
 };
 
@@ -108,6 +111,8 @@ export function AppointmentsCalendar({
 	allOutlets,
 	allEmployees,
 	shifts,
+	columnOrder,
+	visibleColumns,
 	onDrillInToDay,
 }: Props) {
 	const [dialog, setDialog] = useState<DialogState>(null);
@@ -428,6 +433,8 @@ export function AppointmentsCalendar({
 			return (
 				<ListView
 					appointments={filteredAppointments}
+					columnOrder={columnOrder}
+					visibleColumns={visibleColumns}
 					onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
 					onAppointmentContextMenu={handleContextMenu}
 				/>

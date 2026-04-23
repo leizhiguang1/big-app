@@ -62,7 +62,9 @@ export function QueueDisplayTab() {
 								</SelectTrigger>
 								<SelectContent>
 									{FONT_SIZES.map((s) => (
-										<SelectItem key={s} value={s}>{s}</SelectItem>
+										<SelectItem key={s} value={s}>
+											{s}
+										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>

@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
+import { AppointmentsAdvancedFilter } from "@/components/appointments/AppointmentsAdvancedFilter";
+import { ColumnSettingsPopover } from "@/components/appointments/ColumnSettingsPopover";
 import { MonthYearPicker } from "@/components/appointments/MonthYearPicker";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -35,12 +37,15 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { ColumnKey } from "@/lib/appointments/columns";
+import type { AppointmentTypeFilter } from "@/lib/appointments/filters";
 import {
 	type DisplayStyle,
 	type ResourceMode,
 	type TimeScope,
 	VALID_SCOPES,
 } from "@/lib/calendar/layout";
+import type { AppointmentStatus } from "@/lib/constants/appointment-status";
 import {
 	addDays,
 	fmtDate,
@@ -98,8 +103,13 @@ type Props = {
 	resource: ResourceFilter;
 	rooms: Room[];
 	employees: RosterEmployee[];
+	statusFilter: AppointmentStatus[];
+	typeFilter: AppointmentTypeFilter[];
+	columnOrder: ColumnKey[];
+	visibleColumns: ColumnKey[];
 	onDisplayChange: (next: DisplayStyle) => void;
 	onScopeChange: (next: TimeScope) => void;
+	onColumnChange: (order: ColumnKey[], visible: ColumnKey[]) => void;
 };
 
 export function AppointmentsFilterBar({
@@ -111,8 +121,13 @@ export function AppointmentsFilterBar({
 	resource,
 	rooms,
 	employees,
+	statusFilter,
+	typeFilter,
+	columnOrder,
+	visibleColumns,
 	onDisplayChange,
 	onScopeChange,
+	onColumnChange,
 }: Props) {
 	const router = useRouter();
 	const searchParams = useSearchParams();
@@ -445,6 +460,27 @@ export function AppointmentsFilterBar({
 					);
 				})}
 			</div>
+
+			{/* Column settings — list view only */}
+			{display === "list" && (
+				<ColumnSettingsPopover
+					columnOrder={columnOrder}
+					visibleColumns={visibleColumns}
+					onChange={onColumnChange}
+				/>
+			)}
+
+			{/* Advanced filter (status + type) */}
+			<AppointmentsAdvancedFilter
+				statuses={statusFilter}
+				types={typeFilter}
+				onApply={({ statuses, types }) => {
+					navigate({
+						status: statuses.length > 0 ? statuses.join(",") : null,
+						atype: types.length > 0 ? types.join(",") : null,
+					});
+				}}
+			/>
 
 			{/* Search */}
 			<div className="relative">

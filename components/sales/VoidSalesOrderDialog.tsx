@@ -22,9 +22,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { listActiveBrandConfigItemsAction } from "@/lib/actions/brand-config";
 import { listActivePaymentMethodsAction } from "@/lib/actions/payment-methods";
 import { voidSalesOrderAction } from "@/lib/actions/sales";
-import { VOID_REASON_LABELS, VOID_REASONS } from "@/lib/schemas/sales";
+import type { BrandConfigItem } from "@/lib/services/brand-config";
 import type { SaleItem } from "@/lib/services/sales";
 import type { Tables } from "@/lib/supabase/types";
 
@@ -77,6 +78,7 @@ export function VoidSalesOrderDialog({
 	const [includeAdminFee, setIncludeAdminFee] = useState(false);
 	const [adminFee, setAdminFee] = useState<string>("0");
 	const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+	const [voidReasons, setVoidReasons] = useState<BrandConfigItem[]>([]);
 	const [submitError, setSubmitError] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
 
@@ -98,6 +100,9 @@ export function VoidSalesOrderDialog({
 		listActivePaymentMethodsAction()
 			.then(setPaymentMethods)
 			.catch(() => setPaymentMethods([]));
+		listActiveBrandConfigItemsAction("void_reason")
+			.then(setVoidReasons)
+			.catch(() => setVoidReasons([]));
 	}, [open]);
 
 	const allSelected = items.length > 0 && selectedItemIds.size === items.length;
@@ -198,6 +203,7 @@ export function VoidSalesOrderDialog({
 							refundMethod={refundMethod}
 							setRefundMethod={setRefundMethod}
 							paymentMethods={paymentMethods}
+							voidReasons={voidReasons}
 							includeAdminFee={includeAdminFee}
 							setIncludeAdminFee={setIncludeAdminFee}
 							adminFee={adminFee}
@@ -400,6 +406,7 @@ function Step3Authorize({
 	refundMethod,
 	setRefundMethod,
 	paymentMethods,
+	voidReasons,
 	includeAdminFee,
 	setIncludeAdminFee,
 	adminFee,
@@ -415,6 +422,7 @@ function Step3Authorize({
 	refundMethod: string;
 	setRefundMethod: (v: string) => void;
 	paymentMethods: PaymentMethod[];
+	voidReasons: BrandConfigItem[];
 	includeAdminFee: boolean;
 	setIncludeAdminFee: (v: boolean) => void;
 	adminFee: string;
@@ -458,9 +466,9 @@ function Step3Authorize({
 						<SelectValue placeholder="Please select a remark" />
 					</SelectTrigger>
 					<SelectContent>
-						{VOID_REASONS.map((r) => (
-							<SelectItem key={r} value={r}>
-								{VOID_REASON_LABELS[r]}
+						{voidReasons.map((r) => (
+							<SelectItem key={r.code} value={r.code}>
+								{r.label}
 							</SelectItem>
 						))}
 					</SelectContent>

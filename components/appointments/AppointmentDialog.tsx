@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarDays, Lock, Trash2, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
+import { useAppointmentTagList } from "@/components/brand-config/AppointmentConfigProvider";
 import { CustomerFormDialog } from "@/components/customers/CustomerForm";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,8 +27,7 @@ import { buildLeadPrefill } from "@/lib/appointments/lead-prefill";
 import {
 	APPOINTMENT_STATUS_CONFIG,
 	APPOINTMENT_STATUSES,
-	APPOINTMENT_TAG_CONFIG,
-	APPOINTMENT_TAG_KEYS,
+	type AppointmentStatus,
 } from "@/lib/constants/appointment-status";
 import { isWindowCoveredByShifts } from "@/lib/roster/week";
 import {
@@ -652,65 +652,25 @@ export function AppointmentDialog({
 											<div className="flex flex-wrap gap-1.5">
 												{APPOINTMENT_STATUSES.filter(
 													(s) => s !== "completed",
-												).map((s) => {
-													const cfg = APPOINTMENT_STATUS_CONFIG[s];
-													const Icon = cfg.Icon;
-													const active = status === s;
-													return (
-														<button
-															key={s}
-															type="button"
-															onClick={() =>
-																form.setValue("status", s, {
-																	shouldDirty: true,
-																})
-															}
-															className={cn(
-																"inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition",
-																active
-																	? cfg.badge
-																	: "bg-muted text-muted-foreground hover:bg-muted/80",
-															)}
-														>
-															<Icon className="size-3.5" />
-															{cfg.label}
-														</button>
-													);
-												})}
+												).map((s) => (
+													<StatusButton
+														key={s}
+														status={s}
+														active={status === s}
+														onClick={() =>
+															form.setValue("status", s, {
+																shouldDirty: true,
+															})
+														}
+													/>
+												))}
 											</div>
 										</Field>
 									)}
 
 									{/* Tag (single-select) */}
 									<Field label="Tag">
-										<div className="flex flex-wrap gap-1.5">
-											{APPOINTMENT_TAG_KEYS.map((key) => {
-												const cfg = APPOINTMENT_TAG_CONFIG[key];
-												const active = tags[0] === key;
-												return (
-													<button
-														key={key}
-														type="button"
-														onClick={() => selectTag(key)}
-														className={cn(
-															"inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition",
-															active
-																? "border-transparent text-zinc-900"
-																: "border-muted text-muted-foreground hover:bg-muted/60",
-														)}
-														style={
-															active ? { backgroundColor: cfg.bg } : undefined
-														}
-													>
-														<span
-															className="inline-block size-2 rounded-full"
-															style={{ backgroundColor: cfg.dot }}
-														/>
-														{cfg.label}
-													</button>
-												);
-											})}
-										</div>
+										<TagPicker activeCode={tags[0]} onSelect={selectTag} />
 									</Field>
 								</>
 							)}
@@ -1110,6 +1070,69 @@ function Field({
 			</span>
 			{children}
 			{error && <p className="text-destructive text-xs">{error}</p>}
+		</div>
+	);
+}
+
+function StatusButton({
+	status,
+	active,
+	onClick,
+}: {
+	status: AppointmentStatus;
+	active: boolean;
+	onClick: () => void;
+}) {
+	const cfg = APPOINTMENT_STATUS_CONFIG[status];
+	const Icon = cfg.Icon;
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			className={cn(
+				"inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition",
+				active ? cfg.badge : "bg-muted text-muted-foreground hover:bg-muted/80",
+			)}
+		>
+			<Icon className="size-3.5" />
+			{cfg.label}
+		</button>
+	);
+}
+
+function TagPicker({
+	activeCode,
+	onSelect,
+}: {
+	activeCode: string | undefined;
+	onSelect: (code: string) => void;
+}) {
+	const tags = useAppointmentTagList();
+	return (
+		<div className="flex flex-wrap gap-1.5">
+			{tags.map(({ code, config }) => {
+				const active = activeCode === code;
+				return (
+					<button
+						key={code}
+						type="button"
+						onClick={() => onSelect(code)}
+						className={cn(
+							"inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition",
+							active
+								? "border-transparent text-zinc-900"
+								: "border-muted text-muted-foreground hover:bg-muted/60",
+						)}
+						style={active ? { backgroundColor: config.bg } : undefined}
+					>
+						<span
+							className="inline-block size-2 rounded-full"
+							style={{ backgroundColor: config.dot }}
+						/>
+						{config.label}
+					</button>
+				);
+			})}
 		</div>
 	);
 }

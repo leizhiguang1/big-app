@@ -90,36 +90,13 @@ export function MonthView({
 								{d.getDate()}
 							</span>
 							<div className="flex flex-col gap-0.5">
-								{list.slice(0, 3).map((a) => {
-									const sk = (a.status as AppointmentStatus) ?? "pending";
-									const sc =
-										APPOINTMENT_STATUS_CONFIG[sk] ??
-										APPOINTMENT_STATUS_CONFIG.pending;
-									const title = a.is_time_block
-										? a.block_title || "Time block"
-										: a.customer
-											? `${a.customer.first_name} ${a.customer.last_name ?? ""}`.trim()
-											: (a.lead_name ?? "Walk-in");
-									return (
-										<button
-											key={a.id}
-											type="button"
-											onClick={(e) => {
-												e.stopPropagation();
-												onAppointmentClick(a);
-											}}
-											className={cn(
-												"flex items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] font-medium",
-												sc.badge,
-											)}
-										>
-											<span
-												className={cn("size-1.5 shrink-0 rounded-full", sc.dot)}
-											/>
-											<span className="truncate">{title}</span>
-										</button>
-									);
-								})}
+								{list.slice(0, 3).map((a) => (
+									<MonthCell
+										key={a.id}
+										appointment={a}
+										onClick={() => onAppointmentClick(a)}
+									/>
+								))}
 								{list.length > 3 && (
 									<span className="text-[10px] text-muted-foreground">
 										+{list.length - 3} more
@@ -131,5 +108,37 @@ export function MonthView({
 				})}
 			</div>
 		</div>
+	);
+}
+
+function MonthCell({
+	appointment: a,
+	onClick,
+}: {
+	appointment: AppointmentWithRelations;
+	onClick: () => void;
+}) {
+	const sk = (a.status as AppointmentStatus) ?? "pending";
+	const sc = APPOINTMENT_STATUS_CONFIG[sk] ?? APPOINTMENT_STATUS_CONFIG.pending;
+	const title = a.is_time_block
+		? a.block_title || "Time block"
+		: a.customer
+			? `${a.customer.first_name} ${a.customer.last_name ?? ""}`.trim()
+			: (a.lead_name ?? "Walk-in");
+	return (
+		<button
+			type="button"
+			onClick={(e) => {
+				e.stopPropagation();
+				onClick();
+			}}
+			className={cn(
+				"flex items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] font-medium",
+				sc.badge,
+			)}
+		>
+			<span className={cn("size-1.5 shrink-0 rounded-full", sc.dot)} />
+			<span className="truncate">{title}</span>
+		</button>
 	);
 }

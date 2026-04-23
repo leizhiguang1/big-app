@@ -91,17 +91,7 @@ export function StatusProgressionRow({
 
 	// Terminal state — show a static indicator, not a clickable journey.
 	if (optimistic === "completed") {
-		const config = APPOINTMENT_STATUS_CONFIG.completed;
-		const Icon = config.Icon;
-		return (
-			<div
-				className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-transparent px-3 py-1 font-semibold text-[11px] text-white uppercase tracking-wide shadow-sm sm:text-xs"
-				style={{ backgroundColor: config.solidHex }}
-			>
-				<Icon className="size-3 shrink-0 sm:size-3.5" aria-hidden />
-				{config.label}
-			</div>
-		);
+		return <CompletedBadge />;
 	}
 
 	return (
@@ -125,41 +115,68 @@ export function StatusProgressionRow({
 				}}
 			/>
 			<div className="@container flex flex-wrap gap-1.5 @[340px]:gap-2 @[480px]:gap-2.5">
-				{PROGRESSION_STATUSES.map((s) => {
-					const config = APPOINTMENT_STATUS_CONFIG[s];
-					const Icon = config.Icon;
-					const isActive = optimistic === s;
-					return (
-						<Tooltip key={s}>
-							<TooltipTrigger asChild>
-								<button
-									type="button"
-									onClick={() => handleClick(s)}
-									className={cn(
-										"inline-flex min-h-7 items-center justify-center gap-1 rounded-full border py-0.5 font-semibold text-[10px] uppercase tracking-wide transition",
-										"min-w-7 px-1 @[340px]:min-h-8 @[340px]:px-1.5 @[340px]:py-1 @[340px]:text-[11px] @[480px]:px-2.5 @[480px]:text-xs",
-										isActive
-											? "border-transparent text-white shadow-sm"
-											: "bg-transparent hover:bg-muted/40",
-									)}
-									style={
-										isActive
-											? { backgroundColor: config.solidHex }
-											: { borderColor: config.solidHex, color: config.solidHex }
-									}
-								>
-									<Icon
-										className="size-3 shrink-0 @[480px]:size-3.5"
-										aria-hidden
-									/>
-									<span className="hidden @[340px]:inline">{config.label}</span>
-								</button>
-							</TooltipTrigger>
-							<TooltipContent side="bottom">{config.label}</TooltipContent>
-						</Tooltip>
-					);
-				})}
+				{PROGRESSION_STATUSES.map((s) => (
+					<ProgressionButton
+						key={s}
+						status={s}
+						isActive={optimistic === s}
+						onClick={() => handleClick(s)}
+					/>
+				))}
 			</div>
 		</TooltipProvider>
+	);
+}
+
+function CompletedBadge() {
+	const config = APPOINTMENT_STATUS_CONFIG.completed;
+	const Icon = config.Icon;
+	return (
+		<div
+			className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-transparent px-3 py-1 font-semibold text-[11px] text-white uppercase tracking-wide shadow-sm sm:text-xs"
+			style={{ backgroundColor: config.solidHex }}
+		>
+			<Icon className="size-3 shrink-0 sm:size-3.5" aria-hidden />
+			{config.label}
+		</div>
+	);
+}
+
+function ProgressionButton({
+	status,
+	isActive,
+	onClick,
+}: {
+	status: AppointmentStatus;
+	isActive: boolean;
+	onClick: () => void;
+}) {
+	const config = APPOINTMENT_STATUS_CONFIG[status];
+	const Icon = config.Icon;
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					onClick={onClick}
+					className={cn(
+						"inline-flex min-h-7 items-center justify-center gap-1 rounded-full border py-0.5 font-semibold text-[10px] uppercase tracking-wide transition",
+						"min-w-7 px-1 @[340px]:min-h-8 @[340px]:px-1.5 @[340px]:py-1 @[340px]:text-[11px] @[480px]:px-2.5 @[480px]:text-xs",
+						isActive
+							? "border-transparent text-white shadow-sm"
+							: "bg-transparent hover:bg-muted/40",
+					)}
+					style={
+						isActive
+							? { backgroundColor: config.solidHex }
+							: { borderColor: config.solidHex, color: config.solidHex }
+					}
+				>
+					<Icon className="size-3 shrink-0 @[480px]:size-3.5" aria-hidden />
+					<span className="hidden @[340px]:inline">{config.label}</span>
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="bottom">{config.label}</TooltipContent>
+		</Tooltip>
 	);
 }

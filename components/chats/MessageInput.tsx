@@ -3,7 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type SendAudioPayload = Blob | { audioBase64: string; mimetype: string };
-type SendImagePayload = { imageBase64: string; mimetype: string; name: string };
+type SendImagePayload = {
+	imageBase64: string;
+	mimetype: string;
+	name: string;
+	caption: string;
+};
+type SendVideoPayload = {
+	videoBase64: string;
+	mimetype: string;
+	name: string;
+	caption: string;
+};
+type SendDocumentPayload = {
+	fileBase64: string;
+	mimetype: string;
+	fileName: string;
+	caption: string;
+};
 
 function formatRecTime(secs: number): string {
 	const m = String(Math.floor(secs / 60)).padStart(2, "0");
@@ -11,34 +28,61 @@ function formatRecTime(secs: number): string {
 	return `${m}:${s}`;
 }
 
+function blobToBase64(blob: Blob): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => {
+			const result = reader.result;
+			if (typeof result !== "string") {
+				reject(new Error("Failed to read file"));
+				return;
+			}
+			const comma = result.indexOf(",");
+			resolve(comma >= 0 ? result.slice(comma + 1) : result);
+		};
+		reader.onerror = () => reject(reader.error ?? new Error("Read failed"));
+		reader.readAsDataURL(blob);
+	});
+}
+
 export function MessageInput({
 	onSend,
 	onSendAudio,
 	onSendImage,
+	onSendVideo,
+	onSendDocument,
 }: {
 	onSend: (text: string) => void;
 	onSendAudio?: (payload: SendAudioPayload) => void;
 	onSendImage?: (payload: SendImagePayload) => void;
+	onSendVideo?: (payload: SendVideoPayload) => void;
+	onSendDocument?: (payload: SendDocumentPayload) => void;
 }) {
 	const [text, setText] = useState("");
+	const [menuOpen, setMenuOpen] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-	const fileInputRef = useRef<HTMLInputElement | null>(null);
+	const mediaInputRef = useRef<HTMLInputElement | null>(null);
+	const docInputRef = useRef<HTMLInputElement | null>(null);
+	const menuRef = useRef<HTMLDivElement | null>(null);
 
 	const [isRecording, setIsRecording] = useState(false);
 	const [recSeconds, setRecSeconds] = useState(0);
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 	const audioChunksRef = useRef<Blob[]>([]);
 	const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-	// Safari returns '' from mr.mimeType — remember what we passed to the constructor
 	const mimeTypeRef = useRef<string>("");
+
+	const resetTextarea = useCallback(() => {
+		setText("");
+		if (textareaRef.current) textareaRef.current.style.height = "auto";
+	}, []);
 
 	const handleSend = useCallback(() => {
 		const trimmed = text.trim();
 		if (!trimmed) return;
 		onSend(trimmed);
-		setText("");
-		if (textareaRef.current) textareaRef.current.style.height = "auto";
-	}, [text, onSend]);
+		resetTextarea();
+	}, [text, onSend, resetTextarea]);
 
 	function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
 		if (e.key === "Enter" && !e.shiftKey) {
@@ -53,27 +97,85 @@ export function MessageInput({
 		e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
 	}
 
-	const handleFileChange = useCallback(
-		(e: React.ChangeEvent<HTMLInputElement>) => {
+	useEffect(() => {
+		if (!menuOpen) return;
+		function onDocClick(e: MouseEvent) {
+			if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+				setMenuOpen(false);
+			}
+		}
+		function onEsc(e: KeyboardEvent) {
+			if (e.key === "Escape") setMenuOpen(false);
+		}
+		document.addEventListener("mousedown", onDocClick);
+		document.addEventListener("keydown", onEsc);
+		return () => {
+			document.removeEventListener("mousedown", onDocClick);
+			document.removeEventListener("keydown", onEsc);
+		};
+	}, [menuOpen]);
+
+	const handleMediaChange = useCallback(
+		async (e: React.ChangeEvent<HTMLInputElement>) => {
 			const file = e.target.files?.[0];
-			if (!file) return;
 			e.target.value = "";
-			const reader = new FileReader();
-			reader.onload = () => {
-				const result = reader.result;
-				if (typeof result !== "string") return;
-				const base64 = result.split(",")[1];
-				if (!base64) return;
-				const mimetype = file.type;
-				if (mimetype.startsWith("audio/")) {
-					onSendAudio?.({ audioBase64: base64, mimetype });
+			if (!file) return;
+			try {
+				const base64 = await blobToBase64(file);
+				const caption = text.trim();
+				const mimetype = file.type || "application/octet-stream";
+				if (mimetype.startsWith("image/")) {
+					onSendImage?.({
+						imageBase64: base64,
+						mimetype,
+						name: file.name,
+						caption,
+					});
+				} else if (mimetype.startsWith("video/")) {
+					onSendVideo?.({
+						videoBase64: base64,
+						mimetype,
+						name: file.name,
+						caption,
+					});
 				} else {
-					onSendImage?.({ imageBase64: base64, mimetype, name: file.name });
+					onSendDocument?.({
+						fileBase64: base64,
+						mimetype,
+						fileName: file.name,
+						caption,
+					});
 				}
-			};
-			reader.readAsDataURL(file);
+				resetTextarea();
+			} catch (err) {
+				console.error("Media read error:", err);
+				alert("Failed to read file");
+			}
 		},
-		[onSendAudio, onSendImage],
+		[text, onSendImage, onSendVideo, onSendDocument, resetTextarea],
+	);
+
+	const handleDocChange = useCallback(
+		async (e: React.ChangeEvent<HTMLInputElement>) => {
+			const file = e.target.files?.[0];
+			e.target.value = "";
+			if (!file) return;
+			try {
+				const base64 = await blobToBase64(file);
+				const caption = text.trim();
+				onSendDocument?.({
+					fileBase64: base64,
+					mimetype: file.type || "application/octet-stream",
+					fileName: file.name,
+					caption,
+				});
+				resetTextarea();
+			} catch (err) {
+				console.error("Document read error:", err);
+				alert("Failed to read file");
+			}
+		},
+		[text, onSendDocument, resetTextarea],
 	);
 
 	const startRecording = useCallback(async () => {
@@ -190,6 +292,20 @@ export function MessageInput({
 
 	return (
 		<div className="message-input-bar">
+			<input
+				ref={mediaInputRef}
+				type="file"
+				accept="image/*,video/*"
+				style={{ display: "none" }}
+				onChange={handleMediaChange}
+			/>
+			<input
+				ref={docInputRef}
+				type="file"
+				style={{ display: "none" }}
+				onChange={handleDocChange}
+			/>
+
 			<button type="button" className="input-icon-btn" aria-label="Emoji">
 				<svg viewBox="0 0 24 24">
 					<path
@@ -199,26 +315,66 @@ export function MessageInput({
 				</svg>
 			</button>
 
-			<button
-				type="button"
-				className="input-icon-btn"
-				aria-label="Attach image"
-				onClick={() => fileInputRef.current?.click()}
-			>
-				<svg viewBox="0 0 24 24">
-					<path
-						fill="currentColor"
-						d="M1.816 15.556v.002c0 1.502.584 2.912 1.646 3.972s2.472 1.647 3.974 1.647a5.58 5.58 0 0 0 3.972-1.645l9.547-9.548c.769-.768 1.147-1.767 1.058-2.817-.079-.968-.548-1.927-1.319-2.698-1.594-1.592-4.068-1.711-5.517-.262l-7.916 7.915c-.881.881-.792 2.25.214 3.261.501.501 1.134.803 1.775.854.648.047 1.266-.163 1.735-.632l6.293-6.294a.752.752 0 0 0-1.063-1.062l-6.294 6.294a.72.72 0 0 1-.527.193c-.2-.017-.424-.139-.617-.334-.42-.416-.526-.937-.213-1.249l7.916-7.916c.745-.745 2.212-.662 3.228.356.507.507.821 1.098.862 1.62.036.462-.131.902-.528 1.299l-9.548 9.548a4.079 4.079 0 0 1-2.909 1.205 4.1 4.1 0 0 1-2.911-1.205 4.079 4.079 0 0 1-1.205-2.911c0-1.098.428-2.131 1.205-2.909l7.917-7.917a.75.75 0 0 0-1.063-1.062L4.525 10.71A5.551 5.551 0 0 0 2.9 14.473a5.58 5.58 0 0 0-1.084 1.083z"
-					/>
-				</svg>
-			</button>
-			<input
-				ref={fileInputRef}
-				type="file"
-				accept="image/*,audio/*"
-				style={{ display: "none" }}
-				onChange={handleFileChange}
-			/>
+			<div className="attach-wrap" ref={menuRef}>
+				<button
+					type="button"
+					className={`input-icon-btn ${menuOpen ? "input-icon-btn--active" : ""}`}
+					aria-label="Attach"
+					aria-haspopup="menu"
+					aria-expanded={menuOpen}
+					onClick={() => setMenuOpen((v) => !v)}
+				>
+					<svg viewBox="0 0 24 24">
+						<path
+							fill="currentColor"
+							d="M1.816 15.556v.002c0 1.502.584 2.912 1.646 3.972s2.472 1.647 3.974 1.647a5.58 5.58 0 0 0 3.972-1.645l9.547-9.548c.769-.768 1.147-1.767 1.058-2.817-.079-.968-.548-1.927-1.319-2.698-1.594-1.592-4.068-1.711-5.517-.262l-7.916 7.915c-.881.881-.792 2.25.214 3.261.501.501 1.134.803 1.775.854.648.047 1.266-.163 1.735-.632l6.293-6.294a.752.752 0 0 0-1.063-1.062l-6.294 6.294a.72.72 0 0 1-.527.193c-.2-.017-.424-.139-.617-.334-.42-.416-.526-.937-.213-1.249l7.916-7.916c.745-.745 2.212-.662 3.228.356.507.507.821 1.098.862 1.62.036.462-.131.902-.528 1.299l-9.548 9.548a4.079 4.079 0 0 1-2.909 1.205 4.1 4.1 0 0 1-2.911-1.205 4.079 4.079 0 0 1-1.205-2.911c0-1.098.428-2.131 1.205-2.909l7.917-7.917a.75.75 0 0 0-1.063-1.062L4.525 10.71A5.551 5.551 0 0 0 2.9 14.473a5.58 5.58 0 0 0-1.084 1.083z"
+						/>
+					</svg>
+				</button>
+
+				{menuOpen && (
+					<div className="attach-menu" role="menu">
+						<button
+							type="button"
+							className="attach-menu-item"
+							role="menuitem"
+							onClick={() => {
+								setMenuOpen(false);
+								mediaInputRef.current?.click();
+							}}
+						>
+							<span className="attach-menu-icon attach-menu-icon--photo">
+								<svg viewBox="0 0 24 24">
+									<path
+										fill="currentColor"
+										d="M8.5 13.5l2.5 3 3.5-4.5 4.5 6H5m16 1V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"
+									/>
+								</svg>
+							</span>
+							Photos &amp; Videos
+						</button>
+						<button
+							type="button"
+							className="attach-menu-item"
+							role="menuitem"
+							onClick={() => {
+								setMenuOpen(false);
+								docInputRef.current?.click();
+							}}
+						>
+							<span className="attach-menu-icon attach-menu-icon--doc">
+								<svg viewBox="0 0 24 24">
+									<path
+										fill="currentColor"
+										d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"
+									/>
+								</svg>
+							</span>
+							Document
+						</button>
+					</div>
+				)}
+			</div>
 
 			<textarea
 				ref={textareaRef}

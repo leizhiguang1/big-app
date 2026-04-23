@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppointmentDetailView } from "@/components/appointments/AppointmentDetailView";
+import { AppointmentConfigProvider } from "@/components/brand-config/AppointmentConfigProvider";
 import { Button } from "@/components/ui/button";
 import { getServerContext } from "@/lib/context/server";
 import { NotFoundError } from "@/lib/errors";
@@ -18,6 +19,7 @@ import {
 	listCustomerAppointments,
 } from "@/lib/services/appointments";
 import { getBillingSettings } from "@/lib/services/billing-settings";
+import { listAppointmentTags } from "@/lib/services/brand-config";
 import {
 	type CaseNoteWithContext,
 	listCaseNotesWithContext,
@@ -107,6 +109,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 		paymentMethods,
 		medicalCertificates,
 		billingSettings,
+		brandTags,
 	] = await Promise.all([
 		listLineItemsForAppointment(ctx, id),
 		listIncentivesForAppointment(ctx, id),
@@ -133,6 +136,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 		listActivePaymentMethods(ctx),
 		listMedicalCertificatesForAppointment(ctx, id),
 		getBillingSettings(ctx),
+		listAppointmentTags(ctx),
 	]);
 
 	const activeOutlets = outlets.filter((o) => o.is_active);
@@ -141,30 +145,32 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 	const activeAllEmployees = allEmployees.filter((e) => e.is_active);
 
 	return (
-		<AppointmentDetailView
-			appointment={appointment}
-			lineItems={lineItems}
-			incentives={incentives}
-			customerHistory={customerHistory}
-			caseNotes={caseNotes}
-			followUps={followUps}
-			customerDocuments={customerDocuments}
-			customerLineItemsHistory={customerLineItemsHistory}
-			customers={customers}
-			employees={employees}
-			rooms={activeRooms}
-			services={activeServices}
-			products={products}
-			taxes={taxes}
-			allOutlets={activeOutlets}
-			allEmployees={activeAllEmployees}
-			statusLog={statusLog}
-			shifts={shifts}
-			salesOrderId={salesOrder?.id ?? null}
-			paymentMethods={paymentMethods}
-			medicalCertificates={medicalCertificates}
-			billingSettings={billingSettings}
-		/>
+		<AppointmentConfigProvider tags={brandTags}>
+			<AppointmentDetailView
+				appointment={appointment}
+				lineItems={lineItems}
+				incentives={incentives}
+				customerHistory={customerHistory}
+				caseNotes={caseNotes}
+				followUps={followUps}
+				customerDocuments={customerDocuments}
+				customerLineItemsHistory={customerLineItemsHistory}
+				customers={customers}
+				employees={employees}
+				rooms={activeRooms}
+				services={activeServices}
+				products={products}
+				taxes={taxes}
+				allOutlets={activeOutlets}
+				allEmployees={activeAllEmployees}
+				statusLog={statusLog}
+				shifts={shifts}
+				salesOrderId={salesOrder?.id ?? null}
+				paymentMethods={paymentMethods}
+				medicalCertificates={medicalCertificates}
+				billingSettings={billingSettings}
+			/>
+		</AppointmentConfigProvider>
 	);
 }
 

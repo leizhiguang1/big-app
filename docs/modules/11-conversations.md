@@ -2,13 +2,13 @@
 
 > **Status (2026-04-22):** This module as originally specced (mirror tables in big-app's Supabase, HMAC-signed webhook handler, channel-agnostic `conversations` / `conversation_messages` tables) is **deferred indefinitely.**
 >
-> v1 of the inbox shipped as a **client-side Socket.IO integration** to wa-crm at `/inbox` — message history lives in wa-crm, not in big-app's DB. See [docs/WA_CRM_INTEGRATION.md](../WA_CRM_INTEGRATION.md).
+> v1 of the inbox shipped as a **client-side Socket.IO integration** to wa-crm at `/chats` — message history lives in wa-crm, not in big-app's DB. See [docs/WA_CRM_INTEGRATION.md](../WA_CRM_INTEGRATION.md).
 >
 > The mirror-tables design below is preserved as a reference for when/if a second channel (SMS, IG, email) forces us to persist messages in big-app's own DB. Treat everything below as a proposal, not current architecture.
 
 ## Overview
 
-The Conversations module is big-app's **channel-agnostic inbox mirror + `/inbox` UI**. It owns a local mirror of every customer-facing message — inbound and outbound — regardless of which channel the message came through. v1 ships with one provider (WhatsApp, via the separate **whatsapp-crm** service); SMS, Instagram DM, Email, and a web-chat widget are future providers that slot into the same data model without schema changes.
+The Conversations module is big-app's **channel-agnostic inbox mirror + `/chats` UI**. It owns a local mirror of every customer-facing message — inbound and outbound — regardless of which channel the message came through. v1 ships with one provider (WhatsApp, via the separate **whatsapp-crm** service); SMS, Instagram DM, Email, and a web-chat widget are future providers that slot into the same data model without schema changes.
 
 **The WhatsApp transport + automation engine + chat-originated CRM are NOT in this module and NOT in big-app.** They live in the separate whatsapp-crm service. This module is the consumer side: it mirrors what whatsapp-crm sends, renders the inbox, and provides a composer that POSTs outbound sends back to whatsapp-crm.
 
@@ -29,7 +29,7 @@ Break any of these and extraction/channel-addition becomes weeks of work instead
 1. **Code never hardcodes `"whatsapp"` outside the WhatsApp provider adapter.** Service functions take `channel` as a parameter. UI filters render from a `CHANNELS` registry. Templates reference `channel_code`, not `whatsapp`.
 2. **big-app never imports `@whiskeysockets/baileys`.** WhatsApp I/O goes through whatsapp-crm REST via `lib/services/conversations/providers/whatsapp/client.ts` (or the existing [lib/wa/client.ts](../../lib/wa/client.ts) retargeted to whatsapp-crm).
 3. **big-app never does `SELECT ... FROM wa_crm.*`.** That schema belongs to whatsapp-crm. big-app reads only from its own `public.conversations` + `public.conversation_messages` mirror tables.
-4. **Cross-service = HMAC-signed webhook in, REST out. Never Supabase Realtime for backend ↔ backend.** Realtime IS used for browser ↔ DB — the `/inbox` page subscribes to `conversation_messages` for live updates. That's the intended pattern.
+4. **Cross-service = HMAC-signed webhook in, REST out. Never Supabase Realtime for backend ↔ backend.** Realtime IS used for browser ↔ DB — the `/chats` page subscribes to `conversation_messages` for live updates. That's the intended pattern.
 5. **The messaging stack talks to clinic core at exactly one place: `lib/services/notifications.ts`.** No DB triggers, no cross-module service imports, no shared-table coupling.
 
 ## Channel architecture
@@ -61,9 +61,9 @@ Adding a new channel is:
 
 ## Screens & Views
 
-### Screen: Inbox
+### Screen: Chats
 
-**URL pattern:** `/inbox`
+**URL pattern:** `/chats`
 **Purpose:** Unified view of all inbound + outbound messages across every enabled channel.
 
 **Key elements:**
@@ -255,7 +255,7 @@ Exit: booking an appointment sends a real WhatsApp confirmation to the customer'
 ### Week 3 — Inbox UI (read-only first, then send)
 
 - [ ] Outlet channels settings: connection status badge + "Pair WhatsApp" dialog (QR polling).
-- [ ] Inbox page (`/inbox`): RSC reads from `conversations` + `conversation_messages`. No composer yet.
+- [ ] Chats page (`/chats`): RSC reads from `conversations` + `conversation_messages`. No composer yet.
 - [ ] Supabase Realtime subscription on `conversation_messages` to refresh the view on new arrivals (browser ↔ DB — allowed).
 - [ ] Composer + send action: server action → `conversations.sendMessage` → provider. Text only.
 - [ ] Channel filter in inbox (hidden in v1 since only WA; scaffold the registry so it lights up when SMS arrives).

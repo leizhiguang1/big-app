@@ -34,7 +34,7 @@ These are separate systems — passcodes authorize specific operations, PINs ver
 │  - Reports & dashboard, Config                   │
 │                                                  │
 │  MESSAGING STACK (big-app side) — layered:      │
-│  - 11 Conversations mirror + /inbox UI           │
+│  - 11 Conversations mirror + /chats UI           │
 │  - 13 CRM (business-relationship: tags/notes/    │
 │    tasks on customers)                           │
 │  - 14 Automations ADAPTER (thin HTTP caller;     │
@@ -88,7 +88,7 @@ These are separate systems — passcodes authorize specific operations, PINs ver
 - The reference whatsapp-crm repo already ships transport + templates + chat-CRM together. Cloning it preserves what works rather than re-inventing the seam.
 - big-app stays clinic-core-focused. It doesn't grow a template editor, a flow runner, or a WhatsApp-label table.
 
-### Why big-app still owns a conversations mirror, an /inbox UI, and a business-relationship CRM
+### Why big-app still owns a conversations mirror, a /chats UI, and a business-relationship CRM
 
 - The inbox UI must be fast and searchable across all of big-app's customers, not paginated through an external REST on every render.
 - big-app's business rules ("don't send a receipt automation if a manual receipt was already sent") need to `SELECT` its own conversation history.
@@ -110,12 +110,12 @@ These are separate systems — passcodes authorize specific operations, PINs ver
 - **Future link:** `customer_contacts` mapping table or phone-number matching when messaging is integrated.
 
 ### 2. WhatsApp = Separate Service (wa-crm on Railway), Socket.IO from the Browser
-- **Decision (revised 2026-04-22):** big-app's **browser** connects directly to wa-crm over Socket.IO from `/inbox`. Big-app's server stays out of the loop. This mirrors how archived `aoikumo ↔ whatsapp-crm-old` worked. See [docs/WA_CRM_INTEGRATION.md](./WA_CRM_INTEGRATION.md) for the full contract.
+- **Decision (revised 2026-04-22):** big-app's **browser** connects directly to wa-crm over Socket.IO from `/chats`. Big-app's server stays out of the loop. This mirrors how archived `aoikumo ↔ whatsapp-crm-old` worked. See [docs/WA_CRM_INTEGRATION.md](./WA_CRM_INTEGRATION.md) for the full contract.
 - **Why this shape** (chosen over HTTP+HMAC webhooks): simpler — no webhook handler, no HMAC signing, no HTTP client, no mirror tables, no new big-app migrations. wa-crm needs **zero** code changes. Matches an already-proven pattern. Defers hard problems (automations engine location, mirror-tables) until there's a concrete need.
 - **Why a separate service (not in-app):** Persistent WebSocket process (Baileys) is operationally different from request/response Next.js and can't run on Vercel/serverless. Railway hosts it. It's also the piece planned for reuse across future products.
-- **Status (2026-04-22):** big-app's `/inbox` is a Next 16 client component that ports wa-crm's `App.jsx` / `ChatList.jsx` / `ChatWindow.jsx` / `MessageInput.jsx` / `QRScreen.jsx` to Next + shadcn. The earlier HTTP-shaped scaffolding (`lib/wa/client.ts`, `lib/services/whatsapp.ts`, `lib/actions/whatsapp.ts`, webhook route, `/whatsapp` pairing UI) has been deleted.
+- **Status (2026-04-22):** big-app's `/chats` is a Next 16 client component that ports wa-crm's `App.jsx` / `ChatList.jsx` / `ChatWindow.jsx` / `MessageInput.jsx` / `QRScreen.jsx` to Next + shadcn. The earlier HTTP-shaped scaffolding (`lib/wa/client.ts`, `lib/services/whatsapp.ts`, `lib/actions/whatsapp.ts`, webhook route, `/whatsapp` pairing UI) has been deleted.
 - **Predecessors (archaeology):** An earlier repo `wa-connector/` (pure transport + in-app automations, HTTP+HMAC) is deprecated. A briefly-considered "combined wa-crm on HTTP+HMAC" plan (dated 2026-04-21) is also superseded. Neither is the current direction.
-- **Database arrangement — fully separated.** wa-crm runs in file-storage mode (`SUPABASE_URL` unset) so it **does not** touch big-app's Supabase project. big-app's Supabase stays untouched by this feature. The only big-app-side code is the `/inbox` client component + Socket.IO client dependency.
+- **Database arrangement — fully separated.** wa-crm runs in file-storage mode (`SUPABASE_URL` unset) so it **does not** touch big-app's Supabase project. big-app's Supabase stays untouched by this feature. The only big-app-side code is the `/chats` client component + Socket.IO client dependency.
 - **Mirror tables — not created.** No `channel_accounts`, `conversations`, `conversation_messages` in big-app today. Message history lives in wa-crm on Railway (Baileys + file stores on the persistent volume). Revisit if we later want history persisted independently of wa-crm's uptime, or if we add cross-provider channels (SMS, IG, email).
 - **Outlet → WhatsApp line mapping:** v1 uses wa-crm's `DEFAULT_PROJECT_ID` — one WhatsApp line globally. When outlets need per-outlet lines, pass `auth: { projectId: outlet.id }` in the Socket.IO handshake; wa-crm spins up a per-outlet tenant transparently. No schema migration needed in big-app.
 - **Socket.IO vs webhooks:** The big-app **browser** uses Socket.IO against wa-crm (the whole integration). Big-app's backend **does not** talk to wa-crm at all today. When server-triggered sends become necessary (reminders, post-appointment follow-ups), we add **one** HTTP endpoint to wa-crm with Bearer auth (prompt archived in the project plan file) — not an HMAC webhook stream.
@@ -125,7 +125,7 @@ These are separate systems — passcodes authorize specific operations, PINs ver
 
 Three distinct patterns, used for distinct jobs:
 
-- **Browser ↔ service (wa-crm today).** The user's browser opens Socket.IO from `/inbox` to wa-crm. This is the **only** live wa-crm integration. Unauthenticated today; CORS allowlist gates origin in prod. Reverts to aoikumo's proven same-LAN-style trust model, now over public internet.
+- **Browser ↔ service (wa-crm today).** The user's browser opens Socket.IO from `/chats` to wa-crm. This is the **only** live wa-crm integration. Unauthenticated today; CORS allowlist gates origin in prod. Reverts to aoikumo's proven same-LAN-style trust model, now over public internet.
 - **Browser ↔ big-app DB (Supabase Realtime).** Still the right tool for live UI updates on big-app's **own** tables. Used today by `AppointmentNotificationsProvider`. Would be used for a future mirror-table inbox if we build one.
 - **Backend ↔ backend (HTTP + HMAC webhooks).** Pattern reserved for when a future cross-service boundary needs signed, retryable, auditable event delivery. **Not currently in use** — no big-app service calls wa-crm today, and wa-crm does not push webhooks to big-app. When we add server-triggered sends (appointment reminders), it'll be **outbound REST with Bearer auth** (one endpoint on wa-crm) — still not a webhook stream.
 
@@ -157,7 +157,7 @@ Big-app's modules divide into **two layers** that are built, tested, and shipped
 - Never imports from `lib/services/conversations/**`, `lib/services/crm/**`, or `lib/services/automations/**`.
 
 **Messaging stack (big-app side: modules 11, 13, 14)** — layered on top, independently replaceable:
-- **11 Conversations** — shipped v1 as `/inbox`, a client-side Socket.IO integration to wa-crm. Mirror-tables plan deferred (no `conversations` / `conversation_messages` in big-app's DB today). Future: SMS, IG DM, email, webchat — revisit the mirror-tables plan when a second channel arrives.
+- **11 Conversations** — shipped v1 as `/chats`, a client-side Socket.IO integration to wa-crm. Mirror-tables plan deferred (no `conversations` / `conversation_messages` in big-app's DB today). Future: SMS, IG DM, email, webchat — revisit the mirror-tables plan when a second channel arrives.
 - **13 CRM** — business-relationship CRM (tags, notes, tasks on `customers`) still planned and untouched. Chat-originated CRM (WA labels, convo tags, unknown senders) stays in wa-crm.
 - **14 Automations** — deferred. Engine location undecided (see §3). No `notifications.ts` adapter today. No `pg_cron` scans wired.
 

@@ -14,6 +14,31 @@ import type { Tables, TablesUpdate } from "@/lib/supabase/types";
 
 export type Appointment = Tables<"appointments">;
 
+export type AppointmentLineItemSummary = {
+	id: string;
+	service_id: string | null;
+	description: string;
+	quantity: number;
+	unit_price: number;
+	total: number | null;
+	is_cancelled: boolean;
+	service: {
+		id: string;
+		sku: string;
+		name: string;
+		category: { id: string; name: string } | null;
+	} | null;
+};
+
+export type AppointmentSalesOrderSummary = {
+	id: string;
+	so_number: string;
+	status: string;
+	total: number;
+	amount_paid: number;
+	outstanding: number | null;
+};
+
 export type AppointmentWithRelations = Appointment & {
 	customer: {
 		id: string;
@@ -55,10 +80,12 @@ export type AppointmentWithRelations = Appointment & {
 		first_name: string;
 		last_name: string;
 	} | null;
+	line_items: AppointmentLineItemSummary[];
+	sales_orders: AppointmentSalesOrderSummary[];
 };
 
 const SELECT_WITH_RELATIONS =
-	"*, customer:customers!appointments_customer_id_fkey(id, code, first_name, last_name, phone, phone2, email, date_of_birth, gender, id_type, id_number, country_of_origin, source, profile_image_path, tag, is_vip, is_staff, smoker, drug_allergies, medical_conditions, medical_alert), employee:employees!appointments_employee_id_fkey(id, code, first_name, last_name), room:rooms!appointments_room_id_fkey(id, name), lead_attended_by:employees!appointments_lead_attended_by_id_fkey(id, first_name, last_name), created_by_employee:employees!appointments_created_by_fkey(id, first_name, last_name)";
+	"*, customer:customers!appointments_customer_id_fkey(id, code, first_name, last_name, phone, phone2, email, date_of_birth, gender, id_type, id_number, country_of_origin, source, profile_image_path, tag, is_vip, is_staff, smoker, drug_allergies, medical_conditions, medical_alert), employee:employees!appointments_employee_id_fkey(id, code, first_name, last_name), room:rooms!appointments_room_id_fkey(id, name), lead_attended_by:employees!appointments_lead_attended_by_id_fkey(id, first_name, last_name), created_by_employee:employees!appointments_created_by_fkey(id, first_name, last_name), line_items:appointment_line_items!appointment_line_items_appointment_id_fkey(id, service_id, description, quantity, unit_price, total, is_cancelled, service:services!appointment_line_items_service_id_fkey(id, sku, name, category:service_categories!services_category_id_fkey(id, name))), sales_orders:sales_orders!sales_orders_appointment_id_fkey(id, so_number, status, total, amount_paid, outstanding)";
 
 function nz<T>(value: T | undefined | null): T | null {
 	return value === undefined || value === null ? null : value;

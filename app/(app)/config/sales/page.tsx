@@ -6,6 +6,7 @@ import {
 } from "@/components/config/categories-data";
 import { BillingTab } from "@/components/config/sales/BillingTab";
 import { DiscountsTab } from "@/components/config/sales/DiscountsTab";
+import { VoidReasonsTab } from "@/components/config/sales/VoidReasonsTab";
 import { getServerContext } from "@/lib/context/server";
 import { getBillingSettings } from "@/lib/services/billing-settings";
 import { listTaxes } from "@/lib/services/taxes";
@@ -60,7 +61,8 @@ export default async function SalesConfigPage({ searchParams }: PageProps) {
 					taxes={billingData.taxes}
 				/>
 			)}
-			{!["discounts", "billing"].includes(active.key) && (
+			{active.key === "void-reasons" && <VoidReasonsTab />}
+			{!["discounts", "billing", "void-reasons"].includes(active.key) && (
 				<ComingSoonCard sectionLabel={active.label} />
 			)}
 		</>

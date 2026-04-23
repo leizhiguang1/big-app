@@ -17,6 +17,7 @@ import {
 import { ImageUpload } from "@/components/ui/image-upload";
 import { Input } from "@/components/ui/input";
 import { convertLeadToCustomerAction } from "@/lib/actions/appointments";
+import { listActiveBrandConfigItemsAction } from "@/lib/actions/brand-config";
 import {
 	createCustomerAction,
 	updateCustomerAction,
@@ -37,6 +38,7 @@ import {
 	SOURCE_LABEL,
 	SOURCES,
 } from "@/lib/schemas/customers";
+import type { BrandConfigItem } from "@/lib/services/brand-config";
 import type { Customer, CustomerWithRelations } from "@/lib/services/customers";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { OutletWithRoomCount } from "@/lib/services/outlets";
@@ -300,6 +302,7 @@ export function CustomerFormDialog({
 	const [serverError, setServerError] = useState<string | null>(null);
 	const [section, setSection] = useState<SectionKey>("personal");
 	const [pendingId, setPendingId] = useState<string | null>(null);
+	const [customerTags, setCustomerTags] = useState<BrandConfigItem[]>([]);
 	const savedRef = useRef(false);
 
 	const form = useForm<CustomerInput>({
@@ -348,6 +351,15 @@ export function CustomerFormDialog({
 		form.setValue("date_of_birth", parsed.dob, { shouldValidate: true });
 		form.setValue("gender", parsed.gender, { shouldValidate: true });
 	}, [idType, idNumber, form]);
+
+	// Brand-managed customer tag vocabulary. Loaded once per dialog open.
+	// Free-text values are still preserved — the datalist only suggests.
+	useEffect(() => {
+		if (!open) return;
+		listActiveBrandConfigItemsAction("customer_tag")
+			.then(setCustomerTags)
+			.catch(() => setCustomerTags([]));
+	}, [open]);
 
 	const icParse =
 		idType === "ic" && idNumber ? parseMalaysianIc(idNumber) : null;
@@ -816,8 +828,14 @@ export function CustomerFormDialog({
 										<Input
 											id="cus-tag"
 											placeholder="Eg. UNABLE TO WALK"
+											list="customer-tag-suggestions"
 											{...form.register("tag")}
 										/>
+										<datalist id="customer-tag-suggestions">
+											{customerTags.map((t) => (
+												<option key={t.id} value={t.label} />
+											))}
+										</datalist>
 									</Field>
 
 									<Field

@@ -1,9 +1,9 @@
-import { ComingSoonCard } from "@/components/config/ComingSoonCard";
-import { ConfigSectionHeader } from "@/components/config/ConfigSectionHeader";
 import { AppointmentTagTab } from "@/components/config/appointments/AppointmentTagTab";
 import { OnlineBookingTab } from "@/components/config/appointments/OnlineBookingTab";
 import { QueueDisplayTab } from "@/components/config/appointments/QueueDisplayTab";
 import { SettingsTab } from "@/components/config/appointments/SettingsTab";
+import { ComingSoonCard } from "@/components/config/ComingSoonCard";
+import { ConfigSectionHeader } from "@/components/config/ConfigSectionHeader";
 import {
 	findCategory,
 	resolveSection,
@@ -30,9 +30,12 @@ export default async function AppointmentsPage({ searchParams }: PageProps) {
 			{active.key === "online-booking" && <OnlineBookingTab />}
 			{active.key === "appointment-tag" && <AppointmentTagTab />}
 			{active.key === "queue-display" && <QueueDisplayTab />}
-			{!["settings", "online-booking", "appointment-tag", "queue-display"].includes(active.key) && (
-				<ComingSoonCard sectionLabel={active.label} />
-			)}
+			{![
+				"settings",
+				"online-booking",
+				"appointment-tag",
+				"queue-display",
+			].includes(active.key) && <ComingSoonCard sectionLabel={active.label} />}
 		</>
 	);
 }

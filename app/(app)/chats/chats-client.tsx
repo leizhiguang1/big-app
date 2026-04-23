@@ -1,22 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChatList } from "@/components/inbox/ChatList";
-import { ChatWindow } from "@/components/inbox/ChatWindow";
-import { QRScreen } from "@/components/inbox/QRScreen";
-import { getSocket } from "@/components/inbox/socket";
+import { ChatList } from "@/components/chats/ChatList";
+import { ChatWindow } from "@/components/chats/ChatWindow";
+import { QRScreen } from "@/components/chats/QRScreen";
+import { disposeSocket, getSocket } from "@/components/chats/socket";
 import type {
 	ConnectionStatus,
 	ConnectionUpdate,
 	FormattedChat,
 	PeerTenant,
 	ProfilePicsUpdate,
-} from "@/components/inbox/types";
-import "@/components/inbox/inbox.css";
+} from "@/components/chats/types";
+import "@/components/chats/chats.css";
 
 type AppState = "connecting" | "qr" | "connected" | "logged_out";
 
-export function InboxClient() {
+export function ChatsClient() {
 	const [appState, setAppState] = useState<AppState>("connecting");
 	const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 	const [chats, setChats] = useState<FormattedChat[]>([]);
@@ -38,6 +38,12 @@ export function InboxClient() {
 				setLineLabel(self.lineLabel ?? null);
 			}
 		});
+	}, []);
+
+	useEffect(() => {
+		return () => {
+			disposeSocket();
+		};
 	}, []);
 
 	useEffect(() => {

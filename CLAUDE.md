@@ -233,6 +233,13 @@ updates the relevant `docs/modules/*.md` to reflect what was actually built.
 - If you discovered a schema tweak → update `docs/SCHEMA.md` and the
   relevant migration in the same commit.
 - If you changed an architectural rule → update `docs/ARCHITECTURE.md`.
+- If you added, promoted, or deferred a brand-configurable surface → update
+  the **Configurable-surface tier register** in `docs/modules/12-config.md`
+  in the same commit. The register covers all three shapes (lists, scalar
+  settings, rules) and their tier (live / registry-only / deferred /
+  hardcoded). New list categories and new scalar settings go into the TS
+  registries at `lib/brand-config/categories.ts` and
+  `lib/brand-config/settings.ts` respectively — no migration needed.
 - Never let code land that contradicts a doc without updating the doc.
 
 ## Testing
@@ -252,13 +259,13 @@ Write tests only for things that break silently and cost money:
 - Clinical sub-modules — case notes, dental charting, prescriptions (Phase 2)
 - Messaging stack — integrated via **Socket.IO from the browser** (the
   `aoikumo ↔ whatsapp-crm` pattern). Big-app's **server** never talks to
-  wa-crm; only the `/inbox` client component does, via `NEXT_PUBLIC_WA_CRM_URL`.
+  wa-crm; only the `/chats` client component does, via `NEXT_PUBLIC_WA_CRM_URL`.
   Full contract + events in `docs/WA_CRM_INTEGRATION.md`.
-  - **Inbox (live)** — `/inbox` opens a Socket.IO connection to wa-crm on
+  - **Chats (live)** — `/chats` opens a Socket.IO connection to wa-crm on
     Railway, listens for `chats_upsert` / `messages_upsert` / `qr`, emits
     `get_chats` / `get_messages` / `send_message` / `mark_read` /
     `request_qr`. Zero server involvement, zero persistence in big-app's DB.
-    Code in `components/inbox/` + `app/(app)/inbox/`. **Never add a webhook
+    Code in `components/chats/` + `app/(app)/chats/`. **Never add a webhook
     handler for `/api/webhooks/whatsapp`, never create mirror tables
     (`channel_accounts`, `conversations`, `conversation_messages`), and
     never introduce `lib/wa/client.ts` or `lib/services/whatsapp.ts` — all

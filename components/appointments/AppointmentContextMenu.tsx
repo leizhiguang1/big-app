@@ -117,28 +117,17 @@ export function AppointmentContextMenu({
 						}}
 					>
 						{APPOINTMENT_STATUSES.filter((k) => k !== "completed").map(
-							(key) => {
-								const cfg = APPOINTMENT_STATUS_CONFIG[key];
-								const Icon = cfg.Icon;
-								const active = visitKey === key;
-								return (
-									<button
-										key={key}
-										type="button"
-										onClick={() => {
-											onSetStatus(key);
-											onClose();
-										}}
-										className={cn(
-											"flex w-full items-center gap-2 px-3.5 py-1.5 text-left",
-											active ? cn(cfg.badge, "font-bold") : "hover:bg-muted",
-										)}
-									>
-										<Icon className="size-3.5 shrink-0" />
-										<span>{cfg.label}</span>
-									</button>
-								);
-							},
+							(key) => (
+								<ContextStatusButton
+									key={key}
+									status={key}
+									active={visitKey === key}
+									onClick={() => {
+										onSetStatus(key);
+										onClose();
+									}}
+								/>
+							),
 						)}
 					</div>
 				)}
@@ -183,5 +172,31 @@ export function AppointmentContextMenu({
 			</button>
 		</div>,
 		document.body,
+	);
+}
+
+function ContextStatusButton({
+	status,
+	active,
+	onClick,
+}: {
+	status: AppointmentStatus;
+	active: boolean;
+	onClick: () => void;
+}) {
+	const cfg = APPOINTMENT_STATUS_CONFIG[status];
+	const Icon = cfg.Icon;
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			className={cn(
+				"flex w-full items-center gap-2 px-3.5 py-1.5 text-left",
+				active ? cn(cfg.badge, "font-bold") : "hover:bg-muted",
+			)}
+		>
+			<Icon className="size-3.5 shrink-0" />
+			<span>{cfg.label}</span>
+		</button>
 	);
 }

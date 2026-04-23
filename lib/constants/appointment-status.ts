@@ -112,6 +112,35 @@ export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
 	paid: "Paid",
 };
 
+export type PaymentStatusConfig = {
+	label: string;
+	badge: string;
+	dot: string;
+	solidHex: string;
+};
+
+export const PAYMENT_STATUS_CONFIG: Record<PaymentStatus, PaymentStatusConfig> =
+	{
+		paid: {
+			label: "Paid",
+			badge: "bg-emerald-100 text-emerald-700",
+			dot: "bg-emerald-500",
+			solidHex: "#10b981",
+		},
+		partial: {
+			label: "Partial",
+			badge: "bg-yellow-100 text-yellow-700",
+			dot: "bg-yellow-500",
+			solidHex: "#eab308",
+		},
+		unpaid: {
+			label: "Unpaid",
+			badge: "bg-red-100 text-red-700",
+			dot: "bg-red-500",
+			solidHex: "#ef4444",
+		},
+	};
+
 export const APPOINTMENT_PAYMENT_MODES = [
 	"cash",
 	"credit_card",

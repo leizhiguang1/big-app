@@ -3,6 +3,7 @@
 import { Building2, CalendarClock, DoorOpen } from "lucide-react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
 import { StatusProgressionRow } from "@/components/appointments/detail/StatusProgressionRow";
+import { WorkflowTimingPanel } from "@/components/appointments/detail/WorkflowTimingPanel";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 
 type Props = {
@@ -84,6 +85,9 @@ export function AppointmentSummaryCard({
 					onReschedule={onReschedule}
 				/>
 			</div>
+			{!appointment.is_time_block && (
+				<WorkflowTimingPanel appointment={appointment} />
+			)}
 		</div>
 	);
 }

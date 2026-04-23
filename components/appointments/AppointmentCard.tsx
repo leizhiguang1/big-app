@@ -3,13 +3,21 @@
 import { Phone, StickyNote, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { AppointmentHoverCard } from "@/components/appointments/AppointmentHoverCard";
+import { useAppointmentTag } from "@/components/brand-config/AppointmentConfigProvider";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { LAST_HOUR, QUARTER_HEIGHT_PX } from "@/lib/calendar/layout";
 import {
 	APPOINTMENT_STATUS_CONFIG,
-	APPOINTMENT_TAG_CONFIG,
 	type AppointmentStatus,
+	PAYMENT_STATUS_CONFIG,
+	type PaymentStatus,
 } from "@/lib/constants/appointment-status";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
+import { cn } from "@/lib/utils";
 
 type Props = {
 	appointment: AppointmentWithRelations;
@@ -111,7 +119,11 @@ export function AppointmentCard({
 	const isResizing = resizeHeightPx != null;
 
 	const firstTag = a.tags?.[0];
-	const tagCfg = firstTag ? APPOINTMENT_TAG_CONFIG[firstTag] : null;
+	const tagCfg = useAppointmentTag(firstTag);
+
+	const paymentKey =
+		!isBlock && !isLead ? (a.payment_status as PaymentStatus) : null;
+	const paymentCfg = paymentKey ? PAYMENT_STATUS_CONFIG[paymentKey] : null;
 
 	const bg = isBlock ? "#cbd5e1" : tagCfg ? tagCfg.bg : "#ffffff";
 	const borderColor = isBlock ? "#475569" : sc.solidHex;
@@ -193,14 +205,27 @@ export function AppointmentCard({
 				className="relative flex flex-col items-start overflow-hidden rounded-sm px-2 py-1.5 text-left text-slate-900 shadow-sm transition hover:shadow-md"
 			>
 				{!isBlock && (
-					<sc.Icon
-						aria-label={sc.label}
-						className="absolute top-1 right-1 size-[14px] shrink-0"
-						strokeWidth={2.5}
-						style={{ color: sc.solidHex }}
-					>
-						<title>{sc.label}</title>
-					</sc.Icon>
+					<div className="absolute top-1 right-1 flex items-center gap-1">
+						{paymentCfg && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span
+										aria-label={paymentCfg.label}
+										className={cn("size-1.5 rounded-full", paymentCfg.dot)}
+									/>
+								</TooltipTrigger>
+								<TooltipContent>{paymentCfg.label}</TooltipContent>
+							</Tooltip>
+						)}
+						<sc.Icon
+							aria-label={sc.label}
+							className="size-[14px] shrink-0"
+							strokeWidth={2.5}
+							style={{ color: sc.solidHex }}
+						>
+							<title>{sc.label}</title>
+						</sc.Icon>
+					</div>
 				)}
 				<div className="w-full shrink-0 truncate pr-4 font-bold text-[12px] leading-tight">
 					{title}
@@ -250,9 +275,7 @@ export function AppointmentCard({
 						onPointerCancel={onResizePointerUp}
 						className="absolute right-0 bottom-0 left-0 h-1.5 cursor-ns-resize hover:bg-slate-900/15"
 						style={{
-							backgroundColor: isResizing
-								? "rgba(15, 23, 42, 0.2)"
-								: undefined,
+							backgroundColor: isResizing ? "rgba(15, 23, 42, 0.2)" : undefined,
 							touchAction: "none",
 						}}
 					/>

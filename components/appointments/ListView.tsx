@@ -2,17 +2,20 @@
 
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useMemo, useState } from "react";
+import { COLUMN_RENDERERS } from "@/components/appointments/column-registry";
 import {
-	APPOINTMENT_STATUS_CONFIG,
-	APPOINTMENT_TAG_CONFIG,
-	type AppointmentStatus,
-} from "@/lib/constants/appointment-status";
+	COLUMN_LABELS,
+	COLUMN_WIDTHS,
+	type ColumnKey,
+} from "@/lib/appointments/columns";
 import { fmtDate } from "@/lib/roster/week";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 import { cn } from "@/lib/utils";
 
 type Props = {
 	appointments: AppointmentWithRelations[];
+	columnOrder: ColumnKey[];
+	visibleColumns: ColumnKey[];
 	onAppointmentClick: (a: AppointmentWithRelations) => void;
 	onAppointmentContextMenu?: (
 		e: React.MouseEvent,
@@ -48,17 +51,10 @@ function fmtDayHeader(d: Date): string {
 	return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-function fmt12h(iso: string): string {
-	const d = new Date(iso);
-	let h = d.getHours();
-	const m = String(d.getMinutes()).padStart(2, "0");
-	const ampm = h < 12 ? "am" : "pm";
-	h = h % 12 || 12;
-	return `${h}:${m} ${ampm}`;
-}
-
 export function ListView({
 	appointments,
+	columnOrder,
+	visibleColumns,
 	onAppointmentClick,
 	onAppointmentContextMenu,
 }: Props) {
@@ -77,6 +73,25 @@ export function ListView({
 		}
 		return Array.from(map.entries());
 	}, [appointments]);
+
+	const displayKeys = useMemo(() => {
+		const visibleSet = new Set(visibleColumns);
+		return columnOrder.filter((k) => visibleSet.has(k));
+	}, [columnOrder, visibleColumns]);
+
+	const totalMinWidth = useMemo(() => {
+		let total = 48;
+		for (const k of displayKeys) {
+			const w = COLUMN_WIDTHS[k];
+			if (w) {
+				const n = Number.parseInt(w, 10);
+				if (!Number.isNaN(n)) total += n;
+			} else {
+				total += 180;
+			}
+		}
+		return total;
+	}, [displayKeys]);
 
 	if (appointments.length === 0) {
 		return (
@@ -124,155 +139,51 @@ export function ListView({
 							)}
 						</button>
 						{!isCollapsed && (
-							<table className="w-full table-fixed text-sm">
+							<table
+								className="table-fixed text-sm"
+								style={{ width: "100%", minWidth: `${totalMinWidth}px` }}
+							>
 								<colgroup>
 									<col className="w-12" />
-									<col />
-									<col className="w-[220px]" />
-									<col className="w-[140px]" />
-									<col className="w-[100px]" />
-									<col className="w-[170px]" />
-									<col className="w-[140px]" />
-									<col className="w-[100px]" />
+									{displayKeys.map((k) => {
+										const width = COLUMN_WIDTHS[k];
+										return (
+											<col key={k} style={width ? { width } : undefined} />
+										);
+									})}
 								</colgroup>
 								<thead>
 									<tr className="border-b bg-muted/20 text-left text-[11px] text-muted-foreground uppercase tracking-wide">
 										<th className="px-3 py-2">No.</th>
-										<th className="px-3 py-2">Customer / block</th>
-										<th className="px-3 py-2">Booking ref</th>
-										<th className="px-3 py-2">Employee</th>
-										<th className="px-3 py-2">Room</th>
-										<th className="px-3 py-2">Time</th>
-										<th className="px-3 py-2">Status</th>
-										<th className="px-3 py-2">Payment</th>
+										{displayKeys.map((k) => (
+											<th key={k} className="px-3 py-2">
+												{COLUMN_LABELS[k]}
+											</th>
+										))}
 									</tr>
 								</thead>
 								<tbody>
-									{list.map((a, idx) => {
-										const sk = (a.status as AppointmentStatus) ?? "pending";
-										const sc =
-											APPOINTMENT_STATUS_CONFIG[sk] ??
-											APPOINTMENT_STATUS_CONFIG.pending;
-										const isBlock = a.is_time_block;
-										const isLead = !isBlock && !a.customer_id && !!a.lead_name;
-										const primary = isBlock
-											? a.block_title || "Time block"
-											: a.customer
-												? `${a.customer.first_name} ${a.customer.last_name ?? ""}`.trim()
-												: (a.lead_name ?? "Walk-in");
-										const phone = a.customer?.phone ?? a.lead_phone ?? null;
-										const refSuffix = a.customer?.code
-											? ` | ${a.customer.code}`
-											: isLead
-												? " | LEAD"
-												: "";
-										return (
-											<tr
-												key={a.id}
-												onClick={() => onAppointmentClick(a)}
-												onContextMenu={(e) => {
-													if (!onAppointmentContextMenu) return;
-													e.preventDefault();
-													onAppointmentContextMenu(e, a);
-												}}
-												className="cursor-pointer border-b last:border-b-0 hover:bg-muted/40"
-											>
-												<td className="px-3 py-2 text-muted-foreground text-xs">
-													{idx + 1}
+									{list.map((a, idx) => (
+										<tr
+											key={a.id}
+											onClick={() => onAppointmentClick(a)}
+											onContextMenu={(e) => {
+												if (!onAppointmentContextMenu) return;
+												e.preventDefault();
+												onAppointmentContextMenu(e, a);
+											}}
+											className="cursor-pointer border-b last:border-b-0 hover:bg-muted/40"
+										>
+											<td className="px-3 py-2 text-muted-foreground text-xs">
+												{idx + 1}
+											</td>
+											{displayKeys.map((k) => (
+												<td key={k} className="px-3 py-2 align-top">
+													{COLUMN_RENDERERS[k](a)}
 												</td>
-												<td className="px-3 py-2">
-													<div className="flex items-center gap-1.5 font-semibold text-[13px]">
-														{isLead && (
-															<span className="rounded bg-amber-200 px-1 py-px font-bold text-[9px] text-amber-900 uppercase">
-																Lead
-															</span>
-														)}
-														{isBlock && (
-															<span className="rounded bg-slate-600 px-1 py-px font-bold text-[9px] text-white uppercase">
-																Block
-															</span>
-														)}
-														<span>{primary}</span>
-													</div>
-													{phone && (
-														<div className="text-[11px] text-muted-foreground">
-															{phone}
-														</div>
-													)}
-													{(a.tags?.length ?? 0) > 0 && (
-														<div className="mt-1 flex flex-wrap gap-1">
-															{a.tags.map((t) => {
-																const tc = APPOINTMENT_TAG_CONFIG[t];
-																return (
-																	<span
-																		key={t}
-																		className="rounded px-1 py-px font-semibold text-[9px] text-white"
-																		style={{
-																			backgroundColor: tc?.dot ?? "#94a3b8",
-																		}}
-																	>
-																		{tc?.label ?? t}
-																	</span>
-																);
-															})}
-														</div>
-													)}
-												</td>
-												<td className="px-3 py-2 font-medium text-sky-600 text-xs tabular-nums">
-													{a.booking_ref}
-													{refSuffix}
-												</td>
-												<td className="px-3 py-2 text-xs">
-													{a.employee
-														? `${a.employee.first_name} ${a.employee.last_name}`
-														: "—"}
-												</td>
-												<td className="px-3 py-2 text-xs">
-													{a.room?.name ?? "—"}
-												</td>
-												<td className="whitespace-nowrap px-3 py-2 text-xs tabular-nums">
-													{fmt12h(a.start_at)} – {fmt12h(a.end_at)}
-												</td>
-												<td className="px-3 py-2">
-													{isBlock ? (
-														<span className="text-muted-foreground text-xs">
-															—
-														</span>
-													) : (
-														<span
-															className={cn(
-																"inline-flex items-center gap-1 rounded px-2 py-0.5 font-semibold text-[10px]",
-																sc.badge,
-															)}
-														>
-															<sc.Icon className="size-3" />
-															{sc.label}
-														</span>
-													)}
-												</td>
-												<td className="px-3 py-2">
-													{isBlock ? (
-														<span className="text-muted-foreground text-xs">
-															—
-														</span>
-													) : (
-														<span
-															className={cn(
-																"inline-flex rounded px-2 py-0.5 font-semibold text-[10px] uppercase",
-																a.payment_status === "paid"
-																	? "bg-emerald-100 text-emerald-700"
-																	: a.payment_status === "partial"
-																		? "bg-yellow-100 text-yellow-700"
-																		: "bg-red-100 text-red-700",
-															)}
-														>
-															{a.payment_status ?? "unpaid"}
-														</span>
-													)}
-												</td>
-											</tr>
-										);
-									})}
+											))}
+										</tr>
+									))}
 								</tbody>
 							</table>
 						)}

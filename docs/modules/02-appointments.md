@@ -87,7 +87,20 @@ Appointments is the central hub of the clinic app. Every booking lives here, and
 - **Resource mode** (calendar/day only) — `By employee` columns or `By room` columns, with "Unassigned" always last. Single mode at a time.
 - **Date navigation** — prev / next / today; week shifts by 7, day by 1, month by 1 calendar month.
 - **Search** — full-text across customer name, phone, lead name, employee name, and booking ref. Driven by `?q=` query param so deep-linking works.
-- **Filters panel** — *pending* (status / payment / dentist / room).
+- **Advanced filter** — sliders-icon button between the scope toggle and the search box. Popover with two sections. State is URL-driven so filter selections deep-link and survive reload. `Reset` clears both sections and applies immediately; `Apply` commits the staged check state. Empty filter = all rows (no filter applied).
+  - **Default UX: all ticked.** When no filter is active (URL has no `status`/`atype`), opening the popover seeds every checkbox as ticked so staff can *untick to exclude*, matching the Aoikumo UX in the reference screenshot. Re-ticking everything back to full on Apply collapses the URL back to empty (no param, no badge) — "all ticked" and "nothing ticked" are the same thing semantically. The badge only appears when at least one dimension is actually narrowed.
+  - **Badge.** Count of checked values across both sections in the URL — only shown when the filter is narrowing. Zero badge when inactive.
+  - **Appointment Type** — three checkboxes, derived from existing columns (no new schema):
+    - `Regular` → `customer_id IS NOT NULL AND is_time_block IS NOT TRUE`
+    - `Walk-in` → `customer_id IS NULL AND is_time_block IS NOT TRUE` (lead-based rows)
+    - `Time Block` → `is_time_block = true`
+    - URL param: `?atype=regular,walkin,timeblock`.
+  - **Status** — one checkbox per `AppointmentStatus` (7 today): Pending, Confirmed, Arrived, Started, No Show, Ready to Billing, Completed. URL param: `?status=pending,confirmed,...`.
+  - **Deferred — mirror-of-KumoDent fields we don't track yet.** The Aoikumo/KumoDent reference has four *booking-mode* categories (Normal / Boarding / Telehealth / Online Booking) and two extra *statuses* (Unconfirmed / Reschedule). We intentionally did not add those in v1 because:
+    - There is no `appointment_type` column — adding the four booking modes needs a schema change (enum column + migration + form field + write-side validation + historical backfill). Out of scope for the filter-button pass.
+    - `Unconfirmed` would overlap confusingly with `Pending`; `Reschedule` is a *transition*, not a resting state. Both need a product decision before a column lands.
+    - Aoikumo's `Blocked Timing` is our `is_time_block = true`, already exposed as the `Time Block` type checkbox — not a duplicate status.
+  - When/if we add `appointment_type`, the filter UI is already sectioned for it — swap the `Regular/Walk-in/Time Block` checkboxes for the enum values (or show both rows), re-use the same `?atype=` param, and widen `APPOINTMENT_TYPE_FILTERS` in `AppointmentsAdvancedFilter.tsx`. See `Pending follow-ups` below.
 
 **Calendar cells:**
 - Each appointment = colored block spanning its time range.
@@ -759,7 +772,8 @@ app/(app)/appointments/
 
 components/appointments/
   AppointmentsView.tsx                (NEW — client shell: owns display/scope state, persists to localStorage, hosts FilterBar + Calendar)
-  AppointmentsFilterBar.tsx           (outlet, display, scope, date nav, resource, search)
+  AppointmentsFilterBar.tsx           (outlet, display, scope, date nav, resource, search, mounts AppointmentsAdvancedFilter)
+  AppointmentsAdvancedFilter.tsx      (sliders-icon popover: Appointment Type + Status checkboxes; Reset/Apply; URL-driven via ?status= / ?atype=; also exports parse helpers + appointmentMatchesTypeFilter used by the RSC)
   AppointmentsCalendar.tsx            (view switcher, dialog/context-menu/toast state)
   WeekView.tsx                        (7-day grid, hours 8–22)
   DayView.tsx                         (1-day grid, columns = employees or rooms)
@@ -824,7 +838,12 @@ lib/actions/sales.ts                  (collectAppointmentPaymentAction — used 
 - **Hands-on Incentives (v2)** — auto-default the employee selection to the appointment's assigned employee (or `lead_attended_by`) so staff only has to touch it when it differs. Add the KumoDent "intended positions" advisory popup once `services.intended_positions text[]` exists. Wire to a Commission engine in Phase 2. **Complete-button gating is decided: the button is disabled until every service line has at least one incentive assigned** (see Floating Action Bar section above) — wire this as part of the Complete flow hardening.
 - **Status Change Log** — build the `appointment_status_events` table + trigger and wire the Overview card. Shape committed (see Overview cards section).
 - **Drag-to-reschedule** — service has `rescheduleAppointment()` ready; needs HTML5 drag wiring on `AppointmentCard` + drop targets in `DayView` / `WeekView`.
-- **Advanced filters panel** — status, dentist, payment-status, room.
+- ~~**Advanced filters panel — status + type**~~ — **shipped 2026-04-23.** Sliders-icon popover on the filter bar with `Appointment Type` (Regular / Walk-in / Time Block) and `Status` (7 values) sections. URL-driven (`?status=`, `?atype=`), Reset/Apply buttons. See "Advanced filter" above.
+- **Advanced filters — extensions.** Additional filter dimensions deferred from the first pass:
+  - **`appointment_type` column (Normal / Boarding / Telehealth / Online Booking).** Needs schema work: add an `appointment_type` enum (or `text` with a CHECK), expose in `AppointmentDialog`, backfill existing rows to `Normal`. Then swap or append the checkboxes in `AppointmentsAdvancedFilter` — param name (`atype`) and filter plumbing already accommodate it. Also decide whether `Online Booking` is a type *or* a provenance field (separate `source` column). KumoDent treats it as a type; we may split it.
+  - **`Unconfirmed` and `Reschedule` statuses.** Not adding to the status filter until the product decision is made — `Unconfirmed` overlaps `Pending`, `Reschedule` is a transition not a resting state. If we add them, extend `APPOINTMENT_STATUSES` in `lib/constants/appointment-status.ts` and the filter picks them up for free.
+  - **Payment status filter.** `payment_status` is already on the row (`unpaid` / `partial` / `paid`). Add a third popover section and a `?pstatus=` URL param.
+  - **Dentist / employee and room filters.** Already expressible via the `Room / Staff` resource dropdown (single-select). If multi-select is wanted, bring those into the advanced-filter popover too.
 - **Walk-in customer create-inline** shortcut from inside `AppointmentDialog`.
 - **Recurring / repeat appointments** — net-new feature.
 - **Sound effects on status change** — behind a user-preference toggle.

@@ -122,6 +122,7 @@ export const CATEGORIES: ConfigCategory[] = [
 		color: "violet",
 		sections: [
 			{ key: "general", label: "General", implemented: true },
+			{ key: "tags", label: "Customer Tags", implemented: true },
 			{ key: "leads", label: "Leads", implemented: true },
 			{ key: "security", label: "Security", implemented: true },
 		],
@@ -135,6 +136,7 @@ export const CATEGORIES: ConfigCategory[] = [
 		sections: [
 			{ key: "discounts", label: "Discounts", implemented: true },
 			{ key: "billing", label: "Billing", implemented: true },
+			{ key: "void-reasons", label: "Void Reasons", implemented: true },
 			{
 				key: "payment",
 				label: "Payment",

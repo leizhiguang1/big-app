@@ -18,3 +18,11 @@ export function getSocket(): Socket {
 	}
 	return _socket;
 }
+
+export function disposeSocket(): void {
+	if (_socket) {
+		_socket.removeAllListeners();
+		_socket.disconnect();
+		_socket = null;
+	}
+}

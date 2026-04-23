@@ -1,12 +1,20 @@
 import { redirect } from "next/navigation";
 import type { ResourceFilter } from "@/components/appointments/AppointmentsFilterBar";
 import { AppointmentsView } from "@/components/appointments/AppointmentsView";
+import { AppointmentConfigProvider } from "@/components/brand-config/AppointmentConfigProvider";
+import {
+	appointmentMatchesTypeFilter,
+	parseStatusParam,
+	parseTypeParam,
+} from "@/lib/appointments/filters";
 import { getServerContext } from "@/lib/context/server";
 import { addDays, fmtDate, getWeekStart, parseDate } from "@/lib/roster/week";
 import {
 	type AppointmentWithRelations,
 	listAppointmentsForRange,
 } from "@/lib/services/appointments";
+import { listAppointmentTags } from "@/lib/services/brand-config";
+import { listBrandSettings } from "@/lib/services/brand-settings";
 import { listCustomers } from "@/lib/services/customers";
 import {
 	listBookableEmployeesForOutlet,
@@ -54,6 +62,8 @@ export async function AppointmentsContent({
 		resource?: string;
 		rid?: string;
 		eid?: string;
+		status?: string;
+		atype?: string;
 	}>;
 }) {
 	const params = await searchParams;
@@ -78,7 +88,14 @@ export async function AppointmentsContent({
 	if (outletId !== requestedOutlet) {
 		const next = new URLSearchParams();
 		next.set("outlet", outletId);
-		for (const k of ["date", "resource", "rid", "eid"] as const) {
+		for (const k of [
+			"date",
+			"resource",
+			"rid",
+			"eid",
+			"status",
+			"atype",
+		] as const) {
 			const v = params[k];
 			if (v) next.set(k, v);
 		}
@@ -92,10 +109,11 @@ export async function AppointmentsContent({
 	const resource: ResourceFilter = {
 		mode: params.resource === "room" ? "room" : "employee",
 		value:
-			params.resource === "room"
-				? (params.rid ?? null)
-				: (params.eid ?? null),
+			params.resource === "room" ? (params.rid ?? null) : (params.eid ?? null),
 	};
+
+	const statusFilter = parseStatusParam(params.status);
+	const typeFilter = parseTypeParam(params.atype);
 
 	const range = monthGridRange(dateStr);
 
@@ -108,6 +126,8 @@ export async function AppointmentsContent({
 		services,
 		allEmployees,
 		shifts,
+		brandTags,
+		appointmentSettings,
 	] = await Promise.all([
 		listAppointmentsForRange(ctx, {
 			outletId,
@@ -124,25 +144,50 @@ export async function AppointmentsContent({
 			from: fmtDate(rangeFromMinus1),
 			to: fmtDate(range.to),
 		}),
+		listAppointmentTags(ctx),
+		listBrandSettings(ctx, { group: "appointment" }),
 	]);
 
 	const activeRooms = rooms.filter((r) => r.is_active);
-	const appointments = applyResourceFilter(appointmentsRaw, resource);
+	const resourceFiltered = applyResourceFilter(appointmentsRaw, resource);
+	const appointments = resourceFiltered.filter((a) => {
+		if (statusFilter.length > 0 && !statusFilter.some((s) => s === a.status))
+			return false;
+		if (!appointmentMatchesTypeFilter(a, typeFilter)) return false;
+		return true;
+	});
+
+	const pilotSettings = {
+		defaultSlotMinutes: Number(
+			appointmentSettings["appointment.default_slot_minutes"] ?? 30,
+		),
+		allowOverbook: Boolean(
+			appointmentSettings["appointment.allow_overbook"] ?? false,
+		),
+		hideValueOnHover: Boolean(
+			appointmentSettings["appointment.hide_value_on_hover"] ?? false,
+		),
+	};
 
 	return (
-		<AppointmentsView
-			outlets={activeOutlets}
-			outletId={outletId}
-			dateStr={dateStr}
-			weekStart={weekStart}
-			resource={resource}
-			appointments={appointments}
-			customers={customers}
-			employees={employees}
-			rooms={activeRooms}
-			services={services.filter((s) => s.is_active)}
-			allEmployees={allEmployees.filter((e) => e.is_active)}
-			shifts={shifts}
-		/>
+		<AppointmentConfigProvider tags={brandTags} settings={pilotSettings}>
+			<AppointmentsView
+				outlets={activeOutlets}
+				outletId={outletId}
+				dateStr={dateStr}
+				weekStart={weekStart}
+				resource={resource}
+				statusFilter={statusFilter}
+				typeFilter={typeFilter}
+				appointments={appointments}
+				customers={customers}
+				employees={employees}
+				rooms={activeRooms}
+				services={services.filter((s) => s.is_active)}
+				allEmployees={allEmployees.filter((e) => e.is_active)}
+				shifts={shifts}
+				settings={pilotSettings}
+			/>
+		</AppointmentConfigProvider>
 	);
 }

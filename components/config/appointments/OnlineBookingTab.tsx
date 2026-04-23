@@ -29,9 +29,30 @@ const MOCK_OUTLETS = [
 ];
 
 const MOCK_EMPLOYEES = [
-	{ id: 1, name: "Alice Tan", role: "Doctor", position: "Senior Doctor", outlet: "Main Outlet", bookable: true },
-	{ id: 2, name: "Bob Lim", role: "Assistant", position: "Dental Assistant", outlet: "Main Outlet", bookable: true },
-	{ id: 3, name: "Carol Wong", role: "Doctor", position: "Doctor", outlet: "Branch A", bookable: false },
+	{
+		id: 1,
+		name: "Alice Tan",
+		role: "Doctor",
+		position: "Senior Doctor",
+		outlet: "Main Outlet",
+		bookable: true,
+	},
+	{
+		id: 2,
+		name: "Bob Lim",
+		role: "Assistant",
+		position: "Dental Assistant",
+		outlet: "Main Outlet",
+		bookable: true,
+	},
+	{
+		id: 3,
+		name: "Carol Wong",
+		role: "Doctor",
+		position: "Doctor",
+		outlet: "Branch A",
+		bookable: false,
+	},
 ];
 
 export function OnlineBookingTab() {
@@ -51,13 +72,21 @@ export function OnlineBookingTab() {
 					/>
 					<div className="flex items-center gap-3 py-0.5">
 						<Switch />
-						<span className="flex-1 text-sm">Allow Online Booking without login</span>
-						<Badge variant="secondary" className="text-xs">Premium</Badge>
+						<span className="flex-1 text-sm">
+							Allow Online Booking without login
+						</span>
+						<Badge variant="secondary" className="text-xs">
+							Premium
+						</Badge>
 					</div>
 					<div className="flex items-center gap-3 py-0.5">
 						<Switch />
-						<span className="flex-1 text-sm">Allow rescheduling in online booking</span>
-						<Badge variant="secondary" className="text-xs">Premium</Badge>
+						<span className="flex-1 text-sm">
+							Allow rescheduling in online booking
+						</span>
+						<Badge variant="secondary" className="text-xs">
+							Premium
+						</Badge>
 					</div>
 					<SettingToggleRow
 						label="Send employee first login link"
@@ -104,13 +133,17 @@ export function OnlineBookingTab() {
 							<TableHeader>
 								<TableRow>
 									<TableHead className="pl-6">Outlet Name</TableHead>
-									<TableHead className="w-28 pr-6 text-right">Bookable</TableHead>
+									<TableHead className="w-28 pr-6 text-right">
+										Bookable
+									</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
 								{MOCK_OUTLETS.map((outlet) => (
 									<TableRow key={outlet.id}>
-										<TableCell className="pl-6 font-medium">{outlet.name}</TableCell>
+										<TableCell className="pl-6 font-medium">
+											{outlet.name}
+										</TableCell>
 										<TableCell className="pr-6 text-right">
 											<Switch defaultChecked={outlet.bookable} />
 										</TableCell>
@@ -119,7 +152,8 @@ export function OnlineBookingTab() {
 							</TableBody>
 						</Table>
 						<div className="px-6 py-3 text-muted-foreground text-xs">
-							Showing 1 to {MOCK_OUTLETS.length} of {MOCK_OUTLETS.length} entries
+							Showing 1 to {MOCK_OUTLETS.length} of {MOCK_OUTLETS.length}{" "}
+							entries
 						</div>
 					</CardContent>
 				</Card>
@@ -135,15 +169,23 @@ export function OnlineBookingTab() {
 									<TableHead className="pl-6">Name</TableHead>
 									<TableHead>Role</TableHead>
 									<TableHead>Outlet</TableHead>
-									<TableHead className="w-24 pr-6 text-right">Bookable</TableHead>
+									<TableHead className="w-24 pr-6 text-right">
+										Bookable
+									</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
 								{MOCK_EMPLOYEES.map((emp) => (
 									<TableRow key={emp.id}>
-										<TableCell className="pl-6 font-medium">{emp.name}</TableCell>
-										<TableCell className="text-muted-foreground text-sm">{emp.role}</TableCell>
-										<TableCell className="text-muted-foreground text-sm">{emp.outlet}</TableCell>
+										<TableCell className="pl-6 font-medium">
+											{emp.name}
+										</TableCell>
+										<TableCell className="text-muted-foreground text-sm">
+											{emp.role}
+										</TableCell>
+										<TableCell className="text-muted-foreground text-sm">
+											{emp.outlet}
+										</TableCell>
 										<TableCell className="pr-6 text-right">
 											<Switch defaultChecked={emp.bookable} />
 										</TableCell>
@@ -152,7 +194,8 @@ export function OnlineBookingTab() {
 							</TableBody>
 						</Table>
 						<div className="px-6 py-3 text-muted-foreground text-xs">
-							Showing 1 to {MOCK_EMPLOYEES.length} of {MOCK_EMPLOYEES.length} entries
+							Showing 1 to {MOCK_EMPLOYEES.length} of {MOCK_EMPLOYEES.length}{" "}
+							entries
 						</div>
 					</CardContent>
 				</Card>

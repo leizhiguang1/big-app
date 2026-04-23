@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { getSocket, WA_CRM_URL } from "./socket";
 import { MessageInput } from "./MessageInput";
 import type {
@@ -10,6 +17,9 @@ import type {
 	ProfilePicsUpdate,
 	SendResult,
 } from "./types";
+
+const INITIAL_VISIBLE_MESSAGES = 100;
+const LOAD_MORE_STEP = 100;
 
 const SENDER_COLORS = [
 	"#e15d64",
@@ -174,6 +184,20 @@ function DefaultAvatar() {
 	);
 }
 
+function formatFileSize(bytes: number): string {
+	if (!bytes) return "";
+	if (bytes < 1024) return `${bytes} B`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+	if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+	return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+}
+
+function mergeMessages(msgs: FormattedMsg[]): FormattedMsg[] {
+	const map = new Map<string, FormattedMsg>();
+	for (const m of msgs) map.set(m.id, m);
+	return Array.from(map.values()).sort((a, b) => a.timestamp - b.timestamp);
+}
+
 type RenderedItem =
 	| { type: "date"; key: string; label: string }
 	| { type: "unread"; key: string; count: number }
@@ -200,10 +224,12 @@ export function ChatWindow({
 	const [isLoading, setIsLoading] = useState(true);
 	const [unreadCount, setUnreadCount] = useState(0);
 	const [animKey, setAnimKey] = useState(0);
+	const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_MESSAGES);
 	const bottomRef = useRef<HTMLDivElement | null>(null);
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const unreadDividerRef = useRef<HTMLDivElement | null>(null);
 	const justLoadedRef = useRef(false);
+	const restoreScrollRef = useRef<number | null>(null);
 	const imgUrl = profilePics?.[jid] ?? null;
 
 	const fetchMessages = useCallback(
@@ -221,13 +247,7 @@ export function ChatWindow({
 					const msgs = Array.isArray(res) ? res : res?.messages ?? [];
 					const count = Array.isArray(res) ? 0 : res?.unreadCount ?? 0;
 					if (!isReconnect) justLoadedRef.current = true;
-					setMessages((prev) => {
-						const map = new Map(prev.map((m) => [m.id, m]));
-						for (const m of msgs) map.set(m.id, m);
-						return Array.from(map.values()).sort(
-							(a, b) => a.timestamp - b.timestamp,
-						);
-					});
+					setMessages((prev) => mergeMessages([...prev, ...msgs]));
 					if (!isReconnect) {
 						setUnreadCount(count);
 						setIsLoading(false);
@@ -241,8 +261,15 @@ export function ChatWindow({
 
 	useEffect(() => {
 		setMessages([]);
+		setVisibleCount(INITIAL_VISIBLE_MESSAGES);
 		fetchMessages(false);
 	}, [fetchMessages]);
+
+	useEffect(() => {
+		if (unreadCount > 0) {
+			setVisibleCount((n) => Math.max(n, unreadCount + 20));
+		}
+	}, [unreadCount]);
 
 	useEffect(() => {
 		const socket = getSocket();
@@ -260,13 +287,7 @@ export function ChatWindow({
 			messages: newMsgs,
 		}: MessagesUpsertPayload) => {
 			if (inJid !== jid) return;
-			setMessages((prev) => {
-				const map = new Map(prev.map((m) => [m.id, m]));
-				for (const m of newMsgs) map.set(m.id, m);
-				return Array.from(map.values()).sort(
-					(a, b) => a.timestamp - b.timestamp,
-				);
-			});
+			setMessages((prev) => mergeMessages([...prev, ...newMsgs]));
 		};
 		socket.on("messages_upsert", handler);
 		return () => {
@@ -313,6 +334,63 @@ export function ChatWindow({
 		}
 	}, [messages]);
 
+	const finalizeSend = useCallback(
+		(
+			tempId: string,
+			carryOver: Partial<FormattedMsg>,
+			result: SendResult | undefined,
+		) => {
+			if (result && "error" in result) {
+				setMessages((prev) =>
+					prev.map((m) =>
+						m.id === tempId
+							? { ...m, status: "failed", errorText: result.error }
+							: m,
+					),
+				);
+				return;
+			}
+			if (result && "success" in result) {
+				const real = result.message;
+				if (real && real.id) {
+					setMessages((prev) =>
+						mergeMessages([
+							...prev.filter((m) => m.id !== tempId),
+							{ ...real, ...carryOver },
+						]),
+					);
+				} else {
+					setMessages((prev) =>
+						prev.map((m) =>
+							m.id === tempId ? { ...m, status: 2 as const } : m,
+						),
+					);
+				}
+				return;
+			}
+			setMessages((prev) =>
+				prev.map((m) =>
+					m.id === tempId
+						? { ...m, status: "failed", errorText: "No response from server" }
+						: m,
+				),
+			);
+		},
+		[],
+	);
+
+	const armSendTimeout = useCallback((tempId: string, ms = 60000) => {
+		return setTimeout(() => {
+			setMessages((prev) =>
+				prev.map((m) =>
+					m.id === tempId && m.status === "sending"
+						? { ...m, status: "failed", errorText: "Upload timed out" }
+						: m,
+				),
+			);
+		}, ms);
+	}, []);
+
 	const handleSend = useCallback(
 		(text: string) => {
 			if (!text.trim()) return;
@@ -328,42 +406,37 @@ export function ChatWindow({
 				status: "sending",
 			};
 			setMessages((prev) => [...prev, optimistic]);
-			const socket = getSocket();
-			socket.emit(
+			const timer = armSendTimeout(tempId, 30000);
+			getSocket().emit(
 				"send_message",
 				{ jid, text },
 				(result: SendResult | undefined) => {
-					if (result && "error" in result) {
-						setMessages((prev) =>
-							prev.map((m) =>
-								m.id === tempId
-									? { ...m, status: "failed", errorText: result.error }
-									: m,
-							),
-						);
-					} else if (result && "message" in result) {
-						setMessages((prev) =>
-							prev.map((m) => (m.id === tempId ? result.message : m)),
-						);
-					}
+					clearTimeout(timer);
+					finalizeSend(tempId, {}, result);
 				},
 			);
 		},
-		[jid],
+		[jid, armSendTimeout, finalizeSend],
 	);
 
 	const handleSendImage = useCallback(
 		({
 			imageBase64,
 			mimetype,
-		}: { imageBase64: string; mimetype: string; name: string }) => {
+			caption,
+		}: {
+			imageBase64: string;
+			mimetype: string;
+			name: string;
+			caption: string;
+		}) => {
 			const tempId = `temp-img-${Date.now()}`;
 			const previewUrl = `data:${mimetype};base64,${imageBase64}`;
 			const optimistic: FormattedMsg = {
 				id: tempId,
 				fromMe: true,
 				timestamp: Math.floor(Date.now() / 1000),
-				text: null,
+				text: caption || null,
 				mediaType: "image",
 				senderJid: null,
 				senderName: "You",
@@ -371,32 +444,96 @@ export function ChatWindow({
 				previewUrl,
 			};
 			setMessages((prev) => [...prev, optimistic]);
-			const socket = getSocket();
-			socket.emit(
+			const timer = armSendTimeout(tempId);
+			getSocket().emit(
 				"send_image",
-				{ jid, imageBase64, mimetype },
+				{ jid, imageBase64, mimetype, caption },
 				(result: SendResult | undefined) => {
-					if (result && "error" in result) {
-						setMessages((prev) =>
-							prev.map((m) =>
-								m.id === tempId
-									? { ...m, status: "failed", errorText: result.error }
-									: m,
-							),
-						);
-					} else if (result && "message" in result) {
-						setMessages((prev) =>
-							prev.map((m) =>
-								m.id === tempId
-									? { ...result.message, previewUrl }
-									: m,
-							),
-						);
-					}
+					clearTimeout(timer);
+					finalizeSend(tempId, { previewUrl }, result);
 				},
 			);
 		},
-		[jid],
+		[jid, armSendTimeout, finalizeSend],
+	);
+
+	const handleSendVideo = useCallback(
+		({
+			videoBase64,
+			mimetype,
+			caption,
+		}: {
+			videoBase64: string;
+			mimetype: string;
+			name: string;
+			caption: string;
+		}) => {
+			const tempId = `temp-video-${Date.now()}`;
+			const previewUrl = `data:${mimetype};base64,${videoBase64}`;
+			const optimistic: FormattedMsg = {
+				id: tempId,
+				fromMe: true,
+				timestamp: Math.floor(Date.now() / 1000),
+				text: caption || null,
+				mediaType: "video",
+				senderJid: null,
+				senderName: "You",
+				status: "sending",
+				previewUrl,
+			};
+			setMessages((prev) => [...prev, optimistic]);
+			const timer = armSendTimeout(tempId);
+			getSocket().emit(
+				"send_video",
+				{ jid, videoBase64, mimetype, caption },
+				(result: SendResult | undefined) => {
+					clearTimeout(timer);
+					finalizeSend(tempId, { previewUrl }, result);
+				},
+			);
+		},
+		[jid, armSendTimeout, finalizeSend],
+	);
+
+	const handleSendDocument = useCallback(
+		({
+			fileBase64,
+			mimetype,
+			fileName,
+			caption,
+		}: {
+			fileBase64: string;
+			mimetype: string;
+			fileName: string;
+			caption: string;
+		}) => {
+			const tempId = `temp-doc-${Date.now()}`;
+			const approxSize = Math.floor((fileBase64.length * 3) / 4);
+			const optimistic: FormattedMsg = {
+				id: tempId,
+				fromMe: true,
+				timestamp: Math.floor(Date.now() / 1000),
+				text: caption || null,
+				mediaType: "document",
+				senderJid: null,
+				senderName: "You",
+				status: "sending",
+				fileName,
+				fileMimetype: mimetype,
+				fileSize: approxSize,
+			};
+			setMessages((prev) => [...prev, optimistic]);
+			const timer = armSendTimeout(tempId);
+			getSocket().emit(
+				"send_document",
+				{ jid, fileBase64, mimetype, fileName, caption },
+				(result: SendResult | undefined) => {
+					clearTimeout(timer);
+					finalizeSend(tempId, {}, result);
+				},
+			);
+		},
+		[jid, armSendTimeout, finalizeSend],
 	);
 
 	const handleSendAudio = useCallback(
@@ -414,50 +551,14 @@ export function ChatWindow({
 			};
 			setMessages((prev) => [...prev, optimistic]);
 
-			const socket = getSocket();
 			const emit = (audioBase64: string, mimetype: string) => {
-				let settled = false;
-				const timeout = setTimeout(() => {
-					if (settled) return;
-					settled = true;
-					setMessages((prev) =>
-						prev.map((m) =>
-							m.id === tempId
-								? {
-										...m,
-										status: "failed",
-										text: "🎙 Voice message (failed)",
-										errorText: "Upload timed out",
-									}
-								: m,
-						),
-					);
-				}, 60000);
-				socket.emit(
+				const timer = armSendTimeout(tempId);
+				getSocket().emit(
 					"send_audio",
 					{ jid, audioBase64, mimetype },
 					(result: SendResult | undefined) => {
-						if (settled) return;
-						settled = true;
-						clearTimeout(timeout);
-						if (result && "error" in result) {
-							setMessages((prev) =>
-								prev.map((m) =>
-									m.id === tempId
-										? {
-												...m,
-												status: "failed",
-												text: "🎙 Voice message (failed)",
-												errorText: result.error,
-											}
-										: m,
-								),
-							);
-						} else if (result && "message" in result) {
-							setMessages((prev) =>
-								prev.map((m) => (m.id === tempId ? result.message : m)),
-							);
-						}
+						clearTimeout(timer);
+						finalizeSend(tempId, {}, result);
 					},
 				);
 			};
@@ -473,7 +574,12 @@ export function ChatWindow({
 						setMessages((prev) =>
 							prev.map((m) =>
 								m.id === tempId
-									? { ...m, status: "failed", text: "🎙 Voice message (failed)" }
+									? {
+											...m,
+											status: "failed",
+											text: "🎙 Voice message (failed)",
+											errorText: "Could not read audio",
+										}
 									: m,
 							),
 						);
@@ -489,20 +595,30 @@ export function ChatWindow({
 				);
 			}
 		},
-		[jid],
+		[jid, armSendTimeout, finalizeSend],
 	);
+
+	const visibleMessages = useMemo(
+		() =>
+			messages.length > visibleCount
+				? messages.slice(messages.length - visibleCount)
+				: messages,
+		[messages, visibleCount],
+	);
+
+	const hasOlderMessages = messages.length > visibleMessages.length;
 
 	const unreadStartMsgId = useMemo(() => {
 		if (unreadCount <= 0) return null;
 		let incomingCount = 0;
-		for (let i = messages.length - 1; i >= 0; i--) {
-			if (!messages[i].fromMe) {
+		for (let i = visibleMessages.length - 1; i >= 0; i--) {
+			if (!visibleMessages[i].fromMe) {
 				incomingCount++;
-				if (incomingCount === unreadCount) return messages[i].id;
+				if (incomingCount === unreadCount) return visibleMessages[i].id;
 			}
 		}
-		return messages.find((m) => !m.fromMe)?.id ?? null;
-	}, [messages, unreadCount]);
+		return visibleMessages.find((m) => !m.fromMe)?.id ?? null;
+	}, [visibleMessages, unreadCount]);
 
 	const renderedMessages = useMemo<RenderedItem[]>(() => {
 		const items: RenderedItem[] = [];
@@ -511,7 +627,7 @@ export function ChatWindow({
 		let lastTime = 0;
 		let unreadInserted = false;
 
-		for (const msg of messages) {
+		for (const msg of visibleMessages) {
 			if (!msg.text && !msg.mediaType) continue;
 
 			if (!unreadInserted && unreadStartMsgId && msg.id === unreadStartMsgId) {
@@ -555,7 +671,23 @@ export function ChatWindow({
 			lastTime = msg.timestamp;
 		}
 		return items;
-	}, [messages, isGroup, unreadCount, unreadStartMsgId]);
+	}, [visibleMessages, isGroup, unreadCount, unreadStartMsgId]);
+
+	const loadOlderMessages = useCallback(() => {
+		const container = containerRef.current;
+		if (container) restoreScrollRef.current = container.scrollHeight;
+		setVisibleCount((n) => n + LOAD_MORE_STEP);
+	}, []);
+
+	useLayoutEffect(() => {
+		if (restoreScrollRef.current == null) return;
+		const container = containerRef.current;
+		if (container) {
+			const delta = container.scrollHeight - restoreScrollRef.current;
+			if (delta > 0) container.scrollTop += delta;
+		}
+		restoreScrollRef.current = null;
+	}, [visibleMessages]);
 
 	return (
 		<div className="chat-window">
@@ -614,6 +746,17 @@ export function ChatWindow({
 					<div className="messages-empty">No messages yet</div>
 				) : (
 					<div key={animKey} className="messages-list messages-animate">
+						{hasOlderMessages && (
+							<div className="load-older-wrap">
+								<button
+									type="button"
+									className="load-older-btn"
+									onClick={loadOlderMessages}
+								>
+									Load older messages
+								</button>
+							</div>
+						)}
 						{renderedMessages.map((item) => {
 							if (item.type === "date") {
 								return (
@@ -694,7 +837,7 @@ export function ChatWindow({
 													controls
 													src={`${WA_CRM_URL}/api/media/${encodeURIComponent(jid)}/${msg.id}`}
 													className="message-audio"
-													preload="metadata"
+													preload="none"
 												/>
 												{msg.transcript && (
 													<span className="message-text message-transcript">
@@ -706,10 +849,51 @@ export function ChatWindow({
 											<div className="message-media">
 												<video
 													controls
-													src={`${WA_CRM_URL}/api/media/${encodeURIComponent(jid)}/${msg.id}`}
+													src={
+														msg.previewUrl ??
+														`${WA_CRM_URL}/api/media/${encodeURIComponent(jid)}/${msg.id}`
+													}
 													className="message-video"
 													preload="none"
 												/>
+												{msg.text && (
+													<span className="message-text message-caption">
+														{msg.text}
+													</span>
+												)}
+											</div>
+										) : msg.mediaType === "document" ? (
+											<div className="message-media message-media--document">
+												<a
+													className="message-document"
+													href={`${WA_CRM_URL}/api/media/${encodeURIComponent(jid)}/${msg.id}`}
+													download={msg.fileName ?? undefined}
+													target="_blank"
+													rel="noreferrer"
+												>
+													<span className="message-document-icon" aria-hidden>
+														<svg viewBox="0 0 24 24" width="28" height="28">
+															<path
+																fill="currentColor"
+																d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm0 7V3.5L19.5 9H14z"
+															/>
+														</svg>
+													</span>
+													<span className="message-document-info">
+														<span className="message-document-name">
+															{msg.fileName ?? "Document"}
+														</span>
+														{(msg.fileMimetype || msg.fileSize) && (
+															<span className="message-document-meta">
+																{msg.fileMimetype ?? ""}
+																{msg.fileMimetype && msg.fileSize ? " · " : ""}
+																{msg.fileSize
+																	? formatFileSize(msg.fileSize)
+																	: ""}
+															</span>
+														)}
+													</span>
+												</a>
 												{msg.text && (
 													<span className="message-text message-caption">
 														{msg.text}
@@ -746,6 +930,8 @@ export function ChatWindow({
 				onSend={handleSend}
 				onSendAudio={handleSendAudio}
 				onSendImage={handleSendImage}
+				onSendVideo={handleSendVideo}
+				onSendDocument={handleSendDocument}
 			/>
 		</div>
 	);

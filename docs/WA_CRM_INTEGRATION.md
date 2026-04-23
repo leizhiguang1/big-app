@@ -7,7 +7,7 @@ earlier revisions of this file.
 
 ```
   +-------------------------+     Socket.IO (wss)    +---------------------------+
-  |  big-app /inbox         | <-------------------> |  wa-crm on Railway        |
+  |  big-app /chats         | <-------------------> |  wa-crm on Railway        |
   |  (browser, Next client) |   no auth, CORS *      |  Express + Baileys + IO   |
   +-------------------------+                        +---------------------------+
             ^                                                    |
@@ -82,22 +82,22 @@ rooms manually.
 
 ### Files
 
-- [components/inbox/socket.ts](../components/inbox/socket.ts) — singleton
+- [components/chats/socket.ts](../components/chats/socket.ts) — singleton
   Socket.IO client. `getSocket()` returns a lazily-created `io()` instance
   pointed at `NEXT_PUBLIC_WA_CRM_URL`.
-- [components/inbox/types.ts](../components/inbox/types.ts) — shared types
+- [components/chats/types.ts](../components/chats/types.ts) — shared types
   mirroring wa-crm's emitted payload shapes.
-- [components/inbox/QRScreen.tsx](../components/inbox/QRScreen.tsx) — QR
+- [components/chats/QRScreen.tsx](../components/chats/QRScreen.tsx) — QR
   pairing card.
-- [components/inbox/ChatList.tsx](../components/inbox/ChatList.tsx) — left
+- [components/chats/ChatList.tsx](../components/chats/ChatList.tsx) — left
   panel with search + chat rows.
-- [components/inbox/ChatWindow.tsx](../components/inbox/ChatWindow.tsx) —
+- [components/chats/ChatWindow.tsx](../components/chats/ChatWindow.tsx) —
   right pane: header + message list + composer.
-- [components/inbox/MessageInput.tsx](../components/inbox/MessageInput.tsx)
+- [components/chats/MessageInput.tsx](../components/chats/MessageInput.tsx)
   — auto-expanding textarea, Enter-to-send.
-- [app/(app)/inbox/inbox-client.tsx](../app/(app)/inbox/inbox-client.tsx)
+- [app/(app)/chats/chats-client.tsx](../app/(app)/chats/chats-client.tsx)
   — state machine: `connecting | qr | connected | logged_out`.
-- [app/(app)/inbox/page.tsx](../app/(app)/inbox/page.tsx) — thin RSC shell.
+- [app/(app)/chats/page.tsx](../app/(app)/chats/page.tsx) — thin RSC shell.
 
 Media (images, audio, video) is fetched directly from
 `${WA_CRM_URL}/api/media/:jid/:msgId`. No big-app proxy.
@@ -139,7 +139,7 @@ for debugging, override to `http://localhost:3001` in `.env.local`.
   publish** (or embed in help docs, etc.), we add a `SOCKET_TOKEN`
   handshake check — see the prompt in the project plan file for the
   wa-crm-side change needed.
-- **Big-app access to `/inbox`** is still gated by Supabase auth on the
+- **Big-app access to `/chats`** is still gated by Supabase auth on the
   Next side (the `(app)` layout redirects to `/login`).
 
 ## Deployment

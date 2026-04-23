@@ -283,8 +283,10 @@ export type Database = {
       }
       appointments: {
         Row: {
+          arrived_at: string | null
           block_title: string | null
           booking_ref: string
+          completed_at: string | null
           created_at: string
           created_by: string | null
           customer_id: string | null
@@ -307,11 +309,14 @@ export type Database = {
           start_at: string
           status: string
           tags: string[]
+          treatment_started_at: string | null
           updated_at: string
         }
         Insert: {
+          arrived_at?: string | null
           block_title?: string | null
           booking_ref?: string
+          completed_at?: string | null
           created_at?: string
           created_by?: string | null
           customer_id?: string | null
@@ -334,11 +339,14 @@ export type Database = {
           start_at: string
           status?: string
           tags?: string[]
+          treatment_started_at?: string | null
           updated_at?: string
         }
         Update: {
+          arrived_at?: string | null
           block_title?: string | null
           booking_ref?: string
+          completed_at?: string | null
           created_at?: string
           created_by?: string | null
           customer_id?: string | null
@@ -361,6 +369,7 @@ export type Database = {
           start_at?: string
           status?: string
           tags?: string[]
+          treatment_started_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -456,6 +465,88 @@ export type Database = {
             columns: ["local_tax_id"]
             isOneToOne: false
             referencedRelation: "taxes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_config_items: {
+        Row: {
+          brand_id: string
+          category: string
+          code: string
+          color: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          metadata: Json | null
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          brand_id: string
+          category: string
+          code: string
+          color?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          metadata?: Json | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string
+          category?: string
+          code?: string
+          color?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          metadata?: Json | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_config_items_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_settings: {
+        Row: {
+          brand_id: string
+          created_at: string
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_settings_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
             referencedColumns: ["id"]
           },
         ]
@@ -2593,279 +2684,772 @@ export type Database = {
           },
         ]
       }
-      wa_api_keys: {
+      wa_ai_configs: {
         Row: {
-          client_name: string
-          created_at: string | null
+          api_base: string | null
+          api_key_encrypted: string | null
+          booking_instructions: string
+          created_at: string
+          enabled: boolean
+          extra_settings: Json
           id: string
-          is_active: boolean | null
-          key_hash: string
-          key_prefix: string
+          knowledge_base: string
+          mode: string
+          model: string | null
+          project_id: string
+          updated_at: string
         }
         Insert: {
-          client_name: string
-          created_at?: string | null
+          api_base?: string | null
+          api_key_encrypted?: string | null
+          booking_instructions?: string
+          created_at?: string
+          enabled?: boolean
+          extra_settings?: Json
           id?: string
-          is_active?: boolean | null
-          key_hash: string
-          key_prefix: string
+          knowledge_base?: string
+          mode?: string
+          model?: string | null
+          project_id: string
+          updated_at?: string
         }
         Update: {
-          client_name?: string
-          created_at?: string | null
+          api_base?: string | null
+          api_key_encrypted?: string | null
+          booking_instructions?: string
+          created_at?: string
+          enabled?: boolean
+          extra_settings?: Json
           id?: string
-          is_active?: boolean | null
-          key_hash?: string
-          key_prefix?: string
+          knowledge_base?: string
+          mode?: string
+          model?: string | null
+          project_id?: string
+          updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wa_ai_configs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "wa_projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
-      wa_chat_cache: {
+      wa_automation_executions: {
         Row: {
-          connection_id: string
+          automation_id: string
+          channel: Database["public"]["Enums"]["wa_channel_type"] | null
+          contact_id: string | null
+          contact_jid: string | null
+          contact_name: string | null
+          conversation_id: string | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          matched_keyword: string | null
+          project_id: string
+          started_at: string
+          status: Database["public"]["Enums"]["wa_execution_status"]
+          steps: Json
+          trigger_text: string | null
+          trigger_type: string | null
+          webhook_payload: Json | null
+        }
+        Insert: {
+          automation_id: string
+          channel?: Database["public"]["Enums"]["wa_channel_type"] | null
+          contact_id?: string | null
+          contact_jid?: string | null
+          contact_name?: string | null
+          conversation_id?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          matched_keyword?: string | null
+          project_id: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["wa_execution_status"]
+          steps?: Json
+          trigger_text?: string | null
+          trigger_type?: string | null
+          webhook_payload?: Json | null
+        }
+        Update: {
+          automation_id?: string
+          channel?: Database["public"]["Enums"]["wa_channel_type"] | null
+          contact_id?: string | null
+          contact_jid?: string | null
+          contact_name?: string | null
+          conversation_id?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          matched_keyword?: string | null
+          project_id?: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["wa_execution_status"]
+          steps?: Json
+          trigger_text?: string | null
+          trigger_type?: string | null
+          webhook_payload?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_automation_executions_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_automations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_automation_executions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_automation_executions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "wa_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_automation_executions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "wa_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_automations: {
+        Row: {
+          actions: Json
+          channels: Database["public"]["Enums"]["wa_channel_type"][]
+          created_at: string
+          description: string
+          enabled: boolean
+          id: string
+          name: string
+          project_id: string
+          settings: Json
+          trigger: Json
+          updated_at: string
+        }
+        Insert: {
+          actions?: Json
+          channels?: Database["public"]["Enums"]["wa_channel_type"][]
+          created_at?: string
+          description?: string
+          enabled?: boolean
+          id?: string
+          name: string
+          project_id: string
+          settings?: Json
+          trigger?: Json
+          updated_at?: string
+        }
+        Update: {
+          actions?: Json
+          channels?: Database["public"]["Enums"]["wa_channel_type"][]
+          created_at?: string
+          description?: string
+          enabled?: boolean
+          id?: string
+          name?: string
+          project_id?: string
+          settings?: Json
+          trigger?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_automations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "wa_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_channel_accounts: {
+        Row: {
+          channel: Database["public"]["Enums"]["wa_channel_type"]
+          config: Json
+          created_at: string
+          display_identifier: string | null
+          external_id: string
+          id: string
+          is_active: boolean
+          label: string
+          project_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          channel: Database["public"]["Enums"]["wa_channel_type"]
+          config?: Json
+          created_at?: string
+          display_identifier?: string | null
+          external_id: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          project_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: Database["public"]["Enums"]["wa_channel_type"]
+          config?: Json
+          created_at?: string
+          display_identifier?: string | null
+          external_id?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          project_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_channel_accounts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "wa_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_contact_channels: {
+        Row: {
+          avatar_url: string | null
+          channel_account_id: string
+          channel_name: string | null
+          contact_id: string
+          created_at: string
+          external_id: string
+          group_metadata: Json | null
+          id: string
           is_group: boolean
-          jid: string
-          last_message_from_me: boolean | null
-          last_message_preview: string | null
-          last_sender_name: string | null
-          last_ts: number
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          channel_account_id: string
+          channel_name?: string | null
+          contact_id: string
+          created_at?: string
+          external_id: string
+          group_metadata?: Json | null
+          id?: string
+          is_group?: boolean
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          channel_account_id?: string
+          channel_name?: string | null
+          contact_id?: string
+          created_at?: string
+          external_id?: string
+          group_metadata?: Json | null
+          id?: string
+          is_group?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_contact_channels_channel_account_id_fkey"
+            columns: ["channel_account_id"]
+            isOneToOne: false
+            referencedRelation: "wa_channel_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_contact_channels_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_contact_merges: {
+        Row: {
+          created_at: string
+          id: string
+          merged_contact_data: Json
+          merged_contact_id: string
+          primary_contact_id: string
+          project_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          merged_contact_data?: Json
+          merged_contact_id: string
+          primary_contact_id: string
+          project_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          merged_contact_data?: Json
+          merged_contact_id?: string
+          primary_contact_id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_contact_merges_primary_contact_id_fkey"
+            columns: ["primary_contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_contact_merges_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "wa_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_contact_notes: {
+        Row: {
+          author_name: string | null
+          contact_id: string
+          created_at: string
+          id: string
+          project_id: string
+          text: string
+        }
+        Insert: {
+          author_name?: string | null
+          contact_id: string
+          created_at?: string
+          id?: string
+          project_id: string
+          text: string
+        }
+        Update: {
+          author_name?: string | null
+          contact_id?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_contact_notes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_contact_notes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "wa_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_contacts: {
+        Row: {
+          assigned_user: string | null
+          avatar_url: string | null
+          birthday: string | null
+          created_at: string
+          crm_status: string | null
+          custom_fields: Json
+          dnd: boolean
+          email: string | null
+          id: string
+          is_active: boolean
+          merged_into_id: string | null
           name: string | null
+          notes: string
+          phone: string | null
+          project_id: string
+          tags: string[]
+          tasks: Json
+          updated_at: string
+        }
+        Insert: {
+          assigned_user?: string | null
+          avatar_url?: string | null
+          birthday?: string | null
+          created_at?: string
+          crm_status?: string | null
+          custom_fields?: Json
+          dnd?: boolean
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          merged_into_id?: string | null
+          name?: string | null
+          notes?: string
+          phone?: string | null
+          project_id: string
+          tags?: string[]
+          tasks?: Json
+          updated_at?: string
+        }
+        Update: {
+          assigned_user?: string | null
+          avatar_url?: string | null
+          birthday?: string | null
+          created_at?: string
+          crm_status?: string | null
+          custom_fields?: Json
+          dnd?: boolean
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          merged_into_id?: string | null
+          name?: string | null
+          notes?: string
+          phone?: string | null
+          project_id?: string
+          tags?: string[]
+          tasks?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_contacts_merged_into_id_fkey"
+            columns: ["merged_into_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_contacts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "wa_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_conversations: {
+        Row: {
+          ai_state: Json
+          assigned_user: string | null
+          channel: Database["public"]["Enums"]["wa_channel_type"]
+          channel_account_id: string
+          contact_id: string
+          created_at: string
+          external_id: string
+          id: string
+          is_archived: boolean
+          is_pinned: boolean
+          last_message_at: string | null
+          last_message_from_me: boolean
+          last_message_id: string | null
+          last_message_text: string | null
+          project_id: string
+          raw_payload: Json | null
+          snoozed_until: string | null
+          status: Database["public"]["Enums"]["wa_conversation_status"]
           unread_count: number
           updated_at: string
         }
         Insert: {
-          connection_id: string
-          is_group?: boolean
-          jid: string
-          last_message_from_me?: boolean | null
-          last_message_preview?: string | null
-          last_sender_name?: string | null
-          last_ts?: number
-          name?: string | null
+          ai_state?: Json
+          assigned_user?: string | null
+          channel: Database["public"]["Enums"]["wa_channel_type"]
+          channel_account_id: string
+          contact_id: string
+          created_at?: string
+          external_id: string
+          id?: string
+          is_archived?: boolean
+          is_pinned?: boolean
+          last_message_at?: string | null
+          last_message_from_me?: boolean
+          last_message_id?: string | null
+          last_message_text?: string | null
+          project_id: string
+          raw_payload?: Json | null
+          snoozed_until?: string | null
+          status?: Database["public"]["Enums"]["wa_conversation_status"]
           unread_count?: number
           updated_at?: string
         }
         Update: {
-          connection_id?: string
-          is_group?: boolean
-          jid?: string
-          last_message_from_me?: boolean | null
-          last_message_preview?: string | null
-          last_sender_name?: string | null
-          last_ts?: number
-          name?: string | null
+          ai_state?: Json
+          assigned_user?: string | null
+          channel?: Database["public"]["Enums"]["wa_channel_type"]
+          channel_account_id?: string
+          contact_id?: string
+          created_at?: string
+          external_id?: string
+          id?: string
+          is_archived?: boolean
+          is_pinned?: boolean
+          last_message_at?: string | null
+          last_message_from_me?: boolean
+          last_message_id?: string | null
+          last_message_text?: string | null
+          project_id?: string
+          raw_payload?: Json | null
+          snoozed_until?: string | null
+          status?: Database["public"]["Enums"]["wa_conversation_status"]
           unread_count?: number
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "wa_chat_cache_connection_id_fkey"
-            columns: ["connection_id"]
+            foreignKeyName: "wa_conversations_channel_account_id_fkey"
+            columns: ["channel_account_id"]
             isOneToOne: false
-            referencedRelation: "wa_connections"
+            referencedRelation: "wa_channel_accounts"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      wa_connections: {
-        Row: {
-          api_key_id: string
-          auth_dir: string
-          connected_at: string | null
-          created_at: string | null
-          id: string
-          label: string | null
-          last_seen_at: string | null
-          metadata: Json
-          phone: string | null
-          status: string
-          updated_at: string | null
-          webhook_secret: string | null
-          webhook_url: string
-        }
-        Insert: {
-          api_key_id: string
-          auth_dir: string
-          connected_at?: string | null
-          created_at?: string | null
-          id?: string
-          label?: string | null
-          last_seen_at?: string | null
-          metadata?: Json
-          phone?: string | null
-          status?: string
-          updated_at?: string | null
-          webhook_secret?: string | null
-          webhook_url: string
-        }
-        Update: {
-          api_key_id?: string
-          auth_dir?: string
-          connected_at?: string | null
-          created_at?: string | null
-          id?: string
-          label?: string | null
-          last_seen_at?: string | null
-          metadata?: Json
-          phone?: string | null
-          status?: string
-          updated_at?: string | null
-          webhook_secret?: string | null
-          webhook_url?: string
-        }
-        Relationships: [
           {
-            foreignKeyName: "wa_connections_api_key_id_fkey"
-            columns: ["api_key_id"]
+            foreignKeyName: "wa_conversations_contact_id_fkey"
+            columns: ["contact_id"]
             isOneToOne: false
-            referencedRelation: "wa_api_keys"
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_conversations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "wa_projects"
             referencedColumns: ["id"]
           },
         ]
       }
-      wa_message_cache: {
+      wa_messages: {
         Row: {
-          connection_id: string
-          content_type: string | null
+          automation_name: string | null
+          channel: Database["public"]["Enums"]["wa_channel_type"]
+          contact_card: Json | null
+          conversation_id: string
           created_at: string
+          external_id: string | null
           from_me: boolean
-          jid: string
-          media_type: string | null
+          id: string
+          is_ai_generated: boolean
+          is_automation: boolean
+          location: Json | null
+          media_file_name: string | null
+          media_file_size: number | null
+          media_mime_type: string | null
           media_url: string | null
-          raw_message: Json | null
-          sender_jid: string | null
+          message_type: Database["public"]["Enums"]["wa_message_type"]
+          metadata: Json
+          platform_timestamp: number | null
+          project_id: string
+          quoted_external_id: string | null
+          quoted_message_id: string | null
+          raw_payload: Json | null
+          reaction_emoji: string | null
+          reaction_target_id: string | null
+          sender_external_id: string | null
           sender_name: string | null
+          sent_at: string
+          status: Database["public"]["Enums"]["wa_message_status"]
+          status_at: string | null
           text: string | null
-          transcript: string | null
-          ts: number
-          wa_message_id: string
         }
         Insert: {
-          connection_id: string
-          content_type?: string | null
+          automation_name?: string | null
+          channel: Database["public"]["Enums"]["wa_channel_type"]
+          contact_card?: Json | null
+          conversation_id: string
           created_at?: string
+          external_id?: string | null
           from_me?: boolean
-          jid: string
-          media_type?: string | null
+          id?: string
+          is_ai_generated?: boolean
+          is_automation?: boolean
+          location?: Json | null
+          media_file_name?: string | null
+          media_file_size?: number | null
+          media_mime_type?: string | null
           media_url?: string | null
-          raw_message?: Json | null
-          sender_jid?: string | null
+          message_type?: Database["public"]["Enums"]["wa_message_type"]
+          metadata?: Json
+          platform_timestamp?: number | null
+          project_id: string
+          quoted_external_id?: string | null
+          quoted_message_id?: string | null
+          raw_payload?: Json | null
+          reaction_emoji?: string | null
+          reaction_target_id?: string | null
+          sender_external_id?: string | null
           sender_name?: string | null
+          sent_at?: string
+          status?: Database["public"]["Enums"]["wa_message_status"]
+          status_at?: string | null
           text?: string | null
-          transcript?: string | null
-          ts: number
-          wa_message_id: string
         }
         Update: {
-          connection_id?: string
-          content_type?: string | null
+          automation_name?: string | null
+          channel?: Database["public"]["Enums"]["wa_channel_type"]
+          contact_card?: Json | null
+          conversation_id?: string
           created_at?: string
+          external_id?: string | null
           from_me?: boolean
-          jid?: string
-          media_type?: string | null
+          id?: string
+          is_ai_generated?: boolean
+          is_automation?: boolean
+          location?: Json | null
+          media_file_name?: string | null
+          media_file_size?: number | null
+          media_mime_type?: string | null
           media_url?: string | null
-          raw_message?: Json | null
-          sender_jid?: string | null
+          message_type?: Database["public"]["Enums"]["wa_message_type"]
+          metadata?: Json
+          platform_timestamp?: number | null
+          project_id?: string
+          quoted_external_id?: string | null
+          quoted_message_id?: string | null
+          raw_payload?: Json | null
+          reaction_emoji?: string | null
+          reaction_target_id?: string | null
+          sender_external_id?: string | null
           sender_name?: string | null
+          sent_at?: string
+          status?: Database["public"]["Enums"]["wa_message_status"]
+          status_at?: string | null
           text?: string | null
-          transcript?: string | null
-          ts?: number
-          wa_message_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "wa_message_cache_connection_id_fkey"
-            columns: ["connection_id"]
+            foreignKeyName: "wa_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
             isOneToOne: false
-            referencedRelation: "wa_connections"
+            referencedRelation: "wa_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "wa_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_quoted_message_id_fkey"
+            columns: ["quoted_message_id"]
+            isOneToOne: false
+            referencedRelation: "wa_messages"
             referencedColumns: ["id"]
           },
         ]
       }
-      wa_message_log: {
+      wa_project_members: {
         Row: {
-          connection_id: string
-          content_type: string | null
-          created_at: string | null
-          direction: string
-          from_jid: string | null
+          created_at: string
           id: string
-          status: string | null
-          to_jid: string | null
-          wa_message_id: string | null
+          project_id: string
+          role: string
+          user_id: string
         }
         Insert: {
-          connection_id: string
-          content_type?: string | null
-          created_at?: string | null
-          direction: string
-          from_jid?: string | null
+          created_at?: string
           id?: string
-          status?: string | null
-          to_jid?: string | null
-          wa_message_id?: string | null
+          project_id: string
+          role?: string
+          user_id: string
         }
         Update: {
-          connection_id?: string
-          content_type?: string | null
-          created_at?: string | null
-          direction?: string
-          from_jid?: string | null
+          created_at?: string
           id?: string
-          status?: string | null
-          to_jid?: string | null
-          wa_message_id?: string | null
+          project_id?: string
+          role?: string
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "wa_message_log_connection_id_fkey"
-            columns: ["connection_id"]
+            foreignKeyName: "wa_project_members_project_id_fkey"
+            columns: ["project_id"]
             isOneToOne: false
-            referencedRelation: "wa_connections"
+            referencedRelation: "wa_projects"
             referencedColumns: ["id"]
           },
         ]
       }
-      wa_webhook_log: {
+      wa_projects: {
         Row: {
-          attempt_count: number | null
-          connection_id: string
-          created_at: string | null
-          delivered: boolean | null
-          delivered_at: string | null
-          event_type: string
+          backend_url: string
+          color: string
+          created_at: string
+          description: string
           id: string
-          last_error: string | null
-          payload: Json
+          name: string
+          timezone: string
+          updated_at: string
         }
         Insert: {
-          attempt_count?: number | null
-          connection_id: string
-          created_at?: string | null
-          delivered?: boolean | null
-          delivered_at?: string | null
-          event_type: string
-          id?: string
-          last_error?: string | null
-          payload: Json
+          backend_url?: string
+          color?: string
+          created_at?: string
+          description?: string
+          id: string
+          name: string
+          timezone?: string
+          updated_at?: string
         }
         Update: {
-          attempt_count?: number | null
-          connection_id?: string
-          created_at?: string | null
-          delivered?: boolean | null
-          delivered_at?: string | null
-          event_type?: string
+          backend_url?: string
+          color?: string
+          created_at?: string
+          description?: string
           id?: string
-          last_error?: string | null
-          payload?: Json
+          name?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      wa_push_subscriptions: {
+        Row: {
+          created_at: string
+          id: string
+          project_id: string
+          subscription: Json
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          project_id: string
+          subscription: Json
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          project_id?: string
+          subscription?: Json
+          updated_at?: string
+          user_agent?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "wa_webhook_log_connection_id_fkey"
-            columns: ["connection_id"]
+            foreignKeyName: "wa_push_subscriptions_project_id_fkey"
+            columns: ["project_id"]
             isOneToOne: false
-            referencedRelation: "wa_connections"
+            referencedRelation: "wa_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -2950,9 +3534,47 @@ export type Database = {
         }
         Returns: Json
       }
+      wa_find_contact_by_channel_external: {
+        Args: { p_channel_account_id: string; p_external_id: string }
+        Returns: string
+      }
+      wa_is_project_member: { Args: { p_project_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      wa_channel_type:
+        | "whatsapp"
+        | "instagram"
+        | "messenger"
+        | "telegram"
+        | "sms"
+        | "email"
+      wa_conversation_status:
+        | "open"
+        | "resolved"
+        | "pending"
+        | "snoozed"
+        | "spam"
+      wa_execution_status: "running" | "completed" | "failed" | "skipped"
+      wa_message_status:
+        | "pending"
+        | "sent"
+        | "delivered"
+        | "read"
+        | "failed"
+        | "deleted"
+      wa_message_type:
+        | "text"
+        | "image"
+        | "video"
+        | "audio"
+        | "document"
+        | "sticker"
+        | "location"
+        | "contact_card"
+        | "reaction"
+        | "poll"
+        | "system"
+        | "unsupported"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3079,7 +3701,46 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      wa_channel_type: [
+        "whatsapp",
+        "instagram",
+        "messenger",
+        "telegram",
+        "sms",
+        "email",
+      ],
+      wa_conversation_status: [
+        "open",
+        "resolved",
+        "pending",
+        "snoozed",
+        "spam",
+      ],
+      wa_execution_status: ["running", "completed", "failed", "skipped"],
+      wa_message_status: [
+        "pending",
+        "sent",
+        "delivered",
+        "read",
+        "failed",
+        "deleted",
+      ],
+      wa_message_type: [
+        "text",
+        "image",
+        "video",
+        "audio",
+        "document",
+        "sticker",
+        "location",
+        "contact_card",
+        "reaction",
+        "poll",
+        "system",
+        "unsupported",
+      ],
+    },
   },
 } as const
 

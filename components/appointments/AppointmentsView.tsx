@@ -6,12 +6,24 @@ import {
 	AppointmentsFilterBar,
 	type ResourceFilter,
 } from "@/components/appointments/AppointmentsFilterBar";
-import { readViewPrefs, writeViewPrefs } from "@/lib/appointments/view-prefs";
+import {
+	type ColumnKey,
+	DEFAULT_COLUMN_ORDER,
+	DEFAULT_VISIBLE,
+} from "@/lib/appointments/columns";
+import type { AppointmentTypeFilter } from "@/lib/appointments/filters";
+import {
+	DEFAULT_VIEW_PREFS,
+	readViewPrefs,
+	type ViewPrefs,
+	writeViewPrefs,
+} from "@/lib/appointments/view-prefs";
 import {
 	type DisplayStyle,
 	type TimeScope,
 	VALID_SCOPES,
 } from "@/lib/calendar/layout";
+import type { AppointmentStatus } from "@/lib/constants/appointment-status";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type {
@@ -22,12 +34,20 @@ import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
 import type { ServiceWithCategory } from "@/lib/services/services";
 
+export type AppointmentViewSettings = {
+	defaultSlotMinutes: number;
+	allowOverbook: boolean;
+	hideValueOnHover: boolean;
+};
+
 type Props = {
 	outlets: OutletWithRoomCount[];
 	outletId: string;
 	dateStr: string;
 	weekStart: string;
 	resource: ResourceFilter;
+	statusFilter: AppointmentStatus[];
+	typeFilter: AppointmentTypeFilter[];
 	appointments: AppointmentWithRelations[];
 	customers: CustomerWithRelations[];
 	employees: RosterEmployee[];
@@ -35,11 +55,7 @@ type Props = {
 	services: ServiceWithCategory[];
 	allEmployees: EmployeeWithRelations[];
 	shifts: EmployeeShift[];
-};
-
-const DEFAULT_PREFS = {
-	display: "calendar" as DisplayStyle,
-	scope: "day" as TimeScope,
+	settings?: AppointmentViewSettings;
 };
 
 export function AppointmentsView({
@@ -48,6 +64,8 @@ export function AppointmentsView({
 	dateStr,
 	weekStart,
 	resource,
+	statusFilter,
+	typeFilter,
 	appointments,
 	customers,
 	employees,
@@ -56,34 +74,59 @@ export function AppointmentsView({
 	allEmployees,
 	shifts,
 }: Props) {
-	const [display, setDisplay] = useState<DisplayStyle>(DEFAULT_PREFS.display);
-	const [scope, setScope] = useState<TimeScope>(DEFAULT_PREFS.scope);
+	const [display, setDisplay] = useState<DisplayStyle>(
+		DEFAULT_VIEW_PREFS.display,
+	);
+	const [scope, setScope] = useState<TimeScope>(DEFAULT_VIEW_PREFS.scope);
+	const [columnOrder, setColumnOrder] =
+		useState<ColumnKey[]>(DEFAULT_COLUMN_ORDER);
+	const [visibleColumns, setVisibleColumns] =
+		useState<ColumnKey[]>(DEFAULT_VISIBLE);
 
 	// Hydrate from localStorage after mount to avoid SSR/CSR mismatch.
 	useEffect(() => {
-		const prefs = readViewPrefs(DEFAULT_PREFS);
+		const prefs = readViewPrefs();
 		setDisplay(prefs.display);
 		setScope(prefs.scope);
+		setColumnOrder(prefs.columnOrder);
+		setVisibleColumns(prefs.visibleColumns);
 	}, []);
+
+	const persist = (patch: Partial<ViewPrefs>) => {
+		const next: ViewPrefs = {
+			display,
+			scope,
+			columnOrder,
+			visibleColumns,
+			...patch,
+		};
+		writeViewPrefs(next);
+	};
 
 	const handleDisplayChange = (next: DisplayStyle) => {
 		const allowed = VALID_SCOPES[next];
 		const nextScope = allowed.includes(scope) ? scope : allowed[0];
 		setDisplay(next);
 		setScope(nextScope);
-		writeViewPrefs({ display: next, scope: nextScope });
+		persist({ display: next, scope: nextScope });
 	};
 
 	const handleScopeChange = (next: TimeScope) => {
 		if (!VALID_SCOPES[display].includes(next)) return;
 		setScope(next);
-		writeViewPrefs({ display, scope: next });
+		persist({ scope: next });
 	};
 
 	const handleDrillInToDay = (_dateStr: string) => {
 		setDisplay("calendar");
 		setScope("day");
-		writeViewPrefs({ display: "calendar", scope: "day" });
+		persist({ display: "calendar", scope: "day" });
+	};
+
+	const handleColumnChange = (order: ColumnKey[], visible: ColumnKey[]) => {
+		setColumnOrder(order);
+		setVisibleColumns(visible);
+		persist({ columnOrder: order, visibleColumns: visible });
 	};
 
 	return (
@@ -97,8 +140,13 @@ export function AppointmentsView({
 				resource={resource}
 				rooms={rooms}
 				employees={employees}
+				statusFilter={statusFilter}
+				typeFilter={typeFilter}
+				columnOrder={columnOrder}
+				visibleColumns={visibleColumns}
 				onDisplayChange={handleDisplayChange}
 				onScopeChange={handleScopeChange}
+				onColumnChange={handleColumnChange}
 			/>
 			<AppointmentsCalendar
 				display={display}
@@ -115,6 +163,8 @@ export function AppointmentsView({
 				allOutlets={outlets}
 				allEmployees={allEmployees}
 				shifts={shifts}
+				columnOrder={columnOrder}
+				visibleColumns={visibleColumns}
 				onDrillInToDay={handleDrillInToDay}
 			/>
 		</div>
