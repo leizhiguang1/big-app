@@ -17,7 +17,6 @@ type Props = {
 
 	totalPaid: number;
 	balanceDiff: number;
-	isOverpaid: boolean;
 	isUnderpaid: boolean;
 
 	linesCount: number;
@@ -40,7 +39,6 @@ export function TotalsPanel({
 	roundingExceedsLimit,
 	totalPaid,
 	balanceDiff,
-	isOverpaid,
 	isUnderpaid,
 	linesCount,
 	allocSum,
@@ -198,11 +196,7 @@ export function TotalsPanel({
 					<div
 						className={cn(
 							"h-full transition-all",
-							isOverpaid
-								? "bg-red-500"
-								: isUnderpaid
-									? "bg-amber-400"
-									: "bg-emerald-500",
+							isUnderpaid ? "bg-amber-400" : "bg-emerald-500",
 						)}
 						style={{
 							width: `${Math.min(100, (totalPaid / total) * 100)}%`,
@@ -211,19 +205,15 @@ export function TotalsPanel({
 				</div>
 			)}
 			<Row
-				label={isOverpaid ? "Over" : "Balance"}
+				label="Balance"
 				value={
 					<span
 						className={cn(
 							"tabular-nums font-semibold",
-							isOverpaid
-								? "text-red-600"
-								: isUnderpaid
-									? "text-amber-600"
-									: "text-foreground",
+							isUnderpaid ? "text-amber-600" : "text-foreground",
 						)}
 					>
-						{money(Math.abs(balanceDiff))}
+						{money(Math.max(0, balanceDiff))}
 					</span>
 				}
 			/>
@@ -256,11 +246,6 @@ export function TotalsPanel({
 							bill.
 						</div>
 					)}
-				</div>
-			)}
-			{isOverpaid && (
-				<div className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] text-red-700">
-					Over by RM {money(-balanceDiff)}. Reduce a payment row below.
 				</div>
 			)}
 		</div>

@@ -118,6 +118,10 @@ export function PaymentSection({
 						isCash && Number.isFinite(rowAmount) && rowAmount > rowBalance
 							? Math.round((rowAmount - rowBalance) * 100) / 100
 							: 0;
+					const exceeds =
+						!isCash && Number.isFinite(rowAmount) && rowAmount > rowBalance
+							? Math.round((rowAmount - rowBalance) * 100) / 100
+							: 0;
 					return (
 						<div
 							key={p.key}
@@ -168,6 +172,10 @@ export function PaymentSection({
 								{isCash && change > 0 ? (
 									<span className="text-[10px] font-medium text-emerald-700">
 										Change due: RM {money(change)}
+									</span>
+								) : exceeds > 0 ? (
+									<span className="text-[10px] font-medium text-red-600">
+										Exceeds balance by RM {money(exceeds)}
 									</span>
 								) : (
 									<span />

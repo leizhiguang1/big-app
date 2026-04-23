@@ -18,13 +18,13 @@ export function PrintButton() {
 	);
 }
 
-export function AutoPrint() {
+export function AutoPrint({ enabled }: { enabled: boolean }) {
 	const fired = useRef(false);
 	useEffect(() => {
-		if (fired.current) return;
+		if (!enabled || fired.current) return;
 		fired.current = true;
 		const id = window.setTimeout(() => window.print(), 300);
 		return () => window.clearTimeout(id);
-	}, []);
+	}, [enabled]);
 	return null;
 }

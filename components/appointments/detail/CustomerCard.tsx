@@ -11,6 +11,7 @@ import {
 	Crown,
 	FileText,
 	IdCard,
+	Pencil,
 	Pill,
 	Printer,
 	Sparkles,
@@ -34,6 +35,7 @@ import { buildLeadPrefill } from "@/lib/appointments/lead-prefill";
 import { SMOKER_LABELS } from "@/lib/constants/medical";
 import type { LeadSource } from "@/lib/schemas/appointments";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
+import type { CustomerWithRelations } from "@/lib/services/customers";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { OutletWithRoomCount } from "@/lib/services/outlets";
 import { mediaPublicUrl } from "@/lib/storage/urls";
@@ -41,6 +43,7 @@ import { cn } from "@/lib/utils";
 
 type Props = {
 	appointment: AppointmentWithRelations;
+	fullCustomer: CustomerWithRelations | null;
 	stats: { noShows: number; outstanding: number };
 	nextAppointmentAt: string | null;
 	allOutlets: OutletWithRoomCount[];
@@ -134,6 +137,7 @@ function LineGlyph({ className }: { className?: string }) {
 
 export function CustomerCard({
 	appointment,
+	fullCustomer,
 	stats,
 	nextAppointmentAt,
 	allOutlets,
@@ -141,6 +145,7 @@ export function CustomerCard({
 	collapsed = false,
 }: Props) {
 	const [convertOpen, setConvertOpen] = useState(false);
+	const [editOpen, setEditOpen] = useState(false);
 	const isBlock = appointment.is_time_block;
 	const isLead = !isBlock && !appointment.customer_id;
 	const customer = appointment.customer;
@@ -204,11 +209,29 @@ export function CustomerCard({
 					({code})
 				</span>
 			)}
+			{customer && fullCustomer && !collapsed && (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<button
+							type="button"
+							aria-label="Edit customer"
+							onClick={() => setEditOpen(true)}
+							className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+						>
+							<Pencil className="size-3.5" />
+						</button>
+					</TooltipTrigger>
+					<TooltipContent>Edit customer</TooltipContent>
+				</Tooltip>
+			)}
 			<button
 				type="button"
 				title="Print Customer Label"
 				aria-label="Print Customer Label"
-				className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+				className={cn(
+					"flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground",
+					!(customer && fullCustomer && !collapsed) && "ml-auto",
+				)}
 				disabled
 			>
 				<Printer className="size-3.5" />
@@ -489,6 +512,16 @@ export function CustomerCard({
 							}),
 						}}
 						onClose={() => setConvertOpen(false)}
+					/>
+				)}
+				{fullCustomer && editOpen && (
+					<CustomerFormDialog
+						open={editOpen}
+						customer={fullCustomer}
+						outlets={allOutlets}
+						employees={allEmployees}
+						defaultConsultantId={fullCustomer.consultant?.id ?? null}
+						onClose={() => setEditOpen(false)}
 					/>
 				)}
 			</div>

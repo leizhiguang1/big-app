@@ -2,10 +2,12 @@
 
 import {
 	CalendarPlus,
+	CheckCircle2,
 	ChevronsDownUp,
 	ChevronsUpDown,
 	Loader2,
 	Percent,
+	Printer,
 	RefreshCw,
 	ShoppingCart,
 } from "lucide-react";
@@ -39,6 +41,7 @@ import { useEmployeeAllocations } from "@/components/appointments/detail/collect
 import { usePaymentAllocations } from "@/components/appointments/detail/collect-payment/use-payment-allocations";
 import { usePayments } from "@/components/appointments/detail/collect-payment/use-payments";
 import { useRounding } from "@/components/appointments/detail/collect-payment/use-rounding";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -245,6 +248,48 @@ export function CollectPaymentDialog({
 	const [apptDialogOpen, setApptDialogOpen] = useState(false);
 	const [formError, setFormError] = useState<string | null>(null);
 	const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+	const [successData, setSuccessData] = useState<{
+		salesOrderId: string;
+		soNumber: string;
+		invoiceNo: string;
+		totalPaid: number;
+	} | null>(null);
+
+	// Warm the calendar route while the user is on the success step so the
+	// Done click feels instant.
+	useEffect(() => {
+		if (successData) router.prefetch("/appointments");
+	}, [successData, router]);
+
+	// Reset the success step whenever the dialog is reopened after being closed.
+	useEffect(() => {
+		if (!open) setSuccessData(null);
+	}, [open]);
+
+	const handleDialogOpenChange = (nextOpen: boolean) => {
+		if (!nextOpen && successData) {
+			// Closing from the success step = Done. Navigate to the calendar.
+			// successData is cleared by the reset-on-close effect, so the
+			// success panel stays rendered through the dialog's exit animation.
+			onOpenChange(false);
+			router.push("/appointments");
+			return;
+		}
+		onOpenChange(nextOpen);
+	};
+
+	const handlePrintInvoice = () => {
+		if (!successData) return;
+		window.open(`/invoices/${successData.salesOrderId}`, "_blank", "noopener");
+		onOpenChange(false);
+		router.push("/appointments");
+	};
+
+	const handleDone = () => {
+		onOpenChange(false);
+		router.push("/appointments");
+	};
 
 	const handleItemizedChange = useCallback(
 		(v: boolean) => {
@@ -515,20 +560,6 @@ export function CollectPaymentDialog({
 			return;
 		}
 
-		// Open the invoice tab synchronously inside the click handler so the
-		// browser treats it as a user-initiated popup.
-		const invoiceWindow = window.open("about:blank", "_blank");
-		if (invoiceWindow) {
-			try {
-				invoiceWindow.document.write(
-					`<!doctype html><html><head><title>Preparing invoice…</title><meta charset="utf-8"/></head><body style="margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;color:#555;background:#f5f5f5"><div style="text-align:center"><div style="font-size:15px">Preparing invoice…</div></div></body></html>`,
-				);
-				invoiceWindow.document.close();
-			} catch {
-				// cross-origin or popup blocker — ignore
-			}
-		}
-
 		startTransition(async () => {
 			try {
 				const allocPayload = empAlloc.buildAllocationsPayload();
@@ -545,6 +576,8 @@ export function CollectPaymentDialog({
 							amount: payAlloc.allocNums[i] ?? 0,
 						}))
 					: null;
+
+				const capturedTotalPaid = payments.totalPaid;
 
 				const result = await collectAppointmentPaymentAction(appointment.id, {
 					items: billing.lines.map((l, i) => ({
@@ -585,21 +618,18 @@ export function CollectPaymentDialog({
 							: null,
 					frontdesk_message: frontdeskMsg.trim() || null,
 				});
-				const printUrl = `/invoices/${result.sales_order_id}`;
-				if (invoiceWindow && !invoiceWindow.closed) {
-					invoiceWindow.location.href = printUrl;
-				} else {
-					window.open(printUrl, "_blank");
-				}
 				onSuccess?.({
 					sales_order_id: result.sales_order_id,
 					so_number: result.so_number,
 					invoice_no: result.invoice_no,
 				});
-				router.push("/appointments");
-				onOpenChange(false);
+				setSuccessData({
+					salesOrderId: result.sales_order_id,
+					soNumber: result.so_number,
+					invoiceNo: result.invoice_no,
+					totalPaid: capturedTotalPaid,
+				});
 			} catch (e) {
-				if (invoiceWindow && !invoiceWindow.closed) invoiceWindow.close();
 				const message =
 					e instanceof Error ? e.message : "Failed to collect payment";
 				setFormError(message);
@@ -608,8 +638,59 @@ export function CollectPaymentDialog({
 		});
 	};
 
+	if (successData) {
+		return (
+			<Dialog open={open} onOpenChange={handleDialogOpenChange}>
+				<DialogContent
+					showCloseButton={false}
+					className="flex w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+				>
+					<DialogTitle className="sr-only">Payment collected</DialogTitle>
+					<DialogDescription className="sr-only">
+						Payment saved. Print the invoice or return to the calendar.
+					</DialogDescription>
+
+					<div className="flex flex-col items-center gap-3 px-6 pt-8 pb-3 text-center">
+						<div className="flex size-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+							<CheckCircle2 className="size-8" />
+						</div>
+						<div className="text-lg font-semibold">Payment collected</div>
+						<div className="text-sm text-muted-foreground">
+							Print the invoice?
+						</div>
+					</div>
+
+					<dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 px-8 py-4 text-sm">
+						<dt className="text-muted-foreground">Sales order</dt>
+						<dd className="text-right font-mono">{successData.soNumber}</dd>
+						<dt className="text-muted-foreground">Invoice</dt>
+						<dd className="text-right font-mono">{successData.invoiceNo}</dd>
+						<dt className="text-muted-foreground">Total paid</dt>
+						<dd className="text-right font-semibold">
+							RM {money(successData.totalPaid)}
+						</dd>
+					</dl>
+
+					<div className="flex items-center justify-end gap-2 border-t bg-muted/30 px-6 py-4">
+						<Button type="button" variant="outline" onClick={handleDone}>
+							No, skip
+						</Button>
+						<Button
+							type="button"
+							onClick={handlePrintInvoice}
+							className="gap-1"
+						>
+							<Printer className="size-4" />
+							Yes, print
+						</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
+		);
+	}
+
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
+		<Dialog open={open} onOpenChange={handleDialogOpenChange}>
 			<DialogContent
 				showCloseButton={false}
 				onPointerDownOutside={(e) => {
@@ -788,7 +869,6 @@ export function CollectPaymentDialog({
 								roundingExceedsLimit={rounding.roundingExceedsLimit}
 								totalPaid={payments.totalPaid}
 								balanceDiff={payments.balanceDiff}
-								isOverpaid={payments.isOverpaid}
 								isUnderpaid={payments.isUnderpaid}
 								linesCount={billing.lines.length}
 								allocSum={payAlloc.allocSum}

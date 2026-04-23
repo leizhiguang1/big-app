@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mars, ScanLine, Star, Venus } from "lucide-react";
+import { BadgePercent, Mars, ScanLine, Star, Venus } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -470,17 +470,15 @@ export function CustomerFormDialog({
 										className="size-3.5"
 										{...form.register("is_vip")}
 									/>
-									<span className="flex items-center gap-1">
-										<Star
-											className={cn(
-												"size-3.5",
-												isVip
-													? "fill-amber-400 text-amber-500"
-													: "text-muted-foreground",
-											)}
-										/>
-										This customer is a VIP
-									</span>
+									<Star
+										className={cn(
+											"size-3.5 shrink-0",
+											isVip
+												? "fill-amber-400 text-amber-500"
+												: "text-muted-foreground",
+										)}
+									/>
+									<span>This customer is a VIP</span>
 								</label>
 								<label className="flex items-center gap-2 text-xs">
 									<input
@@ -488,6 +486,7 @@ export function CustomerFormDialog({
 										className="size-3.5"
 										{...form.register("is_staff")}
 									/>
+									<BadgePercent className="size-3.5 shrink-0 text-muted-foreground" />
 									<span>Staff / family (auto 10% discount)</span>
 								</label>
 							</div>
@@ -498,9 +497,9 @@ export function CustomerFormDialog({
 										type="button"
 										onClick={() => setSection(s.key)}
 										className={cn(
-											"rounded-md px-3 py-2 text-left transition",
+											"relative rounded-md px-3 py-2 text-left transition",
 											section === s.key
-												? "bg-background font-medium text-foreground shadow-sm"
+												? "bg-primary/10 font-semibold text-primary before:absolute before:top-1/2 before:left-0 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-primary"
 												: "text-muted-foreground hover:bg-background/60",
 										)}
 									>

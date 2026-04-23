@@ -29,7 +29,11 @@ import {
 	type CustomerDocumentWithRefs,
 	listCustomerDocuments,
 } from "@/lib/services/customer-documents";
-import { listCustomers } from "@/lib/services/customers";
+import {
+	type CustomerWithRelations,
+	getCustomer,
+	listCustomers,
+} from "@/lib/services/customers";
 import {
 	listBookableEmployeesForOutlet,
 	listShiftsForRange,
@@ -84,6 +88,11 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 			? listLineItemsForCustomer(ctx, appointment.customer_id)
 			: Promise.resolve([]);
 
+	const fullCustomerPromise: Promise<CustomerWithRelations | null> =
+		appointment.customer_id
+			? getCustomer(ctx, appointment.customer_id)
+			: Promise.resolve(null);
+
 	const apptLocal = new Date(appointment.start_at);
 	const prevDateStr = fmtDate(addDays(apptLocal, -1));
 	const nextDateStr = fmtDate(addDays(apptLocal, 1));
@@ -112,6 +121,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 		billingSettings,
 		brandTags,
 		staffDiscountPercent,
+		fullCustomer,
 	] = await Promise.all([
 		listLineItemsForAppointment(ctx, id),
 		listIncentivesForAppointment(ctx, id),
@@ -140,6 +150,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 		getBillingSettings(ctx),
 		listAppointmentTags(ctx),
 		getBrandSetting(ctx, "billing.staff_discount_percent"),
+		fullCustomerPromise,
 	]);
 
 	const activeOutlets = outlets.filter((o) => o.is_active);
@@ -173,6 +184,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 				medicalCertificates={medicalCertificates}
 				billingSettings={billingSettings}
 				staffDiscountPercent={staffDiscountPercent}
+				fullCustomer={fullCustomer}
 			/>
 		</AppointmentConfigProvider>
 	);

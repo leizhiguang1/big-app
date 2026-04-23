@@ -360,7 +360,7 @@ export function BillingSection({
 				justSavedTimerRef.current = setTimeout(() => {
 					setJustSaved(false);
 					justSavedTimerRef.current = null;
-				}, 2000);
+				}, 3000);
 				onChange();
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Save failed");
@@ -382,13 +382,44 @@ export function BillingSection({
 		: null;
 
 	return (
-		<div className="flex flex-col gap-3 rounded-md border bg-card p-4">
-			<div className="flex items-center justify-between">
-				<div>
-					<h3 className="font-semibold text-sm">Billing</h3>
-					<p className="text-muted-foreground text-xs">
-						{items.length} {items.length === 1 ? "item" : "items"}
-					</p>
+		<div
+			className={`relative flex flex-col gap-3 rounded-md border bg-card p-4 transition-[box-shadow,border-color] ${
+				pending
+					? "border-primary/40 shadow-[0_0_0_2px_hsl(var(--primary)/0.15)]"
+					: justSaved
+						? "border-emerald-500/50 shadow-[0_0_0_2px_rgb(16_185_129_/_0.18)]"
+						: ""
+			}`}
+			aria-busy={pending}
+		>
+			<div className="flex items-center justify-between gap-2">
+				<div className="flex items-center gap-2">
+					<div>
+						<h3 className="font-semibold text-sm">Billing</h3>
+						<p className="text-muted-foreground text-xs">
+							{items.length} {items.length === 1 ? "item" : "items"}
+						</p>
+					</div>
+					{pending && (
+						<span
+							className="flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 font-medium text-[11px] text-primary"
+							role="status"
+							aria-live="polite"
+						>
+							<Loader2 className="size-3 animate-spin" />
+							Saving billing…
+						</span>
+					)}
+					{justSaved && !pending && (
+						<span
+							className="flex animate-in fade-in zoom-in-95 items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 font-medium text-[11px] text-emerald-700 duration-200 dark:text-emerald-400"
+							role="status"
+							aria-live="polite"
+						>
+							<Check className="size-3" />
+							Billing saved
+						</span>
+					)}
 				</div>
 				<Button
 					type="button"
@@ -787,17 +818,16 @@ export function BillingSection({
 						<span className="tabular-nums">RM {total.toFixed(2)}</span>
 					</div>
 					<div className="mt-2 flex items-center justify-end gap-2">
-						{justSaved && !pending && (
-							<span className="flex items-center gap-1 text-emerald-600 text-xs dark:text-emerald-400">
-								<Check className="size-3.5" />
-								Saved
-							</span>
-						)}
 						<Button
 							type="button"
 							size="sm"
 							onClick={onSave}
 							disabled={!canSave}
+							className={
+								justSaved && !pending
+									? "bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-500"
+									: undefined
+							}
 						>
 							{pending ? (
 								<Loader2 className="size-3.5 animate-spin" />

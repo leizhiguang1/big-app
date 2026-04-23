@@ -78,6 +78,7 @@ type Props = {
 	medicalCertificates: MedicalCertificateWithRefs[];
 	billingSettings: BillingSettings;
 	staffDiscountPercent: number;
+	fullCustomer: CustomerWithRelations | null;
 };
 
 export function AppointmentDetailView({
@@ -104,6 +105,7 @@ export function AppointmentDetailView({
 	medicalCertificates,
 	billingSettings,
 	staffDiscountPercent,
+	fullCustomer,
 }: Props) {
 	const [editOpen, setEditOpen] = useState(false);
 	const [activeTab, setActiveTab] = useState<DetailTabKey>("overview");
@@ -222,6 +224,7 @@ export function AppointmentDetailView({
 						>
 							<CustomerCard
 								appointment={appointment}
+								fullCustomer={fullCustomer}
 								stats={stats}
 								nextAppointmentAt={nextAppointmentAt}
 								allOutlets={allOutlets}

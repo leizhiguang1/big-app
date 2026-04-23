@@ -17,10 +17,14 @@ export const dynamic = "force-dynamic";
 
 export default async function InvoicePrintPage({
 	params,
+	searchParams,
 }: {
 	params: Promise<{ id: string }>;
+	searchParams: Promise<{ autoPrint?: string }>;
 }) {
 	const { id } = await params;
+	const { autoPrint } = await searchParams;
+	const shouldAutoPrint = autoPrint === "1";
 
 	return (
 		<div className="min-h-screen bg-muted/30 print:bg-white">
@@ -37,14 +41,20 @@ export default async function InvoicePrintPage({
 
 			<div className="mx-auto my-8 max-w-[860px] px-4 print:my-0 print:max-w-none print:px-0">
 				<Suspense fallback={<InvoiceSkeleton />}>
-					<InvoiceContent id={id} />
+					<InvoiceContent id={id} autoPrint={shouldAutoPrint} />
 				</Suspense>
 			</div>
 		</div>
 	);
 }
 
-async function InvoiceContent({ id }: { id: string }) {
+async function InvoiceContent({
+	id,
+	autoPrint,
+}: {
+	id: string;
+	autoPrint: boolean;
+}) {
 	const ctx = await getServerContext();
 	if (!ctx.currentUser) redirect("/login");
 
@@ -71,7 +81,7 @@ async function InvoiceContent({ id }: { id: string }) {
 					outlet={outlet}
 					customer={customer}
 				/>
-				<AutoPrint />
+				<AutoPrint enabled={autoPrint} />
 			</>
 		);
 	} catch (err) {
