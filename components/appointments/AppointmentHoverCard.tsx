@@ -74,6 +74,8 @@ function dominantCategoryName(
 export function AppointmentHoverCard({ appointment: a, anchor }: Props) {
 	const [mounted, setMounted] = useState(false);
 	useEffect(() => setMounted(true), []);
+	const tagCfg = useAppointmentTag(a.tags?.[0]);
+	const { hideValueOnHover } = useAppointmentPilotSettings();
 	if (!mounted) return null;
 
 	const isBlock = a.is_time_block;
@@ -111,15 +113,11 @@ export function AppointmentHoverCard({ appointment: a, anchor }: Props) {
 		: null;
 	const dur = durationLabel(a.start_at, a.end_at);
 	const timeLine = `${fmtClock(a.start_at)} - ${fmtClock(a.end_at)}${dur ? ` (${dur})` : ""}`;
-	const firstTag = a.tags?.[0];
-	const tagCfg = useAppointmentTag(firstTag);
-
 	const activeItems = (a.line_items ?? []).filter((li) => !li.is_cancelled);
 	const activeSO = pickActiveSalesOrder(a.sales_orders ?? []);
 	const appointmentValue = activeSO
 		? Number(activeSO.total)
 		: activeItems.reduce((sum, it) => sum + Number(it.total ?? 0), 0);
-	const { hideValueOnHover } = useAppointmentPilotSettings();
 	const hasMoney =
 		!isBlock &&
 		!hideValueOnHover &&
@@ -315,7 +313,7 @@ export function AppointmentHoverCard({ appointment: a, anchor }: Props) {
 						</div>
 					)}
 
-					{firstTag && tagCfg && (
+					{tagCfg && (
 						<div
 							className="inline-block rounded px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-900"
 							style={{ backgroundColor: tagCfg.bg }}

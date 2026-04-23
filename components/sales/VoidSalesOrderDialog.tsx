@@ -299,10 +299,11 @@ function Step1Items({
 }) {
 	return (
 		<div className="flex flex-col gap-4">
-			<p className="text-muted-foreground text-sm">
-				All items on this sales order will be voided. Per-item selection is
-				coming in a later update.
-			</p>
+			<div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+				<span className="font-semibold">Per-item selection is in development.</span>{" "}
+				All items on this sales order will be voided. Partial voids will land
+				in a later update.
+			</div>
 			<div className="rounded-md border">
 				<div className="grid grid-cols-[1fr_80px_120px_40px] items-center border-b bg-muted/30 px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase">
 					<div>Item</div>
@@ -329,11 +330,20 @@ function Step1Items({
 								{money(Number(item.total ?? 0))}
 							</div>
 							<div className="flex justify-end">
-								<Checkbox
-									checked={selectedIds.has(item.id)}
-									disabled
-									aria-label="Item included in void"
-								/>
+								<span
+									className="relative inline-flex"
+									title="Per-item selection — in development"
+								>
+									<Checkbox
+										checked={selectedIds.has(item.id)}
+										disabled
+										aria-label="Item included in void (in development)"
+									/>
+									<span
+										aria-hidden
+										className="pointer-events-none absolute -right-1 -top-1 size-1.5 rounded-full bg-amber-500 ring-1 ring-background"
+									/>
+								</span>
 							</div>
 						</div>
 					))}

@@ -111,6 +111,12 @@ const NOSHOW: Tone[] = [
 	{ freq: 262, startOffset: 0.2, duration: 0.3, type: "sine", gain: 0.09, fadeRatio: 0.6 },
 ];
 
+// Soft falling pair — "called off" feeling, distinct from no-show
+const CANCELLED: Tone[] = [
+	{ freq: 392, startOffset: 0, duration: 0.18, type: "sine", gain: 0.1, fadeRatio: 0.5 },
+	{ freq: 294, startOffset: 0.18, duration: 0.28, type: "sine", gain: 0.09, fadeRatio: 0.6 },
+];
+
 // Satisfying major chord arpeggio — "all done!"
 const COMPLETED: Tone[] = [
 	{ freq: 523.25, startOffset: 0, duration: 0.12, type: "sine", gain: 0.13 },
@@ -127,6 +133,7 @@ const STATUS_PATTERNS: Record<NonNullable<StatusSound>, Tone[]> = {
 	billing: BILLING,
 	noshow: NOSHOW,
 	completed: COMPLETED,
+	cancelled: CANCELLED,
 };
 
 export function playStatusSound(sound: StatusSound) {

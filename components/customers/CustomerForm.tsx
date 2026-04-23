@@ -66,12 +66,12 @@ const SELECT_CLASS =
 const EMPTY: CustomerInput = {
 	salutation: "Mr",
 	first_name: "",
-	last_name: undefined,
+	last_name: "",
 	gender: null,
 	date_of_birth: undefined,
 	profile_image_path: null,
 	id_type: "ic",
-	id_number: undefined,
+	id_number: "",
 	phone: "",
 	phone2: undefined,
 	email: undefined,
@@ -102,12 +102,12 @@ function fromCustomer(c: CustomerWithRelations | null): CustomerInput {
 	return {
 		salutation: (c.salutation as CustomerInput["salutation"]) ?? "Mr",
 		first_name: c.first_name,
-		last_name: c.last_name ?? undefined,
+		last_name: c.last_name ?? "",
 		gender: (c.gender as CustomerInput["gender"]) ?? null,
 		date_of_birth: c.date_of_birth ?? undefined,
 		profile_image_path: c.profile_image_path ?? null,
 		id_type: (c.id_type as CustomerInput["id_type"]) ?? "ic",
-		id_number: c.id_number ?? undefined,
+		id_number: c.id_number ?? "",
 		phone: c.phone,
 		phone2: c.phone2 ?? undefined,
 		email: c.email ?? undefined,
@@ -729,7 +729,12 @@ export function CustomerFormDialog({
 											</select>
 										</Field>
 
-										<Field label="Source" htmlFor="cus-source" required>
+										<Field
+											label="Source"
+											htmlFor="cus-source"
+											required
+											error={errors.source?.message}
+										>
 											<select
 												id="cus-source"
 												className={SELECT_CLASS}

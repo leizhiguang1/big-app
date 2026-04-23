@@ -1,10 +1,12 @@
 "use client";
 
-import { Ban, Pencil } from "lucide-react";
+import { Ban, Pencil, Receipt, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CustomerIdentityCard } from "@/components/customers/CustomerIdentityCard";
+import { IssueRefundDialog } from "@/components/sales/IssueRefundDialog";
 import { VoidSalesOrderDialog } from "@/components/sales/VoidSalesOrderDialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -26,6 +28,7 @@ import {
 } from "@/lib/actions/sales";
 import type {
 	PaymentWithProcessedBy,
+	RefundNoteWithRefs,
 	SaleItem,
 	SalesOrderWithRelations,
 } from "@/lib/services/sales";
@@ -45,6 +48,7 @@ type LoadState =
 			order: SalesOrderWithRelations;
 			items: SaleItem[];
 			payments: PaymentWithProcessedBy[];
+			refundNotes: RefundNoteWithRefs[];
 	  }
 	| { status: "not_found" }
 	| { status: "error"; message: string };
@@ -110,6 +114,7 @@ export function SalesOrderDetailDialog({
 	const router = useRouter();
 	const [state, setState] = useState<LoadState>({ status: "idle" });
 	const [voidOpen, setVoidOpen] = useState(false);
+	const [refundOpen, setRefundOpen] = useState(false);
 	const [feedback, setFeedback] = useState<{
 		type: "success" | "error";
 		message: string;
@@ -138,6 +143,7 @@ export function SalesOrderDetailDialog({
 					order: res.order,
 					items: res.items,
 					payments: res.payments,
+					refundNotes: res.refundNotes,
 				});
 			})
 			.catch((err) => {
@@ -156,6 +162,7 @@ export function SalesOrderDetailDialog({
 	const isCancellable =
 		order !== null &&
 		(order.status === "completed" || order.status === "draft");
+	const canRefund = order !== null && order.status === "completed";
 
 	return (
 		<>
@@ -208,7 +215,11 @@ export function SalesOrderDetailDialog({
 						{state.status === "ready" && (
 							<TooltipProvider delayDuration={200}>
 								<LeftPanel order={state.order} items={state.items} />
-								<RightPanel order={state.order} payments={state.payments} />
+								<RightPanel
+								order={state.order}
+								payments={state.payments}
+								refundNotes={state.refundNotes}
+							/>
 							</TooltipProvider>
 						)}
 					</div>
@@ -232,44 +243,94 @@ export function SalesOrderDetailDialog({
 									</span>
 								)}
 							</div>
-							{isCancellable && (
-								<Button
-									variant="outline"
-									size="sm"
-									className="self-end text-red-600 hover:bg-red-50 hover:text-red-700 sm:self-auto"
-									onClick={() => {
-										setFeedback(null);
-										setVoidOpen(true);
-									}}
-								>
-									<Ban className="mr-2 size-4" />
-									Void
-								</Button>
-							)}
+							<div className="flex items-center gap-2 self-end sm:self-auto">
+								{canRefund && (
+									<Button
+										variant="outline"
+										size="sm"
+										className="text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+										onClick={() => {
+											setFeedback(null);
+											setRefundOpen(true);
+										}}
+									>
+										<Undo2 className="mr-2 size-4" />
+										Refund
+									</Button>
+								)}
+								{canRefund && (
+									<Button
+										variant="outline"
+										size="sm"
+										disabled
+										className="relative text-purple-700"
+										title="Credit Note — in development (pending Cash Wallet)"
+									>
+										<Receipt className="mr-2 size-4" />
+										Credit Note
+										<span
+											aria-hidden
+											className="absolute -right-1 -top-1 size-1.5 rounded-full bg-amber-500 ring-1 ring-background"
+										/>
+									</Button>
+								)}
+								{isCancellable && (
+									<Button
+										variant="outline"
+										size="sm"
+										className="text-red-600 hover:bg-red-50 hover:text-red-700"
+										onClick={() => {
+											setFeedback(null);
+											setVoidOpen(true);
+										}}
+									>
+										<Ban className="mr-2 size-4" />
+										Void
+									</Button>
+								)}
+							</div>
 						</div>
 					)}
 				</DialogContent>
 			</Dialog>
 
 			{state.status === "ready" && (
-				<VoidSalesOrderDialog
-					open={voidOpen}
-					onOpenChange={setVoidOpen}
-					salesOrderId={state.order.id}
-					soNumber={state.order.so_number}
-					outletName={state.order.outlet?.name ?? null}
-					orderTotal={Number(state.order.total ?? 0)}
-					items={state.items}
-					onSuccess={({ cnNumber, rnNumber, refundAmount }) => {
-						setFeedback({
-							type: "success",
-							message: `Voided. CN ${cnNumber} · RN ${rnNumber} · Refund MYR ${refundAmount.toFixed(2)}`,
-						});
-						setReloadKey((k) => k + 1);
-						router.refresh();
-					}}
-					onError={(msg) => setFeedback({ type: "error", message: msg })}
-				/>
+				<>
+					<VoidSalesOrderDialog
+						open={voidOpen}
+						onOpenChange={setVoidOpen}
+						salesOrderId={state.order.id}
+						soNumber={state.order.so_number}
+						outletName={state.order.outlet?.name ?? null}
+						orderTotal={Number(state.order.total ?? 0)}
+						items={state.items}
+						onSuccess={({ cnNumber, rnNumber, refundAmount }) => {
+							setFeedback({
+								type: "success",
+								message: `Voided. CN ${cnNumber} · RN ${rnNumber} · Refund MYR ${refundAmount.toFixed(2)}`,
+							});
+							setReloadKey((k) => k + 1);
+							router.refresh();
+						}}
+						onError={(msg) => setFeedback({ type: "error", message: msg })}
+					/>
+					<IssueRefundDialog
+						open={refundOpen}
+						onOpenChange={setRefundOpen}
+						salesOrderId={state.order.id}
+						soNumber={state.order.so_number}
+						orderTotal={Number(state.order.total ?? 0)}
+						onSuccess={({ rnNumber, amount }) => {
+							setFeedback({
+								type: "success",
+								message: `Refund issued · ${rnNumber} · MYR ${amount.toFixed(2)}`,
+							});
+							setReloadKey((k) => k + 1);
+							router.refresh();
+						}}
+						onError={(msg) => setFeedback({ type: "error", message: msg })}
+					/>
+				</>
 			)}
 		</>
 	);
@@ -450,9 +511,11 @@ function ItemRow({
 function RightPanel({
 	order,
 	payments,
+	refundNotes,
 }: {
 	order: SalesOrderWithRelations;
 	payments: PaymentWithProcessedBy[];
+	refundNotes: RefundNoteWithRefs[];
 }) {
 	const subtotal = Number(order.subtotal ?? 0);
 	const total = Number(order.total ?? 0);
@@ -520,6 +583,46 @@ function RightPanel({
 							<PlaceholderLink tooltip="Write Off Outstanding — Phase 2">
 								Write Off Outstanding Payment?
 							</PlaceholderLink>
+						</div>
+					</div>
+				)}
+
+				{refundNotes.length > 0 && (
+					<div className="mt-5 border-t pt-3">
+						<h4 className="font-semibold text-amber-700 text-sm">
+							Refunds ({refundNotes.length}):
+						</h4>
+						<div className="mt-2 space-y-3">
+							{refundNotes.map((r) => (
+								<div key={r.id} className="text-sm">
+									<div className="flex items-start justify-between gap-2">
+										<div>
+											<div className="flex items-center gap-1.5">
+												<span className="font-semibold text-amber-700">
+													{r.rn_number}
+												</span>
+												{r.cancellation_id === null && (
+													<Badge variant="secondary" className="text-[9px]">
+														Standalone
+													</Badge>
+												)}
+											</div>
+											<p className="text-[11px] text-muted-foreground">
+												{formatPaymentDate(r.refunded_at)}
+												{r.refund_method && ` · ${r.refund_method}`}
+											</p>
+											{r.notes && (
+												<p className="mt-0.5 text-[11px] text-muted-foreground">
+													{r.notes}
+												</p>
+											)}
+										</div>
+										<span className="font-medium text-amber-700 tabular-nums">
+											-MYR {money(r.amount)}
+										</span>
+									</div>
+								</div>
+							))}
 						</div>
 					</div>
 				)}

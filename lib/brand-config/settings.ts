@@ -103,6 +103,14 @@ const registeredSettings = {
 		default: false,
 		input: { kind: "boolean" },
 	}),
+	"billing.staff_discount_percent": def({
+		group: "billing",
+		label: "Staff discount (%)",
+		hint: "Applied to service lines when Collect Payment → Apply Auto Discount is clicked and the customer is flagged as staff. Per-service discount_cap still clamps the result.",
+		schema: z.number().min(0).max(100),
+		default: 10,
+		input: { kind: "number", unit: "%", min: 0, max: 100, step: 0.5 },
+	}),
 	"customer.require_passcode_to_create": def({
 		group: "customer",
 		label: "Require passcode to create a customer",

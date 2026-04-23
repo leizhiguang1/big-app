@@ -11,6 +11,10 @@
 
 export type BrandConfigCategoryDef = {
 	label: string;
+	// Singular form used in the create/edit dialog title and the input label
+	// (e.g. "Cancel reason" so the dialog reads "New cancel reason"). Falls
+	// back to `label` if not set.
+	singularLabel?: string;
 	// True = brand can add/remove codes freely.
 	codeEditable: boolean;
 	// Color support (shown as swatch in admin UI and passed through to
@@ -18,6 +22,11 @@ export type BrandConfigCategoryDef = {
 	hasColor: boolean;
 	// Human-readable hint under the section header in the admin page.
 	hint?: string;
+	// True = admin UI hides the `code` and `sort_order` fields and lets the
+	// service auto-derive them. Use for categories whose values are really
+	// just free-text labels (e.g. cancellation reasons) — keeps the form one
+	// field instead of four.
+	simple?: boolean;
 };
 
 export const BRAND_CONFIG_CATEGORIES = {
@@ -91,8 +100,10 @@ export const BRAND_CONFIG_CATEGORIES = {
 	},
 	"reason.appointment_cancel": {
 		label: "Appointment cancel reasons",
+		singularLabel: "Cancel reason",
 		codeEditable: true,
 		hasColor: false,
+		simple: true,
 	},
 } as const satisfies Record<string, BrandConfigCategoryDef>;
 

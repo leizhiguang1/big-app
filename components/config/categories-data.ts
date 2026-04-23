@@ -111,6 +111,7 @@ export const CATEGORIES: ConfigCategory[] = [
 			{ key: "settings", label: "Appointment Settings", implemented: true },
 			{ key: "online-booking", label: "Online Booking", implemented: true },
 			{ key: "appointment-tag", label: "Appointment Tag", implemented: true },
+			{ key: "cancel-reasons", label: "Cancel Reasons", implemented: true },
 			{ key: "queue-display", label: "Queue Display", implemented: true },
 		],
 		external: true,

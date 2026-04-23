@@ -4,10 +4,12 @@ import {
 	AlertTriangle,
 	ArrowLeft,
 	Bell,
+	Building2,
 	CalendarDays,
 	ChevronRight,
 	Cigarette,
 	Crown,
+	FileText,
 	Heart,
 	Mail,
 	MapPin,
@@ -16,10 +18,13 @@ import {
 	Phone,
 	Pill,
 	Plus,
+	Stethoscope,
 	Star,
 	Tag,
 	User,
+	UserX,
 	Wallet,
+	XCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -40,6 +45,10 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+	APPOINTMENT_STATUS_CONFIG,
+	type AppointmentStatus,
+} from "@/lib/constants/appointment-status";
 import { countryNameForCode } from "@/lib/constants/countries";
 import type { CustomerLineItem } from "@/lib/services/appointment-line-items";
 import type { CustomerTimelineAppointment } from "@/lib/services/appointments";
@@ -209,7 +218,7 @@ export function CustomerDetailView({
 		for (const a of timeline) {
 			if (a.status === "completed") completed++;
 			else if (a.status === "cancelled") cancelled++;
-			else if (a.status === "no_show") noShow++;
+			else if (a.status === "noshow") noShow++;
 		}
 		return {
 			total: timeline.length,
@@ -748,13 +757,30 @@ function AppointmentTimelineCard({
 		.filter(Boolean)
 		.join(" @ ");
 
-	const statusLabel = appointment.status.replace(/_/g, " ");
+	const statusKey = (appointment.status as AppointmentStatus) ?? "pending";
+	const statusCfg = APPOINTMENT_STATUS_CONFIG[statusKey];
+	const isCancelled = statusKey === "cancelled";
+	const cancelledByName = appointment.cancelled_by_employee
+		? `${appointment.cancelled_by_employee.first_name} ${appointment.cancelled_by_employee.last_name}`.toUpperCase()
+		: null;
 
 	return (
-		<div className="rounded-xl border bg-card p-4 shadow-sm">
+		<div
+			className={cn(
+				"rounded-xl border bg-card p-4 shadow-sm",
+				isCancelled && "border-rose-200 bg-rose-50/30",
+			)}
+		>
 			<div className="flex items-start justify-between gap-3">
 				<div className="flex items-baseline gap-3">
-					<div className="font-bold text-3xl tabular-nums">{day}</div>
+					<div
+						className={cn(
+							"font-bold text-3xl tabular-nums",
+							isCancelled && "text-muted-foreground line-through",
+						)}
+					>
+						{day}
+					</div>
 					<div className="flex flex-col">
 						<span className="font-medium text-sm">{weekday}</span>
 						<span className="text-[11px] text-muted-foreground">
@@ -771,31 +797,25 @@ function AppointmentTimelineCard({
 					</Link>
 					<span
 						className={cn(
-							"inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-semibold text-[11px] capitalize",
-							appointment.status === "completed" &&
-								"border-emerald-300 bg-emerald-50 text-emerald-700",
-							appointment.status === "cancelled" &&
-								"border-rose-300 bg-rose-50 text-rose-700",
-							appointment.status === "no_show" &&
-								"border-slate-300 bg-slate-50 text-slate-700",
-							appointment.status !== "completed" &&
-								appointment.status !== "cancelled" &&
-								appointment.status !== "no_show" &&
-								"border-sky-300 bg-sky-50 text-sky-700",
+							"inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-semibold text-[11px]",
+							statusCfg.badge,
 						)}
 					>
-						{statusLabel}
+						<statusCfg.Icon className="size-3" />
+						{statusCfg.label}
 					</span>
 				</div>
 			</div>
 
 			<div className="mt-3 flex flex-col gap-1.5 text-[12px]">
-				<div className="text-muted-foreground">
+				<div className="flex items-center gap-1 text-muted-foreground">
+					<CalendarDays className="size-3" />
 					<span className="font-mono">{appointment.booking_ref}</span>
 				</div>
 				{serviceSummary && (
-					<div className="font-semibold uppercase leading-snug">
-						{serviceSummary}
+					<div className="flex items-start gap-1 font-semibold uppercase leading-snug">
+						<Stethoscope className="mt-[2px] size-3 shrink-0 text-muted-foreground" />
+						<span>{serviceSummary}</span>
 					</div>
 				)}
 				{total > 0 && (
@@ -805,7 +825,10 @@ function AppointmentTimelineCard({
 					</div>
 				)}
 				{outletRoom && (
-					<div className="text-muted-foreground uppercase">{outletRoom}</div>
+					<div className="flex items-center gap-1 text-muted-foreground uppercase">
+						<Building2 className="size-3" />
+						<span>{outletRoom}</span>
+					</div>
 				)}
 				{employee && (
 					<div className="flex items-center gap-1 text-muted-foreground">
@@ -814,8 +837,34 @@ function AppointmentTimelineCard({
 					</div>
 				)}
 				{appointment.notes && (
-					<div className="text-muted-foreground">
-						<span className="font-semibold">Remarks:</span> {appointment.notes}
+					<div className="flex items-start gap-1 text-muted-foreground">
+						<FileText className="mt-[2px] size-3 shrink-0" />
+						<span>
+							<span className="font-semibold">Remarks:</span>{" "}
+							{appointment.notes}
+						</span>
+					</div>
+				)}
+				{isCancelled && (
+					<div className="mt-1 flex flex-col gap-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-rose-700">
+						{appointment.cancellation_reason && (
+							<div className="flex items-start gap-1">
+								<XCircle className="mt-[2px] size-3 shrink-0" />
+								<span>
+									<span className="font-semibold">Cancelled Reason:</span>{" "}
+									{appointment.cancellation_reason}
+								</span>
+							</div>
+						)}
+						{cancelledByName && (
+							<div className="flex items-center gap-1">
+								<UserX className="size-3" />
+								<span>
+									<span className="font-semibold">Cancelled By:</span>{" "}
+									{cancelledByName}
+								</span>
+							</div>
+						)}
 					</div>
 				)}
 			</div>

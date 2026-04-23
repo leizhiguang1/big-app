@@ -89,53 +89,62 @@ export function BrandConfigItemDialog({
 	};
 
 	const codeReadOnly = isEdit; // codes are immutable after create
+	const noun = (def.singularLabel ?? def.label).toLowerCase();
 
 	return (
 		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
 			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle>
-						{isEdit
-							? `Edit ${def.label.toLowerCase()}`
-							: `New ${def.label.toLowerCase()}`}
+						{isEdit ? `Edit ${noun}` : `New ${noun}`}
 					</DialogTitle>
 					<DialogDescription>
 						{isEdit
-							? "Rename, recolor, or reorder. Codes are fixed once created so historical data stays linked."
+							? def.simple
+								? `Rename this ${noun}. Past records keep their original wording.`
+								: "Rename, recolor, or reorder. Codes are fixed once created so historical data stays linked."
 							: (def.hint ??
-								"Add a new item. A code is derived from the label if you leave it blank.")}
+								(def.simple
+									? `Type the ${noun} and save.`
+									: "Add a new item. A code is derived from the label if you leave it blank."))}
 					</DialogDescription>
 				</DialogHeader>
 				<form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
 					<div className="flex flex-1 flex-col gap-4 overflow-y-auto p-5">
 						<div className="flex flex-col gap-1.5">
-							<Label htmlFor="bc-label">Label</Label>
+							<Label htmlFor="bc-label">
+								{def.singularLabel ?? "Label"}
+							</Label>
 							<Input
 								id="bc-label"
 								value={label}
 								onChange={(e) => setLabel(e.target.value)}
-								placeholder="e.g. Wrong customer"
+								placeholder={
+									def.simple ? "e.g. Customer rescheduled" : "e.g. Wrong customer"
+								}
 								required
 							/>
 						</div>
-						<div className="flex flex-col gap-1.5">
-							<Label htmlFor="bc-code">
-								Code{" "}
-								<span className="font-normal text-muted-foreground text-xs">
-									{codeReadOnly
-										? "(immutable)"
-										: "(auto-derived from label if blank)"}
-								</span>
-							</Label>
-							<Input
-								id="bc-code"
-								value={code}
-								onChange={(e) => setCode(e.target.value.toUpperCase())}
-								placeholder="WRONG_CUSTOMER"
-								readOnly={codeReadOnly}
-								className={codeReadOnly ? "bg-muted/50" : undefined}
-							/>
-						</div>
+						{!def.simple && (
+							<div className="flex flex-col gap-1.5">
+								<Label htmlFor="bc-code">
+									Code{" "}
+									<span className="font-normal text-muted-foreground text-xs">
+										{codeReadOnly
+											? "(immutable)"
+											: "(auto-derived from label if blank)"}
+									</span>
+								</Label>
+								<Input
+									id="bc-code"
+									value={code}
+									onChange={(e) => setCode(e.target.value.toUpperCase())}
+									placeholder="WRONG_CUSTOMER"
+									readOnly={codeReadOnly}
+									className={codeReadOnly ? "bg-muted/50" : undefined}
+								/>
+							</div>
+						)}
 						{def.hasColor && (
 							<div className="flex flex-col gap-1.5">
 								<Label htmlFor="bc-color">Color</Label>
@@ -156,16 +165,18 @@ export function BrandConfigItemDialog({
 								</div>
 							</div>
 						)}
-						<div className="flex flex-col gap-1.5">
-							<Label htmlFor="bc-sort">Sort order</Label>
-							<Input
-								id="bc-sort"
-								type="number"
-								min={0}
-								value={sortOrder}
-								onChange={(e) => setSortOrder(Number(e.target.value) || 0)}
-							/>
-						</div>
+						{!def.simple && (
+							<div className="flex flex-col gap-1.5">
+								<Label htmlFor="bc-sort">Sort order</Label>
+								<Input
+									id="bc-sort"
+									type="number"
+									min={0}
+									value={sortOrder}
+									onChange={(e) => setSortOrder(Number(e.target.value) || 0)}
+								/>
+							</div>
+						)}
 						{serverError && (
 							<p className="text-destructive text-sm">{serverError}</p>
 						)}

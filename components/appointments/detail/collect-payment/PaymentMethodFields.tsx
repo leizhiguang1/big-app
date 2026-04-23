@@ -5,7 +5,6 @@ import {
 	PAYMENT_EPS_MONTHS,
 } from "@/lib/constants/payment-fields";
 import type { PaymentMethod } from "@/lib/services/payment-methods";
-import { cn } from "@/lib/utils";
 import type { PaymentEntry } from "./types";
 
 const selectBase =
@@ -13,13 +12,13 @@ const selectBase =
 const inputClass = "h-7 text-[11px]";
 const labelClass = "text-[10px] font-medium uppercase text-muted-foreground";
 
-function RequiredChip({ show }: { show: boolean }) {
-	if (!show) return null;
-	return (
-		<span className="ml-1 rounded bg-red-100 px-1 py-0 text-[9px] font-semibold text-red-700">
-			Required
-		</span>
-	);
+// Red asterisk next to the label for required fields. Deliberately quiet —
+// no red borders, no "Required" pill, no aria-invalid. hasMissingRequiredFields
+// (below) is what the submit button consults; don't shout at the cashier
+// on every keystroke. Aoikumo's clamp-on-every-keystroke pattern is the
+// anti-example we're avoiding.
+function RequiredMark() {
+	return <span className="ml-0.5 text-red-500">*</span>;
 }
 
 export function hasMissingRequiredFields(
@@ -46,21 +45,16 @@ export function PaymentMethodFields({
 }) {
 	const fields: React.ReactNode[] = [];
 	if (method.requires_bank) {
-		const missing = !entry.bank.trim();
 		fields.push(
 			<div key="bank" className="flex flex-col gap-0.5">
 				<span className={labelClass}>
 					Bank
-					<RequiredChip show={missing} />
+					<RequiredMark />
 				</span>
 				<select
-					className={cn(
-						selectBase,
-						missing ? "border-red-400" : "border-input",
-					)}
+					className={selectBase}
 					value={entry.bank}
 					onChange={(e) => onChange({ bank: e.target.value })}
-					aria-invalid={missing || undefined}
 				>
 					<option value="">Please choose…</option>
 					{PAYMENT_BANKS.map((b) => (
@@ -73,21 +67,16 @@ export function PaymentMethodFields({
 		);
 	}
 	if (method.requires_card_type) {
-		const missing = !entry.card_type.trim();
 		fields.push(
 			<div key="card_type" className="flex flex-col gap-0.5">
 				<span className={labelClass}>
 					Card type
-					<RequiredChip show={missing} />
+					<RequiredMark />
 				</span>
 				<select
-					className={cn(
-						selectBase,
-						missing ? "border-red-400" : "border-input",
-					)}
+					className={selectBase}
 					value={entry.card_type}
 					onChange={(e) => onChange({ card_type: e.target.value })}
-					aria-invalid={missing || undefined}
 				>
 					<option value="">Please choose…</option>
 					{PAYMENT_CARD_TYPES.map((c) => (
@@ -100,21 +89,16 @@ export function PaymentMethodFields({
 		);
 	}
 	if (method.requires_months) {
-		const missing = !entry.months.trim();
 		fields.push(
 			<div key="months" className="flex flex-col gap-0.5">
 				<span className={labelClass}>
 					Months
-					<RequiredChip show={missing} />
+					<RequiredMark />
 				</span>
 				<select
-					className={cn(
-						selectBase,
-						missing ? "border-red-400" : "border-input",
-					)}
+					className={selectBase}
 					value={entry.months}
 					onChange={(e) => onChange({ months: e.target.value })}
-					aria-invalid={missing || undefined}
 				>
 					<option value="">Please choose…</option>
 					{PAYMENT_EPS_MONTHS.map((m) => (
@@ -127,12 +111,11 @@ export function PaymentMethodFields({
 		);
 	}
 	if (method.requires_trace_no) {
-		const missing = !entry.trace_no.trim();
 		fields.push(
 			<div key="trace_no" className="flex flex-col gap-0.5">
 				<span className={labelClass}>
 					Trace no
-					<RequiredChip show={missing} />
+					<RequiredMark />
 				</span>
 				<Input
 					placeholder="Eg. 888888"
@@ -140,19 +123,17 @@ export function PaymentMethodFields({
 					onChange={(e) => onChange({ trace_no: e.target.value })}
 					maxLength={32}
 					inputMode="numeric"
-					aria-invalid={missing || undefined}
 					className={inputClass}
 				/>
 			</div>,
 		);
 	}
 	if (method.requires_approval_code) {
-		const missing = !entry.approval_code.trim();
 		fields.push(
 			<div key="approval_code" className="flex flex-col gap-0.5">
 				<span className={labelClass}>
 					Approval code
-					<RequiredChip show={missing} />
+					<RequiredMark />
 				</span>
 				<Input
 					placeholder="Eg. 888888"
@@ -160,26 +141,23 @@ export function PaymentMethodFields({
 					onChange={(e) => onChange({ approval_code: e.target.value })}
 					maxLength={32}
 					inputMode="numeric"
-					aria-invalid={missing || undefined}
 					className={inputClass}
 				/>
 			</div>,
 		);
 	}
 	if (method.requires_reference_no) {
-		const missing = !entry.reference_no.trim();
 		fields.push(
 			<div key="reference_no" className="flex flex-col gap-0.5">
 				<span className={labelClass}>
 					Reference no
-					<RequiredChip show={missing} />
+					<RequiredMark />
 				</span>
 				<Input
 					placeholder="Eg. 888888"
 					value={entry.reference_no}
 					onChange={(e) => onChange({ reference_no: e.target.value })}
 					maxLength={32}
-					aria-invalid={missing || undefined}
 					className={inputClass}
 				/>
 			</div>,

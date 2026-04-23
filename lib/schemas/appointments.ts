@@ -132,6 +132,15 @@ export const appointmentStatusSchema = z.object({
 });
 export type AppointmentStatusInput = z.infer<typeof appointmentStatusSchema>;
 
+export const appointmentCancelSchema = z.object({
+	reason: z
+		.string()
+		.trim()
+		.min(1, "Cancellation reason is required")
+		.max(200),
+});
+export type AppointmentCancelInput = z.infer<typeof appointmentCancelSchema>;
+
 // Payment + tag patches run through a dedicated schema so we don't have to
 // round-trip the full appointmentInputSchema (which demands start/end/outlet).
 export const appointmentPaymentSchema = z.object({

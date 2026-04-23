@@ -28,19 +28,28 @@ export function usePayments(
 		[payments],
 	);
 
-	// Prime first payment row with bill total on dialog open.
-	const didPrimeAmountRef = useRef(false);
+	// Prime first payment row with bill total on dialog open. Also re-prime
+	// when `total` changes (e.g. staff discount auto-applies after open, or the
+	// cashier edits a line discount) — but only when the current amount still
+	// matches what we last primed. If the cashier has typed a different amount,
+	// never clobber it.
+	const lastPrimedAmountRef = useRef<string>("");
 	useEffect(() => {
 		if (!open) {
-			didPrimeAmountRef.current = false;
+			lastPrimedAmountRef.current = "";
 			return;
 		}
-		if (didPrimeAmountRef.current) return;
 		if (total <= 0) return;
+		const target = total.toFixed(2);
 		setPayments((prev) => {
-			if (prev.length !== 1 || prev[0].amount !== "") return prev;
-			didPrimeAmountRef.current = true;
-			return [{ ...prev[0], amount: total.toFixed(2) }];
+			if (prev.length !== 1) return prev;
+			const current = prev[0].amount;
+			const isUntouched =
+				current === "" || current === lastPrimedAmountRef.current;
+			if (!isUntouched) return prev;
+			if (current === target) return prev;
+			lastPrimedAmountRef.current = target;
+			return [{ ...prev[0], amount: target }];
 		});
 	}, [open, total]);
 

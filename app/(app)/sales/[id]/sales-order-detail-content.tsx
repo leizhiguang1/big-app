@@ -8,6 +8,7 @@ import { getOutlet } from "@/lib/services/outlets";
 import {
 	getSalesOrder,
 	listPaymentsForOrder,
+	listRefundNotesForOrder,
 	listSaleItems,
 } from "@/lib/services/sales";
 
@@ -21,10 +22,11 @@ export async function SalesOrderDetailContent({
 	const ctx = await getServerContext();
 
 	try {
-		const [order, items, payments] = await Promise.all([
+		const [order, items, payments, refundNotes] = await Promise.all([
 			getSalesOrder(ctx, id),
 			listSaleItems(ctx, id),
 			listPaymentsForOrder(ctx, id),
+			listRefundNotesForOrder(ctx, id),
 		]);
 
 		const [outlet, customer] = await Promise.all([
@@ -39,6 +41,7 @@ export async function SalesOrderDetailContent({
 				order={order}
 				items={items}
 				payments={payments}
+				refundNotes={refundNotes}
 				outlet={outlet}
 				customer={customer}
 				autoPrint={autoPrint}

@@ -11,6 +11,15 @@ export const APPOINTMENT_TYPE_FILTERS = [
 
 export type AppointmentTypeFilter = (typeof APPOINTMENT_TYPE_FILTERS)[number];
 
+export const APPOINTMENT_PAYMENT_STATUSES = [
+	"unpaid",
+	"partial",
+	"paid",
+] as const;
+
+export type AppointmentPaymentStatus =
+	(typeof APPOINTMENT_PAYMENT_STATUSES)[number];
+
 export function parseStatusParam(raw: string | undefined): AppointmentStatus[] {
 	if (!raw) return [];
 	const set = new Set<string>(APPOINTMENT_STATUSES);
@@ -29,6 +38,17 @@ export function parseTypeParam(
 		.split(",")
 		.map((x) => x.trim())
 		.filter((x): x is AppointmentTypeFilter => set.has(x));
+}
+
+export function parsePaymentStatusParam(
+	raw: string | undefined,
+): AppointmentPaymentStatus[] {
+	if (!raw) return [];
+	const set = new Set<string>(APPOINTMENT_PAYMENT_STATUSES);
+	return raw
+		.split(",")
+		.map((x) => x.trim())
+		.filter((x): x is AppointmentPaymentStatus => set.has(x));
 }
 
 export function appointmentMatchesTypeFilter(

@@ -11,6 +11,7 @@ import {
 } from "react";
 import { AppointmentContextMenu } from "@/components/appointments/AppointmentContextMenu";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
+import { CancelAppointmentDialog } from "@/components/appointments/CancelAppointmentDialog";
 import {
 	AppointmentToastStack,
 	type Toast,
@@ -23,7 +24,6 @@ import { WeekView } from "@/components/appointments/WeekView";
 import { useAppointmentNotifications } from "@/components/notifications/AppointmentNotificationsProvider";
 import { CreateButton } from "@/components/ui/create-button";
 import {
-	deleteAppointmentAction,
 	rescheduleAppointmentAction,
 	setAppointmentStatusAction,
 } from "@/lib/actions/appointments";
@@ -118,6 +118,8 @@ export function AppointmentsCalendar({
 	const [dialog, setDialog] = useState<DialogState>(null);
 	const [contextMenu, setContextMenu] = useState<ContextState>(null);
 	const [toasts, setToasts] = useState<Toast[]>([]);
+	const [cancelTarget, setCancelTarget] =
+		useState<AppointmentWithRelations | null>(null);
 	const router = useRouter();
 	const { showStatusToast, suppressNextRealtime } =
 		useAppointmentNotifications();
@@ -409,23 +411,7 @@ export function AppointmentsCalendar({
 	};
 
 	const handleDelete = (a: AppointmentWithRelations) => {
-		const label = a.is_time_block
-			? a.block_title || "Time block"
-			: a.customer
-				? `${a.customer.first_name} ${a.customer.last_name ?? ""}`.trim()
-				: (a.lead_name ?? "Appointment");
-		if (!window.confirm(`Delete appointment for ${label}?`)) return;
-		startTransition(async () => {
-			try {
-				await deleteAppointmentAction(a.id);
-				showToast("Appointment deleted", "success");
-			} catch (err) {
-				showToast(
-					err instanceof Error ? err.message : "Delete failed",
-					"error",
-				);
-			}
-		});
+		setCancelTarget(a);
 	};
 
 	const renderView = () => {
@@ -560,6 +546,20 @@ export function AppointmentsCalendar({
 					onDelete={() => handleDelete(contextMenu.appointment)}
 				/>
 			)}
+
+			<CancelAppointmentDialog
+				open={cancelTarget !== null}
+				onOpenChange={(open) => {
+					if (!open) setCancelTarget(null);
+				}}
+				appointmentId={cancelTarget?.id ?? ""}
+				bookingRef={cancelTarget?.booking_ref ?? undefined}
+				onSuccess={() => showToast("Appointment cancelled", "success")}
+				onError={(message) => showToast(message, "error")}
+				onReschedule={() => {
+					if (cancelTarget) setDialog({ kind: "edit", appointment: cancelTarget });
+				}}
+			/>
 
 			<AppointmentToastStack toasts={toasts} onDismiss={dismissToast} />
 		</div>

@@ -13,6 +13,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
+import { CancelAppointmentDialog } from "@/components/appointments/CancelAppointmentDialog";
 import { CollectPaymentDialog } from "@/components/appointments/detail/CollectPaymentDialog";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -22,7 +23,6 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-	deleteAppointmentAction,
 	markAppointmentCompletedAction,
 	revertCompletedAppointmentAction,
 } from "@/lib/actions/appointments";
@@ -58,6 +58,7 @@ type Props = {
 	shifts: EmployeeShift[];
 	medicalCertificates: MedicalCertificateWithRefs[];
 	billingSettings: BillingSettings;
+	staffDiscountPercent: number;
 	onEdit: () => void;
 	onToast?: (
 		message: string,
@@ -128,6 +129,7 @@ export function AppointmentActionBar({
 	shifts,
 	medicalCertificates,
 	billingSettings,
+	staffDiscountPercent,
 	onEdit,
 	onToast,
 }: Props) {
@@ -174,19 +176,6 @@ export function AppointmentActionBar({
 		});
 	};
 
-	const handleCancelConfirm = () => {
-		setCancelOpen(false);
-		startTransition(async () => {
-			try {
-				await deleteAppointmentAction(appointment.id);
-				onToast?.("Appointment cancelled", "success");
-				router.push("/appointments");
-			} catch (e) {
-				const message = e instanceof Error ? e.message : "Failed to cancel";
-				onToast?.(message, "error");
-			}
-		});
-	};
 
 	return (
 		<>
@@ -236,14 +225,21 @@ export function AppointmentActionBar({
 									type="button"
 									variant="outline"
 									size="icon-sm"
+									disabled
 									className={colorClass.blue}
-									aria-label="Print queue ticket (coming soon)"
+									aria-label="Print queue ticket — in development"
 								>
-									<Ticket />
+									<span className="relative inline-flex">
+										<Ticket />
+										<span
+											aria-hidden
+											className="absolute -right-1 -top-1 size-1.5 rounded-full bg-amber-500 ring-1 ring-background"
+										/>
+									</span>
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">
-								Print queue ticket (coming soon)
+								Print queue ticket — in development
 							</TooltipContent>
 						</Tooltip>
 
@@ -269,14 +265,21 @@ export function AppointmentActionBar({
 									type="button"
 									variant="outline"
 									size="icon-sm"
+									disabled
 									className={colorClass.sky}
-									aria-label="Add to queue (coming soon)"
+									aria-label="Add to queue — in development"
 								>
-									<ListOrdered />
+									<span className="relative inline-flex">
+										<ListOrdered />
+										<span
+											aria-hidden
+											className="absolute -right-1 -top-1 size-1.5 rounded-full bg-amber-500 ring-1 ring-background"
+										/>
+									</span>
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">
-								Add to queue (coming soon)
+								Add to queue — in development
 							</TooltipContent>
 						</Tooltip>
 
@@ -363,20 +366,17 @@ export function AppointmentActionBar({
 				onConfirm={handleRevertConfirm}
 			/>
 
-			<ConfirmDialog
+			<CancelAppointmentDialog
 				open={cancelOpen}
 				onOpenChange={setCancelOpen}
-				title="Cancel appointment?"
-				description="This will permanently delete this appointment. Reschedule instead if the customer wants a different date or time."
-				confirmLabel="Cancel appointment"
-				cancelLabel={null}
-				variant="destructive"
-				onConfirm={handleCancelConfirm}
-				altLabel="Reschedule"
-				onAlt={() => {
-					setCancelOpen(false);
-					onEdit();
+				appointmentId={appointment.id}
+				bookingRef={appointment.booking_ref ?? undefined}
+				onSuccess={() => {
+					onToast?.("Appointment cancelled", "success");
+					router.push("/appointments");
 				}}
+				onError={(message) => onToast?.(message, "error")}
+				onReschedule={onEdit}
 			/>
 
 			<CollectPaymentDialog
@@ -397,6 +397,7 @@ export function AppointmentActionBar({
 				shifts={shifts}
 				medicalCertificates={medicalCertificates}
 				billingSettings={billingSettings}
+				staffDiscountPercent={staffDiscountPercent}
 				onSuccess={(r) =>
 					onToast?.(
 						`Payment collected · ${r.so_number} / ${r.invoice_no}`,

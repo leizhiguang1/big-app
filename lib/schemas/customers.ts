@@ -63,14 +63,14 @@ export const customerInputSchema = z
 			errorMap: () => ({ message: "Salutation is required" }),
 		}),
 		first_name: z.string().trim().min(1, "First name is required").max(80),
-		last_name: optionalText(80),
+		last_name: z.string().trim().min(1, "Last name is required").max(80),
 		gender: z.enum(GENDERS).nullable().optional(),
 		date_of_birth: optionalDate,
 		profile_image_path: z.string().trim().max(500).nullable().optional(),
 
 		// Identification
 		id_type: z.enum(ID_TYPES),
-		id_number: optionalText(60),
+		id_number: z.string().trim().min(1, "ID number is required").max(60),
 
 		// Contact
 		phone: z.string().trim().min(1, "Phone is required").max(40),
@@ -84,13 +84,12 @@ export const customerInputSchema = z
 		country_of_origin: z
 			.string()
 			.trim()
+			.min(1, "Country of origin is required")
 			.toUpperCase()
 			.refine(
 				(v) => (COUNTRY_CODES as readonly string[]).includes(v),
 				"Select a valid country",
-			)
-			.optional()
-			.or(z.literal("").transform(() => undefined)),
+			),
 
 		// Address
 		address1: optionalText(160),
@@ -102,7 +101,11 @@ export const customerInputSchema = z
 		// Clinic
 		home_outlet_id: z.string().uuid("Home outlet is required"),
 		consultant_id: z.string().uuid("Consultant is required"),
-		source: z.enum(SOURCES).nullable().optional(),
+		source: z
+			.enum(SOURCES, {
+				errorMap: () => ({ message: "Source is required" }),
+			})
+			.nullable(),
 		external_code: optionalText(15),
 
 		// Flags
@@ -132,6 +135,13 @@ export const customerInputSchema = z
 					message: "Malaysian IC must be 12 digits (YYMMDD-PB-###G)",
 				});
 			}
+		}
+		if (data.source === null) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["source"],
+				message: "Source is required",
+			});
 		}
 	});
 

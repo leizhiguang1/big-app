@@ -4,6 +4,8 @@ import {
 	type CollectPaymentInput,
 	type CollectPaymentItem,
 	collectPaymentInputSchema,
+	type IssueRefundInput,
+	issueRefundInputSchema,
 	type VoidSalesOrderInput,
 	voidSalesOrderInputSchema,
 } from "@/lib/schemas/sales";
@@ -362,6 +364,61 @@ export async function voidSalesOrder(
 		throw new ValidationError(msg);
 	}
 	return data as unknown as VoidSalesOrderResult;
+}
+
+// ---------------------------------------------------------------------------
+// Standalone refund: tracking-only. Writes a refund_notes row with a null
+// cancellation_id. Does NOT touch SO status, amount_paid, or inventory.
+// ---------------------------------------------------------------------------
+
+export type RefundNote = Tables<"refund_notes">;
+
+export type RefundNoteWithRefs = RefundNote & {
+	processed_by_employee: {
+		id: string;
+		first_name: string;
+		last_name: string | null;
+	} | null;
+};
+
+export type IssueRefundResult = {
+	rn_id: string;
+	rn_number: string;
+	amount: number;
+	sales_order_id: string;
+};
+
+export async function issueRefund(
+	ctx: Context,
+	salesOrderId: string,
+	input: unknown,
+): Promise<IssueRefundResult> {
+	const parsed: IssueRefundInput = issueRefundInputSchema.parse(input);
+
+	const { data, error } = await ctx.db.rpc("issue_refund", {
+		p_sales_order_id: salesOrderId,
+		p_amount: parsed.amount,
+		p_refund_method: parsed.refund_method,
+		p_notes: parsed.notes ?? "",
+		p_processed_by: (ctx.currentUser?.employeeId ?? null) as string,
+	});
+	if (error) throw new ValidationError(error.message || "Failed to issue refund");
+	return data as unknown as IssueRefundResult;
+}
+
+export async function listRefundNotesForOrder(
+	ctx: Context,
+	salesOrderId: string,
+): Promise<RefundNoteWithRefs[]> {
+	const { data, error } = await ctx.db
+		.from("refund_notes")
+		.select(
+			"*, processed_by_employee:employees!refund_notes_processed_by_fkey(id, first_name, last_name)",
+		)
+		.eq("sales_order_id", salesOrderId)
+		.order("refunded_at", { ascending: false });
+	if (error) throw new ValidationError(error.message);
+	return (data ?? []) as unknown as RefundNoteWithRefs[];
 }
 
 // ---------------------------------------------------------------------------

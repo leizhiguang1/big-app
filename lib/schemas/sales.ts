@@ -89,3 +89,10 @@ export const voidSalesOrderInputSchema = z.object({
 	sale_item_ids: z.array(z.string().uuid()).min(1, "Select at least one item"),
 });
 export type VoidSalesOrderInput = z.infer<typeof voidSalesOrderInputSchema>;
+
+export const issueRefundInputSchema = z.object({
+	amount: z.coerce.number().positive("Amount must be greater than 0"),
+	refund_method: z.string().trim().min(1, "Select a refund method"),
+	notes: z.string().trim().max(500, "Notes must be 500 characters or fewer").optional(),
+});
+export type IssueRefundInput = z.infer<typeof issueRefundInputSchema>;

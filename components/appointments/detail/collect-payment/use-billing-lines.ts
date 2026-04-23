@@ -85,6 +85,30 @@ export function useBillingLines(
 		[capFor],
 	);
 
+	const applyStaffDiscount = useCallback(
+		(percent: number) => {
+			setLines((rows) =>
+				rows.map((r) => {
+					if (r.item_type !== "service") return r;
+					const cap = capFor(r.service_id);
+					const effective =
+						cap != null ? Math.min(percent, cap) : percent;
+					if (effective <= 0) return r;
+					const formatted =
+						effective % 1 === 0
+							? String(effective)
+							: effective.toFixed(1);
+					return {
+						...r,
+						discount_type: "percent",
+						discount_input: formatted,
+					};
+				}),
+			);
+		},
+		[capFor],
+	);
+
 	const clampUnitPrice = useCallback(
 		(id: string) => {
 			setLines((rows) =>
@@ -148,12 +172,19 @@ export function useBillingLines(
 
 	const rawTotal = Math.max(0, subtotal - totalDiscount + totalTax);
 
+	const hasServiceLines = useMemo(
+		() => lines.some((l) => l.item_type === "service"),
+		[lines],
+	);
+
 	return {
 		lines,
 		setLines,
 		updateLine,
 		clampLineDiscountInput,
 		clampUnitPrice,
+		applyStaffDiscount,
+		hasServiceLines,
 		serviceById,
 		capFor,
 		lineDiscounts,

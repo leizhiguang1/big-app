@@ -134,11 +134,16 @@ export async function setAppointmentFollowUpAction(
 	return appointment;
 }
 
-export async function deleteAppointmentAction(id: string) {
+export async function cancelAppointmentAction(id: string, reason: string) {
 	const ctx = await getServerContext();
-	await appointmentsService.deleteAppointment(ctx, id);
+	const appointment = await appointmentsService.cancelAppointment(ctx, id, {
+		reason,
+	});
 	revalidatePath("/appointments");
 	revalidatePath(`/appointments/${id}`);
+	if (appointment.customer_id)
+		revalidatePath(`/customers/${appointment.customer_id}`);
+	return appointment;
 }
 
 export async function convertLeadToCustomerAction(

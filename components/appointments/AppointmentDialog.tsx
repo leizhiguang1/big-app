@@ -8,7 +8,7 @@ import { useAppointmentTagList } from "@/components/brand-config/AppointmentConf
 import { CustomerFormDialog } from "@/components/customers/CustomerForm";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CancelAppointmentDialog } from "@/components/appointments/CancelAppointmentDialog";
 import {
 	Dialog,
 	DialogContent,
@@ -20,7 +20,6 @@ import {
 import { Input } from "@/components/ui/input";
 import {
 	createAppointmentAction,
-	deleteAppointmentAction,
 	updateAppointmentAction,
 } from "@/lib/actions/appointments";
 import { buildLeadPrefill } from "@/lib/appointments/lead-prefill";
@@ -372,20 +371,6 @@ export function AppointmentDialog({
 		},
 	);
 
-	const onDelete = () => {
-		if (!appointment) return;
-		startTransition(async () => {
-			try {
-				await deleteAppointmentAction(appointment.id);
-				setConfirmOpen(false);
-				onClose();
-			} catch (err) {
-				setServerError(
-					err instanceof Error ? err.message : "Something went wrong",
-				);
-			}
-		});
-	};
 
 	const selectTag = (key: string) => {
 		const next = tags[0] === key ? [] : [key];
@@ -708,7 +693,7 @@ export function AppointmentDialog({
 											disabled={pending}
 										>
 											<Trash2 className="size-4" />
-											Delete
+											Cancel appointment
 										</Button>
 									)}
 								</div>
@@ -737,16 +722,18 @@ export function AppointmentDialog({
 				</DialogContent>
 			</Dialog>
 
-			<ConfirmDialog
-				open={confirmOpen}
-				onOpenChange={setConfirmOpen}
-				title="Delete appointment?"
-				description="This cannot be undone."
-				confirmLabel="Delete"
-				variant="destructive"
-				pending={pending}
-				onConfirm={onDelete}
-			/>
+			{appointment && (
+				<CancelAppointmentDialog
+					open={confirmOpen}
+					onOpenChange={setConfirmOpen}
+					appointmentId={appointment.id}
+					bookingRef={appointment.booking_ref ?? undefined}
+					onSuccess={() => {
+						setConfirmOpen(false);
+						onClose();
+					}}
+				/>
+			)}
 
 			<CustomerFormDialog
 				open={newCustomerOpen}

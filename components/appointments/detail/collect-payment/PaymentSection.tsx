@@ -2,7 +2,6 @@ import { Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { RawNumericInput } from "@/components/ui/numeric-input";
 import type { PaymentMethod } from "@/lib/services/payment-methods";
-import { cn } from "@/lib/utils";
 import { money } from "./helpers";
 import { PaymentMethodFields } from "./PaymentMethodFields";
 import type { PaymentEntry } from "./types";
@@ -13,7 +12,6 @@ type Props = {
 	paymentMethods: PaymentMethod[];
 	methodByCode: Map<string, PaymentMethod>;
 	total: number;
-	isOverpaid: boolean;
 
 	onChangeMethod: (key: string, mode: string) => void;
 	onUpdatePayment: (key: string, patch: Partial<PaymentEntry>) => void;
@@ -35,7 +33,6 @@ export function PaymentSection({
 	paymentMethods,
 	methodByCode,
 	total,
-	isOverpaid,
 	onChangeMethod,
 	onUpdatePayment,
 	onRemovePayment,
@@ -124,10 +121,7 @@ export function PaymentSection({
 					return (
 						<div
 							key={p.key}
-							className={cn(
-								"space-y-2 rounded-md border bg-muted/20 p-2",
-								isOverpaid ? "border-red-300 bg-red-50/40" : "border-border",
-							)}
+							className="space-y-2 rounded-md border border-border bg-muted/20 p-2"
 						>
 							<div className="flex items-center gap-2">
 								<select
@@ -157,10 +151,7 @@ export function PaymentSection({
 									min={0}
 									decimals={2}
 									placeholder="0.00"
-									className={cn(
-										"h-8 flex-1 text-right text-xs tabular-nums",
-										isOverpaid && "border-red-500 focus-visible:ring-red-500",
-									)}
+									className="h-8 flex-1 text-right text-xs tabular-nums"
 								/>
 								{payments.length > 1 && (
 									<button

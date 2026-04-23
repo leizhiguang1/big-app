@@ -73,7 +73,7 @@ typed table; the generic `brand_settings` cannot express FK integrity.
 | `customer_reminder_method` | Reminder methods | registry only (TS) |
 | `reason.stock_add` | Stock-add reasons | registry only (TS) |
 | `reason.stock_reduce` | Stock-reduce reasons | registry only (TS) |
-| `reason.appointment_cancel` | Appointment cancel reasons | registry only (TS) |
+| `reason.appointment_cancel` | Appointment cancel reasons | **live** — `/config/appointments?section=cancel-reasons` |
 
 ### Shape 1 — Lists in existing typed tables
 

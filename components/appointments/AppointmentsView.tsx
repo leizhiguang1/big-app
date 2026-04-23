@@ -11,7 +11,10 @@ import {
 	DEFAULT_COLUMN_ORDER,
 	DEFAULT_VISIBLE,
 } from "@/lib/appointments/columns";
-import type { AppointmentTypeFilter } from "@/lib/appointments/filters";
+import type {
+	AppointmentPaymentStatus,
+	AppointmentTypeFilter,
+} from "@/lib/appointments/filters";
 import {
 	DEFAULT_VIEW_PREFS,
 	readViewPrefs,
@@ -48,6 +51,7 @@ type Props = {
 	resource: ResourceFilter;
 	statusFilter: AppointmentStatus[];
 	typeFilter: AppointmentTypeFilter[];
+	paymentStatusFilter: AppointmentPaymentStatus[];
 	appointments: AppointmentWithRelations[];
 	customers: CustomerWithRelations[];
 	employees: RosterEmployee[];
@@ -66,6 +70,7 @@ export function AppointmentsView({
 	resource,
 	statusFilter,
 	typeFilter,
+	paymentStatusFilter,
 	appointments,
 	customers,
 	employees,
@@ -142,6 +147,7 @@ export function AppointmentsView({
 				employees={employees}
 				statusFilter={statusFilter}
 				typeFilter={typeFilter}
+				paymentStatusFilter={paymentStatusFilter}
 				columnOrder={columnOrder}
 				visibleColumns={visibleColumns}
 				onDisplayChange={handleDisplayChange}

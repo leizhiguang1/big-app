@@ -7,11 +7,14 @@ import {
 	CreditCard,
 	FileText,
 	Printer,
+	Receipt,
 	Store,
+	Undo2,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { CustomerIdentityCard } from "@/components/customers/CustomerIdentityCard";
+import { IssueRefundDialog } from "@/components/sales/IssueRefundDialog";
 import { ViewInvoiceDialog } from "@/components/sales/ViewInvoiceDialog";
 import { VoidSalesOrderDialog } from "@/components/sales/VoidSalesOrderDialog";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +23,7 @@ import type { CustomerWithRelations } from "@/lib/services/customers";
 import type { Outlet } from "@/lib/services/outlets";
 import type {
 	PaymentWithProcessedBy,
+	RefundNoteWithRefs,
 	SaleItem,
 	SalesOrderWithRelations,
 } from "@/lib/services/sales";
@@ -28,6 +32,7 @@ type Props = {
 	order: SalesOrderWithRelations;
 	items: SaleItem[];
 	payments: PaymentWithProcessedBy[];
+	refundNotes: RefundNoteWithRefs[];
 	outlet: Outlet | null;
 	customer: CustomerWithRelations | null;
 	autoPrint?: boolean;
@@ -122,11 +127,13 @@ export function SalesOrderDetailView({
 	order,
 	items,
 	payments,
+	refundNotes,
 	outlet,
 	customer,
 	autoPrint,
 }: Props) {
 	const [voidOpen, setVoidOpen] = useState(false);
+	const [refundOpen, setRefundOpen] = useState(false);
 	const [invoiceOpen, setInvoiceOpen] = useState(Boolean(autoPrint));
 	const [feedback, setFeedback] = useState<{
 		type: "success" | "error";
@@ -135,6 +142,7 @@ export function SalesOrderDetailView({
 
 	const isCancellable =
 		order.status === "completed" || order.status === "draft";
+	const canRefund = order.status === "completed";
 
 	const consultantName = order.consultant
 		? fullName(order.consultant.first_name, order.consultant.last_name)
@@ -180,6 +188,33 @@ export function SalesOrderDetailView({
 					</div>
 				</div>
 				<div className="flex items-center gap-2">
+					{canRefund && (
+						<Button
+							variant="outline"
+							size="sm"
+							className="text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+							onClick={() => setRefundOpen(true)}
+						>
+							<Undo2 className="mr-2 size-4" />
+							Refund
+						</Button>
+					)}
+					{canRefund && (
+						<Button
+							variant="outline"
+							size="sm"
+							disabled
+							className="relative text-purple-700"
+							title="Credit Note — in development (pending Cash Wallet)"
+						>
+							<Receipt className="mr-2 size-4" />
+							Credit Note
+							<span
+								aria-hidden
+								className="absolute -right-1 -top-1 size-1.5 rounded-full bg-amber-500 ring-1 ring-background"
+							/>
+						</Button>
+					)}
 					{isCancellable && (
 						<Button
 							variant="outline"
@@ -411,6 +446,53 @@ export function SalesOrderDetailView({
 				</section>
 			)}
 
+			{/* Refunds */}
+			{refundNotes.length > 0 && (
+				<section>
+					<h3 className="mb-3 flex items-center gap-2 font-medium text-sm">
+						<Undo2 className="size-4" />
+						Refunds ({refundNotes.length})
+					</h3>
+					<div className="space-y-3">
+						{refundNotes.map((r) => (
+							<div
+								key={r.id}
+								className="flex items-start justify-between rounded-md border border-amber-200 bg-amber-50/40 p-4"
+							>
+								<div className="space-y-1">
+									<div className="flex items-center gap-2">
+										<span className="font-mono font-medium text-sm">
+											{r.rn_number}
+										</span>
+										{r.refund_method && (
+											<Badge variant="outline" className="text-xs">
+												{prettyCode(r.refund_method)}
+											</Badge>
+										)}
+										{r.cancellation_id === null && (
+											<Badge variant="secondary" className="text-[10px]">
+												Standalone
+											</Badge>
+										)}
+									</div>
+									<p className="text-muted-foreground text-xs">
+										{formatDateTime(r.refunded_at)}
+										{r.processed_by_employee &&
+											` · by ${fullName(r.processed_by_employee.first_name, r.processed_by_employee.last_name)}`}
+									</p>
+									{r.notes && (
+										<p className="text-muted-foreground text-xs">{r.notes}</p>
+									)}
+								</div>
+								<span className="font-medium text-amber-700 text-sm tabular-nums">
+									-MYR {money(r.amount)}
+								</span>
+							</div>
+						))}
+					</div>
+				</section>
+			)}
+
 			{/* Appointment link */}
 			{order.appointment_id && (
 				<div className="text-sm">
@@ -455,6 +537,21 @@ export function SalesOrderDetailView({
 					setFeedback({
 						type: "success",
 						message: `Voided. CN ${cnNumber} · RN ${rnNumber} · Refund MYR ${refundAmount.toFixed(2)}`,
+					})
+				}
+				onError={(msg) => setFeedback({ type: "error", message: msg })}
+			/>
+
+			<IssueRefundDialog
+				open={refundOpen}
+				onOpenChange={setRefundOpen}
+				salesOrderId={order.id}
+				soNumber={order.so_number}
+				orderTotal={Number(order.total ?? 0)}
+				onSuccess={({ rnNumber, amount }) =>
+					setFeedback({
+						type: "success",
+						message: `Refund issued · ${rnNumber} · MYR ${amount.toFixed(2)}`,
 					})
 				}
 				onError={(msg) => setFeedback({ type: "error", message: msg })}

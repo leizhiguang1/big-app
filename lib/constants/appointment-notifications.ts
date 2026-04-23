@@ -8,6 +8,7 @@ export type StatusSound =
 	| "billing"
 	| "noshow"
 	| "completed"
+	| "cancelled"
 	| null;
 
 export type AppointmentStatusNotification = {
@@ -54,6 +55,11 @@ export const APPOINTMENT_STATUS_NOTIFICATIONS: Record<
 		enabled: true,
 		sound: "completed",
 		toastTitle: (n) => `${n} — completed`,
+	},
+	cancelled: {
+		enabled: true,
+		sound: "cancelled",
+		toastTitle: (n) => `${n} — cancelled`,
 	},
 };
 

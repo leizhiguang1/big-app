@@ -16,14 +16,16 @@ The shape of `sales_orders` / `sale_items` / `payments` / `appointments`
 governs every downstream read. Stabilize these first.
 
 ### A1. Sales / Collect Payment depth — `docs/modules/04-sales.md`
-- [ ] Invoice print (PDF/printable view) from sales order detail
-- [ ] Staff-discount auto-detect (employee is also a customer)
-- [ ] Service pricing edge cases (per-outlet override, package price, variant)
-- [ ] Credit note issue flow (already partly scaffolded via void SO)
-- [ ] Refund against payment (cash / card / voucher)
-- [ ] Partial-item void (scaffolded in `void_sales_order` RPC, currently deferred)
-- [ ] Payment methods config (surface `config/payment-methods` for admin)
-- [ ] Unit tests on `collectPayment` happy path + rollback (per ARCHITECTURE §9)
+- [x] Invoice print (PDF/printable view) from sales order detail
+- [x] Staff-discount auto-detect — wires `customers.is_staff` + `billing.staff_discount_percent` brand setting (default 10%) into the "Apply Auto Discount" button; respects per-service `discount_cap`. (2026-04-24)
+- [x] Service pricing range (`price_min`/`price_max` + `allow_cash_price_range`) — schema + LineItemRow UI live
+- [x] Service discount cap (`discount_cap`) — schema + LineItemRow UI live (`capPct`, "apply max" button, on-blur clamp)
+- [ ] Credit note issue flow (already partly scaffolded via void SO) — **surfaced 2026-04-24** as an "In development" button on SO detail (disabled, amber-dot marker). Full implementation parks until Cash Wallet lands in Phase 2.
+- [x] Refund against payment — **shipped 2026-04-24 (tracking-only).** Standalone refund button on SO detail writes a `refund_notes` row with null `cancellation_id` via new `issue_refund` RPC. No passcode, no SO status change, no inventory effect. Refunds listed on SO detail page.
+- [ ] Partial-item void — checkboxes in the Void dialog marked "In development" (amber-dot marker + amber banner) **2026-04-24**. The `void_sales_order` RPC still accepts `p_sale_item_ids` but ignores them; when ready the flow needs a schema change (`sale_items.is_cancelled` + `cancellation_id`), an RPC rewrite that prorates tax/discount, and re-partial-void handling.
+- [x] Payment methods config — already shipped at `/config/sales/payment` (list, toggle, add custom, remarks-only for custom methods).
+- [x] ~~Structured card fields on `payments`~~ — **dropped 2026-04-24.** Already structured: `card_type` (Visa/Master/Amex/Others), `approval_code` (= auth_code), `reference_no`, `trace_no`, `bank`, `months`. Renaming to `card_brand`/`auth_code` was churn; `card_last4` isn't captured by KumoDent either. Revisit only if a clinic asks for statement reconciliation.
+- [x] Unit tests on `collectPayment` happy path + rollback (per ARCHITECTURE §9) — **shipped 2026-04-24.** [lib/services/__tests__/sales.test.ts](../lib/services/__tests__/sales.test.ts) covers schema validation, happy path, DB-error → ValidationError mapping, null-return handling, and cap enforcement short-circuit. Also covers `voidSalesOrder` and `issueRefund`. Run via `pnpm test` or `npx vitest run`.
 
 ### A2. Appointments fixes — `docs/modules/02-appointments.md`
 - [ ] Outstanding appointment bugs from backlog (2026-04-15 entry)

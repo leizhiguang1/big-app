@@ -74,7 +74,10 @@ export function BrandConfigSection({ category, items }: Props) {
 			sortable: true,
 			sortValue: (r) => r.label,
 		},
-		{
+	];
+
+	if (!def.simple) {
+		columns.push({
 			key: "code",
 			header: "Code",
 			cell: (r) => (
@@ -84,8 +87,8 @@ export function BrandConfigSection({ category, items }: Props) {
 			),
 			sortable: true,
 			sortValue: (r) => r.code,
-		},
-	];
+		});
+	}
 
 	if (def.hasColor) {
 		columns.push({
@@ -106,8 +109,8 @@ export function BrandConfigSection({ category, items }: Props) {
 		});
 	}
 
-	columns.push(
-		{
+	if (!def.simple) {
+		columns.push({
 			key: "sort_order",
 			header: "Sort",
 			cell: (r) => (
@@ -119,7 +122,10 @@ export function BrandConfigSection({ category, items }: Props) {
 			sortValue: (r) => r.sort_order,
 			align: "right",
 			className: "w-20",
-		},
+		});
+	}
+
+	columns.push(
 		{
 			key: "is_active",
 			header: "Active",
@@ -192,7 +198,7 @@ export function BrandConfigSection({ category, items }: Props) {
 						data={items}
 						columns={columns}
 						getRowKey={(r) => r.id}
-						searchKeys={["label", "code"]}
+						searchKeys={def.simple ? ["label"] : ["label", "code"]}
 						emptyMessage={
 							def.codeEditable
 								? "No items yet. Click Add to create the first one."
@@ -221,7 +227,11 @@ export function BrandConfigSection({ category, items }: Props) {
 					open={!!deleting}
 					onOpenChange={(o) => !o && setDeleting(null)}
 					title={`Delete "${deleting.label}"?`}
-					description="If the item has been used on historical records, it will be archived instead (history rows still resolve via stored code)."
+					description={
+						def.simple
+							? "Past records keep their original wording. Removing this only stops it from showing up as a future option."
+							: "If the item has been used on historical records, it will be archived instead (history rows still resolve via stored code)."
+					}
 					confirmLabel="Delete"
 					pending={pending}
 					onConfirm={confirmDelete}

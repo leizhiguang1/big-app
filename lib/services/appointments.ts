@@ -1,6 +1,7 @@
 import type { Context } from "@/lib/context/types";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import {
+	appointmentCancelSchema,
 	appointmentFollowUpSchema,
 	appointmentInputSchema,
 	appointmentPaymentRemarkSchema,
@@ -454,6 +455,11 @@ export type CustomerTimelineAppointment = Appointment & {
 		first_name: string;
 		last_name: string;
 	} | null;
+	cancelled_by_employee: {
+		id: string;
+		first_name: string;
+		last_name: string;
+	} | null;
 };
 
 export async function listCustomerTimeline(
@@ -463,7 +469,7 @@ export async function listCustomerTimeline(
 	const { data, error } = await ctx.db
 		.from("appointments")
 		.select(
-			"*, outlet:outlets!appointments_outlet_id_fkey(id, name), room:rooms!appointments_room_id_fkey(id, name), employee:employees!appointments_employee_id_fkey(id, first_name, last_name)",
+			"*, outlet:outlets!appointments_outlet_id_fkey(id, name), room:rooms!appointments_room_id_fkey(id, name), employee:employees!appointments_employee_id_fkey(id, first_name, last_name), cancelled_by_employee:employees!appointments_cancelled_by_fkey(id, first_name, last_name)",
 		)
 		.eq("customer_id", customerId)
 		.order("start_at", { ascending: false });
@@ -471,12 +477,38 @@ export async function listCustomerTimeline(
 	return (data ?? []) as unknown as CustomerTimelineAppointment[];
 }
 
-export async function deleteAppointment(
+// Soft-cancel: row stays so the audit trail survives on the customer detail
+// timeline (and the status log picks up the → cancelled transition for free).
+// The `cancellation_reason` is brand-configurable — the cancel dialog pulls
+// its options from brand_config_items under category `reason.appointment_cancel`.
+export async function cancelAppointment(
 	ctx: Context,
 	id: string,
-): Promise<void> {
-	const { error } = await ctx.db.from("appointments").delete().eq("id", id);
+	input: unknown,
+): Promise<Appointment> {
+	const { reason } = appointmentCancelSchema.parse(input);
+	const { data: prev } = await ctx.db
+		.from("appointments")
+		.select("status")
+		.eq("id", id)
+		.single();
+	if (prev?.status === "cancelled")
+		throw new ValidationError("Appointment is already cancelled");
+	const { data, error } = await ctx.db
+		.from("appointments")
+		.update({
+			status: "cancelled",
+			cancelled_at: new Date().toISOString(),
+			cancelled_by: ctx.currentUser?.employeeId ?? null,
+			cancellation_reason: reason,
+		})
+		.eq("id", id)
+		.select("*")
+		.single();
 	if (error) throw new ValidationError(error.message);
+	if (!data) throw new NotFoundError(`Appointment ${id} not found`);
+	await logStatusChange(ctx, id, prev?.status ?? null, "cancelled");
+	return data;
 }
 
 // Convert a lead appointment into a real customer using the full customer

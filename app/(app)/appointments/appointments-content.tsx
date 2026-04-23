@@ -4,6 +4,7 @@ import { AppointmentsView } from "@/components/appointments/AppointmentsView";
 import { AppointmentConfigProvider } from "@/components/brand-config/AppointmentConfigProvider";
 import {
 	appointmentMatchesTypeFilter,
+	parsePaymentStatusParam,
 	parseStatusParam,
 	parseTypeParam,
 } from "@/lib/appointments/filters";
@@ -64,6 +65,7 @@ export async function AppointmentsContent({
 		eid?: string;
 		status?: string;
 		atype?: string;
+		pstatus?: string;
 	}>;
 }) {
 	const params = await searchParams;
@@ -114,6 +116,7 @@ export async function AppointmentsContent({
 
 	const statusFilter = parseStatusParam(params.status);
 	const typeFilter = parseTypeParam(params.atype);
+	const paymentStatusFilter = parsePaymentStatusParam(params.pstatus);
 
 	const range = monthGridRange(dateStr);
 
@@ -151,9 +154,18 @@ export async function AppointmentsContent({
 	const activeRooms = rooms.filter((r) => r.is_active);
 	const resourceFiltered = applyResourceFilter(appointmentsRaw, resource);
 	const appointments = resourceFiltered.filter((a) => {
-		if (statusFilter.length > 0 && !statusFilter.some((s) => s === a.status))
+		if (statusFilter.length > 0) {
+			if (!statusFilter.some((s) => s === a.status)) return false;
+		} else if (a.status === "cancelled") {
+			// Hide cancelled by default; opt back in via the Advanced Filter.
 			return false;
+		}
 		if (!appointmentMatchesTypeFilter(a, typeFilter)) return false;
+		if (
+			paymentStatusFilter.length > 0 &&
+			!paymentStatusFilter.some((p) => p === a.payment_status)
+		)
+			return false;
 		return true;
 	});
 
@@ -179,6 +191,7 @@ export async function AppointmentsContent({
 				resource={resource}
 				statusFilter={statusFilter}
 				typeFilter={typeFilter}
+				paymentStatusFilter={paymentStatusFilter}
 				appointments={appointments}
 				customers={customers}
 				employees={employees}

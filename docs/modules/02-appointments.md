@@ -25,17 +25,24 @@
 - `AppointmentsView` client shell owns display/scope state (persisted in `localStorage`); `monthGridRange` pre-fetch so scope/display switches are instant.
 
 **UI parked — intentional placeholders, not wired**
-- Floating action bar right-side icons: queue ticket, create-new-for-customer, add-to-queue, edit. (**Complete** *is* wired — it opens the confirm dialog → `CollectPaymentDialog`. **Cancel** is wired — hard-deletes the appointment with a confirmation dialog. **Revert** is wired — reverts a completed appointment back to pending.)
+- Floating action bar right-side icons: queue ticket, create-new-for-customer, add-to-queue, edit. (**Complete** *is* wired — it opens the confirm dialog → `CollectPaymentDialog`. **Cancel** is wired — soft-cancels the appointment with a brand-configurable reason via `CancelAppointmentDialog`; the row stays as `status='cancelled'` for the customer-detail timeline + status log audit trail. **Revert** is wired — reverts a completed appointment back to pending.)
 - Overview tab: **Status Change Log** is live — displays the `appointment_status_log` entries as a formatted timeline. Consumables and Hands-on Incentives are **live** — see §Overview tab cards below.
 - **BookingInfoCard** shows a "Sales Order → View invoice" link when the appointment has a linked SO (via `getSalesOrderForAppointment()`), linking to `/sales/[id]`.
 - `CollectPaymentDialog` parked controls: Itemised Allocation toggle, secondary staff avatars, Repeat Previous Items, Apply Auto Discount, Attachments card, Backdate Invoice toggle, Add Payment Type row, Reference / Tag fields. The dialog collects payments end-to-end today — these are UI-first stubs to be wired later. (The message-to-frontdesk textarea is now fully wired — see §Billing tab and `appointments.frontdesk_message`.)
 
 **Still pending**
-- Drag-to-reschedule (`rescheduleAppointment()` service method exists; HTML5 drag wiring TBD).
-- Advanced filters panel (status / payment / dentist / room). Search bar already shipped.
 - Recurring / repeat appointments.
 - Sound effects on status change.
 - Dental Assessment, Periodontal Charting, Camera tab content — Phase 2 clinical sub-modules.
+- Floating action bar: queue-ticket and add-to-queue icons remain "(coming soon)" stubs pending a queue module (not in scope).
+
+**Shipped since the 2026-04-15 doc snapshot (2026-04-24 sweep)**
+- Drag-to-reschedule — `AppointmentCard` is draggable; `DayView` + `WeekView` have 15-min-granular drop targets wired through `rescheduleAppointmentAction`. Optimistic update via React 19 `useOptimistic` auto-reverts on rejection. Success/failure toasts + a "not rostered" warning when the target window falls outside the employee's shift.
+- Advanced filter — payment status row (Unpaid / Partial / Paid) added alongside Appointment Type + Status, URL-driven via `?pstatus=`.
+- Status Change Log — `appointment_status_log` table live, `setAppointmentStatus()` inserts on every transition, `StatusChangeLogCard` renders the timeline on the Overview tab.
+- Walk-in create-inline — `AppointmentDialog` has a "New" button next to the customer search that opens `CustomerFormDialog` inline; new customer auto-selects. Lead mode + "Register as Customer" conversion both shipped.
+- Hands-on Incentives auto-default — `createLineItem` / `createLineItemsBulk` seed an incentive row using the appointment's `employee_id` (or `lead_attended_by_id`) on every new service line so staff only touches it when it differs.
+- Complete button gating — `pickCompletionPath` branches: no line items → direct complete; already paid → direct complete; services + unpaid → forces Collect Payment.
 
 ## Key shape rule — services don't drive the booking
 
@@ -151,7 +158,7 @@ Full-page route reached by clicking any appointment card on the calendar. Layout
 
 | Tab | Status | Content |
 |-----|--------|---------|
-| **Overview** | ✅ live | Two-column grid — left: `BookingInfoCard` + Status Change Log (placeholder) · right: `ConsumablesCard` + `HandsOnIncentivesCard` (both live). See screenshot `2.1 - Appointment Detail -  Overview.png`. |
+| **Overview** | ✅ live | Two-column grid — left: `BookingInfoCard` + `StatusChangeLogCard` (live, reads `appointment_status_log`) · right: `ConsumablesCard` + `HandsOnIncentivesCard` (both live). See screenshot `2.1 - Appointment Detail -  Overview.png`. |
 | **Case Notes** | ✅ live | `CaseNotesTab` — add/edit/delete notes for the current appointment. Sticky History panel on the left (see below). |
 | **Billing** | ✅ live | `BillingTab` wraps `BillingSection` — inline line-item editor (add, edit, delete) writing to `appointment_line_items`. Each row can be a **service** (from the services catalog) or a **product** (from sellable inventory items). The picker is `BillingItemPickerDialog`, a tabbed modal with Services / Products tabs (Laboratory / Vaccinations / Other Charges tabs are rendered disabled as "coming soon" placeholders). Sticky History panel on the left. |
 | **Dental Assessment** | ⏳ placeholder | Phase 2 clinical sub-module. |
@@ -162,7 +169,7 @@ Full-page route reached by clicking any appointment card on the calendar. Layout
 
 #### Overview tab cards
 
-- **Status Change Log (placeholder).** An audit trail of every `status` transition on this appointment with timestamp and actor. No storage for this yet. **Planned shape:** a dedicated `appointment_status_events` table — `(id, appointment_id, from_status, to_status, changed_by, changed_at, note)`, CASCADE on appointment delete, written by a Postgres trigger on `appointments` status change so the service layer can't forget. Chosen over JSONB-on-appointments because the Overview card wants to render a list, and because the same rows will feed reports later.
+- **Status Change Log (`StatusChangeLogCard`, live).** Audit trail of every `status` transition with timestamp and actor. Storage is the `appointment_status_log` table — `(id, appointment_id, from_status, to_status, changed_by, changed_at)` with CASCADE on appointment delete. Writes come from `setAppointmentStatus()` in [lib/services/appointments.ts](../../lib/services/appointments.ts); not via a Postgres trigger (service-layer-write was chosen over the earlier trigger-based plan because all status transitions already flow through `setAppointmentStatus` and the `collect_appointment_payment` RPC). Reads via `listStatusLogForAppointment()`.
 
 - **Consumables (`ConsumablesCard`, live, read-only).** Iterates every line item where `item_type = 'service'` and displays the `services.consumables` free-text field from the joined service catalog row. **Consumables are a property of the service, not a per-visit editable record.** There is no add/delete flow on the appointment side — if a service's consumables list changes, edit it in the Services module, not here. An earlier revision had a per-line child table (`appointment_line_item_consumables`) with add/edit UI; that was dropped after a reread of the requirements. If the appointment has no service line items, the card shows "Add services in the Billing tab first." If a service has no consumables text set, the card shows "No consumables defined on this service" under that line.
 
@@ -538,67 +545,69 @@ pending → confirmed → arrived → started → billing → completed
 | `completed` | Completed | ✔ | Paid + closed |
 | `noshow` | No Show | 🚫 | Didn't turn up |
 
-**No `cancelled` status** — it was removed in migration `appointments_drop_cancelled_status`. Cancellation is a hard delete with a recorded reason (see "Cancel appointment" workflow below). Transitions are manual (staff clicks a status pill); no auto-advance from time elapsing. Colours live in `lib/constants/appointment-status.ts` as Tailwind classes.
+**`cancelled` is a real status** (restored 2026-04-24 in `0084_appointments_soft_cancel`, after being briefly removed in `appointments_drop_cancelled_status`). Cancel is a soft action — the row stays so the customer detail timeline can render it and the status log keeps the `→ cancelled` transition. See "Cancel appointment" workflow below. Other transitions are manual (staff clicks a status pill); no auto-advance from time elapsing. Colours live in `lib/constants/appointment-status.ts` as Tailwind classes.
 
 **`completed` is write-locked from the status pill row and right-click submenu** (decided 2026-04-15). The only paths to `completed` are the `collect_appointment_payment` RPC (payment-driven) and the `markAppointmentCompleted()` service (line-items-empty or already-paid). The status pill for `completed` renders read-only — clicking it is a no-op. See "Complete appointment workflow" below.
 
-**`noshow` is not cancellation.** No-show means "booking was valid, customer didn't turn up" — the row stays, the booking ref stays, the history stays. Cancellation means "this booking should never have existed (or shouldn't now exist)" and the row goes away. Two different operations with two different UX entry points (status pill vs floating-bar Cancel).
+**`noshow` is not cancellation.** No-show means "booking was valid, customer didn't turn up". Cancellation means "the booking shouldn't happen (any more)". Both are soft — the row stays in either case, just under a different status. Two different operations with two different UX entry points (status pill vs floating-bar Cancel).
 
-### Workflow: Cancel + No-Show reschedule prompt (partial, 2026-04-18)
+### Workflow: Cancel appointment (soft, 2026-04-24)
 
-The Cancel button on the floating action bar now fires a three-option
-dialog (`ConfirmDialog` extended with `altLabel` / `onAlt`):
-
-- **Keep** — dismiss, no change
-- **Reschedule** — closes the prompt and opens the existing
-  `AppointmentDialog` in edit mode so staff can move the date/time/staff.
-  No separate reschedule form — editing the appointment is rescheduling.
-- **Cancel appointment** (destructive) — hard-delete via
-  `deleteAppointmentAction`.
-
-The No-Show pill in the `StatusProgressionRow` is gated by the same
-pattern: clicking it opens a ConfirmDialog offering Reschedule as the
-alt. If Reschedule is chosen the pill's status change is skipped — the
-appointment stays `pending` until the reschedule succeeds.
-
-Still planned (not built): capturing a cancellation reason + writing
-it to an `appointment_cancellations` audit table. See the original
-planned spec below.
-
-### Workflow: Cancel appointment (original planned spec)
-
-Triggered by the red 🚫 Cancel button on the floating action bar.
+Triggered by the red 🚫 Cancel button on the floating action bar (also
+from the right-click context menu in the calendar and the Delete button
+in `AppointmentDialog`). All three call sites open the same
+`CancelAppointmentDialog`:
 
 ```
 click Cancel
-  → Dialog A: "Reschedule this appointment instead?"   [Yes] [No]
-     ├─ Yes → Dialog B: reschedule form
-     │         fields: start_at, duration (minutes),
-     │                 outlet, employee, room, tag (single), remarks
-     │         on submit → updateAppointment() → toast → close
-     └─ No  → Dialog C: cancellation confirm
-                shows: customer/lead name, booking ref, date + time range,
-                       employee, room
-                field: cancel_reason select — required
-                  · clinic_close
-                  · customer_cancellation
-                  · doctor_not_available
-                  · incorrect_date_selected
-                  · wrong_creation
-                on submit → deleteAppointment(id, reason)
-                         → hard delete (CASCADE removes line items, incentives, case notes, status events)
-                         → toast "Appointment cancelled"
-                         → router.push('/appointments')
+  → CancelAppointmentDialog (centered shadcn Dialog)
+       reason  Select — required
+         options sourced live from brand_config_items where
+         category = 'reason.appointment_cancel'
+         (admin tab: Settings → Appointments → Cancel Reasons)
+       footer  [Reschedule instead] [Back] [Cancel appointment]
+  → cancelAppointmentAction(id, reason)
+       → cancelAppointment() service
+            UPDATE appointments
+              SET status = 'cancelled',
+                  cancelled_at = now(),
+                  cancelled_by = ctx.currentUser.employeeId,
+                  cancellation_reason = reason
+            INSERT appointment_status_log (from_status, to_status='cancelled', changed_by)
+       → revalidate /appointments, /appointments/[id], /customers/[customer_id]
+       → toast "Appointment cancelled"
 ```
 
-**No PIN required** for v1 — matches KumoDent. When PIN gating lands, this is an obvious candidate to add it to; the doc will be updated in one pass with all PIN-gated actions.
+The dialog stores the reason **label** (not the `code`) so historical
+rows still read naturally if a brand admin later renames or deletes
+the reason from their config. The `cancelled` status reuses the
+existing `appointment_status_log` audit table — no separate
+`appointment_cancellations` table was needed.
 
-**Storage of the cancellation reason.** The appointment row is hard-deleted, so the reason can't live on the row itself. Two options, pick when this lands:
+**Empty state.** When `brand_config_items` for `reason.appointment_cancel`
+is empty, the dialog shows a hint pointing staff to
+Settings → Appointments → Cancel Reasons and disables submit until
+at least one reason exists.
 
-1. A dedicated `appointment_cancellations` audit table keyed by the old `booking_ref` (not by FK, because the appointment row is gone) — preserves the full audit trail, survives `router.push`.
-2. Write to the status-events table (`appointment_status_events`) with a synthetic `to_status = 'cancelled'` entry **before** the delete, and CASCADE-delete it alongside.
+**Reschedule shortcut.** The dialog's "Reschedule instead" button
+closes the cancel flow and opens `AppointmentDialog` in edit mode —
+editing the appointment IS rescheduling, no separate reschedule form.
 
-Option 1 is the right call — cancellation data is exactly the kind of thing someone asks for three months later ("how many no-shows vs cancellations did we have in March?"), and losing it to a cascade delete would be embarrassing. Commit Option 1 when the feature is built.
+**Calendar / list visibility.** Cancelled appointments are hidden
+from the calendar and list views by default (`appointments-content.tsx`
+filters them out when no `?status=` is set). The Advanced Filter's
+Status section shows a `Cancelled` checkbox — ticking it adds the
+status to the URL filter and brings cancelled rows back into view.
+Default seed of the Advanced Filter ticks every status except
+`cancelled` to mirror the URL-empty default.
+
+**No PIN required** for v1 — matches the original spec. When PIN
+gating lands, this is an obvious candidate to add it to; the doc will
+be updated in one pass with all PIN-gated actions.
+
+**No hard-delete path remains.** Removing an appointment is always a
+cancel-with-reason. Accidental clicks are handled by adding a
+"Wrong Creation" reason to the brand config.
 
 ## Business Rules
 
@@ -754,7 +763,7 @@ These are risks we know about and are not fixing in Phase 1. Listed here so nobo
 
 - **Lead phone collisions on conversion.** `convertLeadToCustomer()` back-links every appointment sharing `lead_phone` + `customer_id IS NULL` to the newly-created customer. If two genuinely different walk-in leads share a phone (family member using the same number, shared office line), they will be merged into the wrong customer. No current mitigation; flagged as a known data-quality tradeoff. If this bites in practice, the fix is to narrow the backlink to "same phone AND same `lead_name` fuzzy-match" or to prompt the user at conversion time.
 - **Concurrent edits: last write wins.** Two staff opening the same appointment in different tabs and both hitting save will silently overwrite each other. Realtime broadcasts status changes (for the notification toasts) but not field-level updates. Acceptable for Phase 1; revisit with optimistic locking (`updated_at` as version) if we see real incidents.
-- **No authorisation on delete.** Any authenticated employee can hard-delete any appointment at any outlet. This is the general "permission gating is deferred" story from [01-auth.md](./01-auth.md) — not appointment-specific — but deletion has the highest blast radius of any action on this screen, so it's worth naming explicitly here. Will land with the permission-enforcement pass after all features are built.
+- **No authorisation on cancel.** Any authenticated employee can soft-cancel any appointment at any outlet. The reason + cancelled-by stamp is captured, and the row stays for audit, so blast radius is much smaller than the old hard-delete flow — but it still belongs in the permission-enforcement pass after all features are built.
 - **Cross-outlet access on the detail route.** Today any employee with a URL can open any appointment's detail page regardless of outlet. When `ctx.outletIds` starts being populated, the detail RSC should return a 404 (not redirect, not 403 — 404 avoids leaking existence) for appointments outside the user's outlets. Track this as part of the outlet-scoping pass.
 - **No per-visit consumables override.** Consumables are defined per service via the `service_inventory_items` junction and auto-deducted on Collect Payment. If a procedure actually used a different quantity (or a different item) than the template says, v1 has no way to record that — the deduction reflects the template. Acceptable for v1; a per-visit override table can land later if clinics complain.
 - **`appointments.follow_up` legacy column.** v1 shipped with a single freeform textarea stored on the appointment row. v2 will migrate this to `appointment_follow_ups` (see Follow Up tab above); until the migration runs, any old data stays in the legacy column and the new tab won't see it. Acceptable because v1 usage is expected to be thin.
@@ -831,20 +840,20 @@ lib/actions/sales.ts                  (collectAppointmentPaymentAction — used 
 
 ## Pending follow-ups
 
-- **Wire the Floating Action Bar placeholders** — queue ticket, new appointment, add to queue, edit.
-- **Build the Cancel appointment flow** — reschedule-or-delete branch, cancel-reason select, `appointment_cancellations` audit table (see "Cancel appointment" workflow). Wire the floating-bar Cancel button to this.
-- **Gate the Complete button on incentives coverage** — disable until every service line has ≥1 incentive assigned. See Floating Action Bar section.
+- **Floating Action Bar — Queue icons** — `Print queue ticket` and `Add to queue` remain "(coming soon)" stubs. Blocked on a Queue module that isn't in scope for Phase 1. `New appointment` (Plus) and `Edit` (Pencil) are wired; `Complete`, `Cancel`, `Revert` are wired.
+- **Cancel appointment flow** — soft-cancels via `CancelAppointmentDialog` with a brand-configurable reason (`reason.appointment_cancel` brand-config category). The row stays as `status='cancelled'` so it surfaces on the customer-detail timeline; the existing `appointment_status_log` table captures the transition for reporting without a dedicated `appointment_cancellations` table.
+- ~~**Gate the Complete button on incentives coverage**~~ — **dropped 2026-04-24.** Current `pickCompletionPath` gating (no line items OR already paid → direct; services + unpaid → forces Collect Payment) is what we actually want. Strict "every service line needs an incentive" was over-reach.
 - ~~**Consumables (v2)**~~ — **shipped 2026-04-17.** Free-text `services.consumables` column dropped; replaced by the `service_inventory_items` junction on the Services side. Service form has an item-picker + default-quantity editor; Collect Payment deducts stock per service line. Appointment-side `ConsumablesCard` is a read-only consumer.
-- **Hands-on Incentives (v2)** — auto-default the employee selection to the appointment's assigned employee (or `lead_attended_by`) so staff only has to touch it when it differs. Add the KumoDent "intended positions" advisory popup once `services.intended_positions text[]` exists. Wire to a Commission engine in Phase 2. **Complete-button gating is decided: the button is disabled until every service line has at least one incentive assigned** (see Floating Action Bar section above) — wire this as part of the Complete flow hardening.
-- **Status Change Log** — build the `appointment_status_events` table + trigger and wire the Overview card. Shape committed (see Overview cards section).
-- **Drag-to-reschedule** — service has `rescheduleAppointment()` ready; needs HTML5 drag wiring on `AppointmentCard` + drop targets in `DayView` / `WeekView`.
-- ~~**Advanced filters panel — status + type**~~ — **shipped 2026-04-23.** Sliders-icon popover on the filter bar with `Appointment Type` (Regular / Walk-in / Time Block) and `Status` (7 values) sections. URL-driven (`?status=`, `?atype=`), Reset/Apply buttons. See "Advanced filter" above.
-- **Advanced filters — extensions.** Additional filter dimensions deferred from the first pass:
-  - **`appointment_type` column (Normal / Boarding / Telehealth / Online Booking).** Needs schema work: add an `appointment_type` enum (or `text` with a CHECK), expose in `AppointmentDialog`, backfill existing rows to `Normal`. Then swap or append the checkboxes in `AppointmentsAdvancedFilter` — param name (`atype`) and filter plumbing already accommodate it. Also decide whether `Online Booking` is a type *or* a provenance field (separate `source` column). KumoDent treats it as a type; we may split it.
-  - **`Unconfirmed` and `Reschedule` statuses.** Not adding to the status filter until the product decision is made — `Unconfirmed` overlaps `Pending`, `Reschedule` is a transition not a resting state. If we add them, extend `APPOINTMENT_STATUSES` in `lib/constants/appointment-status.ts` and the filter picks them up for free.
-  - **Payment status filter.** `payment_status` is already on the row (`unpaid` / `partial` / `paid`). Add a third popover section and a `?pstatus=` URL param.
-  - **Dentist / employee and room filters.** Already expressible via the `Room / Staff` resource dropdown (single-select). If multi-select is wanted, bring those into the advanced-filter popover too.
-- **Walk-in customer create-inline** shortcut from inside `AppointmentDialog`.
+- ~~**Hands-on Incentives auto-default**~~ — **shipped 2026-04-24.** `createLineItem` / `createLineItemsBulk` seed an incentive row using the appointment's `employee_id` (or `lead_attended_by_id`) on every new service line. Deferred: KumoDent "intended positions" advisory popup (needs `services.intended_positions text[]`), commission engine (Phase 2).
+- ~~**Status Change Log**~~ — **shipped.** `appointment_status_log` table live, `StatusChangeLogCard` renders the timeline, writes driven by `setAppointmentStatus()`.
+- ~~**Drag-to-reschedule**~~ — **shipped.** `AppointmentCard` draggable, `DayView` + `WeekView` drop targets, optimistic update with auto-revert, success/failure toasts, "not rostered" warning variant. MonthView drop intentionally skipped (day-granularity UX unclear).
+- ~~**Advanced filters panel — status + type**~~ — **shipped 2026-04-23.** Sliders-icon popover with `Appointment Type` and `Status` sections.
+- ~~**Advanced filters — payment status**~~ — **shipped 2026-04-24.** Third section in the same popover, URL param `?pstatus=`, values `unpaid` / `partial` / `paid`.
+- **Advanced filters — extensions.** Remaining deferred:
+  - **`appointment_type` column (Normal / Boarding / Telehealth / Online Booking).** Needs schema work: add an `appointment_type` enum, expose in `AppointmentDialog`, backfill existing rows to `Normal`. Then extend `AppointmentsAdvancedFilter` — param name (`atype`) and filter plumbing already accommodate it.
+  - **`Unconfirmed` and `Reschedule` statuses.** Not adding to the status filter until the product decision is made — `Unconfirmed` overlaps `Pending`, `Reschedule` is a transition not a resting state.
+  - **Dentist / employee and room filters.** Already expressible via the `Room / Staff` resource dropdown (single-select). If multi-select is wanted, bring those into the popover too.
+- ~~**Walk-in customer create-inline**~~ — **shipped.** `AppointmentDialog` → `CustomerSection` has a "New" button beside the customer search that opens `CustomerFormDialog` inline; the new customer auto-selects. Lead mode + "Register as Customer" conversion both already shipped earlier.
 - **Recurring / repeat appointments** — net-new feature.
 - **Sound effects on status change** — behind a user-preference toggle.
 - **Dental Assessment / Periodontal Charting / Camera tab content** — Phase 2 clinical sub-modules.

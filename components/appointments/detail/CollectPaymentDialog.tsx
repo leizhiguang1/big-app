@@ -93,6 +93,7 @@ type Props = {
 	shifts: EmployeeShift[];
 	medicalCertificates?: MedicalCertificateWithRefs[];
 	billingSettings?: BillingSettings | null;
+	staffDiscountPercent: number;
 	onSuccess?: (result: {
 		sales_order_id: string;
 		so_number: string;
@@ -119,6 +120,7 @@ export function CollectPaymentDialog({
 	shifts,
 	medicalCertificates,
 	billingSettings,
+	staffDiscountPercent,
 	onSuccess,
 	onError,
 }: Props) {
@@ -142,6 +144,34 @@ export function CollectPaymentDialog({
 		lines: billing.lines,
 		entries,
 	});
+
+	const [staffDiscountApplied, setStaffDiscountApplied] = useState(false);
+
+	const isStaffCustomer = appointment.customer?.is_staff === true;
+	const canApplyStaffDiscount =
+		isStaffCustomer &&
+		billing.hasServiceLines &&
+		staffDiscountPercent > 0;
+
+	const handleApplyStaffDiscount = useCallback(() => {
+		billing.applyStaffDiscount(staffDiscountPercent);
+		setStaffDiscountApplied(true);
+	}, [billing, staffDiscountPercent]);
+
+	// Auto-apply the staff discount once when the dialog opens for a staff
+	// customer with service lines. Runs only on the open→true transition so
+	// re-renders don't keep clobbering manual edits.
+	useEffect(() => {
+		if (!open) {
+			setStaffDiscountApplied(false);
+			return;
+		}
+		if (canApplyStaffDiscount && !staffDiscountApplied) {
+			handleApplyStaffDiscount();
+		}
+		// We intentionally depend only on `open` so this fires once per open.
+		// biome-ignore lint/correctness/useExhaustiveDependencies: run-once on open
+	}, [open]);
 
 	const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 	const toggleExpanded = useCallback(
@@ -321,6 +351,22 @@ export function CollectPaymentDialog({
 
 	const amountValid = payments.totalPaid > 0;
 
+	// A payment row is "incomplete" if the user added it but didn't finish
+	// filling it in. These always block submit — either finish the row or
+	// remove it with the trash button.
+	const incompletePaymentRows = useMemo(
+		() =>
+			payments.payments.filter((p) => {
+				const v = Number(p.amount);
+				if (!Number.isFinite(v) || v <= 0) return true; // empty or zero amount
+				if (!p.mode.trim()) return true; // method not selected
+				if (!payments.methodByCode.get(p.mode)) return true; // unknown/inactive method
+				return false;
+			}),
+		[payments.payments, payments.methodByCode],
+	);
+	const hasIncompletePaymentRows = incompletePaymentRows.length > 0;
+
 	const missingMethodFieldRows = useMemo(
 		() =>
 			payments.payments.filter((p) => {
@@ -346,6 +392,7 @@ export function CollectPaymentDialog({
 		payAlloc.allocSumMismatch ||
 		empAlloc.globalAllocInvalid ||
 		empAlloc.itemizedInvalidLineIds.size > 0 ||
+		hasIncompletePaymentRows ||
 		hasMissingMethodFields;
 
 	const blockerReason = disabled
@@ -369,9 +416,11 @@ export function CollectPaymentDialog({
 											? `Employee allocation ${empAlloc.globalEmpSum.toFixed(0)}% ≠ 100%.`
 											: empAlloc.itemizedInvalidLineIds.size > 0
 												? `${empAlloc.itemizedInvalidLineIds.size} item(s) with invalid employee split.`
-												: hasMissingMethodFields
-													? "Fill the required payment-method field(s)."
-													: "Processing…"
+												: hasIncompletePaymentRows
+													? "Finish or remove the empty payment row."
+													: hasMissingMethodFields
+														? "Fill the required payment-method field(s)."
+														: "Processing…"
 		: null;
 
 	const handleSubmit = () => {
@@ -447,6 +496,21 @@ export function CollectPaymentDialog({
 		if (empAlloc.itemizedInvalidLineIds.size > 0) {
 			setFormError(
 				`${empAlloc.itemizedInvalidLineIds.size} item${empAlloc.itemizedInvalidLineIds.size > 1 ? "s" : ""} have employee allocations that don't sum to 100%.`,
+			);
+			return;
+		}
+		if (hasIncompletePaymentRows) {
+			setFormError(
+				"One or more payment rows are incomplete (missing amount or method). Finish the row or remove it with the trash icon.",
+			);
+			return;
+		}
+		if (hasMissingMethodFields) {
+			const missingMethod =
+				payments.methodByCode.get(missingMethodFieldRows[0]?.mode ?? "")?.name ??
+				"selected method";
+			setFormError(
+				`The ${missingMethod} payment row is missing a required field. Fill the field(s) marked with *.`,
 			);
 			return;
 		}
@@ -686,12 +750,28 @@ export function CollectPaymentDialog({
 								</button>
 								<button
 									type="button"
-									disabled
-									className="flex items-center gap-2 text-muted-foreground disabled:opacity-50"
-									title="Coming soon"
+									disabled={!canApplyStaffDiscount}
+									onClick={handleApplyStaffDiscount}
+									className="flex items-center gap-2 text-blue-600 hover:underline disabled:text-muted-foreground disabled:no-underline disabled:opacity-50"
+									title={
+										!isStaffCustomer
+											? "Customer is not flagged as staff"
+											: !billing.hasServiceLines
+												? "Add a service line first"
+												: staffDiscountApplied
+													? `Staff ${staffDiscountPercent}% applied. Click to reapply.`
+													: `Apply staff ${staffDiscountPercent}% discount to all service lines`
+									}
 								>
 									<Percent className="size-4" />
-									Apply Auto Discount to Cart Items?
+									{staffDiscountApplied
+										? `Staff ${staffDiscountPercent}% applied`
+										: "Apply Auto Discount to Cart Items?"}
+									{staffDiscountApplied && (
+										<span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+											ON
+										</span>
+									)}
 								</button>
 							</div>
 
@@ -728,7 +808,6 @@ export function CollectPaymentDialog({
 							paymentMethods={paymentMethods}
 							methodByCode={payments.methodByCode}
 							total={rounding.total}
-							isOverpaid={payments.isOverpaid}
 							onChangeMethod={payments.changePaymentMethod}
 							onUpdatePayment={payments.updatePayment}
 							onRemovePayment={payments.removePaymentEntry}

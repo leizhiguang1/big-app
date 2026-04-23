@@ -286,6 +286,9 @@ export type Database = {
           arrived_at: string | null
           block_title: string | null
           booking_ref: string
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           completed_at: string | null
           created_at: string
           created_by: string | null
@@ -316,6 +319,9 @@ export type Database = {
           arrived_at?: string | null
           block_title?: string | null
           booking_ref?: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
@@ -346,6 +352,9 @@ export type Database = {
           arrived_at?: string | null
           block_title?: string | null
           booking_ref?: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
@@ -373,6 +382,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "appointments_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "appointments_created_by_fkey"
             columns: ["created_by"]
@@ -2055,10 +2071,11 @@ export type Database = {
         Row: {
           admin_fee: number
           amount: number
-          cancellation_id: string
+          cancellation_id: string | null
           created_at: string
           id: string
           include_admin_fee: boolean
+          notes: string | null
           outlet_id: string
           processed_by: string | null
           refund_method: string | null
@@ -2070,10 +2087,11 @@ export type Database = {
         Insert: {
           admin_fee?: number
           amount?: number
-          cancellation_id: string
+          cancellation_id?: string | null
           created_at?: string
           id?: string
           include_admin_fee?: boolean
+          notes?: string | null
           outlet_id: string
           processed_by?: string | null
           refund_method?: string | null
@@ -2085,10 +2103,11 @@ export type Database = {
         Update: {
           admin_fee?: number
           amount?: number
-          cancellation_id?: string
+          cancellation_id?: string | null
           created_at?: string
           id?: string
           include_admin_fee?: boolean
+          notes?: string | null
           outlet_id?: string
           processed_by?: string | null
           refund_method?: string | null
@@ -3481,6 +3500,16 @@ export type Database = {
         Returns: string
       }
       gen_customer_code: { Args: { p_outlet_id: string }; Returns: string }
+      issue_refund: {
+        Args: {
+          p_amount: number
+          p_notes: string
+          p_processed_by: string
+          p_refund_method: string
+          p_sales_order_id: string
+        }
+        Returns: Json
+      }
       redeem_passcode: {
         Args: {
           p_applied_on: string
@@ -3743,4 +3772,3 @@ export const Constants = {
     },
   },
 } as const
-

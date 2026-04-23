@@ -7,6 +7,7 @@ import {
 	ThumbsUp,
 	UserCheck,
 	UserX,
+	XCircle,
 } from "lucide-react";
 
 export const APPOINTMENT_STATUSES = [
@@ -17,6 +18,7 @@ export const APPOINTMENT_STATUSES = [
 	"noshow",
 	"billing",
 	"completed",
+	"cancelled",
 ] as const;
 
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
@@ -100,6 +102,15 @@ export const APPOINTMENT_STATUS_CONFIG: Record<
 		dot: "bg-gray-400",
 		text: "text-gray-700",
 		solidHex: "#9ca3af",
+	},
+	cancelled: {
+		label: "Cancelled",
+		Icon: XCircle,
+		border: "border-rose-400",
+		badge: "bg-rose-100 text-rose-700 ring-1 ring-rose-300",
+		dot: "bg-rose-500",
+		text: "text-rose-700",
+		solidHex: "#f43f5e",
 	},
 };
 

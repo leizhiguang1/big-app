@@ -74,6 +74,46 @@ export async function listLineItemsForCustomer(
 	);
 }
 
+async function resolveDefaultIncentiveEmployee(
+	ctx: Context,
+	appointmentId: string,
+): Promise<string | null> {
+	const { data } = await ctx.db
+		.from("appointments")
+		.select("employee_id, lead_attended_by_id")
+		.eq("id", appointmentId)
+		.maybeSingle();
+	return data?.employee_id ?? data?.lead_attended_by_id ?? null;
+}
+
+async function seedDefaultIncentives(
+	ctx: Context,
+	lineItems: AppointmentLineItem[],
+): Promise<void> {
+	const serviceLines = lineItems.filter((i) => i.item_type === "service");
+	if (serviceLines.length === 0) return;
+	const appointmentIds = Array.from(
+		new Set(serviceLines.map((i) => i.appointment_id)),
+	);
+	const defaults = new Map<string, string | null>();
+	await Promise.all(
+		appointmentIds.map(async (id) => {
+			defaults.set(id, await resolveDefaultIncentiveEmployee(ctx, id));
+		}),
+	);
+	const rows = serviceLines
+		.map((i) => {
+			const emp = defaults.get(i.appointment_id);
+			return emp ? { line_item_id: i.id, employee_id: emp } : null;
+		})
+		.filter((r): r is { line_item_id: string; employee_id: string } => !!r);
+	if (rows.length === 0) return;
+	const createdBy = ctx.currentUser?.employeeId ?? null;
+	await ctx.db
+		.from("appointment_line_item_incentives")
+		.insert(rows.map((r) => ({ ...r, created_by: createdBy })));
+}
+
 export async function createLineItem(
 	ctx: Context,
 	input: unknown,
@@ -89,6 +129,7 @@ export async function createLineItem(
 		.select("*")
 		.single();
 	if (error) throw new ValidationError(error.message);
+	await seedDefaultIncentives(ctx, [data]);
 	return data;
 }
 
@@ -109,7 +150,9 @@ export async function createLineItemsBulk(
 		.insert(rows)
 		.select("*");
 	if (error) throw new ValidationError(error.message);
-	return data ?? [];
+	const created = data ?? [];
+	await seedDefaultIncentives(ctx, created);
+	return created;
 }
 
 export async function updateLineItem(

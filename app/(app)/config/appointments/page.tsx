@@ -1,4 +1,5 @@
 import { AppointmentTagTab } from "@/components/config/appointments/AppointmentTagTab";
+import { CancelReasonsTab } from "@/components/config/appointments/CancelReasonsTab";
 import { OnlineBookingTab } from "@/components/config/appointments/OnlineBookingTab";
 import { QueueDisplayTab } from "@/components/config/appointments/QueueDisplayTab";
 import { SettingsTab } from "@/components/config/appointments/SettingsTab";
@@ -29,11 +30,13 @@ export default async function AppointmentsPage({ searchParams }: PageProps) {
 			{active.key === "settings" && <SettingsTab />}
 			{active.key === "online-booking" && <OnlineBookingTab />}
 			{active.key === "appointment-tag" && <AppointmentTagTab />}
+			{active.key === "cancel-reasons" && <CancelReasonsTab />}
 			{active.key === "queue-display" && <QueueDisplayTab />}
 			{![
 				"settings",
 				"online-booking",
 				"appointment-tag",
+				"cancel-reasons",
 				"queue-display",
 			].includes(active.key) && <ComingSoonCard sectionLabel={active.label} />}
 		</>

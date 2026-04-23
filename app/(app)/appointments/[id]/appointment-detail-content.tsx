@@ -20,6 +20,7 @@ import {
 } from "@/lib/services/appointments";
 import { getBillingSettings } from "@/lib/services/billing-settings";
 import { listAppointmentTags } from "@/lib/services/brand-config";
+import { getBrandSetting } from "@/lib/services/brand-settings";
 import {
 	type CaseNoteWithContext,
 	listCaseNotesWithContext,
@@ -110,6 +111,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 		medicalCertificates,
 		billingSettings,
 		brandTags,
+		staffDiscountPercent,
 	] = await Promise.all([
 		listLineItemsForAppointment(ctx, id),
 		listIncentivesForAppointment(ctx, id),
@@ -137,6 +139,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 		listMedicalCertificatesForAppointment(ctx, id),
 		getBillingSettings(ctx),
 		listAppointmentTags(ctx),
+		getBrandSetting(ctx, "billing.staff_discount_percent"),
 	]);
 
 	const activeOutlets = outlets.filter((o) => o.is_active);
@@ -169,6 +172,7 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 				paymentMethods={paymentMethods}
 				medicalCertificates={medicalCertificates}
 				billingSettings={billingSettings}
+				staffDiscountPercent={staffDiscountPercent}
 			/>
 		</AppointmentConfigProvider>
 	);

@@ -1,6 +1,14 @@
 "use client";
 
-import { Ban, SlidersHorizontal, User, UserPlus } from "lucide-react";
+import {
+	Ban,
+	CircleCheck,
+	CircleSlash,
+	PiggyBank,
+	SlidersHorizontal,
+	User,
+	UserPlus,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,7 +18,9 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+	APPOINTMENT_PAYMENT_STATUSES,
 	APPOINTMENT_TYPE_FILTERS,
+	type AppointmentPaymentStatus,
 	type AppointmentTypeFilter,
 } from "@/lib/appointments/filters";
 import {
@@ -29,35 +39,72 @@ const TYPE_FILTER_LABEL: Record<
 	timeblock: { label: "Time Block", Icon: Ban },
 };
 
+const PAYMENT_STATUS_LABEL: Record<
+	AppointmentPaymentStatus,
+	{ label: string; Icon: typeof User; color: string }
+> = {
+	unpaid: {
+		label: "Unpaid",
+		Icon: CircleSlash,
+		color: "#dc2626",
+	},
+	partial: {
+		label: "Partial",
+		Icon: PiggyBank,
+		color: "#d97706",
+	},
+	paid: {
+		label: "Paid",
+		Icon: CircleCheck,
+		color: "#16a34a",
+	},
+};
+
 type Props = {
 	statuses: AppointmentStatus[];
 	types: AppointmentTypeFilter[];
+	paymentStatuses: AppointmentPaymentStatus[];
 	onApply: (next: {
 		statuses: AppointmentStatus[];
 		types: AppointmentTypeFilter[];
+		paymentStatuses: AppointmentPaymentStatus[];
 	}) => void;
 };
 
 export function AppointmentsAdvancedFilter({
 	statuses,
 	types,
+	paymentStatuses,
 	onApply,
 }: Props) {
 	const [open, setOpen] = useState(false);
 	const [draftStatuses, setDraftStatuses] =
 		useState<AppointmentStatus[]>(statuses);
 	const [draftTypes, setDraftTypes] = useState<AppointmentTypeFilter[]>(types);
+	const [draftPayments, setDraftPayments] =
+		useState<AppointmentPaymentStatus[]>(paymentStatuses);
 
 	useEffect(() => {
 		if (open) {
+			// Default visual seed mirrors what the server actually shows when no
+			// filter is active: every status except `cancelled`. Cancelled is
+			// hidden by default; the user opts in by ticking the checkbox.
 			setDraftStatuses(
-				statuses.length > 0 ? statuses : [...APPOINTMENT_STATUSES],
+				statuses.length > 0
+					? statuses
+					: APPOINTMENT_STATUSES.filter((s) => s !== "cancelled"),
 			);
 			setDraftTypes(types.length > 0 ? types : [...APPOINTMENT_TYPE_FILTERS]);
+			setDraftPayments(
+				paymentStatuses.length > 0
+					? paymentStatuses
+					: [...APPOINTMENT_PAYMENT_STATUSES],
+			);
 		}
-	}, [open, statuses, types]);
+	}, [open, statuses, types, paymentStatuses]);
 
-	const activeCount = statuses.length + types.length;
+	const activeCount =
+		statuses.length + types.length + paymentStatuses.length;
 	const active = activeCount > 0;
 
 	const toggleStatus = (s: AppointmentStatus) => {
@@ -72,19 +119,35 @@ export function AppointmentsAdvancedFilter({
 		);
 	};
 
+	const togglePayment = (p: AppointmentPaymentStatus) => {
+		setDraftPayments((prev) =>
+			prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p],
+		);
+	};
+
 	const handleReset = () => {
 		setDraftStatuses([]);
 		setDraftTypes([]);
-		onApply({ statuses: [], types: [] });
+		setDraftPayments([]);
+		onApply({ statuses: [], types: [], paymentStatuses: [] });
 		setOpen(false);
 	};
 
 	const handleApply = () => {
-		const allStatuses = draftStatuses.length === APPOINTMENT_STATUSES.length;
+		// "All non-cancelled ticked" matches the URL-empty default — collapse
+		// it back to no `status=` param. Picking everything (incl. cancelled)
+		// is a real filter and stays explicit.
+		const nonCancelled = APPOINTMENT_STATUSES.filter((s) => s !== "cancelled");
+		const matchesDefault =
+			draftStatuses.length === nonCancelled.length &&
+			nonCancelled.every((s) => draftStatuses.includes(s));
 		const allTypes = draftTypes.length === APPOINTMENT_TYPE_FILTERS.length;
+		const allPayments =
+			draftPayments.length === APPOINTMENT_PAYMENT_STATUSES.length;
 		onApply({
-			statuses: allStatuses ? [] : draftStatuses,
+			statuses: matchesDefault ? [] : draftStatuses,
 			types: allTypes ? [] : draftTypes,
+			paymentStatuses: allPayments ? [] : draftPayments,
 		});
 		setOpen(false);
 	};
@@ -153,6 +216,32 @@ export function AppointmentsAdvancedFilter({
 								onToggle={() => toggleStatus(s)}
 							/>
 						))}
+					</div>
+
+					<div className="mt-2 mb-1 border-t pt-2 text-[11px] font-semibold text-foreground">
+						Payment
+					</div>
+					<div className="flex flex-col gap-1.5 pb-1">
+						{APPOINTMENT_PAYMENT_STATUSES.map((p) => {
+							const { label, Icon, color } = PAYMENT_STATUS_LABEL[p];
+							const checked = draftPayments.includes(p);
+							const id = `filter-payment-${p}`;
+							return (
+								<label
+									key={p}
+									htmlFor={id}
+									className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-muted"
+								>
+									<Checkbox
+										id={id}
+										checked={checked}
+										onCheckedChange={() => togglePayment(p)}
+									/>
+									<Icon className="size-3.5" style={{ color }} />
+									<span className="text-xs">{label}</span>
+								</label>
+							);
+						})}
 					</div>
 				</div>
 				<div className="flex items-center justify-end gap-2 border-t bg-muted/40 px-3 py-2">

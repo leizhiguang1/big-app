@@ -121,9 +121,16 @@ export function AppointmentCard({
 	const firstTag = a.tags?.[0];
 	const tagCfg = useAppointmentTag(firstTag);
 
-	const paymentKey =
-		!isBlock && !isLead ? (a.payment_status as PaymentStatus) : null;
+	const showPaymentStatus =
+		!isBlock &&
+		!isLead &&
+		(statusKey === "billing" || statusKey === "completed");
+	const paymentKey = showPaymentStatus
+		? (a.payment_status as PaymentStatus)
+		: null;
 	const paymentCfg = paymentKey ? PAYMENT_STATUS_CONFIG[paymentKey] : null;
+	const showPaymentLabel =
+		typeof styleHeight !== "number" || styleHeight >= 30;
 
 	const bg = isBlock ? "#cbd5e1" : tagCfg ? tagCfg.bg : "#ffffff";
 	const borderColor = isBlock ? "#475569" : sc.solidHex;
@@ -206,17 +213,28 @@ export function AppointmentCard({
 			>
 				{!isBlock && (
 					<div className="absolute top-1 right-1 flex items-center gap-1">
-						{paymentCfg && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span
-										aria-label={paymentCfg.label}
-										className={cn("size-1.5 rounded-full", paymentCfg.dot)}
-									/>
-								</TooltipTrigger>
-								<TooltipContent>{paymentCfg.label}</TooltipContent>
-							</Tooltip>
-						)}
+						{paymentCfg &&
+							(showPaymentLabel ? (
+								<span
+									aria-label={paymentCfg.label}
+									className={cn(
+										"rounded-sm px-1 py-[1px] text-[9px] font-bold uppercase leading-none tracking-wide",
+										paymentCfg.badge,
+									)}
+								>
+									{paymentCfg.label}
+								</span>
+							) : (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<span
+											aria-label={paymentCfg.label}
+											className={cn("size-1.5 rounded-full", paymentCfg.dot)}
+										/>
+									</TooltipTrigger>
+									<TooltipContent>{paymentCfg.label}</TooltipContent>
+								</Tooltip>
+							))}
 						<sc.Icon
 							aria-label={sc.label}
 							className="size-[14px] shrink-0"

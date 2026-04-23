@@ -2,6 +2,29 @@
 
 > Status: v1 complete — Collect Payment RPC, Sales dashboard (Summary + Sales + Payment + Cancelled tabs), SO detail view, passcode-gated cancellation with full side-effect unwind, printable invoice route, and bidirectional appointment↔sales linking all shipped.
 
+## Standalone refund (tracking-only, 2026-04-24)
+
+A lightweight "just log it" refund that sits alongside the full-void flow. Scenario: customer paid for a service, we're giving RM50 back as goodwill / overpayment / lab-fee-not-rendered. The SO stays completed, no inventory moves, no money moves through the app — the row exists so reception can reconcile against the till or card terminal at end of day.
+
+**Schema** (migration `0085_refund_notes_standalone_refund`):
+- `refund_notes.cancellation_id` → **nullable**. Standalone refunds insert with NULL; void-triggered refunds still pair with a cancellation as before.
+- `refund_notes.notes text` → free-text reason column.
+- `issue_refund(p_sales_order_id, p_amount, p_refund_method, p_notes, p_processed_by)` RPC — validates amount is positive and ≤ SO.total, rejects cancelled/voided SOs, inserts one `refund_notes` row, returns `{ rn_id, rn_number, amount, sales_order_id }`. SECURITY DEFINER. Does NOT touch SO status, amount_paid, or inventory.
+
+**Service** ([lib/services/sales.ts](../../lib/services/sales.ts)): `issueRefund(ctx, salesOrderId, input)` mirrors the `voidSalesOrder` shape. `listRefundNotesForOrder(ctx, salesOrderId)` joins `processed_by` into `RefundNoteWithRefs` for the SO detail UI.
+
+**Schema** ([lib/schemas/sales.ts](../../lib/schemas/sales.ts)): `issueRefundInputSchema` — `{ amount: positive number, refund_method: string (min 1), notes?: string (max 500) }`.
+
+**Action** ([lib/actions/sales.ts](../../lib/actions/sales.ts)): `issueRefundAction(salesOrderId, input)` — server action, revalidates `/sales`, `/sales/[id]`, `/appointments`. Under 10 lines.
+
+**UI**:
+- New [components/sales/IssueRefundDialog.tsx](../../components/sales/IssueRefundDialog.tsx) — single-step dialog: Amount (capped at order total), Refund method (fed by `listActivePaymentMethodsAction`), Notes (optional). Amber submit button (distinct from red Void).
+- Refund button on [SalesOrderDetailView.tsx](../../components/sales/SalesOrderDetailView.tsx) header (visible when `order.status === 'completed'`), next to Void.
+- Refund button mirrored in [SalesOrderDetailDialog.tsx](../../components/sales/SalesOrderDetailDialog.tsx) footer.
+- Refunds history — compact list on both the SO detail page and the SO detail dialog's right panel. Each row shows RN#, date, amount (negative, amber), method, notes, and a "Standalone" badge when `cancellation_id IS NULL`.
+
+**Deliberate non-goals** — no passcode gating, no admin-fee field, no effect on `sales_orders.amount_paid` / `outstanding`, no new `/sales` tab. Partial-item selection remains a separate A1 item (the `void_sales_order` RPC currently ignores `p_sale_item_ids`, which is its own follow-up).
+
 ## Void sales order — prototype-parity flow (2026-04-21)
 
 The 2026-04-20 single-step "Cancel" was upgraded to match the reference
@@ -192,6 +215,7 @@ What actually exists in code as of migration `0048_cancellations`:
 - [components/appointments/detail/CollectPaymentDialog.tsx](../../components/appointments/detail/CollectPaymentDialog.tsx)
 - Two-column dialog patterned after the reference prototype's Collect Payment modal.
 - Left column: remarks card, line-items list (fed from `appointment_line_items`), Discount / Total / Cash / Balance / Require Rounding toggle. **Discount is per-line**: each row has a compact input with a `% | RM` segmented toggle. On blur, the input is clamped against the line's service cap (`services.discount_cap`) and to the line total; a `Max N% (RM X.XX)` hint sits next to the input when a cap is set. The totals panel's "Discount" row is the sum of all line discounts — there is no separate order-level discount input.
+- **Staff auto-discount (2026-04-24).** When the appointment's customer has `customers.is_staff = true`, Collect Payment **auto-applies** the `billing.staff_discount_percent` brand setting (default 10%) to every service line **on dialog open**. Per-service `discount_cap` still clamps — a 10% staff rate on a service with a 5% cap applies 5%. The "Apply Auto Discount to Cart Items?" button remains as a manual reapply option (useful if staff cleared the discounts and want to restore them). Button is disabled when the customer is not staff, when there are no service lines, or when the configured percent is 0. When active it flips to "Staff N% applied" with an emerald "ON" chip. State resets on dialog close. The 10% comes from the brand setting, **not** a per-customer override — the customer record only carries the `is_staff` flag.
 - Right column: Attachments placeholder card, Payment section (backdate toggle, payment-method select, amount input, method-specific fields, SO remarks, add-payment-type link), "This sale will be created at <outlet>" footer, large green confirm button, message-to-frontdesk textarea.
 - **Payment block is field-driven** (2026-04-17). Method dropdown is fed from `listActivePaymentMethods`. Each `PaymentEntry` row renders fields per the selected method's `requires_*` flags — bank / card type / months as `<select>` from hardcoded constants in [lib/constants/payment-fields.ts](../../lib/constants/payment-fields.ts), everything else as `<Input>`. Switching method wipes previously entered values (old values don't belong to the new method). Up to 5 payment entries (split tender) supported.
 - Launched from [AppointmentActionBar](../../components/appointments/detail/AppointmentActionBar.tsx) → `ConfirmDialog` → `CollectPaymentDialog`.

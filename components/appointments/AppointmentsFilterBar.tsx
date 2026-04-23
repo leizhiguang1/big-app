@@ -38,7 +38,10 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { ColumnKey } from "@/lib/appointments/columns";
-import type { AppointmentTypeFilter } from "@/lib/appointments/filters";
+import type {
+	AppointmentPaymentStatus,
+	AppointmentTypeFilter,
+} from "@/lib/appointments/filters";
 import {
 	type DisplayStyle,
 	type ResourceMode,
@@ -105,6 +108,7 @@ type Props = {
 	employees: RosterEmployee[];
 	statusFilter: AppointmentStatus[];
 	typeFilter: AppointmentTypeFilter[];
+	paymentStatusFilter: AppointmentPaymentStatus[];
 	columnOrder: ColumnKey[];
 	visibleColumns: ColumnKey[];
 	onDisplayChange: (next: DisplayStyle) => void;
@@ -123,6 +127,7 @@ export function AppointmentsFilterBar({
 	employees,
 	statusFilter,
 	typeFilter,
+	paymentStatusFilter,
 	columnOrder,
 	visibleColumns,
 	onDisplayChange,
@@ -470,14 +475,17 @@ export function AppointmentsFilterBar({
 				/>
 			)}
 
-			{/* Advanced filter (status + type) */}
+			{/* Advanced filter (status + type + payment) */}
 			<AppointmentsAdvancedFilter
 				statuses={statusFilter}
 				types={typeFilter}
-				onApply={({ statuses, types }) => {
+				paymentStatuses={paymentStatusFilter}
+				onApply={({ statuses, types, paymentStatuses }) => {
 					navigate({
 						status: statuses.length > 0 ? statuses.join(",") : null,
 						atype: types.length > 0 ? types.join(",") : null,
+						pstatus:
+							paymentStatuses.length > 0 ? paymentStatuses.join(",") : null,
 					});
 				}}
 			/>
