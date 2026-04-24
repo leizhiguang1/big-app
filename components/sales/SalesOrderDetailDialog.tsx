@@ -3,8 +3,10 @@
 import { Ban, Pencil, Receipt, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ChangePaymentMethodDialog } from "@/components/sales/ChangePaymentMethodDialog";
 import { CustomerIdentityCard } from "@/components/customers/CustomerIdentityCard";
 import { IssueRefundDialog } from "@/components/sales/IssueRefundDialog";
+import { ReallocatePaymentsEditor } from "@/components/sales/ReallocatePaymentsEditor";
 import { VoidSalesOrderDialog } from "@/components/sales/VoidSalesOrderDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,7 @@ import {
 	type SalesOrderDetailResult,
 } from "@/lib/actions/sales";
 import type {
+	PaymentAllocationForOrder,
 	PaymentWithProcessedBy,
 	RefundNoteWithRefs,
 	SaleItem,
@@ -49,6 +52,7 @@ type LoadState =
 			items: SaleItem[];
 			payments: PaymentWithProcessedBy[];
 			refundNotes: RefundNoteWithRefs[];
+			allocations: PaymentAllocationForOrder[];
 	  }
 	| { status: "not_found" }
 	| { status: "error"; message: string };
@@ -115,16 +119,25 @@ export function SalesOrderDetailDialog({
 	const [state, setState] = useState<LoadState>({ status: "idle" });
 	const [voidOpen, setVoidOpen] = useState(false);
 	const [refundOpen, setRefundOpen] = useState(false);
+	const [changeMethodPayment, setChangeMethodPayment] =
+		useState<PaymentWithProcessedBy | null>(null);
+	const [reallocMode, setReallocMode] = useState(false);
 	const [feedback, setFeedback] = useState<{
 		type: "success" | "error";
 		message: string;
 	} | null>(null);
 	const [_reloadKey, setReloadKey] = useState(0);
 
+	const reload = () => {
+		setReloadKey((k) => k + 1);
+		router.refresh();
+	};
+
 	useEffect(() => {
 		if (!open || !salesOrderId) {
 			setState({ status: "idle" });
 			setFeedback(null);
+			setReallocMode(false);
 			return;
 		}
 		let cancelled = false;
@@ -144,6 +157,7 @@ export function SalesOrderDetailDialog({
 					items: res.items,
 					payments: res.payments,
 					refundNotes: res.refundNotes,
+					allocations: res.allocations,
 				});
 			})
 			.catch((err) => {
@@ -163,6 +177,8 @@ export function SalesOrderDetailDialog({
 		order !== null &&
 		(order.status === "completed" || order.status === "draft");
 	const canRefund = order !== null && order.status === "completed";
+	const isCancelled = order?.status === "cancelled";
+	const appointmentRef = order?.appointment?.booking_ref ?? null;
 
 	return (
 		<>
@@ -214,11 +230,32 @@ export function SalesOrderDetailDialog({
 						)}
 						{state.status === "ready" && (
 							<TooltipProvider delayDuration={200}>
-								<LeftPanel order={state.order} items={state.items} />
+								<LeftPanel
+									order={state.order}
+									items={state.items}
+									payments={state.payments}
+									allocations={state.allocations}
+									appointmentRef={appointmentRef}
+									canReallocate={
+										!isCancelled && state.payments.length > 0
+									}
+									reallocMode={reallocMode}
+									onReallocToggle={() => setReallocMode((m) => !m)}
+									onReallocSuccess={(msg) => {
+										setFeedback({ type: "success", message: msg });
+										setReallocMode(false);
+										reload();
+									}}
+									onReallocError={(msg) =>
+										setFeedback({ type: "error", message: msg })
+									}
+								/>
 								<RightPanel
 									order={state.order}
 									payments={state.payments}
 									refundNotes={state.refundNotes}
+									isCancelled={isCancelled}
+									onChangeMethod={setChangeMethodPayment}
 								/>
 							</TooltipProvider>
 						)}
@@ -330,6 +367,20 @@ export function SalesOrderDetailDialog({
 						}}
 						onError={(msg) => setFeedback({ type: "error", message: msg })}
 					/>
+					<ChangePaymentMethodDialog
+						open={changeMethodPayment != null}
+						onOpenChange={(v) => {
+							if (!v) setChangeMethodPayment(null);
+						}}
+						salesOrderId={state.order.id}
+						appointmentRef={appointmentRef}
+						payment={changeMethodPayment}
+						onSuccess={(msg) => {
+							setFeedback({ type: "success", message: msg });
+							reload();
+						}}
+						onError={(msg) => setFeedback({ type: "error", message: msg })}
+					/>
 				</>
 			)}
 		</>
@@ -353,9 +404,25 @@ function LoadingSkeleton() {
 function LeftPanel({
 	order,
 	items,
+	payments,
+	allocations,
+	appointmentRef,
+	canReallocate,
+	reallocMode,
+	onReallocToggle,
+	onReallocSuccess,
+	onReallocError,
 }: {
 	order: SalesOrderWithRelations;
 	items: SaleItem[];
+	payments: PaymentWithProcessedBy[];
+	allocations: PaymentAllocationForOrder[];
+	appointmentRef: string | null;
+	canReallocate: boolean;
+	reallocMode: boolean;
+	onReallocToggle: () => void;
+	onReallocSuccess: (message: string) => void;
+	onReallocError: (message: string) => void;
 }) {
 	const consultantName = order.consultant
 		? fullName(order.consultant.first_name, order.consultant.last_name)
@@ -383,18 +450,41 @@ function LeftPanel({
 						fallbackLabel="Walk-in"
 					/>
 					<div className="flex flex-wrap gap-2">
-						<PlaceholderPill tooltip="Payment reallocation — Phase 2">
-							Enable Payment Reallocation
-						</PlaceholderPill>
-						<PlaceholderPill tooltip="Reallocation — Phase 2">
-							Reallocation
-						</PlaceholderPill>
+						{canReallocate ? (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={onReallocToggle}
+							>
+								<Pencil className="mr-2 size-3.5" />
+								{reallocMode ? "Close reallocation" : "Reallocate payments"}
+							</Button>
+						) : (
+							<PlaceholderPill tooltip="No payments to reallocate">
+								Reallocate payments
+							</PlaceholderPill>
+						)}
 						<PlaceholderPill tooltip="Refunds — Phase 2">
 							Refund
 						</PlaceholderPill>
 					</div>
 				</div>
 			</section>
+
+			{reallocMode && (
+				<section className="rounded-md border bg-white p-3 shadow-sm">
+					<ReallocatePaymentsEditor
+						salesOrderId={order.id}
+						appointmentRef={appointmentRef}
+						items={items}
+						payments={payments}
+						allocations={allocations}
+						onCancel={onReallocToggle}
+						onSuccess={onReallocSuccess}
+						onError={onReallocError}
+					/>
+				</section>
+			)}
 
 			<section className="rounded-md border bg-white shadow-sm">
 				<div className="grid grid-cols-[1.8fr_90px_90px_110px_90px] items-center border-b bg-muted/30 px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase">
@@ -512,10 +602,14 @@ function RightPanel({
 	order,
 	payments,
 	refundNotes,
+	isCancelled,
+	onChangeMethod,
 }: {
 	order: SalesOrderWithRelations;
 	payments: PaymentWithProcessedBy[];
 	refundNotes: RefundNoteWithRefs[];
+	isCancelled: boolean;
+	onChangeMethod: (payment: PaymentWithProcessedBy) => void;
 }) {
 	const subtotal = Number(order.subtotal ?? 0);
 	const total = Number(order.total ?? 0);
@@ -564,6 +658,8 @@ function RightPanel({
 							key={p.id}
 							payment={p}
 							isLast={idx === payments.length - 1}
+							isCancelled={isCancelled}
+							onChangeMethod={onChangeMethod}
 						/>
 					))}
 				</div>
@@ -652,9 +748,13 @@ function RightPanel({
 function PaymentHistoryRow({
 	payment,
 	isLast,
+	isCancelled,
+	onChangeMethod,
 }: {
 	payment: PaymentWithProcessedBy;
 	isLast: boolean;
+	isCancelled: boolean;
+	onChangeMethod: (payment: PaymentWithProcessedBy) => void;
 }) {
 	const methodName =
 		payment.method?.name ??
@@ -662,6 +762,8 @@ function PaymentHistoryRow({
 			.split("_")
 			.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
 			.join(" ");
+	const isWallet = payment.payment_mode === "wallet";
+	const canEditMethod = !isCancelled && !isWallet;
 
 	return (
 		<div className="text-sm">
@@ -676,11 +778,25 @@ function PaymentHistoryRow({
 					<div className="font-semibold tabular-nums">
 						MYR {money(payment.amount)}
 					</div>
-					<PlaceholderLink
-						tooltip={`${methodName} — details coming in Phase 2`}
-					>
-						{methodName}
-					</PlaceholderLink>
+					{canEditMethod ? (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									onClick={() => onChangeMethod(payment)}
+									className="inline-flex items-center gap-1 text-[11px] text-sky-600 hover:underline"
+								>
+									{methodName}
+									<Pencil className="size-3" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent>Change payment method</TooltipContent>
+						</Tooltip>
+					) : (
+						<span className="text-[11px] text-muted-foreground">
+							{methodName}
+						</span>
+					)}
 				</div>
 			</div>
 			{payment.bank && (

@@ -318,27 +318,32 @@ export type PaymentWithRelations = Payment & {
 		id: string;
 		first_name: string;
 		last_name: string;
+		profile_image_path: string | null;
 	} | null;
 	method: { code: string; name: string } | null;
+	outlet: { id: string; code: string; name: string } | null;
 	sales_order: {
 		id: string;
 		so_number: string;
+		status: SalesOrder["status"];
 		customer: {
 			id: string;
 			code: string;
 			first_name: string;
 			last_name: string | null;
+			profile_image_path: string | null;
 		} | null;
 		consultant: {
 			id: string;
 			first_name: string;
 			last_name: string;
+			profile_image_path: string | null;
 		} | null;
 	} | null;
 };
 
 const PAYMENT_LIST_SELECT =
-	"*, processed_by_employee:employees!payments_processed_by_fkey(id, first_name, last_name), method:payment_methods!payments_payment_mode_fk(code, name), sales_order:sales_orders!payments_sales_order_id_fkey!inner(id, so_number, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name), consultant:employees!sales_orders_consultant_id_fkey(id, first_name, last_name))";
+	"*, processed_by_employee:employees!payments_processed_by_fkey(id, first_name, last_name, profile_image_path), method:payment_methods!payments_payment_mode_fk(code, name), outlet:outlets!payments_outlet_id_fkey(id, code, name), sales_order:sales_orders!payments_sales_order_id_fkey!inner(id, so_number, status, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name, profile_image_path), consultant:employees!sales_orders_consultant_id_fkey(id, first_name, last_name, profile_image_path))";
 
 export async function listPayments(
 	ctx: Context,

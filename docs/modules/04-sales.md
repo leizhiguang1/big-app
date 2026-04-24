@@ -2,6 +2,38 @@
 
 > Status: v1 complete — Collect Payment RPC, Sales dashboard (Summary + Sales + Payment + Cancelled tabs), SO detail view, passcode-gated cancellation with full side-effect unwind, printable invoice route, and bidirectional appointment↔sales linking all shipped.
 
+## Payment tab — prototype-parity refresh (2026-04-24)
+
+The `/sales?tab=payment` table was rebuilt to match the reference prototype's
+Payment screen. Same data underneath; richer columns, a filter bar on top, and
+a bulk-print affordance.
+
+**Filter bar** (client-side, no new service args): Year · Outlet · Status
+(completed / draft / cancelled / void) · e-Invoice Type (UI only — see below).
+
+**Columns (left → right):**
+
+1. **Bulk-print checkbox** — header has a master select (with indeterminate state) for the filtered rows; each row has its own checkbox. When ≥1 row is selected, a floating pill appears at the bottom of the viewport with a `Print N receipts` button. Clicking opens one browser window per unique SO at `/invoices/{id}?autoPrint=1&variant=receipt` and clears the selection.
+2. **Action icons** — two per row: Printer (receipt) and FileText (invoice). Each opens `/invoices/{id}?autoPrint=1&variant=receipt` or `&variant=invoice` respectively. The `/invoices/[id]` route does not yet branch on `variant` — both land on the same invoice page for now. When the receipt layout is decided, only that route's render logic changes.
+3. **Date** — date over time (two-line).
+4. **Invoice #** — clickable link that opens the SO detail dialog.
+5. **Sales order #** — status dot (green = completed, amber = draft, red = cancelled/void) + clickable SO number that also opens the SO detail dialog. Previously buried in the dialog; now visible in the row.
+6. **Outlet** — uppercased `outlet.code` with name in a tooltip. Joined via the new `payments.outlet:outlets` relation.
+7. **Mode** — unchanged badge.
+8. **Total paid (MYR)** — renamed from "Amount".
+9. **Customer name** — customer avatar + name (uppercased) + code, with `Consultant: <name>` nested underneath alongside a mini consultant avatar. Replaces the separate Consultant column.
+10. **Created by** — employee avatar + name (uppercased). Pulled from `processed_by_employee`.
+11. **E-invoice status** — placeholder `Not sent to LHDN` badge on every row. **UI only** — no schema, no submission logic. Tooltip reads "LHDN e-invoice integration not yet enabled". When Malaysian e-invoice support is scoped, this column becomes the surface for it.
+
+**Service-layer changes** — [`listPayments` select in `lib/services/sales.ts`](../../lib/services/sales.ts) now pulls `profile_image_path` on customer / consultant / processed-by and adds `payments.outlet:outlets(id, code, name)` plus `sales_order.status`. `PaymentWithRelations` type expanded in step.
+
+**Component changes:**
+- [components/sales/PaymentsTable.tsx](../../components/sales/PaymentsTable.tsx) — rewritten with the 11-column layout; now takes `selectedIds / onToggleSelect / onToggleSelectAll` props. Uses the same `AvatarCircle` pattern as `SalesOrdersTable`.
+- [components/sales/PaymentsTableWithDetail.tsx](../../components/sales/PaymentsTableWithDetail.tsx) — now owns the filter bar state (year / outletId / status / eInvoice), selection state, and the floating bulk-print pill. Takes `outlets: Outlet[]` alongside `payments`.
+- [app/(app)/sales/payments-content.tsx](../../app/(app)/sales/payments-content.tsx) — fetches `listPayments` and `listOutlets` in parallel; hands both to the client wrapper.
+
+**Deliberate non-goals** — Bulk PDF download, individual print-receipt layout distinct from invoice, LHDN e-invoice submission, and e-invoice filter functionality (the dropdown is purely cosmetic until the integration lands).
+
 ## Post-collection corrections on SO detail (2026-04-24)
 
 Lighter alternatives to full void for fixing mistakes made during Collect Payment.
@@ -23,12 +55,17 @@ entered or a whole payment was keyed in error.
 - **Dialog**: [RevertLastPaymentDialog.tsx](../../components/sales/RevertLastPaymentDialog.tsx) — one-step confirmation.
 - **RPC `revert_last_payment(p_sales_order_id, p_processed_by)`**: locks SO,
   deletes `payment_allocations` for the latest payment, deletes the payment row,
-  recomputes `sales_orders.amount_paid` and `sales_orders.status`
-  (`pending` / `partial` / `completed`), and flips
-  `appointments.payment_status` back to `unpaid` / `partial` / `paid` if the SO
-  is appointment-linked. Returns `{ payment_id, invoice_no, amount,
-  payment_mode, sales_order_id, new_amount_paid, new_status }`. SECURITY
-  DEFINER. Rejects wallet payments and wallet_topup SOs with an explicit error.
+  recomputes `sales_orders.amount_paid` (the generated `outstanding` column
+  follows), and flips `appointments.payment_status` back to `unpaid` /
+  `partial` / `paid` if the SO is appointment-linked. **Does NOT change
+  `sales_orders.status`** — that column is a document-lifecycle enum
+  (`draft` / `completed` / `cancelled` / `void`) and the outstanding balance
+  is tracked independently via `amount_paid`. Returns `{ payment_id,
+  invoice_no, amount, payment_mode, sales_order_id, new_amount_paid,
+  new_status }`. SECURITY DEFINER. Rejects wallet payments and wallet_topup
+  SOs with an explicit error. Migration `0090_revert_last_payment_fix_status`
+  corrected an early version that tried to set `status='pending'`, which
+  violates the existing `sales_orders_status_check` constraint.
 
 ### 2. Change Payment Method
 

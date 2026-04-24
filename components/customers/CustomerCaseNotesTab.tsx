@@ -1,12 +1,26 @@
 "use client";
 
-import { Plus, StickyNote } from "lucide-react";
+import {
+	BookMarked,
+	FileBadge,
+	FileText,
+	Grid3x3,
+	ImagePlus,
+	Pill,
+	Save,
+	StickyNote,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { CaseNoteRow } from "@/components/case-notes/CaseNoteRow";
-import { NewNoteDialog } from "@/components/case-notes/NewNoteDialog";
+import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
 	cancelCustomerCaseNoteAction,
 	createCustomerCaseNoteAction,
@@ -16,6 +30,7 @@ import {
 	updateCustomerCaseNoteAction,
 } from "@/lib/actions/case-notes";
 import type { CaseNoteWithContext } from "@/lib/services/case-notes";
+import { cn } from "@/lib/utils";
 
 type Props = {
 	customerId: string;
@@ -47,9 +62,6 @@ function buildGroups(notes: CaseNoteWithContext[]): NoteGroup[] {
 		map.get(key)!.notes.push(n);
 	}
 
-	// Sort groups by most recent note across the group — picking notes[0] is
-	// wrong now that DB-level sort is (is_pinned desc, created_at desc): a
-	// pinned older note would otherwise demote its whole group.
 	return Array.from(map.values()).sort((a, b) => {
 		const aTime = a.notes.reduce(
 			(acc, n) => (n.created_at > acc ? n.created_at : acc),
@@ -65,12 +77,15 @@ function buildGroups(notes: CaseNoteWithContext[]): NoteGroup[] {
 
 export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 	const router = useRouter();
+	const [draft, setDraft] = useState("");
+	const [editingFromHistoryId, setEditingFromHistoryId] = useState<
+		string | null
+	>(null);
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editContent, setEditContent] = useState("");
 	const [deleteId, setDeleteId] = useState<string | null>(null);
 	const [cancelId, setCancelId] = useState<string | null>(null);
 	const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
-	const [dialogOpen, setDialogOpen] = useState(false);
 	const [pending, startTransition] = useTransition();
 	const [localNotes, setLocalNotes] =
 		useState<CaseNoteWithContext[]>(caseNotes);
@@ -83,7 +98,32 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 
 	const groups = useMemo(() => buildGroups(localNotes), [localNotes]);
 
-	const handleCreate = (content: string) => {
+	const clearDraft = () => {
+		setDraft("");
+		setEditingFromHistoryId(null);
+	};
+
+	const handleSave = () => {
+		if (!draft.trim()) return;
+		const content = draft.trim();
+
+		if (editingFromHistoryId) {
+			const id = editingFromHistoryId;
+			setLocalNotes((prev) =>
+				prev.map((n) => (n.id === id ? { ...n, content } : n)),
+			);
+			clearDraft();
+			startTransition(async () => {
+				try {
+					await updateCustomerCaseNoteAction(customerId, id, { content });
+					refresh();
+				} catch {
+					refresh();
+				}
+			});
+			return;
+		}
+
 		const tempId = `temp-${crypto.randomUUID()}`;
 		const optimistic: CaseNoteWithContext = {
 			id: tempId,
@@ -99,7 +139,7 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 			appointment: null,
 		};
 		setLocalNotes((prev) => [optimistic, ...prev]);
-		setDialogOpen(false);
+		clearDraft();
 		startTransition(async () => {
 			try {
 				await createCustomerCaseNoteAction(customerId, {
@@ -110,7 +150,7 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 				refresh();
 			} catch {
 				setLocalNotes((prev) => prev.filter((n) => n.id !== tempId));
-				refresh();
+				setDraft(content);
 			}
 		});
 	};
@@ -204,22 +244,54 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 
 	return (
 		<div className="flex flex-col gap-4">
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-2 text-muted-foreground text-sm">
-					<StickyNote className="size-4" />
-					<span className="tabular-nums">
-						{localNotes.length} {localNotes.length === 1 ? "note" : "notes"}{" "}
-						across {groups.length} {groups.length === 1 ? "visit" : "visits"}
-					</span>
+			<div
+				className={cn(
+					"rounded-md border bg-card p-4",
+					editingFromHistoryId && "border-amber-300 bg-amber-50/30",
+				)}
+			>
+				<div className="flex items-center justify-between">
+					<div className="text-muted-foreground text-xs uppercase tracking-wide">
+						{editingFromHistoryId ? "Editing note" : "New case note"}
+					</div>
+					<CaseNoteToolbar />
 				</div>
-				<button
-					type="button"
-					onClick={() => setDialogOpen(true)}
-					className="flex items-center gap-1.5 rounded-full bg-blue-600 px-3 py-1.5 font-semibold text-sm text-white transition hover:bg-blue-700"
-				>
-					<Plus className="size-4" />
-					New note
-				</button>
+				<textarea
+					value={draft}
+					onChange={(e) => setDraft(e.target.value)}
+					rows={6}
+					placeholder="Chief complaint, findings, procedure details, medication…"
+					className="mt-3 w-full resize-y rounded-md border bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+				/>
+				<div className="mt-3 flex items-center justify-end gap-2">
+					{editingFromHistoryId && (
+						<Button
+							type="button"
+							size="sm"
+							variant="ghost"
+							onClick={clearDraft}
+						>
+							Cancel
+						</Button>
+					)}
+					<Button
+						type="button"
+						size="sm"
+						onClick={handleSave}
+						disabled={!draft.trim() || pending}
+					>
+						<Save className="size-3.5" />
+						{editingFromHistoryId ? "Update note" : "Save note"}
+					</Button>
+				</div>
+			</div>
+
+			<div className="flex items-center gap-2 text-muted-foreground text-sm">
+				<StickyNote className="size-4" />
+				<span className="tabular-nums">
+					{localNotes.length} {localNotes.length === 1 ? "note" : "notes"} across{" "}
+					{groups.length} {groups.length === 1 ? "visit" : "visits"}
+				</span>
 			</div>
 
 			{groups.length === 0 ? (
@@ -291,13 +363,6 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 				))
 			)}
 
-			<NewNoteDialog
-				open={dialogOpen}
-				onOpenChange={setDialogOpen}
-				onSave={handleCreate}
-				pending={pending}
-			/>
-
 			<ConfirmDialog
 				open={deleteId !== null}
 				onOpenChange={(o) => !o && setDeleteId(null)}
@@ -318,5 +383,82 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 				onConfirm={handleConfirmCancel}
 			/>
 		</div>
+	);
+}
+
+function CaseNoteToolbar() {
+	return (
+		<div className="flex items-center gap-1">
+			<StubButton
+				icon={ImagePlus}
+				label="Annotate image"
+				description="Draw arrows, circles, and notes on an x-ray or intra-oral photo, then attach it to this case note."
+			/>
+			<StubButton
+				icon={FileText}
+				label="Note templates"
+				description="Insert a pre-written clinical template (scaling, extraction, consult, etc.) to avoid re-typing the same structure."
+			/>
+			<StubButton
+				icon={Pill}
+				label="Prescription"
+				description="Write, save, and print a prescription slip."
+			/>
+			<StubButton
+				icon={FileBadge}
+				label="Medical certificate"
+				description="Issue an MC. Open this customer's appointment to add an MC tied to that visit."
+			/>
+			<StubButton
+				icon={BookMarked}
+				label="ICD-10 lookup"
+				description="Search the ICD-10 catalogue and attach standardised diagnosis codes to this case note."
+			/>
+			<StubButton
+				icon={Grid3x3}
+				label="Dental chart"
+				description="Open the interactive tooth chart to record findings, treatments, and restorations per tooth."
+			/>
+		</div>
+	);
+}
+
+function StubButton({
+	icon: Icon,
+	label,
+	description,
+}: {
+	icon: React.ComponentType<{ className?: string }>;
+	label: string;
+	description: string;
+}) {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					aria-label={label}
+					aria-disabled="true"
+					data-stub="true"
+					onClick={() => {}}
+					className="flex size-8 cursor-not-allowed items-center justify-center rounded-md bg-blue-600/50 text-white shadow-sm transition hover:bg-blue-600/60"
+				>
+					<Icon className="size-4" />
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="top" className="max-w-xs items-start px-3 py-2">
+				<div className="flex flex-col gap-1">
+					<div className="flex items-center gap-2">
+						<span className="font-semibold">{label}</span>
+						<span className="rounded-full bg-amber-200 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-amber-900">
+							Coming soon
+						</span>
+					</div>
+					<p className="text-[11px] leading-snug text-background/75">
+						{description}
+					</p>
+				</div>
+			</TooltipContent>
+		</Tooltip>
 	);
 }

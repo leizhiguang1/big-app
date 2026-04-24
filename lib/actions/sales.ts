@@ -9,6 +9,7 @@ import { listSellableProducts } from "@/lib/services/inventory";
 import { listOutlets } from "@/lib/services/outlets";
 import { listActivePaymentMethods } from "@/lib/services/payment-methods";
 import type {
+	PaymentAllocationForOrder,
 	PaymentWithProcessedBy,
 	RefundNoteWithRefs,
 	SaleItem,
@@ -79,6 +80,7 @@ export type SalesOrderDetailResult =
 			items: SaleItem[];
 			payments: PaymentWithProcessedBy[];
 			refundNotes: RefundNoteWithRefs[];
+			allocations: PaymentAllocationForOrder[];
 	  }
 	| { ok: false; reason: "not_found" };
 
@@ -87,13 +89,15 @@ export async function getSalesOrderDetailAction(
 ): Promise<SalesOrderDetailResult> {
 	const ctx = await getServerContext();
 	try {
-		const [order, items, payments, refundNotes] = await Promise.all([
-			salesService.getSalesOrder(ctx, id),
-			salesService.listSaleItems(ctx, id),
-			salesService.listPaymentsForOrder(ctx, id),
-			salesService.listRefundNotesForOrder(ctx, id),
-		]);
-		return { ok: true, order, items, payments, refundNotes };
+		const [order, items, payments, refundNotes, allocations] =
+			await Promise.all([
+				salesService.getSalesOrder(ctx, id),
+				salesService.listSaleItems(ctx, id),
+				salesService.listPaymentsForOrder(ctx, id),
+				salesService.listRefundNotesForOrder(ctx, id),
+				salesService.listPaymentAllocationsForOrder(ctx, id),
+			]);
+		return { ok: true, order, items, payments, refundNotes, allocations };
 	} catch (err) {
 		if (err instanceof NotFoundError) return { ok: false, reason: "not_found" };
 		throw err;

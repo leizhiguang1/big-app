@@ -63,7 +63,7 @@ export function RevertLastPaymentDialog({
 				);
 				onOpenChange(false);
 				onSuccess?.(
-					`Reverted ${result.invoiceNo} · MYR ${money(result.amount)} — order is now ${result.newStatus}`,
+					`Reverted ${result.invoiceNo} · MYR ${money(result.amount)} returned to outstanding`,
 				);
 				router.refresh();
 			} catch (e) {

@@ -186,6 +186,9 @@ export function CustomerDetailView({
 	walletTransactions,
 }: Props) {
 	const [activeTab, setActiveTab] = useState<TabKey>("timeline");
+	const [paymentsSubTab, setPaymentsSubTab] = useState<
+		"history" | "outstanding"
+	>("history");
 	const [editing, setEditing] = useState(false);
 
 	const displayName = `${customer.first_name} ${customer.last_name ?? ""}`
@@ -217,6 +220,23 @@ export function CustomerDetailView({
 				0,
 			),
 		[lineItems],
+	);
+
+	const outstandingSalesOrders = useMemo(
+		() =>
+			salesOrders.filter(
+				(so) => so.status !== "cancelled" && Number(so.outstanding ?? 0) > 0,
+			),
+		[salesOrders],
+	);
+
+	const totalOutstanding = useMemo(
+		() =>
+			outstandingSalesOrders.reduce(
+				(sum, so) => sum + Number(so.outstanding ?? 0),
+				0,
+			),
+		[outstandingSalesOrders],
 	);
 
 	const stats = useMemo(() => {
@@ -405,12 +425,22 @@ export function CustomerDetailView({
 								value={`MYR ${formatMoney(totalSpent)}`}
 								valueClass="text-sky-700"
 							/>
-							<StatPill
-								dotClass="bg-rose-500"
-								label="Outstanding"
-								value="MYR 0.00"
-								valueClass="text-rose-600"
-							/>
+							<button
+								type="button"
+								onClick={() => {
+									setPaymentsSubTab("outstanding");
+									setActiveTab("payments");
+								}}
+								className="rounded-full text-left transition hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+								aria-label="View outstanding sales orders"
+							>
+								<StatPill
+									dotClass="bg-rose-500"
+									label="Outstanding"
+									value={`MYR ${formatMoney(totalOutstanding)}`}
+									valueClass="text-rose-600"
+								/>
+							</button>
 						</div>
 
 						<div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
@@ -544,7 +574,12 @@ export function CustomerDetailView({
 					) : activeTab === "sales" ? (
 						<CustomerSalesTab salesOrders={salesOrders} />
 					) : activeTab === "payments" ? (
-						<CustomerPaymentsTab payments={payments} />
+						<CustomerPaymentsTab
+							payments={payments}
+							outstandingSalesOrders={outstandingSalesOrders}
+							subTab={paymentsSubTab}
+							onSubTabChange={setPaymentsSubTab}
+						/>
 					) : activeTab === "followup" ? (
 						<CustomerFollowUpsTab followUps={followUps} />
 					) : activeTab === "documents" ? (
