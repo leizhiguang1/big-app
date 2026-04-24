@@ -97,7 +97,7 @@ export function RosterGrid({ outletId, weekStart, employees, shifts }: Props) {
 							<tr key={emp.id} className="border-b last:border-b-0">
 								<td className="sticky left-0 z-10 min-w-44 border-r bg-card px-3 py-2 align-middle">
 									<div className="flex items-center gap-2.5">
-										<Avatar className="size-9">
+										<Avatar>
 											{emp.profile_image_path && (
 												<AvatarImage
 													src={mediaPublicUrl(emp.profile_image_path) ?? ""}

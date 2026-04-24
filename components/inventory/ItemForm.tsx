@@ -305,7 +305,10 @@ export function ItemFormDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-2xl">
+			<DialogContent
+				preventOutsideClose
+				className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-2xl"
+			>
 				<DialogHeader>
 					<DialogTitle>
 						{mode === "edit" ? "Edit" : "New"} {INVENTORY_KIND_LABELS[kind]}

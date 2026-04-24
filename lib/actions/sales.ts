@@ -22,7 +22,7 @@ export async function collectAppointmentPaymentAction(
 		input,
 	);
 	revalidatePath("/appointments");
-	revalidatePath(`/appointments/${appointmentId}`);
+	revalidatePath("/appointments/[ref]", "page");
 	return result;
 }
 
@@ -72,10 +72,7 @@ export async function voidSalesOrderAction(
 	};
 }
 
-export async function issueRefundAction(
-	salesOrderId: string,
-	input: unknown,
-) {
+export async function issueRefundAction(salesOrderId: string, input: unknown) {
 	const ctx = await getServerContext();
 	const result = await salesService.issueRefund(ctx, salesOrderId, input);
 	revalidatePath("/sales");

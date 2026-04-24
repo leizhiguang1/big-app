@@ -7,13 +7,18 @@ import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
-	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { listActiveBrandConfigItemsAction } from "@/lib/actions/brand-config";
 import { cancelAppointmentAction } from "@/lib/actions/appointments";
 import type { BrandConfigItem } from "@/lib/services/brand-config";
@@ -39,28 +44,28 @@ export function CancelAppointmentDialog({
 }: Props) {
 	const router = useRouter();
 	const [presets, setPresets] = useState<BrandConfigItem[]>([]);
-	const [reason, setReason] = useState("");
+	const [reasonCode, setReasonCode] = useState<string>("");
 	const [submitError, setSubmitError] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
 
 	useEffect(() => {
 		if (!open) return;
-		setReason("");
+		setReasonCode("");
 		setSubmitError(null);
 		listActiveBrandConfigItemsAction("reason.appointment_cancel")
 			.then((items) => setPresets(items))
 			.catch(() => setPresets([]));
 	}, [open]);
 
-	const trimmed = reason.trim();
-	const canSubmit = trimmed.length > 0 && !isPending;
+	const selected = presets.find((p) => p.code === reasonCode);
+	const canSubmit = !!selected && !isPending;
 
 	const submit = () => {
-		if (!canSubmit) return;
+		if (!canSubmit || !selected) return;
 		setSubmitError(null);
 		startTransition(async () => {
 			try {
-				await cancelAppointmentAction(appointmentId, trimmed);
+				await cancelAppointmentAction(appointmentId, selected.label);
 				onOpenChange(false);
 				onSuccess?.();
 				router.refresh();
@@ -75,14 +80,14 @@ export function CancelAppointmentDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-md flex-col gap-0 p-0 sm:max-w-md">
+			<DialogContent
+				preventOutsideClose
+				className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-md flex-col gap-0 p-0 sm:max-w-md"
+			>
 				<DialogHeader className="border-b px-6 py-4">
 					<DialogTitle className="font-semibold text-red-700">
 						Cancel appointment{bookingRef ? ` ${bookingRef}` : ""}?
 					</DialogTitle>
-					<DialogDescription className="text-xs">
-						The appointment stays on the customer's timeline for audit.
-					</DialogDescription>
 				</DialogHeader>
 
 				<div className="flex-1 overflow-y-auto px-6 py-5">
@@ -99,38 +104,28 @@ export function CancelAppointmentDialog({
 					<Label htmlFor="cancel-reason">
 						Cancellation reason <span className="text-red-500">*</span>
 					</Label>
-					<Textarea
-						id="cancel-reason"
-						className="mt-1.5"
-						placeholder="e.g. Customer rescheduled to next week"
-						rows={3}
-						maxLength={200}
-						value={reason}
-						onChange={(e) => setReason(e.target.value)}
-						disabled={isPending}
-						autoFocus
-					/>
-
-					{presets.length > 0 && (
-						<div className="mt-3 flex flex-col gap-1.5">
-							<span className="text-[11px] text-muted-foreground uppercase tracking-wide">
-								Quick pick
-							</span>
-							<div className="flex flex-wrap gap-1.5">
-								{presets.map((p) => (
-									<button
-										key={p.code}
-										type="button"
-										onClick={() => setReason(p.label)}
-										disabled={isPending}
-										className="rounded-full border bg-background px-2.5 py-1 text-[11px] hover:bg-muted disabled:opacity-60"
-									>
-										{p.label}
-									</button>
-								))}
-							</div>
-						</div>
-					)}
+					<Select
+						value={reasonCode}
+						onValueChange={setReasonCode}
+						disabled={isPending || presets.length === 0}
+					>
+						<SelectTrigger id="cancel-reason" className="mt-1.5 w-full">
+							<SelectValue
+								placeholder={
+									presets.length === 0
+										? "No reasons configured"
+										: "Select a reason"
+								}
+							/>
+						</SelectTrigger>
+						<SelectContent>
+							{presets.map((p) => (
+								<SelectItem key={p.code} value={p.code}>
+									{p.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 				</div>
 
 				<DialogFooter className="gap-2 border-t px-6 py-3">
@@ -147,14 +142,6 @@ export function CancelAppointmentDialog({
 							Reschedule instead
 						</Button>
 					)}
-					<Button
-						type="button"
-						variant="ghost"
-						onClick={() => onOpenChange(false)}
-						disabled={isPending}
-					>
-						Back
-					</Button>
 					<Button
 						type="button"
 						variant="destructive"

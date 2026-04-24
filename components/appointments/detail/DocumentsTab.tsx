@@ -5,13 +5,14 @@ import {
 	Eye,
 	FileText,
 	Image as ImageIcon,
-	Loader2,
 	Trash2,
 	Upload,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
+import { DocumentPreviewDialog } from "@/components/customer-documents/DocumentPreviewDialog";
+import { UploadDocumentDialog } from "@/components/customer-documents/UploadDocumentDialog";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -74,6 +75,10 @@ export function DocumentsTab({ appointment, documents, onToast }: Props) {
 	const [scope, setScope] = useState<Scope>("visit");
 	const [deleteId, setDeleteId] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
+	const [pendingFile, setPendingFile] = useState<File | null>(null);
+	const [previewDoc, setPreviewDoc] = useState<CustomerDocumentWithRefs | null>(
+		null,
+	);
 
 	const isBlock = appointment.is_time_block;
 	const isLead = !isBlock && !appointment.customer_id;
@@ -97,16 +102,28 @@ export function DocumentsTab({ appointment, documents, onToast }: Props) {
 
 	const refresh = () => router.refresh();
 
-	const handleFile = async (file: File) => {
-		if (!customerId) return;
+	const stageFile = (file: File) => {
 		if (!CUSTOMER_DOCUMENT_MIME_TYPES.includes(file.type as never)) {
 			onToast("Use JPG, PNG, WebP, or PDF", "error");
+			if (inputRef.current) inputRef.current.value = "";
 			return;
 		}
 		if (file.size > CUSTOMER_DOCUMENT_MAX_BYTES) {
 			onToast("Max file size is 20 MB", "error");
+			if (inputRef.current) inputRef.current.value = "";
 			return;
 		}
+		setPendingFile(file);
+	};
+
+	const clearPending = () => {
+		setPendingFile(null);
+		if (inputRef.current) inputRef.current.value = "";
+	};
+
+	const handleUploadConfirm = async (displayName: string) => {
+		if (!pendingFile || !customerId) return;
+		const file = pendingFile;
 		setUploading(true);
 		try {
 			const { token, path } = await requestCustomerDocumentUploadUrlAction({
@@ -128,29 +145,17 @@ export function DocumentsTab({ appointment, documents, onToast }: Props) {
 				appointment_id: appointment.id,
 				uploaded_by_id: appointment.employee_id ?? null,
 				storage_path: path,
-				file_name: file.name,
+				file_name: displayName,
 				mime_type: file.type,
 				size_bytes: file.size,
 			});
 			onToast("Document uploaded", "success");
+			clearPending();
 			refresh();
 		} catch (err) {
 			onToast(err instanceof Error ? err.message : "Upload failed", "error");
 		} finally {
 			setUploading(false);
-			if (inputRef.current) inputRef.current.value = "";
-		}
-	};
-
-	const handleView = async (id: string) => {
-		try {
-			const url = await getCustomerDocumentSignedUrlAction(id);
-			window.open(url, "_blank", "noopener,noreferrer");
-		} catch (err) {
-			onToast(
-				err instanceof Error ? err.message : "Could not open document",
-				"error",
-			);
 		}
 	};
 
@@ -207,12 +212,8 @@ export function DocumentsTab({ appointment, documents, onToast }: Props) {
 					onClick={() => inputRef.current?.click()}
 					disabled={uploading}
 				>
-					{uploading ? (
-						<Loader2 className="size-3.5 animate-spin" />
-					) : (
-						<Upload className="size-3.5" />
-					)}
-					{uploading ? "Uploading…" : "Upload file"}
+					<Upload className="size-3.5" />
+					Upload file
 				</Button>
 				<p className="text-muted-foreground text-xs">
 					JPG, PNG, WebP, or PDF · max 20 MB · attached to this visit
@@ -250,7 +251,7 @@ export function DocumentsTab({ appointment, documents, onToast }: Props) {
 					className="hidden"
 					onChange={(e) => {
 						const file = e.target.files?.[0];
-						if (file) void handleFile(file);
+						if (file) stageFile(file);
 					}}
 				/>
 			</div>
@@ -272,7 +273,7 @@ export function DocumentsTab({ appointment, documents, onToast }: Props) {
 								key={doc.id}
 								doc={doc}
 								isCurrentVisit={doc.appointment_id === appointment.id}
-								onView={() => handleView(doc.id)}
+								onView={() => setPreviewDoc(doc)}
 								onDownload={() => handleDownload(doc)}
 								onDelete={() => setDeleteId(doc.id)}
 							/>
@@ -289,6 +290,24 @@ export function DocumentsTab({ appointment, documents, onToast }: Props) {
 				confirmLabel="Delete"
 				pending={pending}
 				onConfirm={handleDelete}
+			/>
+
+			<UploadDocumentDialog
+				open={pendingFile !== null}
+				onOpenChange={(o) => {
+					if (!o) clearPending();
+				}}
+				file={pendingFile}
+				uploading={uploading}
+				onConfirm={(name) => void handleUploadConfirm(name)}
+			/>
+
+			<DocumentPreviewDialog
+				doc={previewDoc}
+				onOpenChange={(o) => {
+					if (!o) setPreviewDoc(null);
+				}}
+				onError={(msg) => onToast(msg, "error")}
 			/>
 		</div>
 	);
@@ -308,22 +327,33 @@ function DocumentRow({
 	onDelete: () => void;
 }) {
 	const kind = fileKind(doc.mime_type);
+	const hasThumb = kind === "image" && doc.preview_url;
 	return (
 		<li className="flex items-center gap-3 px-3 py-2.5">
-			<div
+			<button
+				type="button"
+				onClick={onView}
+				aria-label={`Preview ${doc.file_name}`}
 				className={cn(
-					"flex size-9 shrink-0 items-center justify-center rounded-md border",
-					kind === "image"
-						? "bg-sky-50 text-sky-600"
-						: "bg-rose-50 text-rose-600",
+					"flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-md border transition hover:ring-2 hover:ring-ring/50",
+					!hasThumb && kind === "image" && "bg-sky-50 text-sky-600",
+					!hasThumb && kind === "pdf" && "bg-rose-50 text-rose-600",
 				)}
 			>
-				{kind === "image" ? (
+				{hasThumb ? (
+					// eslint-disable-next-line @next/next/no-img-element -- signed URL, short TTL, not worth next/image
+					<img
+						src={doc.preview_url as string}
+						alt={doc.file_name}
+						className="size-full object-cover"
+						loading="lazy"
+					/>
+				) : kind === "image" ? (
 					<ImageIcon className="size-4" />
 				) : (
 					<FileText className="size-4" />
 				)}
-			</div>
+			</button>
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-2">
 					<button

@@ -1,6 +1,7 @@
 import type { Context } from "@/lib/context/types";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { customerDocumentInputSchema } from "@/lib/schemas/customer-documents";
+import { createSignedReadUrls } from "@/lib/services/storage";
 import type { Tables } from "@/lib/supabase/types";
 
 export type CustomerDocument = Tables<"customer_documents">;
@@ -20,6 +21,7 @@ type AppointmentRef = {
 export type CustomerDocumentWithRefs = CustomerDocument & {
 	uploaded_by: EmployeeRef;
 	appointment: AppointmentRef;
+	preview_url: string | null;
 };
 
 const SELECT_WITH_REFS = `
@@ -38,7 +40,23 @@ export async function listCustomerDocuments(
 		.eq("customer_id", customerId)
 		.order("created_at", { ascending: false });
 	if (error) throw new ValidationError(error.message);
-	return (data ?? []) as unknown as CustomerDocumentWithRefs[];
+	const rows = (data ?? []) as unknown as Array<
+		Omit<CustomerDocumentWithRefs, "preview_url">
+	>;
+
+	const imagePaths = rows
+		.filter((r) => r.mime_type.startsWith("image/"))
+		.map((r) => r.storage_path);
+	const urlByPath = await createSignedReadUrls(
+		ctx,
+		"documents",
+		imagePaths,
+	).catch(() => ({}) as Record<string, string>);
+
+	return rows.map((r) => ({
+		...r,
+		preview_url: urlByPath[r.storage_path] ?? null,
+	}));
 }
 
 export async function createCustomerDocument(

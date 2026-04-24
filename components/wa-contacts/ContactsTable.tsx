@@ -1,6 +1,8 @@
 "use client";
 
 import { BellOff, Pencil } from "lucide-react";
+import type { CrmContact } from "@/components/chats/types";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import {
@@ -8,7 +10,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { CrmContact } from "@/components/chats/types";
 
 type Props = {
 	contacts: CrmContact[];
@@ -38,17 +39,12 @@ export function ContactsTable({ contacts, onEdit, isLoading }: Props) {
 					onClick={() => onEdit(c)}
 					className="flex items-center gap-2 text-left font-medium hover:text-sky-600 hover:underline"
 				>
-					{c.imgUrl ? (
-						<img
-							src={c.imgUrl}
-							alt=""
-							className="size-7 rounded-full object-cover"
-						/>
-					) : (
-						<div className="flex size-7 items-center justify-center rounded-full bg-muted font-semibold text-muted-foreground text-xs">
+					<Avatar size="sm">
+						{c.imgUrl && <AvatarImage src={c.imgUrl} alt="" />}
+						<AvatarFallback className="font-semibold">
 							{(c.name ?? "?").slice(0, 1).toUpperCase()}
-						</div>
-					)}
+						</AvatarFallback>
+					</Avatar>
 					<span className="truncate">{c.name || c.phone || c.jid}</span>
 					{c.dnd && (
 						<Tooltip>

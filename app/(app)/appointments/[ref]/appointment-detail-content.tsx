@@ -7,6 +7,7 @@ import { NotFoundError } from "@/lib/errors";
 import { addDays, fmtDate } from "@/lib/roster/week";
 import {
 	type CustomerLineItem,
+	ensureDefaultIncentives,
 	listIncentivesForAppointment,
 	listLineItemsForAppointment,
 	listLineItemsForCustomer,
@@ -14,7 +15,7 @@ import {
 import {
 	type AppointmentWithRelations,
 	type CustomerAppointmentSummary,
-	getAppointment,
+	getAppointmentByBookingRef,
 	listAppointmentStatusLog,
 	listCustomerAppointments,
 } from "@/lib/services/appointments";
@@ -51,18 +52,23 @@ import { getSalesOrderForAppointment } from "@/lib/services/sales";
 import { listServices } from "@/lib/services/services";
 import { listTaxes } from "@/lib/services/taxes";
 
-export async function AppointmentDetailContent({ id }: { id: string }) {
+export async function AppointmentDetailContent({
+	bookingRef,
+}: {
+	bookingRef: string;
+}) {
 	const ctx = await getServerContext();
 
 	let appointment: AppointmentWithRelations;
 	try {
-		appointment = await getAppointment(ctx, id);
+		appointment = await getAppointmentByBookingRef(ctx, bookingRef);
 	} catch (err) {
 		if (err instanceof NotFoundError) {
 			return <NotFoundPanel />;
 		}
 		throw err;
 	}
+	const id = appointment.id;
 
 	const customerHistoryPromise: Promise<CustomerAppointmentSummary[]> =
 		appointment.customer_id
@@ -96,6 +102,10 @@ export async function AppointmentDetailContent({ id }: { id: string }) {
 	const apptLocal = new Date(appointment.start_at);
 	const prevDateStr = fmtDate(addDays(apptLocal, -1));
 	const nextDateStr = fmtDate(addDays(apptLocal, 1));
+
+	// Backfill missing incentive rows for service lines that predate the
+	// auto-seed feature; idempotent (UNIQUE (line_item_id, employee_id)).
+	await ensureDefaultIncentives(ctx, id);
 
 	const [
 		lineItems,

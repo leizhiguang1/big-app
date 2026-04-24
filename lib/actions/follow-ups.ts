@@ -10,7 +10,7 @@ export async function createFollowUpAction(
 ) {
 	const ctx = await getServerContext();
 	const followUp = await followUpsService.createFollowUp(ctx, input);
-	revalidatePath(`/appointments/${appointmentId}`);
+	revalidatePath("/appointments/[ref]", "page");
 	return followUp;
 }
 
@@ -21,7 +21,7 @@ export async function updateFollowUpAction(
 ) {
 	const ctx = await getServerContext();
 	const followUp = await followUpsService.updateFollowUp(ctx, id, input);
-	revalidatePath(`/appointments/${appointmentId}`);
+	revalidatePath("/appointments/[ref]", "page");
 	return followUp;
 }
 
@@ -34,7 +34,7 @@ export async function setFollowUpReminderDoneAction(
 	const followUp = await followUpsService.setFollowUpReminderDone(ctx, id, {
 		reminder_done: reminderDone,
 	});
-	revalidatePath(`/appointments/${appointmentId}`);
+	revalidatePath("/appointments/[ref]", "page");
 	return followUp;
 }
 
@@ -45,11 +45,11 @@ export async function setFollowUpPinAction(
 ) {
 	const ctx = await getServerContext();
 	await followUpsService.setFollowUpPin(ctx, id, pinned);
-	revalidatePath(`/appointments/${appointmentId}`);
+	revalidatePath("/appointments/[ref]", "page");
 }
 
 export async function deleteFollowUpAction(appointmentId: string, id: string) {
 	const ctx = await getServerContext();
 	await followUpsService.deleteFollowUp(ctx, id);
-	revalidatePath(`/appointments/${appointmentId}`);
+	revalidatePath("/appointments/[ref]", "page");
 }

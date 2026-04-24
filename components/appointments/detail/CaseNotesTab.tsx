@@ -24,8 +24,11 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+	cancelCaseNoteAction,
 	createCaseNoteAction,
 	deleteCaseNoteAction,
+	revertCaseNoteAction,
+	setCaseNotePinAction,
 	updateCaseNoteAction,
 } from "@/lib/actions/case-notes";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
@@ -64,6 +67,7 @@ export function CaseNotesTab({
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editContent, setEditContent] = useState("");
 	const [deleteId, setDeleteId] = useState<string | null>(null);
+	const [cancelId, setCancelId] = useState<string | null>(null);
 	const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 	const [mcDialogOpen, setMcDialogOpen] = useState(false);
 	const [overwriteConfirmOpen, setOverwriteConfirmOpen] = useState(false);
@@ -205,6 +209,66 @@ export function CaseNotesTab({
 		});
 	};
 
+	const handleTogglePin = (id: string, currentPinned: boolean) => {
+		setLocalNotes((prev) =>
+			prev.map((n) => (n.id === id ? { ...n, is_pinned: !currentPinned } : n)),
+		);
+		startTransition(async () => {
+			try {
+				await setCaseNotePinAction(appointment.id, id, !currentPinned);
+				onToast(currentPinned ? "Unpinned" : "Pinned to top", "success");
+				refresh();
+			} catch (err) {
+				onToast(
+					err instanceof Error ? err.message : "Could not update pin",
+					"error",
+				);
+				refresh();
+			}
+		});
+	};
+
+	const handleConfirmCancel = () => {
+		if (!cancelId) return;
+		const id = cancelId;
+		setLocalNotes((prev) =>
+			prev.map((n) => (n.id === id ? { ...n, is_cancelled: true } : n)),
+		);
+		setCancelId(null);
+		startTransition(async () => {
+			try {
+				await cancelCaseNoteAction(appointment.id, id);
+				onToast("Note cancelled", "success");
+				refresh();
+			} catch (err) {
+				onToast(
+					err instanceof Error ? err.message : "Could not cancel note",
+					"error",
+				);
+				refresh();
+			}
+		});
+	};
+
+	const handleRevert = (id: string) => {
+		setLocalNotes((prev) =>
+			prev.map((n) => (n.id === id ? { ...n, is_cancelled: false } : n)),
+		);
+		startTransition(async () => {
+			try {
+				await revertCaseNoteAction(appointment.id, id);
+				onToast("Note restored", "success");
+				refresh();
+			} catch (err) {
+				onToast(
+					err instanceof Error ? err.message : "Could not restore note",
+					"error",
+				);
+				refresh();
+			}
+		});
+	};
+
 	const toggleCollapse = (id: string) =>
 		setCollapsedIds((prev) => {
 			const next = new Set(prev);
@@ -313,6 +377,9 @@ export function CaseNotesTab({
 							onEditChange={setEditContent}
 							onEditSave={handleUpdate}
 							onDelete={() => setDeleteId(n.id)}
+							onTogglePin={() => handleTogglePin(n.id, n.is_pinned)}
+							onCancel={() => setCancelId(n.id)}
+							onRevert={() => handleRevert(n.id)}
 						/>
 					))
 				)}
@@ -326,6 +393,16 @@ export function CaseNotesTab({
 				confirmLabel="Delete"
 				pending={pending}
 				onConfirm={handleDelete}
+			/>
+
+			<ConfirmDialog
+				open={cancelId !== null}
+				onOpenChange={(o) => !o && setCancelId(null)}
+				title="Cancel this case note?"
+				description="The note stays on the record marked as cancelled. You can restore it later."
+				confirmLabel="Cancel note"
+				pending={pending}
+				onConfirm={handleConfirmCancel}
 			/>
 
 			{customerId && (
@@ -381,9 +458,21 @@ function CaseNoteToolbar({
 }) {
 	return (
 		<div className="flex items-center gap-1">
-			<StubButton icon={ImagePlus} label="Annotate image to insert" />
-			<StubButton icon={FileText} label="Templates" />
-			<StubButton icon={Pill} label="Add prescription" />
+			<StubButton
+				icon={ImagePlus}
+				label="Annotate image"
+				description="Draw arrows, circles, and notes on an x-ray or intra-oral photo, then attach it to this case note."
+			/>
+			<StubButton
+				icon={FileText}
+				label="Note templates"
+				description="Insert a pre-written clinical template (scaling, extraction, consult, etc.) to avoid re-typing the same structure."
+			/>
+			<StubButton
+				icon={Pill}
+				label="Prescription"
+				description="Write, save, and print a prescription slip for this visit."
+			/>
 			<ToolbarButton
 				icon={FileBadge}
 				label={
@@ -394,8 +483,16 @@ function CaseNoteToolbar({
 				onClick={onAddMc}
 				badge={mcCount}
 			/>
-			<StubButton icon={BookMarked} label="ICD-10 code lookup" />
-			<StubButton icon={Grid3x3} label="Dental chart" />
+			<StubButton
+				icon={BookMarked}
+				label="ICD-10 lookup"
+				description="Search the ICD-10 catalogue and attach standardised diagnosis codes to this case note."
+			/>
+			<StubButton
+				icon={Grid3x3}
+				label="Dental chart"
+				description="Open the interactive tooth chart to record findings, treatments, and restorations per tooth."
+			/>
 		</div>
 	);
 }
@@ -418,11 +515,11 @@ function ToolbarButton({
 					type="button"
 					onClick={onClick}
 					aria-label={label}
-					className="relative flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+					className="relative flex size-8 items-center justify-center rounded-md bg-blue-600 text-white shadow-sm transition hover:bg-blue-700"
 				>
 					<Icon className="size-4" />
 					{badge !== undefined && badge > 0 && (
-						<span className="-right-0.5 -top-0.5 absolute flex min-w-4 items-center justify-center rounded-full bg-sky-600 px-1 text-[10px] font-semibold leading-4 text-white">
+						<span className="-right-0.5 -top-0.5 absolute flex min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-semibold leading-4 text-blue-950 ring-2 ring-white">
 							{badge}
 						</span>
 					)}
@@ -506,9 +603,11 @@ function MedicalCertificateStrip({
 function StubButton({
 	icon: Icon,
 	label,
+	description,
 }: {
 	icon: React.ComponentType<{ className?: string }>;
 	label: string;
+	description: string;
 }) {
 	return (
 		<Tooltip>
@@ -519,12 +618,24 @@ function StubButton({
 					aria-disabled="true"
 					data-stub="true"
 					onClick={() => {}}
-					className="flex size-8 cursor-not-allowed items-center justify-center rounded-md text-muted-foreground/60 transition hover:bg-muted"
+					className="flex size-8 cursor-not-allowed items-center justify-center rounded-md bg-blue-600/50 text-white shadow-sm transition hover:bg-blue-600/60"
 				>
 					<Icon className="size-4" />
 				</button>
 			</TooltipTrigger>
-			<TooltipContent side="top">{label}</TooltipContent>
+			<TooltipContent side="top" className="max-w-xs items-start px-3 py-2">
+				<div className="flex flex-col gap-1">
+					<div className="flex items-center gap-2">
+						<span className="font-semibold">{label}</span>
+						<span className="rounded-full bg-amber-200 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-amber-900">
+							Coming soon
+						</span>
+					</div>
+					<p className="text-[11px] leading-snug text-background/75">
+						{description}
+					</p>
+				</div>
+			</TooltipContent>
 		</Tooltip>
 	);
 }

@@ -38,6 +38,7 @@ export async function listCaseNotesForCustomer(
 		.from("case_notes")
 		.select(SELECT_WITH_AUTHOR)
 		.eq("customer_id", customerId)
+		.order("is_pinned", { ascending: false })
 		.order("created_at", { ascending: false });
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []) as unknown as CaseNoteWithAuthor[];
@@ -51,6 +52,7 @@ export async function listCaseNotesWithContext(
 		.from("case_notes")
 		.select(SELECT_WITH_CONTEXT)
 		.eq("customer_id", customerId)
+		.order("is_pinned", { ascending: false })
 		.order("created_at", { ascending: false });
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []) as unknown as CaseNoteWithContext[];

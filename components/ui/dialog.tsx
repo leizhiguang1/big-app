@@ -49,9 +49,12 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  preventOutsideClose = false,
+  onInteractOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  preventOutsideClose?: boolean
 }) {
   return (
     <DialogPortal>
@@ -62,6 +65,10 @@ function DialogContent({
           "fixed top-[50%] left-[50%] z-50 grid w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] gap-4 border bg-popover text-sm text-popover-foreground shadow-lg duration-200 sm:rounded-lg max-h-[90vh] data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
+        onInteractOutside={(event) => {
+          if (preventOutsideClose) event.preventDefault()
+          onInteractOutside?.(event)
+        }}
         {...props}
       >
         {children}

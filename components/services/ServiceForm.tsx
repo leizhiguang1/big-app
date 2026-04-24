@@ -190,7 +190,10 @@ export function ServiceFormDialog({
 	return (
 		<TooltipProvider delayDuration={150}>
 			<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-				<DialogContent className="flex max-h-[92vh] w-[96vw] flex-col gap-0 p-0 sm:max-w-6xl">
+				<DialogContent
+					preventOutsideClose
+					className="flex max-h-[92vh] w-[96vw] flex-col gap-0 p-0 sm:max-w-6xl"
+				>
 					<DialogHeader className="border-b px-6 py-4">
 						<DialogTitle className="text-center font-medium text-base">
 							{service ? "Edit Service" : "Create New Service"}

@@ -10,7 +10,7 @@ export async function createCaseNoteAction(
 ) {
 	const ctx = await getServerContext();
 	const note = await caseNotesService.createCaseNote(ctx, input);
-	revalidatePath(`/appointments/${appointmentId}`);
+	revalidatePath("/appointments/[ref]", "page");
 	return note;
 }
 
@@ -21,14 +21,14 @@ export async function updateCaseNoteAction(
 ) {
 	const ctx = await getServerContext();
 	const note = await caseNotesService.updateCaseNote(ctx, id, input);
-	revalidatePath(`/appointments/${appointmentId}`);
+	revalidatePath("/appointments/[ref]", "page");
 	return note;
 }
 
 export async function deleteCaseNoteAction(appointmentId: string, id: string) {
 	const ctx = await getServerContext();
 	await caseNotesService.deleteCaseNote(ctx, id);
-	revalidatePath(`/appointments/${appointmentId}`);
+	revalidatePath("/appointments/[ref]", "page");
 }
 
 // Customer-scoped variants — same service calls, revalidate customer path
@@ -54,22 +54,16 @@ export async function updateCustomerCaseNoteAction(
 	return note;
 }
 
-export async function cancelCaseNoteAction(
-	appointmentId: string,
-	id: string,
-) {
+export async function cancelCaseNoteAction(appointmentId: string, id: string) {
 	const ctx = await getServerContext();
 	await caseNotesService.cancelCaseNote(ctx, id);
-	revalidatePath(`/appointments/${appointmentId}`);
+	revalidatePath("/appointments/[ref]", "page");
 }
 
-export async function revertCaseNoteAction(
-	appointmentId: string,
-	id: string,
-) {
+export async function revertCaseNoteAction(appointmentId: string, id: string) {
 	const ctx = await getServerContext();
 	await caseNotesService.revertCaseNote(ctx, id);
-	revalidatePath(`/appointments/${appointmentId}`);
+	revalidatePath("/appointments/[ref]", "page");
 }
 
 export async function setCaseNotePinAction(
@@ -79,7 +73,7 @@ export async function setCaseNotePinAction(
 ) {
 	const ctx = await getServerContext();
 	await caseNotesService.setCaseNotePin(ctx, id, pinned);
-	revalidatePath(`/appointments/${appointmentId}`);
+	revalidatePath("/appointments/[ref]", "page");
 }
 
 export async function deleteCustomerCaseNoteAction(
@@ -88,5 +82,33 @@ export async function deleteCustomerCaseNoteAction(
 ) {
 	const ctx = await getServerContext();
 	await caseNotesService.deleteCaseNote(ctx, id);
+	revalidatePath(`/customers/${customerId}`);
+}
+
+export async function cancelCustomerCaseNoteAction(
+	customerId: string,
+	id: string,
+) {
+	const ctx = await getServerContext();
+	await caseNotesService.cancelCaseNote(ctx, id);
+	revalidatePath(`/customers/${customerId}`);
+}
+
+export async function revertCustomerCaseNoteAction(
+	customerId: string,
+	id: string,
+) {
+	const ctx = await getServerContext();
+	await caseNotesService.revertCaseNote(ctx, id);
+	revalidatePath(`/customers/${customerId}`);
+}
+
+export async function setCustomerCaseNotePinAction(
+	customerId: string,
+	id: string,
+	pinned: boolean,
+) {
+	const ctx = await getServerContext();
+	await caseNotesService.setCaseNotePin(ctx, id, pinned);
 	revalidatePath(`/customers/${customerId}`);
 }

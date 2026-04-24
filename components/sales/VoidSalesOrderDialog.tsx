@@ -147,7 +147,10 @@ export function VoidSalesOrderDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-2xl flex-col gap-0 p-0 sm:max-w-2xl">
+			<DialogContent
+				preventOutsideClose
+				className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-2xl flex-col gap-0 p-0 sm:max-w-2xl"
+			>
 				<DialogHeader className="border-b px-6 py-4">
 					<DialogTitle className="text-center font-semibold text-red-700">
 						{step === 1 && `Void Items for ${soNumber}`}

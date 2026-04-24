@@ -50,10 +50,11 @@ export type SalesOrderWithRelations = SalesOrder & {
 		first_name: string;
 		last_name: string;
 	} | null;
+	appointment: { id: string; booking_ref: string } | null;
 };
 
 const SALES_ORDER_SELECT =
-	"*, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name, profile_image_path, phone, id_number, is_vip, is_staff, tag), consultant:employees!sales_orders_consultant_id_fkey(id, first_name, last_name), outlet:outlets!sales_orders_outlet_id_fkey(id, code, name), created_by_employee:employees!sales_orders_created_by_fkey(id, first_name, last_name)";
+	"*, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name, profile_image_path, phone, id_number, is_vip, is_staff, tag), consultant:employees!sales_orders_consultant_id_fkey(id, first_name, last_name), outlet:outlets!sales_orders_outlet_id_fkey(id, code, name), created_by_employee:employees!sales_orders_created_by_fkey(id, first_name, last_name), appointment:appointments!sales_orders_appointment_id_fkey(id, booking_ref)";
 
 export async function listSalesOrders(
 	ctx: Context,
@@ -402,7 +403,8 @@ export async function issueRefund(
 		p_notes: parsed.notes ?? "",
 		p_processed_by: (ctx.currentUser?.employeeId ?? null) as string,
 	});
-	if (error) throw new ValidationError(error.message || "Failed to issue refund");
+	if (error)
+		throw new ValidationError(error.message || "Failed to issue refund");
 	return data as unknown as IssueRefundResult;
 }
 

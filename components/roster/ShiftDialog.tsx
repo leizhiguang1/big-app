@@ -205,7 +205,10 @@ export function ShiftDialog({
 	return (
 		<>
 			<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-				<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+				<DialogContent
+					preventOutsideClose
+					className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
+				>
 					<DialogHeader className="sr-only">
 						<DialogTitle>{shift ? "Edit shift" : "Add shift"}</DialogTitle>
 						<DialogDescription>
@@ -217,10 +220,8 @@ export function ShiftDialog({
 						<div className="flex min-h-0 flex-1">
 							{/* Sidebar */}
 							<aside className="flex w-56 shrink-0 flex-col items-center gap-2 border-r bg-muted/30 p-6 text-center">
-								<Avatar className="size-20">
-									<AvatarFallback className="text-lg">
-										{initials}
-									</AvatarFallback>
+								<Avatar size="xl">
+									<AvatarFallback>{initials}</AvatarFallback>
 								</Avatar>
 								<p className="font-semibold text-sm leading-tight">
 									{displayName}

@@ -11,11 +11,11 @@ import {
 } from "react";
 import { AppointmentContextMenu } from "@/components/appointments/AppointmentContextMenu";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
-import { CancelAppointmentDialog } from "@/components/appointments/CancelAppointmentDialog";
 import {
 	AppointmentToastStack,
 	type Toast,
 } from "@/components/appointments/AppointmentToastStack";
+import { CancelAppointmentDialog } from "@/components/appointments/CancelAppointmentDialog";
 import { DayView } from "@/components/appointments/DayView";
 import { GridView } from "@/components/appointments/GridView";
 import { ListView } from "@/components/appointments/ListView";
@@ -421,7 +421,9 @@ export function AppointmentsCalendar({
 					appointments={filteredAppointments}
 					columnOrder={columnOrder}
 					visibleColumns={visibleColumns}
-					onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
+					onAppointmentClick={(a) =>
+						router.push(`/appointments/${a.booking_ref}`)
+					}
 					onAppointmentContextMenu={handleContextMenu}
 				/>
 			);
@@ -433,7 +435,9 @@ export function AppointmentsCalendar({
 					dateStr={dateStr}
 					weekStart={weekStart}
 					appointments={filteredAppointments}
-					onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
+					onAppointmentClick={(a) =>
+						router.push(`/appointments/${a.booking_ref}`)
+					}
 					onAppointmentContextMenu={handleContextMenu}
 					onDayClick={navigateToDay}
 				/>
@@ -446,7 +450,9 @@ export function AppointmentsCalendar({
 					dateStr={dateStr}
 					appointments={filteredAppointments}
 					onDayClick={navigateToDay}
-					onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
+					onAppointmentClick={(a) =>
+						router.push(`/appointments/${a.booking_ref}`)
+					}
 				/>
 			);
 		}
@@ -456,7 +462,9 @@ export function AppointmentsCalendar({
 					weekStart={weekStart}
 					appointments={filteredAppointments}
 					onCellClick={openCreateAt}
-					onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
+					onAppointmentClick={(a) =>
+						router.push(`/appointments/${a.booking_ref}`)
+					}
 					onAppointmentContextMenu={handleContextMenu}
 					onReschedule={handleReschedule}
 					onResize={handleResize}
@@ -472,7 +480,9 @@ export function AppointmentsCalendar({
 				rooms={rooms}
 				shifts={shifts}
 				onCellClick={openCreateAt}
-				onAppointmentClick={(a) => router.push(`/appointments/${a.id}`)}
+				onAppointmentClick={(a) =>
+					router.push(`/appointments/${a.booking_ref}`)
+				}
 				onAppointmentContextMenu={handleContextMenu}
 				onReschedule={handleReschedule}
 				onResize={handleResize}
@@ -557,7 +567,8 @@ export function AppointmentsCalendar({
 				onSuccess={() => showToast("Appointment cancelled", "success")}
 				onError={(message) => showToast(message, "error")}
 				onReschedule={() => {
-					if (cancelTarget) setDialog({ kind: "edit", appointment: cancelTarget });
+					if (cancelTarget)
+						setDialog({ kind: "edit", appointment: cancelTarget });
 				}}
 			/>
 

@@ -25,14 +25,16 @@ type Props = {
 	onReschedule?: () => void;
 };
 
-// `completed` is excluded from the progression pills. Completion is only
-// reachable via the Mark Complete FAB (which routes through the Collect
-// Payment RPC or markAppointmentCompleted). When the appointment is already
-// completed, the whole row is replaced with a static "Completed" indicator
-// — the progression is terminal and the FAB's Revert button is the escape.
+// `completed` and `cancelled` are excluded from the progression pills —
+// both are terminal states reached via dedicated actions, not by clicking
+// a state. Completion routes through the Mark Complete FAB (Collect Payment
+// RPC or markAppointmentCompleted); cancellation routes through the Cancel
+// action (CancelAppointmentDialog) which captures a reason and unwinds side
+// effects. When the appointment is in either terminal state, the whole row
+// is replaced with a static badge.
 // See docs/modules/02-appointments.md §Complete appointment workflow.
 const PROGRESSION_STATUSES = APPOINTMENT_STATUSES.filter(
-	(s) => s !== "completed",
+	(s) => s !== "completed" && s !== "cancelled",
 );
 
 export function StatusProgressionRow({
@@ -90,8 +92,8 @@ export function StatusProgressionRow({
 	if (appointment.is_time_block) return null;
 
 	// Terminal state — show a static indicator, not a clickable journey.
-	if (optimistic === "completed") {
-		return <CompletedBadge />;
+	if (optimistic === "completed" || optimistic === "cancelled") {
+		return <TerminalBadge status={optimistic} />;
 	}
 
 	return (
@@ -128,8 +130,12 @@ export function StatusProgressionRow({
 	);
 }
 
-function CompletedBadge() {
-	const config = APPOINTMENT_STATUS_CONFIG.completed;
+function TerminalBadge({
+	status,
+}: {
+	status: Extract<AppointmentStatus, "completed" | "cancelled">;
+}) {
+	const config = APPOINTMENT_STATUS_CONFIG[status];
 	const Icon = config.Icon;
 	return (
 		<div

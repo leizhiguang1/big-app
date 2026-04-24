@@ -105,7 +105,10 @@ export function IssueRefundDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-md flex-col gap-0 p-0 sm:max-w-md">
+			<DialogContent
+				preventOutsideClose
+				className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-md flex-col gap-0 p-0 sm:max-w-md"
+			>
 				<DialogHeader className="border-b px-6 py-4">
 					<DialogTitle className="font-semibold">
 						Issue Refund for {soNumber}

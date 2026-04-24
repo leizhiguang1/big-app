@@ -509,7 +509,10 @@ export function HistoryPanel({
 								onJump={
 									t.isCurrent
 										? undefined
-										: () => router.push(`/appointments/${t.appointmentId}`)
+										: () =>
+												router.push(
+													`/appointments/${t.bookingRef ?? t.appointmentId}`,
+												)
 								}
 							/>
 						) : (
@@ -529,7 +532,9 @@ export function HistoryPanel({
 								onJump={
 									t.appointmentId && !t.isCurrent
 										? () =>
-												router.push(`/appointments/${t.appointmentId ?? ""}`)
+												router.push(
+													`/appointments/${t.bookingRef ?? t.appointmentId}`,
+												)
 										: undefined
 								}
 							/>
@@ -1155,7 +1160,10 @@ export function FollowUpHistoryPanel({
 							onJump={
 								t.isCurrent
 									? undefined
-									: () => router.push(`/appointments/${t.appointmentId}`)
+									: () =>
+											router.push(
+												`/appointments/${t.bookingRef ?? t.appointmentId}`,
+											)
 							}
 						/>
 					))

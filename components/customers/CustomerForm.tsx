@@ -428,7 +428,10 @@ export function CustomerFormDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-			<DialogContent className="flex h-[85vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+			<DialogContent
+				preventOutsideClose
+				className="flex h-[85vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+			>
 				<DialogHeader className="sr-only">
 					<DialogTitle>
 						{customer ? "Edit customer" : "New customer"}

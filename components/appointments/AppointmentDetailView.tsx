@@ -327,39 +327,31 @@ export function AppointmentDetailView({
 					)}
 				</div>
 
-				{/* Right context panel — always present on lg+ */}
-				<aside className="sticky top-4 hidden h-[calc(100vh-8rem)] w-[340px] shrink-0 lg:block">
-					{showHistoryPanel ? (
-						<HistoryPanel
-							currentAppointmentId={appointment.id}
-							caseNotes={caseNotes}
-							customerBillingHistory={customerLineItemsHistory}
-							customerHistory={customerHistory}
-							onToast={showToast}
-							onEditNote={(noteId, content) => {
-								setActiveTab("casenotes");
-								setPendingEdit({ noteId, content });
-							}}
-						/>
-					) : showFollowUpPanel ? (
-						<FollowUpHistoryPanel
-							currentAppointmentId={appointment.id}
-							followUps={followUps}
-							customerHistory={customerHistory}
-							onToast={showToast}
-							onEdit={(f) => setEditingFollowUpId(f.id)}
-						/>
-					) : (
-						<div className="flex h-full flex-col gap-3 overflow-y-auto">
-							<BookingInfoCard
-								appointment={appointment}
-								lineItems={lineItems}
-								salesOrderId={salesOrderId}
+				{(showHistoryPanel || showFollowUpPanel) && (
+					<aside className="sticky top-4 hidden h-[calc(100vh-8rem)] w-[340px] shrink-0 lg:block">
+						{showHistoryPanel ? (
+							<HistoryPanel
+								currentAppointmentId={appointment.id}
+								caseNotes={caseNotes}
+								customerBillingHistory={customerLineItemsHistory}
+								customerHistory={customerHistory}
+								onToast={showToast}
+								onEditNote={(noteId, content) => {
+									setActiveTab("casenotes");
+									setPendingEdit({ noteId, content });
+								}}
 							/>
-							<StatusChangeLogCard entries={statusLog} />
-						</div>
-					)}
-				</aside>
+						) : (
+							<FollowUpHistoryPanel
+								currentAppointmentId={appointment.id}
+								followUps={followUps}
+								customerHistory={customerHistory}
+								onToast={showToast}
+								onEdit={(f) => setEditingFollowUpId(f.id)}
+							/>
+						)}
+					</aside>
+				)}
 			</div>
 
 			{editOpen && (

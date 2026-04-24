@@ -8,8 +8,11 @@ import { CaseNoteRow } from "@/components/case-notes/CaseNoteRow";
 import { NewNoteDialog } from "@/components/case-notes/NewNoteDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
+	cancelCustomerCaseNoteAction,
 	createCustomerCaseNoteAction,
 	deleteCustomerCaseNoteAction,
+	revertCustomerCaseNoteAction,
+	setCustomerCaseNotePinAction,
 	updateCustomerCaseNoteAction,
 } from "@/lib/actions/case-notes";
 import type { CaseNoteWithContext } from "@/lib/services/case-notes";
@@ -44,10 +47,18 @@ function buildGroups(notes: CaseNoteWithContext[]): NoteGroup[] {
 		map.get(key)!.notes.push(n);
 	}
 
-	// Sort groups by most recent note descending
+	// Sort groups by most recent note across the group — picking notes[0] is
+	// wrong now that DB-level sort is (is_pinned desc, created_at desc): a
+	// pinned older note would otherwise demote its whole group.
 	return Array.from(map.values()).sort((a, b) => {
-		const aTime = a.notes[0]?.created_at ?? "";
-		const bTime = b.notes[0]?.created_at ?? "";
+		const aTime = a.notes.reduce(
+			(acc, n) => (n.created_at > acc ? n.created_at : acc),
+			"",
+		);
+		const bTime = b.notes.reduce(
+			(acc, n) => (n.created_at > acc ? n.created_at : acc),
+			"",
+		);
 		return bTime.localeCompare(aTime);
 	});
 }
@@ -57,6 +68,7 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editContent, setEditContent] = useState("");
 	const [deleteId, setDeleteId] = useState<string | null>(null);
+	const [cancelId, setCancelId] = useState<string | null>(null);
 	const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [pending, startTransition] = useTransition();
@@ -137,6 +149,51 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 		});
 	};
 
+	const handleTogglePin = (id: string, currentPinned: boolean) => {
+		setLocalNotes((prev) =>
+			prev.map((n) => (n.id === id ? { ...n, is_pinned: !currentPinned } : n)),
+		);
+		startTransition(async () => {
+			try {
+				await setCustomerCaseNotePinAction(customerId, id, !currentPinned);
+				refresh();
+			} catch {
+				refresh();
+			}
+		});
+	};
+
+	const handleConfirmCancel = () => {
+		if (!cancelId) return;
+		const id = cancelId;
+		setLocalNotes((prev) =>
+			prev.map((n) => (n.id === id ? { ...n, is_cancelled: true } : n)),
+		);
+		setCancelId(null);
+		startTransition(async () => {
+			try {
+				await cancelCustomerCaseNoteAction(customerId, id);
+				refresh();
+			} catch {
+				refresh();
+			}
+		});
+	};
+
+	const handleRevert = (id: string) => {
+		setLocalNotes((prev) =>
+			prev.map((n) => (n.id === id ? { ...n, is_cancelled: false } : n)),
+		);
+		startTransition(async () => {
+			try {
+				await revertCustomerCaseNoteAction(customerId, id);
+				refresh();
+			} catch {
+				refresh();
+			}
+		});
+	};
+
 	const toggleCollapse = (id: string) =>
 		setCollapsedIds((prev) => {
 			const next = new Set(prev);
@@ -151,9 +208,8 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 				<div className="flex items-center gap-2 text-muted-foreground text-sm">
 					<StickyNote className="size-4" />
 					<span className="tabular-nums">
-						{localNotes.length}{" "}
-						{localNotes.length === 1 ? "note" : "notes"} across{" "}
-						{groups.length} {groups.length === 1 ? "visit" : "visits"}
+						{localNotes.length} {localNotes.length === 1 ? "note" : "notes"}{" "}
+						across {groups.length} {groups.length === 1 ? "visit" : "visits"}
 					</span>
 				</div>
 				<button
@@ -180,7 +236,7 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 							{group.appointmentId ? (
 								<div className="flex items-center gap-2 text-xs">
 									<Link
-										href={`/appointments/${group.appointmentId}`}
+										href={`/appointments/${group.bookingRef ?? group.appointmentId}`}
 										className="font-mono font-semibold text-sky-600 hover:underline"
 									>
 										{group.bookingRef ?? group.appointmentId}
@@ -226,6 +282,9 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 								onEditChange={setEditContent}
 								onEditSave={handleUpdate}
 								onDelete={() => setDeleteId(n.id)}
+								onTogglePin={() => handleTogglePin(n.id, n.is_pinned)}
+								onCancel={() => setCancelId(n.id)}
+								onRevert={() => handleRevert(n.id)}
 							/>
 						))}
 					</div>
@@ -247,6 +306,16 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 				confirmLabel="Delete"
 				pending={pending}
 				onConfirm={handleDelete}
+			/>
+
+			<ConfirmDialog
+				open={cancelId !== null}
+				onOpenChange={(o) => !o && setCancelId(null)}
+				title="Cancel this case note?"
+				description="The note stays on the record marked as cancelled. You can restore it later."
+				confirmLabel="Cancel note"
+				pending={pending}
+				onConfirm={handleConfirmCancel}
 			/>
 		</div>
 	);

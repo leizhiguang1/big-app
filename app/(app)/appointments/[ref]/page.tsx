@@ -5,12 +5,12 @@ import { AppointmentDetailContent } from "./appointment-detail-content";
 export default async function AppointmentDetailPage({
 	params,
 }: {
-	params: Promise<{ id: string }>;
+	params: Promise<{ ref: string }>;
 }) {
-	const { id } = await params;
+	const { ref } = await params;
 	return (
 		<Suspense fallback={<Skeleton className="h-[600px] w-full rounded-md" />}>
-			<AppointmentDetailContent id={id} />
+			<AppointmentDetailContent bookingRef={ref} />
 		</Suspense>
 	);
 }

@@ -39,7 +39,7 @@ export function UserMenu({
 						variant="ghost"
 						className="h-11 cursor-pointer gap-2 px-2 hover:bg-accent data-[state=open]:bg-accent"
 					>
-						<Avatar className="size-8">
+						<Avatar>
 							{imageUrl && <AvatarImage src={imageUrl} alt="" />}
 							<AvatarFallback className="bg-primary text-primary-foreground text-xs">
 								{initials}

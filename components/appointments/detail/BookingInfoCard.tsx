@@ -3,6 +3,7 @@
 import { ExternalLink, FileText } from "lucide-react";
 import Link from "next/link";
 import { AppointmentServicesList } from "@/components/appointments/detail/AppointmentServicesList";
+import { APPOINTMENT_TAG_CONFIG } from "@/lib/constants/appointment-status";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 
@@ -53,6 +54,9 @@ export function BookingInfoCard({
 		? `${appointment.created_by_employee.first_name} ${appointment.created_by_employee.last_name}`
 		: null;
 	const dur = durationLabel(appointment.start_at, appointment.end_at);
+	const notes = appointment.notes?.trim() || null;
+	const tagKey = appointment.tags?.[0] ?? null;
+	const tagConfig = tagKey ? APPOINTMENT_TAG_CONFIG[tagKey] : null;
 
 	return (
 		<div className="flex flex-col gap-1.5 rounded-xl border bg-card p-2.5 text-[11px] shadow-sm">
@@ -82,17 +86,37 @@ export function BookingInfoCard({
 					}
 				/>
 				<Row label="Booked by" value={createdByName} muted={!createdByName} />
+				{tagConfig && (
+					<Row
+						label="Tag"
+						value={
+							<span
+								className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-[10px] text-foreground/80"
+								style={{ backgroundColor: tagConfig.bg }}
+							>
+								<span
+									aria-hidden
+									className="size-1.5 rounded-full"
+									style={{ backgroundColor: tagConfig.dot }}
+								/>
+								{tagConfig.label}
+							</span>
+						}
+					/>
+				)}
 			</dl>
 
 			<Section label="Services">
 				<AppointmentServicesList entries={lineItems} compact />
 			</Section>
 
-			<Section label="Symptoms">
-				<span className="text-muted-foreground italic">
-					No symptoms recorded
-				</span>
-			</Section>
+			{notes && (
+				<Section label="Notes">
+					<p className="whitespace-pre-wrap break-words leading-snug">
+						{notes}
+					</p>
+				</Section>
+			)}
 
 			{salesOrderId && (
 				<Section label="Sales Order">

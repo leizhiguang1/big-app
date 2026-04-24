@@ -235,7 +235,7 @@ export function AppointmentsFilterBar({
 					{outlets.map((o) => (
 						<DropdownMenuItem
 							key={o.id}
-							onSelect={() => navigate({ outlet: o.id })}
+							onSelect={() => navigate({ outlet: o.code })}
 							className="flex items-center justify-between gap-2"
 						>
 							<span className="flex items-center gap-2">

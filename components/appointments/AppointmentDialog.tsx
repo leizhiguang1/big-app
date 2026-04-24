@@ -401,7 +401,10 @@ export function AppointmentDialog({
 	return (
 		<>
 			<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-				<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+				<DialogContent
+					preventOutsideClose
+					className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+				>
 					<DialogHeader className="border-b px-5 py-3">
 						<DialogTitle className="text-base">{headerLabel}</DialogTitle>
 						<DialogDescription

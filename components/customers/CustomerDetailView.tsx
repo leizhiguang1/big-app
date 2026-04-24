@@ -18,8 +18,8 @@ import {
 	Phone,
 	Pill,
 	Plus,
-	Stethoscope,
 	Star,
+	Stethoscope,
 	Tag,
 	User,
 	UserX,
@@ -790,7 +790,7 @@ function AppointmentTimelineCard({
 				</div>
 				<div className="flex items-center gap-2">
 					<Link
-						href={`/appointments/${appointment.id}`}
+						href={`/appointments/${appointment.booking_ref}`}
 						className="flex size-9 items-center justify-center rounded-full bg-sky-600 font-semibold text-[11px] text-white shadow-sm transition hover:bg-sky-700"
 					>
 						Go

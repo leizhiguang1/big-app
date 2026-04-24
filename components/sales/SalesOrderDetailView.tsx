@@ -497,7 +497,7 @@ export function SalesOrderDetailView({
 			{order.appointment_id && (
 				<div className="text-sm">
 					<Link
-						href={`/appointments/${order.appointment_id}`}
+						href={`/appointments/${order.appointment?.booking_ref ?? order.appointment_id}`}
 						className="text-blue-600 hover:underline"
 					>
 						View linked appointment

@@ -182,7 +182,10 @@ export function AddMcDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+			<DialogContent
+				preventOutsideClose
+				className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
+			>
 				<DialogHeader className="border-b px-5 py-3">
 					<DialogTitle className="text-base">
 						Add New Medical Certificate (MC)

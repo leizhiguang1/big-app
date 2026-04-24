@@ -30,7 +30,7 @@ export async function createCustomerDocumentAction(
 ) {
 	const ctx = await getServerContext();
 	const doc = await customerDocumentsService.createCustomerDocument(ctx, input);
-	if (appointmentId) revalidatePath(`/appointments/${appointmentId}`);
+	if (appointmentId) revalidatePath("/appointments/[ref]", "page");
 	return doc;
 }
 
@@ -52,5 +52,5 @@ export async function deleteCustomerDocumentAction(
 	await deleteObject(ctx, "documents", storage_path).catch(() => {
 		// orphan blob — the row is already gone, a cleanup pass can sweep later
 	});
-	if (appointmentId) revalidatePath(`/appointments/${appointmentId}`);
+	if (appointmentId) revalidatePath("/appointments/[ref]", "page");
 }

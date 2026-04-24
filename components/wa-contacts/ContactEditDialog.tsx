@@ -2,6 +2,8 @@
 
 import { Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { CrmContact, CrmContactPatch } from "@/components/chats/types";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -14,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import type { CrmContact, CrmContactPatch } from "@/components/chats/types";
 
 type Props = {
 	contact: CrmContact | null;
@@ -87,20 +88,18 @@ export function ContactEditDialog({ contact, onClose, onSave }: Props) {
 
 	return (
 		<Dialog open={!!contact} onOpenChange={(o) => !o && onClose()}>
-			<DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-xl">
+			<DialogContent
+				preventOutsideClose
+				className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-xl"
+			>
 				<DialogHeader className="border-b px-5 py-4">
 					<DialogTitle className="flex items-center gap-3">
-						{contact.imgUrl ? (
-							<img
-								src={contact.imgUrl}
-								alt=""
-								className="size-9 rounded-full object-cover"
-							/>
-						) : (
-							<div className="flex size-9 items-center justify-center rounded-full bg-muted font-semibold text-muted-foreground text-sm">
+						<Avatar>
+							{contact.imgUrl && <AvatarImage src={contact.imgUrl} alt="" />}
+							<AvatarFallback className="font-semibold">
 								{(title ?? "?").slice(0, 1).toUpperCase()}
-							</div>
-						)}
+							</AvatarFallback>
+						</Avatar>
 						<div className="flex flex-col">
 							<span>{title}</span>
 							{contact.phone && (

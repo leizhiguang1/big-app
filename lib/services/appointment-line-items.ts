@@ -248,6 +248,36 @@ export async function listIncentivesForAppointment(
 	return (data ?? []) as unknown as IncentiveWithEmployee[];
 }
 
+// Backfill: service lines created before the auto-seed feature shipped
+// (2026-04-24) have no incentive row, so the Overview picker shows empty.
+// Called on appointment-detail load to guarantee every service line has at
+// least one incentive when the appointment has a default employee.
+export async function ensureDefaultIncentives(
+	ctx: Context,
+	appointmentId: string,
+): Promise<void> {
+	const { data: lines } = await ctx.db
+		.from("appointment_line_items")
+		.select("id, appointment_id, item_type")
+		.eq("appointment_id", appointmentId)
+		.eq("item_type", "service");
+	const serviceLines = (lines ?? []) as AppointmentLineItem[];
+	if (serviceLines.length === 0) return;
+	const { data: existing } = await ctx.db
+		.from("appointment_line_item_incentives")
+		.select("line_item_id")
+		.in(
+			"line_item_id",
+			serviceLines.map((l) => l.id),
+		);
+	const covered = new Set(
+		(existing ?? []).map((r) => r.line_item_id as string),
+	);
+	const uncovered = serviceLines.filter((l) => !covered.has(l.id));
+	if (uncovered.length === 0) return;
+	await seedDefaultIncentives(ctx, uncovered);
+}
+
 export async function createIncentive(
 	ctx: Context,
 	input: unknown,

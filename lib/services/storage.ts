@@ -104,6 +104,26 @@ export async function createSignedReadUrl(
 	return data.signedUrl;
 }
 
+export async function createSignedReadUrls(
+	ctx: Context,
+	bucket: BucketId,
+	paths: string[],
+	expiresIn = 60 * 10,
+): Promise<Record<string, string>> {
+	if (paths.length === 0) return {};
+	const { data, error } = await ctx.db.storage
+		.from(bucket)
+		.createSignedUrls(paths, expiresIn);
+	if (error || !data) {
+		throw new ValidationError(error?.message ?? "Failed to sign read URLs");
+	}
+	const out: Record<string, string> = {};
+	for (const row of data) {
+		if (row.path && row.signedUrl) out[row.path] = row.signedUrl;
+	}
+	return out;
+}
+
 export async function deleteObject(
 	ctx: Context,
 	bucket: BucketId,

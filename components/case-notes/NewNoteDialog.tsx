@@ -34,7 +34,10 @@ export function NewNoteDialog({ open, onOpenChange, onSave, pending }: Props) {
 
 	return (
 		<Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-			<DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-lg">
+			<DialogContent
+				preventOutsideClose
+				className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-lg"
+			>
 				<DialogHeader className="border-b px-6 py-4">
 					<DialogTitle>New case note</DialogTitle>
 				</DialogHeader>

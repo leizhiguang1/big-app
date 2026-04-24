@@ -153,7 +153,10 @@ export function AutomationEditor({ automation, onClose, onSave }: Props) {
 
 	return (
 		<Dialog open onOpenChange={(o) => !o && onClose()}>
-			<DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-2xl">
+			<DialogContent
+				preventOutsideClose
+				className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-2xl"
+			>
 				<DialogHeader className="border-b px-5 py-4">
 					<DialogTitle>
 						{automation ? "Edit automation" : "New automation"}

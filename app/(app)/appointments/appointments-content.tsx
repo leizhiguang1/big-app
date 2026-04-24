@@ -81,15 +81,17 @@ export async function AppointmentsContent({
 		);
 	}
 
-	const requestedOutlet = params.outlet;
-	const outletId =
-		requestedOutlet && activeOutlets.some((o) => o.id === requestedOutlet)
-			? requestedOutlet
-			: activeOutlets[0].id;
+	const requestedOutletCode = params.outlet;
+	const resolvedOutlet =
+		(requestedOutletCode &&
+			activeOutlets.find((o) => o.code === requestedOutletCode)) ||
+		activeOutlets[0];
+	const outletId = resolvedOutlet.id;
+	const outletCode = resolvedOutlet.code;
 
-	if (outletId !== requestedOutlet) {
+	if (outletCode !== requestedOutletCode) {
 		const next = new URLSearchParams();
-		next.set("outlet", outletId);
+		next.set("outlet", outletCode);
 		for (const k of [
 			"date",
 			"resource",

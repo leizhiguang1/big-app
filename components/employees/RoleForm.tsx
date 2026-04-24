@@ -166,7 +166,10 @@ export function RoleFormDialog({ open, value: role, onClose }: Props) {
 
 	return (
 		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-5xl">
+			<DialogContent
+				preventOutsideClose
+				className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-5xl"
+			>
 				<DialogHeader>
 					<DialogTitle>{role ? "Edit role" : "New role"}</DialogTitle>
 					<DialogDescription>

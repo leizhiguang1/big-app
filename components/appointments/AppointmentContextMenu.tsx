@@ -116,19 +116,19 @@ export function AppointmentContextMenu({
 							...(subFlip.y ? { bottom: 0 } : { top: 0 }),
 						}}
 					>
-						{APPOINTMENT_STATUSES.filter((k) => k !== "completed").map(
-							(key) => (
-								<ContextStatusButton
-									key={key}
-									status={key}
-									active={visitKey === key}
-									onClick={() => {
-										onSetStatus(key);
-										onClose();
-									}}
-								/>
-							),
-						)}
+						{APPOINTMENT_STATUSES.filter(
+							(k) => k !== "completed" && k !== "cancelled",
+						).map((key) => (
+							<ContextStatusButton
+								key={key}
+								status={key}
+								active={visitKey === key}
+								onClick={() => {
+									onSetStatus(key);
+									onClose();
+								}}
+							/>
+						))}
 					</div>
 				)}
 			</div>
@@ -168,7 +168,7 @@ export function AppointmentContextMenu({
 				}}
 				className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-destructive hover:bg-destructive/10"
 			>
-				<span>🗑️ Delete</span>
+				<span>🚫 Cancel appointment</span>
 			</button>
 		</div>,
 		document.body,
@@ -191,9 +191,14 @@ function ContextStatusButton({
 			type="button"
 			onClick={onClick}
 			className={cn(
-				"flex w-full items-center gap-2 px-3.5 py-1.5 text-left",
-				active ? cn(cfg.badge, "font-bold") : "hover:bg-muted",
+				"flex w-full items-center gap-2 px-3.5 py-1.5 text-left transition",
+				active ? "font-semibold text-white" : "hover:bg-muted/60",
 			)}
+			style={
+				active
+					? { backgroundColor: cfg.solidHex }
+					: { color: cfg.solidHex }
+			}
 		>
 			<Icon className="size-3.5 shrink-0" />
 			<span>{cfg.label}</span>

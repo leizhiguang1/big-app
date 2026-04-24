@@ -132,16 +132,17 @@ export async function listAppointmentsForRange(
 	return (data ?? []) as unknown as AppointmentWithRelations[];
 }
 
-export async function getAppointment(
+export async function getAppointmentByBookingRef(
 	ctx: Context,
-	id: string,
+	bookingRef: string,
 ): Promise<AppointmentWithRelations> {
 	const { data, error } = await ctx.db
 		.from("appointments")
 		.select(SELECT_WITH_RELATIONS)
-		.eq("id", id)
+		.eq("booking_ref", bookingRef)
 		.single();
-	if (error || !data) throw new NotFoundError(`Appointment ${id} not found`);
+	if (error || !data)
+		throw new NotFoundError(`Appointment ${bookingRef} not found`);
 	return data as unknown as AppointmentWithRelations;
 }
 
