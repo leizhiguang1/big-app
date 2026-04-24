@@ -23,7 +23,7 @@ import {
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import {
 	BillingItemPickerDialog,
-	type BillingItemSelection,
+	type CartEntry,
 } from "@/components/appointments/BillingItemPickerDialog";
 import { HeaderBar } from "@/components/appointments/detail/collect-payment/HeaderBar";
 import {
@@ -97,6 +97,7 @@ type Props = {
 	medicalCertificates?: MedicalCertificateWithRefs[];
 	billingSettings?: BillingSettings | null;
 	staffDiscountPercent: number;
+	walletBalance: number | null;
 	onSuccess?: (result: {
 		sales_order_id: string;
 		so_number: string;
@@ -124,6 +125,7 @@ export function CollectPaymentDialog({
 	medicalCertificates,
 	billingSettings,
 	staffDiscountPercent,
+	walletBalance,
 	onSuccess,
 	onError,
 }: Props) {
@@ -152,9 +154,7 @@ export function CollectPaymentDialog({
 
 	const isStaffCustomer = appointment.customer?.is_staff === true;
 	const canApplyStaffDiscount =
-		isStaffCustomer &&
-		billing.hasServiceLines &&
-		staffDiscountPercent > 0;
+		isStaffCustomer && billing.hasServiceLines && staffDiscountPercent > 0;
 
 	const handleApplyStaffDiscount = useCallback(() => {
 		billing.applyStaffDiscount(staffDiscountPercent);
@@ -299,46 +299,59 @@ export function CollectPaymentDialog({
 		[empAlloc, billing.lines],
 	);
 
-	const handlePickerSelect = (sel: BillingItemSelection) => {
+	const handlePickerCommit = (batch: CartEntry[]) => {
 		const defaultTaxId = resolveDefaultTaxId(
 			appointment.customer,
 			billingSettings ?? null,
 		);
-		const newLine: Line =
-			sel.type === "service"
-				? {
-						id: crypto.randomUUID(),
-						service_id: sel.service.id,
-						inventory_item_id: null,
-						item_type: "service",
-						item_name: sel.service.name,
-						sku: sel.service.sku ?? "",
-						quantity: 1,
-						unit_price: Number(sel.service.price),
-						tax_id: defaultTaxId,
-						discount_type: "amount",
-						discount_input: "",
-						tooth_number: "",
-						surface: "",
-						remarks: "",
-					}
-				: {
-						id: crypto.randomUUID(),
-						service_id: null,
-						inventory_item_id: sel.product.id,
-						item_type: "product",
-						item_name: sel.product.name,
-						sku: sel.product.sku ?? "",
-						quantity: 1,
-						unit_price: Number(sel.product.selling_price ?? 0),
-						tax_id: defaultTaxId,
-						discount_type: "amount",
-						discount_input: "",
-						tooth_number: "",
-						surface: "",
-						remarks: "",
-					};
-		billing.setLines((prev) => [...prev, newLine]);
+		const newLines: Line[] = batch.map(({ selection, quantity }) => {
+			const base = {
+				id: crypto.randomUUID(),
+				discount_type: "amount" as const,
+				discount_input: "",
+				tooth_number: "",
+				surface: "",
+				remarks: "",
+			};
+			if (selection.type === "service") {
+				return {
+					...base,
+					service_id: selection.service.id,
+					inventory_item_id: null,
+					item_type: "service",
+					item_name: selection.service.name,
+					sku: selection.service.sku ?? "",
+					quantity,
+					unit_price: Number(selection.service.price),
+					tax_id: defaultTaxId,
+				};
+			}
+			if (selection.type === "wallet_topup") {
+				return {
+					...base,
+					service_id: null,
+					inventory_item_id: selection.product.id,
+					item_type: "wallet_topup",
+					item_name: selection.product.name,
+					sku: selection.product.sku ?? "",
+					quantity: 1,
+					unit_price: 0,
+					tax_id: null,
+				};
+			}
+			return {
+				...base,
+				service_id: null,
+				inventory_item_id: selection.product.id,
+				item_type: "product",
+				item_name: selection.product.name,
+				sku: selection.product.sku ?? "",
+				quantity,
+				unit_price: Number(selection.product.selling_price ?? 0),
+				tax_id: defaultTaxId,
+			};
+		});
+		billing.setLines((prev) => [...prev, ...newLines]);
 		setPickerOpen(false);
 	};
 
@@ -552,8 +565,8 @@ export function CollectPaymentDialog({
 		}
 		if (hasMissingMethodFields) {
 			const missingMethod =
-				payments.methodByCode.get(missingMethodFieldRows[0]?.mode ?? "")?.name ??
-				"selected method";
+				payments.methodByCode.get(missingMethodFieldRows[0]?.mode ?? "")
+					?.name ?? "selected method";
 			setFormError(
 				`The ${missingMethod} payment row is missing a required field. Fill the field(s) marked with *.`,
 			);
@@ -888,6 +901,7 @@ export function CollectPaymentDialog({
 							paymentMethods={paymentMethods}
 							methodByCode={payments.methodByCode}
 							total={rounding.total}
+							walletBalance={walletBalance}
 							onChangeMethod={payments.changePaymentMethod}
 							onUpdatePayment={payments.updatePayment}
 							onRemovePayment={payments.removePaymentEntry}
@@ -1002,7 +1016,18 @@ export function CollectPaymentDialog({
 				onOpenChange={setPickerOpen}
 				services={services}
 				products={products}
-				onSelect={handlePickerSelect}
+				currentCart={billing.lines.map((l) => ({
+					id: l.id,
+					item_type: l.item_type,
+					name: l.item_name,
+					sku: l.sku || null,
+					quantity: l.quantity,
+					unit_price: l.unit_price,
+				}))}
+				onRemoveExisting={(id) =>
+					billing.setLines((prev) => prev.filter((l) => l.id !== id))
+				}
+				onCommit={handlePickerCommit}
 			/>
 
 			<AppointmentDialog

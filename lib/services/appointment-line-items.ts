@@ -145,6 +145,9 @@ export async function createLineItemsBulk(
 		...normalize(input),
 		created_by: createdBy,
 	}));
+
+	await assertWalletExclusivity(ctx, rows);
+
 	const { data, error } = await ctx.db
 		.from("appointment_line_items")
 		.insert(rows)
@@ -153,6 +156,34 @@ export async function createLineItemsBulk(
 	const created = data ?? [];
 	await seedDefaultIncentives(ctx, created);
 	return created;
+}
+
+// Enforce KumoDent's rule: a wallet_topup line must be the only line on the
+// appointment. Blocks mixed carts (wallet + service/product/charge).
+async function assertWalletExclusivity(
+	ctx: Context,
+	rows: { appointment_id: string; item_type: string }[],
+): Promise<void> {
+	const byAppt = new Map<string, string[]>();
+	for (const r of rows) {
+		const arr = byAppt.get(r.appointment_id) ?? [];
+		arr.push(r.item_type);
+		byAppt.set(r.appointment_id, arr);
+	}
+	for (const [apptId, newTypes] of byAppt) {
+		const { data, error } = await ctx.db
+			.from("appointment_line_items")
+			.select("item_type")
+			.eq("appointment_id", apptId);
+		if (error) throw new ValidationError(error.message);
+		const existingTypes = (data ?? []).map((r) => r.item_type);
+		const combined = [...existingTypes, ...newTypes];
+		const hasWallet = combined.includes("wallet_topup");
+		const hasOther = combined.some((t) => t !== "wallet_topup");
+		if (hasWallet && hasOther) {
+			throw new ValidationError("Cash Wallet must be the only line on a sale.");
+		}
+	}
 }
 
 export async function updateLineItem(

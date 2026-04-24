@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { EmployeePicker } from "@/components/employees/EmployeePicker";
 import { Input } from "@/components/ui/input";
 import {
@@ -42,6 +42,8 @@ type Props = {
 	onLineEmpChange: (idx: number, empId: string | null) => void;
 	onLinePercentChange: (idx: number, pct: number) => void;
 	onBalanceEmpLine: () => void;
+
+	onRemove?: () => void;
 };
 
 export function LineItemRow({
@@ -68,6 +70,7 @@ export function LineItemRow({
 	onLineEmpChange,
 	onLinePercentChange,
 	onBalanceEmpLine,
+	onRemove,
 }: Props) {
 	const activeTaxes = taxes.filter((t) => t.is_active);
 	const gross = lineGross(line);
@@ -100,6 +103,16 @@ export function LineItemRow({
 			<div className="grid grid-cols-[1fr_56px_96px_80px_24px] items-center gap-1">
 				<div className="min-w-0">
 					<div className="flex items-center gap-1.5">
+						{onRemove && (
+							<button
+								type="button"
+								onClick={onRemove}
+								className="-ml-1 flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+								aria-label="Remove item"
+							>
+								<X className="size-3.5" />
+							</button>
+						)}
 						<span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-primary">
 							{line.item_type === "product"
 								? "PRD"

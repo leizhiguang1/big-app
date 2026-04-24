@@ -13,11 +13,11 @@ import {
 	supplierInputSchema,
 	uomInputSchema,
 } from "@/lib/schemas/inventory";
-import { assertBrandId } from "@/lib/supabase/query";
 import {
 	listTaxIdsForInventoryItem,
 	setTaxesForInventoryItem,
 } from "@/lib/services/taxes";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type InventoryItem = Tables<"inventory_items">;
@@ -199,6 +199,7 @@ export async function updateInventoryItem(
 	kind: "product" | "consumable" | "medication",
 	input: unknown,
 ): Promise<InventoryItem> {
+	await assertNotCashWallet(ctx, id);
 	const parsed = parseUpdate(kind, input);
 	// Re-construct a full create input shape so buildItemRow handles per-kind nulls
 	const row = buildItemRow({
@@ -223,6 +224,7 @@ export async function deleteInventoryItem(
 	ctx: Context,
 	id: string,
 ): Promise<void> {
+	await assertNotCashWallet(ctx, id);
 	const { error } = await ctx.db.from("inventory_items").delete().eq("id", id);
 	if (error) {
 		if (error.code === "23503")
@@ -230,6 +232,22 @@ export async function deleteInventoryItem(
 				"This item is referenced by existing records. Mark it inactive from the edit form instead.",
 			);
 		throw new ValidationError(error.message);
+	}
+}
+
+// Block edits/deletes of the built-in Cash Wallet product. Seeded per brand
+// by the wallet_fifo_pivot migration with sku='CASH_WALLET'.
+async function assertNotCashWallet(ctx: Context, id: string): Promise<void> {
+	const { data, error } = await ctx.db
+		.from("inventory_items")
+		.select("sku")
+		.eq("id", id)
+		.maybeSingle();
+	if (error) throw new ValidationError(error.message);
+	if (data?.sku === "CASH_WALLET") {
+		throw new ConflictError(
+			"Cash Wallet is a built-in product and cannot be modified or deleted.",
+		);
 	}
 }
 

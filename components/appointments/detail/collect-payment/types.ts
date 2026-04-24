@@ -6,7 +6,7 @@ export type Line = {
 	id: string;
 	service_id: string | null;
 	inventory_item_id: string | null;
-	item_type: "service" | "product" | "charge";
+	item_type: "service" | "product" | "charge" | "wallet_topup";
 	item_name: string;
 	sku: string;
 	quantity: number;

@@ -5,6 +5,7 @@ import {
 	APPOINTMENT_DRAG_MIME,
 	AppointmentCard,
 } from "@/components/appointments/AppointmentCard";
+import { DragSelectOverlay } from "@/components/appointments/DragSelectOverlay";
 import {
 	cardStyle,
 	dayStartIso,
@@ -17,6 +18,7 @@ import {
 	TOTAL_GRID_HEIGHT_PX,
 	timeToY,
 } from "@/lib/calendar/layout";
+import { useDragCreate } from "@/lib/calendar/use-drag-create";
 import { DAY_LABELS, fmtDate, getWeekDays, parseDate } from "@/lib/roster/week";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 import { cn } from "@/lib/utils";
@@ -28,6 +30,7 @@ type Props = {
 		dateStr: string;
 		hour: number;
 		minute: number;
+		durationMinutes?: number;
 	}) => void;
 	onAppointmentClick: (a: AppointmentWithRelations) => void;
 	onAppointmentContextMenu?: (
@@ -79,6 +82,7 @@ export function WeekView({
 	);
 	const today = fmtDate(new Date());
 	const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+	const dragCreate = useDragCreate();
 
 	const aptsByDay = useMemo(() => {
 		const map = new Map<string, AppointmentWithRelations[]>();
@@ -149,14 +153,31 @@ export function WeekView({
 						const dayApts = aptsByDay.get(dateStr) ?? [];
 						const layout = layoutOverlaps(dayApts);
 						const dayStart = dayStartIso(dateStr);
+						const showOverlay =
+							dragCreate.selection?.colKey === dateStr
+								? dragCreate.selection
+								: null;
 						return (
 							<div
 								key={dateStr}
 								className={cn(
-									"relative border-r",
+									"relative select-none border-r",
 									isToday && "bg-amber-50/60 dark:bg-amber-900/10",
 								)}
 								style={{ height: TOTAL_GRID_HEIGHT_PX }}
+								onPointerDown={(e) => dragCreate.onPointerDown(e, dateStr)}
+								onPointerMove={dragCreate.onPointerMove}
+								onPointerCancel={dragCreate.onPointerCancel}
+								onPointerUp={(e) =>
+									dragCreate.onPointerUp(e, (args) =>
+										onCellClick({
+											dateStr,
+											hour: args.startHour,
+											minute: args.startMinute,
+											durationMinutes: args.durationMinutes,
+										}),
+									)
+								}
 							>
 								{/* 15-minute grid cells */}
 								{HOURS.flatMap((h, hIdx) =>
@@ -167,6 +188,7 @@ export function WeekView({
 											<button
 												key={`${h}-${min}`}
 												type="button"
+												data-grid-cell="true"
 												onClick={() =>
 													onCellClick({ dateStr, hour: h, minute: min })
 												}
@@ -226,6 +248,8 @@ export function WeekView({
 										/>
 									);
 								})}
+
+								{showOverlay && <DragSelectOverlay selection={showOverlay} />}
 							</div>
 						);
 					})}

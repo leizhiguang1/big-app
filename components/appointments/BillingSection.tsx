@@ -1,10 +1,10 @@
 "use client";
 
-import { Check, Loader2, Plus, Save, Search, X } from "lucide-react";
+import { Check, Loader2, Plus, Save, X } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
 	BillingItemPickerDialog,
-	type BillingItemSelection,
+	type CartEntry,
 } from "@/components/appointments/BillingItemPickerDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,22 +68,6 @@ function toItem(e: AppointmentLineItem): Item {
 	};
 }
 
-function newDraft(): Item {
-	return {
-		key: crypto.randomUUID(),
-		id: null,
-		item_type: "service",
-		service_id: null,
-		product_id: null,
-		description: "",
-		quantity: 1,
-		unit_price: 0,
-		discount: 0,
-		tax_id: null,
-		notes: "",
-	};
-}
-
 // Pick the default tax for a newly added line item.
 // 1. If billing_settings has auto-foreign-tax on and the customer is foreign,
 //    prefer the configured foreign_tax_id (even if the parent service/product
@@ -139,6 +123,9 @@ function isReady(item: Item): boolean {
 	if (item.quantity <= 0) return false;
 	if (item.item_type === "service") return !!item.service_id;
 	if (item.item_type === "product") return !!item.product_id;
+	if (item.item_type === "wallet_topup") {
+		return !!item.product_id && item.unit_price > 0;
+	}
 	return false;
 }
 
@@ -176,7 +163,7 @@ export function BillingSection({
 	const [message, setMessage] = useState(initialMessage);
 	const savedMessageRef = useRef(initialMessage);
 	const [error, setError] = useState<string | null>(null);
-	const [pickerKey, setPickerKey] = useState<string | null>(null);
+	const [pickerOpen, setPickerOpen] = useState(false);
 	const [savingKeys, setSavingKeys] = useState<ReadonlySet<string>>(
 		() => new Set(),
 	);
@@ -243,44 +230,66 @@ export function BillingSection({
 			rows.map((r) => (r.key === key ? { ...r, ...patch } : r)),
 		);
 
-	const onPick = (key: string, selection: BillingItemSelection) => {
-		if (selection.type === "service") {
-			const svc = selection.service;
-			update(key, {
-				item_type: "service",
-				service_id: svc.id,
-				product_id: null,
-				description: svc.name,
-				unit_price: Number(svc.price),
-				tax_id: defaultTaxForParent(
-					svc.tax_ids ?? [],
-					taxes,
-					customer,
-					billingSettings,
-				),
-			});
-		} else {
+	const onPickerCommit = (batch: CartEntry[]) => {
+		const newItems: Item[] = batch.map(({ selection, quantity }) => {
+			if (selection.type === "service") {
+				const svc = selection.service;
+				return {
+					key: crypto.randomUUID(),
+					id: null,
+					item_type: "service",
+					service_id: svc.id,
+					product_id: null,
+					description: svc.name,
+					quantity,
+					unit_price: Number(svc.price),
+					discount: 0,
+					tax_id: defaultTaxForParent(
+						svc.tax_ids ?? [],
+						taxes,
+						customer,
+						billingSettings,
+					),
+					notes: "",
+				};
+			}
+			if (selection.type === "wallet_topup") {
+				const prod = selection.product;
+				return {
+					key: crypto.randomUUID(),
+					id: null,
+					item_type: "wallet_topup",
+					service_id: null,
+					product_id: prod.id,
+					description: prod.name,
+					quantity: 1,
+					unit_price: 0, // staff types the top-up amount at billing time
+					discount: 0,
+					tax_id: null, // wallet credit is never taxed
+					notes: "",
+				};
+			}
 			const prod = selection.product;
-			update(key, {
+			return {
+				key: crypto.randomUUID(),
+				id: null,
 				item_type: "product",
-				product_id: prod.id,
 				service_id: null,
+				product_id: prod.id,
 				description: prod.name,
+				quantity,
 				unit_price: Number(prod.selling_price ?? 0),
+				discount: 0,
 				tax_id: defaultTaxForParent(
 					prod.tax_ids ?? [],
 					taxes,
 					customer,
 					billingSettings,
 				),
-			});
-		}
-	};
-
-	const onAddRow = () => {
-		const draft = newDraft();
-		setItems((rows) => [...rows, draft]);
-		setPickerKey(draft.key);
+				notes: "",
+			};
+		});
+		setItems((rows) => [...rows, ...newItems]);
 	};
 
 	const onRemove = (item: Item) => {
@@ -315,7 +324,10 @@ export function BillingSection({
 			appointment_id: appointmentId,
 			item_type: i.item_type,
 			service_id: i.item_type === "service" ? i.service_id : null,
-			product_id: i.item_type === "product" ? i.product_id : null,
+			product_id:
+				i.item_type === "product" || i.item_type === "wallet_topup"
+					? i.product_id
+					: null,
 			description: i.description || fallbackDescription(i),
 			quantity: i.quantity,
 			unit_price: i.unit_price,
@@ -337,7 +349,10 @@ export function BillingSection({
 						appointment_id: appointmentId,
 						item_type: i.item_type,
 						service_id: i.item_type === "service" ? i.service_id : null,
-						product_id: i.item_type === "product" ? i.product_id : null,
+						product_id:
+							i.item_type === "product" || i.item_type === "wallet_topup"
+								? i.product_id
+								: null,
 						description: i.description || fallbackDescription(i),
 						quantity: i.quantity,
 						unit_price: i.unit_price,
@@ -369,17 +384,6 @@ export function BillingSection({
 			}
 		});
 	};
-
-	const activePickerItem = items.find((i) => i.key === pickerKey) ?? null;
-	const activePickerSelected: React.ComponentProps<
-		typeof BillingItemPickerDialog
-	>["selected"] = activePickerItem
-		? activePickerItem.item_type === "service" && activePickerItem.service_id
-			? { type: "service", id: activePickerItem.service_id }
-			: activePickerItem.item_type === "product" && activePickerItem.product_id
-				? { type: "product", id: activePickerItem.product_id }
-				: null
-		: null;
 
 	return (
 		<div
@@ -425,7 +429,7 @@ export function BillingSection({
 					type="button"
 					size="sm"
 					variant="outline"
-					onClick={onAddRow}
+					onClick={() => setPickerOpen(true)}
 					disabled={pending}
 				>
 					<Plus className="size-3.5" />
@@ -487,11 +491,7 @@ export function BillingSection({
 									<div
 										className={`hidden md:grid ${COL} md:items-center md:gap-2 md:px-2`}
 									>
-										<button
-											type="button"
-											onClick={() => setPickerKey(item.key)}
-											className="flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left transition hover:bg-muted/60"
-										>
+										<div className="flex min-w-0 items-center gap-1.5 px-1 py-0.5">
 											{svc ? (
 												<>
 													<span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 font-semibold text-[9px] text-primary uppercase">
@@ -515,12 +515,11 @@ export function BillingSection({
 													<span className="truncate text-sm">{prod.name}</span>
 												</>
 											) : (
-												<span className="flex items-center gap-1 text-muted-foreground text-sm">
-													<Search className="size-3" />
-													Select item…
+												<span className="truncate text-muted-foreground text-sm italic">
+													{item.description || "—"}
 												</span>
 											)}
-										</button>
+										</div>
 
 										<Input
 											type="number"
@@ -641,11 +640,7 @@ export function BillingSection({
 									{/* ── Mobile layout ── */}
 									<div className="flex flex-col gap-2 px-1 md:hidden">
 										<div className="flex items-start justify-between gap-2">
-											<button
-												type="button"
-												onClick={() => setPickerKey(item.key)}
-												className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left transition hover:bg-muted/60"
-											>
+											<div className="flex min-w-0 flex-1 items-center gap-1.5 px-1 py-0.5">
 												{svc ? (
 													<>
 														<span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 font-semibold text-[9px] text-primary uppercase">
@@ -671,12 +666,11 @@ export function BillingSection({
 														</span>
 													</>
 												) : (
-													<span className="flex items-center gap-1 text-muted-foreground text-sm">
-														<Search className="size-3" />
-														Select item…
+													<span className="truncate text-muted-foreground text-sm italic">
+														{item.description || "—"}
 													</span>
 												)}
-											</button>
+											</div>
 											<button
 												type="button"
 												onClick={() => onRemove(item)}
@@ -845,14 +839,34 @@ export function BillingSection({
 			{error && <p className="text-destructive text-xs">{error}</p>}
 
 			<BillingItemPickerDialog
-				open={pickerKey !== null}
-				onOpenChange={(o) => !o && setPickerKey(null)}
+				open={pickerOpen}
+				onOpenChange={setPickerOpen}
 				services={services}
 				products={products}
-				selected={activePickerSelected}
-				onSelect={(sel) => {
-					if (pickerKey) onPick(pickerKey, sel);
+				currentCart={items.map((i) => ({
+					id: i.key,
+					item_type: i.item_type,
+					name:
+						i.description ||
+						(i.item_type === "service" && i.service_id
+							? (serviceById.get(i.service_id)?.name ?? "Service")
+							: i.product_id
+								? (productById.get(i.product_id)?.name ?? "Product")
+								: fallbackDescription(i)),
+					sku:
+						i.item_type === "service" && i.service_id
+							? (serviceById.get(i.service_id)?.sku ?? null)
+							: i.product_id
+								? (productById.get(i.product_id)?.sku ?? null)
+								: null,
+					quantity: i.quantity,
+					unit_price: i.unit_price,
+				}))}
+				onRemoveExisting={(id) => {
+					const target = items.find((i) => i.key === id);
+					if (target) onRemove(target);
 				}}
+				onCommit={onPickerCommit}
 			/>
 		</div>
 	);
@@ -861,6 +875,7 @@ export function BillingSection({
 function fallbackDescription(i: Item): string {
 	if (i.item_type === "service") return "Service";
 	if (i.item_type === "product") return "Product";
+	if (i.item_type === "wallet_topup") return "Cash Wallet";
 	return "Charge";
 }
 

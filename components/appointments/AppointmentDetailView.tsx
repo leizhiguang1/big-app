@@ -79,6 +79,7 @@ type Props = {
 	billingSettings: BillingSettings;
 	staffDiscountPercent: number;
 	fullCustomer: CustomerWithRelations | null;
+	walletBalance: number | null;
 };
 
 export function AppointmentDetailView({
@@ -106,6 +107,7 @@ export function AppointmentDetailView({
 	billingSettings,
 	staffDiscountPercent,
 	fullCustomer,
+	walletBalance,
 }: Props) {
 	const [editOpen, setEditOpen] = useState(false);
 	const [activeTab, setActiveTab] = useState<DetailTabKey>("overview");
@@ -207,6 +209,7 @@ export function AppointmentDetailView({
 					medicalCertificates={medicalCertificates}
 					billingSettings={billingSettings}
 					staffDiscountPercent={staffDiscountPercent}
+					walletBalance={walletBalance}
 					onEdit={() => setEditOpen(true)}
 					onToast={showToast}
 				/>

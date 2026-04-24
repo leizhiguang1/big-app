@@ -13,6 +13,10 @@ import { listFollowUpsForCustomer } from "@/lib/services/follow-ups";
 import { listMedicalCertificatesForCustomer } from "@/lib/services/medical-certificates";
 import { listOutlets } from "@/lib/services/outlets";
 import { listPayments, listSalesOrders } from "@/lib/services/sales";
+import {
+	getWalletByCustomer,
+	listWalletTransactions,
+} from "@/lib/services/wallet";
 
 export async function CustomerDetailContent({ id }: { id: string }) {
 	const ctx = await getServerContext();
@@ -30,6 +34,8 @@ export async function CustomerDetailContent({ id }: { id: string }) {
 			medicalCertificates,
 			outlets,
 			employees,
+			wallet,
+			walletTransactions,
 		] = await Promise.all([
 			listCustomerTimeline(ctx, id),
 			listLineItemsForCustomer(ctx, id),
@@ -41,6 +47,8 @@ export async function CustomerDetailContent({ id }: { id: string }) {
 			listMedicalCertificatesForCustomer(ctx, id),
 			listOutlets(ctx),
 			listEmployees(ctx),
+			getWalletByCustomer(ctx, id),
+			listWalletTransactions(ctx, id),
 		]);
 		const defaultConsultantId = ctx.currentUser?.employeeId ?? null;
 		return (
@@ -57,6 +65,8 @@ export async function CustomerDetailContent({ id }: { id: string }) {
 				outlets={outlets}
 				employees={employees}
 				defaultConsultantId={defaultConsultantId}
+				wallet={wallet}
+				walletTransactions={walletTransactions}
 			/>
 		);
 	} catch (err) {

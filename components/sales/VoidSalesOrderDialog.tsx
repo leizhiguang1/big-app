@@ -303,9 +303,11 @@ function Step1Items({
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-				<span className="font-semibold">Per-item selection is in development.</span>{" "}
-				All items on this sales order will be voided. Partial voids will land
-				in a later update.
+				<span className="font-semibold">
+					Per-item selection is in development.
+				</span>{" "}
+				All items on this sales order will be voided. Partial voids will land in
+				a later update.
 			</div>
 			<div className="rounded-md border">
 				<div className="grid grid-cols-[1fr_80px_120px_40px] items-center border-b bg-muted/30 px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase">

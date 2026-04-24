@@ -2,6 +2,96 @@
 
 > Status: v1 complete — Collect Payment RPC, Sales dashboard (Summary + Sales + Payment + Cancelled tabs), SO detail view, passcode-gated cancellation with full side-effect unwind, printable invoice route, and bidirectional appointment↔sales linking all shipped.
 
+## Post-collection corrections on SO detail (2026-04-24)
+
+Lighter alternatives to full void for fixing mistakes made during Collect Payment.
+Four RPCs landed in migration `0089_sales_post_collection_edits`, all of them
+reject when the parent SO is `status='cancelled'` and none of them touch
+inventory. **Wallet-mode payments and wallet-topup line items are explicitly
+non-editable** by these flows (FIFO tranche unwind is non-trivial) — staff must
+void the SO to correct those.
+
+### 1. Revert Last Payment
+
+One-click undo of the most recent payment row. Used when the wrong amount was
+entered or a whole payment was keyed in error.
+
+- **UI**: an "Revert last invoice" link on the most recent payment card on
+  [SalesOrderDetailView.tsx](../../components/sales/SalesOrderDetailView.tsx).
+  Only the row with the max `paid_at` shows the link. Hidden for wallet-mode
+  payments and for cancelled SOs.
+- **Dialog**: [RevertLastPaymentDialog.tsx](../../components/sales/RevertLastPaymentDialog.tsx) — one-step confirmation.
+- **RPC `revert_last_payment(p_sales_order_id, p_processed_by)`**: locks SO,
+  deletes `payment_allocations` for the latest payment, deletes the payment row,
+  recomputes `sales_orders.amount_paid` and `sales_orders.status`
+  (`pending` / `partial` / `completed`), and flips
+  `appointments.payment_status` back to `unpaid` / `partial` / `paid` if the SO
+  is appointment-linked. Returns `{ payment_id, invoice_no, amount,
+  payment_mode, sales_order_id, new_amount_paid, new_status }`. SECURITY
+  DEFINER. Rejects wallet payments and wallet_topup SOs with an explicit error.
+
+### 2. Change Payment Method
+
+Correct the method on an already-collected payment (e.g. staff hit "Cash" by
+mistake when it was actually "Credit Card").
+
+- **UI**: a "Change" pencil affordance inline with the method badge on each
+  payment row. Hidden for wallet-mode rows and for cancelled SOs.
+- **Dialog**: [ChangePaymentMethodDialog.tsx](../../components/sales/ChangePaymentMethodDialog.tsx) — reuses the Collect Payment method picker +
+  [PaymentMethodFields.tsx](../../components/appointments/detail/collect-payment/PaymentMethodFields.tsx)
+  so required fields (bank, card type, trace, approval, reference, months)
+  render identically.
+- **RPC `update_payment_method(p_payment_id, p_payment_mode, p_bank, p_card_type, p_trace_no, p_approval_code, p_reference_no, p_months)`**: UPDATEs the payments row in place. `amount`, `paid_at`, and `processed_by`
+  are immutable via this path. Validates the new mode exists in
+  `payment_methods`. Rejects wallet-to-X or X-to-wallet.
+
+### 3. Reallocate Payments
+
+Redistribute existing payments across line items after collection. Used when
+the original allocation was wrong (e.g. over-allocated to the consult fee and
+under-allocated to the treatment).
+
+- **UI**: "Reallocate payments" button in the SO detail header toggles an
+  inline grid editor above the line items.
+- **Editor**: [ReallocatePaymentsEditor.tsx](../../components/sales/ReallocatePaymentsEditor.tsx) — rows are sale items, columns
+  are payments, cells are allocation amounts. Live per-payment and per-line
+  totals turn red until both invariants hold. Save button disabled until the
+  grid validates.
+- **RPC `update_payment_allocations(p_sales_order_id, p_allocations jsonb)`**:
+  wipes every `payment_allocations` row for the SO and re-inserts from the
+  payload. Invariants: per-payment sum == payment.amount (±0.01), per-line sum
+  ≤ sale_items.total. Rejects allocations that reference a payment or line
+  that isn't on this SO.
+
+### 4. Sales Order Allocation (employee %)
+
+Rewrite `sale_item_incentives` for a given line — who earned commission and in
+what split. Editable per line, independent of the reallocation flow.
+
+- **UI**: a clickable "Sales order allocation" pill under each line item
+  showing `<Employee Name> (NN%)`. Clicking opens a dialog.
+- **Dialog**: [SaleItemEmployeeAllocationDialog.tsx](../../components/sales/SaleItemEmployeeAllocationDialog.tsx) — three slots, sum = 100,
+  matches the walk-in allocation UX.
+- **RPC `replace_sale_item_incentives(p_sale_item_id, p_employees jsonb, p_created_by)`**: wipes + re-inserts `sale_item_incentives` for that line.
+  Invariants: ≤ 3 employees, percents sum to 100 (±0.01). An empty array
+  clears the allocation.
+
+### Fetcher changes
+
+[sales-order-detail-content.tsx](../../app/(app)/sales/[id]/sales-order-detail-content.tsx)
+now also loads `listPaymentAllocationsForOrder`, `listIncentivesForOrder`, and
+`listEmployees` alongside the existing order/items/payments fetch. All six run
+in parallel.
+
+### What we deliberately didn't build
+
+- **Tombstone rows for reverted payments.** Hard-delete for now; history is
+  recoverable from CN/RN rows for void-style corrections. Revisit if finance
+  asks for full audit trail.
+- **Authorization gating.** All four actions rely on the logged-in staff's
+  `authenticated` session. Passcode/role gating can be added later by wrapping
+  the RPCs behind a passcode-validating SECURITY DEFINER layer.
+
 ## Standalone refund (tracking-only, 2026-04-24)
 
 A lightweight "just log it" refund that sits alongside the full-void flow. Scenario: customer paid for a service, we're giving RM50 back as goodwill / overpayment / lab-fee-not-rendered. The SO stays completed, no inventory moves, no money moves through the app — the row exists so reception can reconcile against the till or card terminal at end of day.
@@ -387,8 +477,11 @@ Triggered from the Appointments screen ("Collect Payment" button on `BillingSect
 
 1. Modal opens with the billing entries from the appointment already loaded as draft sale items
 2. Staff can adjust quantities, unit prices, line discounts
-3. Staff picks payment mode, enters amount (pre-filled to total)
-4. Click "Collect" → creates `sales_orders` + `sale_items[]` + `payments[1]` in one transaction, flips appointment `payment_status` to `paid`
+3. "Add Item to Cart" opens the shared `BillingItemPickerDialog` (cart-style multi-select — pick several services/products in one session, commit once) for any manual charges not already on the appointment
+4. Staff picks payment mode, enters amount (pre-filled to total)
+5. Click "Collect" → creates `sales_orders` + `sale_items[]` + `payments[1]` in one transaction, flips appointment `payment_status` to `paid`
+
+**Shared item picker.** `BillingItemPickerDialog` is the single component used by (a) appointment billing's Add item, (b) the walk-in New Sale dialog, and (c) this modal's Add-manual-charge button. Callers pass `currentCart` (existing lines' `item_type`) so the picker's wallet-alone rule covers both committed and in-progress additions; commit fires `onCommit(entries)` with every draft-cart entry and its qty, and each caller converts entries into its own line shape.
 
 ## Data Model — Three Tiers
 

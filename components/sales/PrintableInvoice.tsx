@@ -131,7 +131,9 @@ export function PrintableInvoice({
 					<div className="mt-1 text-[11px] text-zinc-600">
 						<div>
 							<span className="inline-block w-20 text-left">SO No.</span>
-							<span className="font-medium text-zinc-900">{order.so_number}</span>
+							<span className="font-medium text-zinc-900">
+								{order.so_number}
+							</span>
 						</div>
 						<div>
 							<span className="inline-block w-20 text-left">Date</span>
@@ -203,10 +205,7 @@ export function PrintableInvoice({
 					</thead>
 					<tbody>
 						{items.map((item, idx) => (
-							<tr
-								key={item.id}
-								className="border-zinc-200 border-b align-top"
-							>
+							<tr key={item.id} className="border-zinc-200 border-b align-top">
 								<td className="py-2 pl-1 text-zinc-500">{idx + 1}</td>
 								<td className="py-2">
 									<div className="font-medium">{item.item_name}</div>
@@ -222,7 +221,9 @@ export function PrintableInvoice({
 											: ""}
 									</div>
 								</td>
-								<td className="py-2 text-right tabular-nums">{item.quantity}</td>
+								<td className="py-2 text-right tabular-nums">
+									{item.quantity}
+								</td>
 								<td className="py-2 text-right tabular-nums">
 									{money(item.unit_price)}
 								</td>
@@ -251,7 +252,9 @@ export function PrintableInvoice({
 			<section className="mt-4 flex justify-end">
 				<dl className="w-72 text-[11px]">
 					<Row label="Subtotal" value={money(subtotal)} />
-					{discount > 0 && <Row label="Discount" value={`-${money(discount)}`} />}
+					{discount > 0 && (
+						<Row label="Discount" value={`-${money(discount)}`} />
+					)}
 					{tax > 0 && <Row label="Tax" value={money(tax)} />}
 					{Math.abs(rounding) > 0.005 && (
 						<Row label="Rounding" value={money(rounding)} />
@@ -288,7 +291,13 @@ export function PrintableInvoice({
 										{p.method?.name ?? prettyCode(p.payment_mode)}
 									</td>
 									<td className="py-1 text-[10px] text-zinc-600">
-										{[p.bank, p.card_type, p.trace_no, p.approval_code, p.reference_no]
+										{[
+											p.bank,
+											p.card_type,
+											p.trace_no,
+											p.approval_code,
+											p.reference_no,
+										]
 											.filter(Boolean)
 											.join(" · ") || "—"}
 									</td>

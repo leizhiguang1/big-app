@@ -59,6 +59,7 @@ type Props = {
 	medicalCertificates: MedicalCertificateWithRefs[];
 	billingSettings: BillingSettings;
 	staffDiscountPercent: number;
+	walletBalance: number | null;
 	onEdit: () => void;
 	onToast?: (
 		message: string,
@@ -130,6 +131,7 @@ export function AppointmentActionBar({
 	medicalCertificates,
 	billingSettings,
 	staffDiscountPercent,
+	walletBalance,
 	onEdit,
 	onToast,
 }: Props) {
@@ -175,7 +177,6 @@ export function AppointmentActionBar({
 			}
 		});
 	};
-
 
 	return (
 		<>
@@ -398,6 +399,7 @@ export function AppointmentActionBar({
 				medicalCertificates={medicalCertificates}
 				billingSettings={billingSettings}
 				staffDiscountPercent={staffDiscountPercent}
+				walletBalance={walletBalance}
 				onSuccess={(r) =>
 					onToast?.(
 						`Payment collected · ${r.so_number} / ${r.invoice_no}`,

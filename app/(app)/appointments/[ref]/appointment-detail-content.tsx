@@ -51,6 +51,7 @@ import { listActivePaymentMethods } from "@/lib/services/payment-methods";
 import { getSalesOrderForAppointment } from "@/lib/services/sales";
 import { listServices } from "@/lib/services/services";
 import { listTaxes } from "@/lib/services/taxes";
+import { getWalletByCustomer } from "@/lib/services/wallet";
 
 export async function AppointmentDetailContent({
 	bookingRef,
@@ -99,6 +100,10 @@ export async function AppointmentDetailContent({
 			? getCustomer(ctx, appointment.customer_id)
 			: Promise.resolve(null);
 
+	const walletPromise = appointment.customer_id
+		? getWalletByCustomer(ctx, appointment.customer_id)
+		: Promise.resolve(null);
+
 	const apptLocal = new Date(appointment.start_at);
 	const prevDateStr = fmtDate(addDays(apptLocal, -1));
 	const nextDateStr = fmtDate(addDays(apptLocal, 1));
@@ -132,6 +137,7 @@ export async function AppointmentDetailContent({
 		brandTags,
 		staffDiscountPercent,
 		fullCustomer,
+		wallet,
 	] = await Promise.all([
 		listLineItemsForAppointment(ctx, id),
 		listIncentivesForAppointment(ctx, id),
@@ -161,7 +167,10 @@ export async function AppointmentDetailContent({
 		listAppointmentTags(ctx),
 		getBrandSetting(ctx, "billing.staff_discount_percent"),
 		fullCustomerPromise,
+		walletPromise,
 	]);
+
+	const walletBalance = wallet ? Number(wallet.balance) : null;
 
 	const activeOutlets = outlets.filter((o) => o.is_active);
 	const activeRooms = rooms.filter((r) => r.is_active);
@@ -195,6 +204,7 @@ export async function AppointmentDetailContent({
 				billingSettings={billingSettings}
 				staffDiscountPercent={staffDiscountPercent}
 				fullCustomer={fullCustomer}
+				walletBalance={walletBalance}
 			/>
 		</AppointmentConfigProvider>
 	);

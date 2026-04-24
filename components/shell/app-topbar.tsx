@@ -1,6 +1,9 @@
 "use client";
 
 import { Clock, Receipt, ShoppingCart, Users } from "lucide-react";
+import { useState } from "react";
+import { NewSaleDialog } from "@/components/sales/NewSaleDialog";
+import { UserMenu } from "@/components/shell/user-menu";
 import { Button } from "@/components/ui/button";
 import {
 	Tooltip,
@@ -8,7 +11,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { UserMenu } from "@/components/shell/user-menu";
 
 export function AppTopbar({
 	email,
@@ -23,6 +25,7 @@ export function AppTopbar({
 	imageUrl: string | null;
 	hasPin: boolean;
 }) {
+	const [newSaleOpen, setNewSaleOpen] = useState(false);
 	return (
 		<header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-1 border-b bg-background/80 px-3 backdrop-blur">
 			<TooltipProvider delayDuration={200}>
@@ -73,6 +76,7 @@ export function AppTopbar({
 								size="icon"
 								className="size-9 cursor-pointer shadow-sm"
 								aria-label="New Sale"
+								onClick={() => setNewSaleOpen(true)}
 							>
 								<ShoppingCart className="size-4" />
 							</Button>
@@ -89,6 +93,7 @@ export function AppTopbar({
 					/>
 				</div>
 			</TooltipProvider>
+			<NewSaleDialog open={newSaleOpen} onOpenChange={setNewSaleOpen} />
 		</header>
 	);
 }

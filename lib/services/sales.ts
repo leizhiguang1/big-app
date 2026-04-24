@@ -6,8 +6,16 @@ import {
 	collectPaymentInputSchema,
 	type IssueRefundInput,
 	issueRefundInputSchema,
+	type ReplaceSaleItemIncentivesInput,
+	replaceSaleItemIncentivesInputSchema,
+	type UpdatePaymentAllocationsInput,
+	type UpdatePaymentMethodInput,
+	updatePaymentAllocationsInputSchema,
+	updatePaymentMethodInputSchema,
 	type VoidSalesOrderInput,
 	voidSalesOrderInputSchema,
+	type WalkInSaleInput,
+	walkInSaleInputSchema,
 } from "@/lib/schemas/sales";
 import { assertPaymentFields } from "@/lib/services/payment-methods";
 import type { Tables } from "@/lib/supabase/types";
@@ -43,18 +51,20 @@ export type SalesOrderWithRelations = SalesOrder & {
 		id: string;
 		first_name: string;
 		last_name: string;
+		profile_image_path: string | null;
 	} | null;
 	outlet: { id: string; code: string; name: string } | null;
 	created_by_employee: {
 		id: string;
 		first_name: string;
 		last_name: string;
+		profile_image_path: string | null;
 	} | null;
 	appointment: { id: string; booking_ref: string } | null;
 };
 
 const SALES_ORDER_SELECT =
-	"*, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name, profile_image_path, phone, id_number, is_vip, is_staff, tag), consultant:employees!sales_orders_consultant_id_fkey(id, first_name, last_name), outlet:outlets!sales_orders_outlet_id_fkey(id, code, name), created_by_employee:employees!sales_orders_created_by_fkey(id, first_name, last_name), appointment:appointments!sales_orders_appointment_id_fkey(id, booking_ref)";
+	"*, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name, profile_image_path, phone, id_number, is_vip, is_staff, tag), consultant:employees!sales_orders_consultant_id_fkey(id, first_name, last_name, profile_image_path), outlet:outlets!sales_orders_outlet_id_fkey(id, code, name), created_by_employee:employees!sales_orders_created_by_fkey(id, first_name, last_name, profile_image_path), appointment:appointments!sales_orders_appointment_id_fkey(id, booking_ref)";
 
 export async function listSalesOrders(
 	ctx: Context,
@@ -136,6 +146,67 @@ export async function collectAppointmentPayment(
 	});
 	if (error) throw new ValidationError(error.message);
 	if (!data) throw new ValidationError("Collect payment returned no result");
+	return data as unknown as CollectPaymentResult;
+}
+
+export async function collectWalkInSale(
+	ctx: Context,
+	input: unknown,
+): Promise<CollectPaymentResult> {
+	const parsed: WalkInSaleInput = walkInSaleInputSchema.parse(input);
+	await assertLineDiscountCaps(ctx, parsed.items);
+	const normalizedPayments = await assertPaymentFields(ctx, parsed.payments);
+	const { data, error } = await ctx.db.rpc("collect_walkin_sale", {
+		p_customer_id: parsed.customer_id,
+		p_outlet_id: parsed.outlet_id,
+		p_consultant_id: (parsed.consultant_id ?? null) as string,
+		p_items: parsed.items.map((i) => ({
+			service_id: i.service_id,
+			inventory_item_id: i.inventory_item_id,
+			sku: i.sku,
+			item_name: i.item_name,
+			item_type: i.item_type,
+			quantity: i.quantity,
+			unit_price: i.unit_price,
+			discount: i.discount,
+			tax_id: i.tax_id,
+		})),
+		p_discount: parsed.discount,
+		p_tax: parsed.tax,
+		p_rounding: parsed.rounding,
+		p_payments: normalizedPayments.map((p) => ({
+			mode: p.mode,
+			amount: p.amount,
+			remarks: p.remarks ?? "",
+			bank: p.bank ?? "",
+			card_type: p.card_type ?? "",
+			trace_no: p.trace_no ?? "",
+			approval_code: p.approval_code ?? "",
+			reference_no: p.reference_no ?? "",
+			months: p.months != null ? String(p.months) : "",
+		})),
+		p_remarks: parsed.remarks ?? "",
+		p_processed_by: (ctx.currentUser?.employeeId ?? null) as string,
+		p_allocations: parsed.allocations
+			? parsed.allocations.map((a) => ({
+					item_index: a.item_index,
+					amount: a.amount,
+				}))
+			: null,
+		p_incentives: parsed.incentives
+			? parsed.incentives.map((i) => ({
+					item_index: i.item_index,
+					employees: i.employees.map((e) => ({
+						employee_id: e.employee_id,
+						percent: e.percent,
+					})),
+				}))
+			: null,
+		...(parsed.sold_at ? { p_sold_at: parsed.sold_at } : {}),
+	});
+	if (error) throw new ValidationError(error.message);
+	if (!data)
+		throw new ValidationError("Collect walk-in sale returned no result");
 	return data as unknown as CollectPaymentResult;
 }
 
@@ -406,6 +477,143 @@ export async function issueRefund(
 	if (error)
 		throw new ValidationError(error.message || "Failed to issue refund");
 	return data as unknown as IssueRefundResult;
+}
+
+// ---------------------------------------------------------------------------
+// Post-collection corrections: revert, change method, reallocate, re-credit.
+// All four block when the parent SO is `cancelled`; wallet payments are
+// non-editable (void the SO instead).
+// ---------------------------------------------------------------------------
+
+export type RevertLastPaymentResult = {
+	payment_id: string;
+	invoice_no: string;
+	amount: number;
+	payment_mode: string;
+	sales_order_id: string;
+	new_amount_paid: number;
+	new_status: string;
+};
+
+export async function revertLastPayment(
+	ctx: Context,
+	salesOrderId: string,
+): Promise<RevertLastPaymentResult> {
+	const { data, error } = await ctx.db.rpc("revert_last_payment", {
+		p_sales_order_id: salesOrderId,
+		p_processed_by: (ctx.currentUser?.employeeId ?? null) as string,
+	});
+	if (error) throw new ValidationError(error.message);
+	return data as unknown as RevertLastPaymentResult;
+}
+
+export async function updatePaymentMethod(
+	ctx: Context,
+	paymentId: string,
+	input: unknown,
+): Promise<void> {
+	const parsed: UpdatePaymentMethodInput =
+		updatePaymentMethodInputSchema.parse(input);
+	const { error } = await ctx.db.rpc("update_payment_method", {
+		p_payment_id: paymentId,
+		p_payment_mode: parsed.payment_mode,
+		p_bank: parsed.bank ?? "",
+		p_card_type: parsed.card_type ?? "",
+		p_trace_no: parsed.trace_no ?? "",
+		p_approval_code: parsed.approval_code ?? "",
+		p_reference_no: parsed.reference_no ?? "",
+		p_months: parsed.months as unknown as number,
+	});
+	if (error) throw new ValidationError(error.message);
+}
+
+export async function updatePaymentAllocations(
+	ctx: Context,
+	salesOrderId: string,
+	input: unknown,
+): Promise<void> {
+	const parsed: UpdatePaymentAllocationsInput =
+		updatePaymentAllocationsInputSchema.parse(input);
+	const { error } = await ctx.db.rpc("update_payment_allocations", {
+		p_sales_order_id: salesOrderId,
+		p_allocations: parsed.allocations.map((a) => ({
+			payment_id: a.payment_id,
+			sale_item_id: a.sale_item_id,
+			amount: a.amount,
+		})),
+	});
+	if (error) throw new ValidationError(error.message);
+}
+
+export async function replaceSaleItemIncentives(
+	ctx: Context,
+	input: unknown,
+): Promise<void> {
+	const parsed: ReplaceSaleItemIncentivesInput =
+		replaceSaleItemIncentivesInputSchema.parse(input);
+	const { error } = await ctx.db.rpc("replace_sale_item_incentives", {
+		p_sale_item_id: parsed.sale_item_id,
+		p_employees: parsed.employees.map((e) => ({
+			employee_id: e.employee_id,
+			percent: e.percent,
+		})),
+		p_created_by: (ctx.currentUser?.employeeId ?? null) as string,
+	});
+	if (error) throw new ValidationError(error.message);
+}
+
+export type PaymentAllocationForOrder = {
+	id: string;
+	payment_id: string;
+	sale_item_id: string;
+	amount: number;
+};
+
+export async function listPaymentAllocationsForOrder(
+	ctx: Context,
+	salesOrderId: string,
+): Promise<PaymentAllocationForOrder[]> {
+	const { data, error } = await ctx.db
+		.from("payment_allocations")
+		.select(
+			"id, payment_id, sale_item_id, amount, payments!inner(sales_order_id)",
+		)
+		.eq("payments.sales_order_id", salesOrderId);
+	if (error) throw new ValidationError(error.message);
+	return (data ?? []).map((r) => ({
+		id: r.id as string,
+		payment_id: r.payment_id as string,
+		sale_item_id: r.sale_item_id as string,
+		amount: Number(r.amount),
+	}));
+}
+
+export type SaleItemIncentiveRow = {
+	id: string;
+	sale_item_id: string;
+	employee_id: string;
+	percent: number;
+	employee: { id: string; first_name: string; last_name: string } | null;
+};
+
+export async function listIncentivesForOrder(
+	ctx: Context,
+	salesOrderId: string,
+): Promise<SaleItemIncentiveRow[]> {
+	const { data, error } = await ctx.db
+		.from("sale_item_incentives")
+		.select(
+			"id, sale_item_id, employee_id, percent, employee:employees!sale_item_incentives_employee_id_fkey(id, first_name, last_name), sale_items!inner(sales_order_id)",
+		)
+		.eq("sale_items.sales_order_id", salesOrderId);
+	if (error) throw new ValidationError(error.message);
+	return (data ?? []).map((r) => ({
+		id: r.id as string,
+		sale_item_id: r.sale_item_id as string,
+		employee_id: r.employee_id as string,
+		percent: Number(r.percent),
+		employee: r.employee as SaleItemIncentiveRow["employee"],
+	}));
 }
 
 export async function listRefundNotesForOrder(

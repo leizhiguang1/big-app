@@ -790,6 +790,48 @@ export type Database = {
           },
         ]
       }
+      customer_wallets: {
+        Row: {
+          balance: number
+          brand_id: string
+          created_at: string
+          customer_id: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          balance?: number
+          brand_id: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          balance?: number
+          brand_id?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_wallets_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_wallets_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address1: string | null
@@ -2219,6 +2261,58 @@ export type Database = {
           },
         ]
       }
+      sale_item_incentives: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          employee_id: string
+          id: string
+          percent: number
+          sale_item_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          employee_id: string
+          id?: string
+          percent: number
+          sale_item_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string
+          id?: string
+          percent?: number
+          sale_item_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_item_incentives_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_item_incentives_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_item_incentives_sale_item_id_fkey"
+            columns: ["sale_item_id"]
+            isOneToOne: false
+            referencedRelation: "sale_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sale_items: {
         Row: {
           created_at: string
@@ -3473,6 +3567,109 @@ export type Database = {
           },
         ]
       }
+      wallet_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          credit_txn_id: string
+          debit_txn_id: string
+          id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          credit_txn_id: string
+          debit_txn_id: string
+          id?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          credit_txn_id?: string
+          debit_txn_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_allocations_credit_txn_id_fkey"
+            columns: ["credit_txn_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_allocations_debit_txn_id_fkey"
+            columns: ["debit_txn_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          amount_remaining: number | null
+          balance_after: number
+          created_at: string
+          created_by: string | null
+          direction: string
+          id: string
+          kind: string
+          remarks: string | null
+          sales_order_id: string | null
+          wallet_id: string
+        }
+        Insert: {
+          amount: number
+          amount_remaining?: number | null
+          balance_after: number
+          created_at?: string
+          created_by?: string | null
+          direction: string
+          id?: string
+          kind: string
+          remarks?: string | null
+          sales_order_id?: string | null
+          wallet_id: string
+        }
+        Update: {
+          amount?: number
+          amount_remaining?: number | null
+          balance_after?: number
+          created_at?: string
+          created_by?: string | null
+          direction?: string
+          id?: string
+          kind?: string
+          remarks?: string | null
+          sales_order_id?: string | null
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_transactions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "customer_wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -3494,6 +3691,42 @@ export type Database = {
         }
         Returns: Json
       }
+      collect_walkin_sale:
+        | {
+            Args: {
+              p_allocations?: Json
+              p_consultant_id: string
+              p_customer_id: string
+              p_discount: number
+              p_items: Json
+              p_outlet_id: string
+              p_payments: Json
+              p_processed_by: string
+              p_remarks: string
+              p_rounding: number
+              p_sold_at?: string
+              p_tax: number
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_allocations?: Json
+              p_consultant_id: string
+              p_customer_id: string
+              p_discount: number
+              p_incentives?: Json
+              p_items: Json
+              p_outlet_id: string
+              p_payments: Json
+              p_processed_by: string
+              p_remarks: string
+              p_rounding: number
+              p_sold_at?: string
+              p_tax: number
+            }
+            Returns: Json
+          }
       gen_booking_ref: { Args: never; Returns: string }
       gen_code: {
         Args: { prefix: string; seq_name: string; width: number }
@@ -3540,12 +3773,41 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      replace_sale_item_incentives: {
+        Args: {
+          p_created_by: string
+          p_employees: Json
+          p_sale_item_id: string
+        }
+        Returns: undefined
+      }
+      revert_last_payment: {
+        Args: { p_processed_by: string; p_sales_order_id: string }
+        Returns: Json
+      }
       set_employee_pin: {
         Args: { p_employee_id: string; p_pin: string }
         Returns: undefined
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      update_payment_allocations: {
+        Args: { p_allocations: Json; p_sales_order_id: string }
+        Returns: undefined
+      }
+      update_payment_method: {
+        Args: {
+          p_approval_code: string
+          p_bank: string
+          p_card_type: string
+          p_months: number
+          p_payment_id: string
+          p_payment_mode: string
+          p_reference_no: string
+          p_trace_no: string
+        }
+        Returns: undefined
+      }
       verify_employee_pin: {
         Args: { p_employee_id: string; p_pin: string }
         Returns: boolean

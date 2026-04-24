@@ -57,7 +57,7 @@ import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
 import type { ServiceWithCategory } from "@/lib/services/services";
 import type { ResourceFilter } from "./AppointmentsFilterBar";
 
-const DEFAULT_CREATE_DURATION_MIN = 60;
+const DEFAULT_CREATE_DURATION_MIN = 15;
 
 type Props = {
 	display: DisplayStyle;
@@ -243,12 +243,15 @@ export function AppointmentsCalendar({
 		dateStr: string;
 		hour: number;
 		minute: number;
+		durationMinutes?: number;
 		employeeId?: string | null;
 		roomId?: string | null;
 	}) => {
 		const startIso = buildLocalIso(args.dateStr, args.hour, args.minute);
 		const end = new Date(startIso);
-		end.setMinutes(end.getMinutes() + DEFAULT_CREATE_DURATION_MIN);
+		end.setMinutes(
+			end.getMinutes() + (args.durationMinutes ?? DEFAULT_CREATE_DURATION_MIN),
+		);
 		setDialog({
 			kind: "create",
 			startAt: startIso,

@@ -4,9 +4,12 @@ import { Button } from "@/components/ui/button";
 import { getServerContext } from "@/lib/context/server";
 import { NotFoundError } from "@/lib/errors";
 import { getCustomer } from "@/lib/services/customers";
+import { listEmployees } from "@/lib/services/employees";
 import { getOutlet } from "@/lib/services/outlets";
 import {
 	getSalesOrder,
+	listIncentivesForOrder,
+	listPaymentAllocationsForOrder,
 	listPaymentsForOrder,
 	listRefundNotesForOrder,
 	listSaleItems,
@@ -22,11 +25,22 @@ export async function SalesOrderDetailContent({
 	const ctx = await getServerContext();
 
 	try {
-		const [order, items, payments, refundNotes] = await Promise.all([
+		const [
+			order,
+			items,
+			payments,
+			refundNotes,
+			allocations,
+			incentives,
+			employees,
+		] = await Promise.all([
 			getSalesOrder(ctx, id),
 			listSaleItems(ctx, id),
 			listPaymentsForOrder(ctx, id),
 			listRefundNotesForOrder(ctx, id),
+			listPaymentAllocationsForOrder(ctx, id),
+			listIncentivesForOrder(ctx, id),
+			listEmployees(ctx),
 		]);
 
 		const [outlet, customer] = await Promise.all([
@@ -42,6 +56,9 @@ export async function SalesOrderDetailContent({
 				items={items}
 				payments={payments}
 				refundNotes={refundNotes}
+				allocations={allocations}
+				incentives={incentives}
+				employees={employees.filter((e) => e.is_active)}
 				outlet={outlet}
 				customer={customer}
 				autoPrint={autoPrint}

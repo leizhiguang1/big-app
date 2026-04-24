@@ -12,6 +12,7 @@ type Props = {
 	paymentMethods: PaymentMethod[];
 	methodByCode: Map<string, PaymentMethod>;
 	total: number;
+	walletBalance?: number | null;
 
 	onChangeMethod: (key: string, mode: string) => void;
 	onUpdatePayment: (key: string, patch: Partial<PaymentEntry>) => void;
@@ -33,6 +34,7 @@ export function PaymentSection({
 	paymentMethods,
 	methodByCode,
 	total,
+	walletBalance = null,
 	onChangeMethod,
 	onUpdatePayment,
 	onRemovePayment,
@@ -114,6 +116,7 @@ export function PaymentSection({
 					);
 					const rowAmount = Number(p.amount);
 					const isCash = p.mode === "cash";
+					const isWallet = p.mode === "wallet";
 					const change =
 						isCash && Number.isFinite(rowAmount) && rowAmount > rowBalance
 							? Math.round((rowAmount - rowBalance) * 100) / 100
@@ -121,6 +124,13 @@ export function PaymentSection({
 					const exceeds =
 						!isCash && Number.isFinite(rowAmount) && rowAmount > rowBalance
 							? Math.round((rowAmount - rowBalance) * 100) / 100
+							: 0;
+					const walletShort =
+						isWallet &&
+						walletBalance != null &&
+						Number.isFinite(rowAmount) &&
+						rowAmount > walletBalance
+							? Math.round((rowAmount - walletBalance) * 100) / 100
 							: 0;
 					return (
 						<div
@@ -133,16 +143,26 @@ export function PaymentSection({
 									value={p.mode}
 									onChange={(e) => onChangeMethod(p.key, e.target.value)}
 								>
-									{paymentMethods.map((m) => (
-										<option
-											key={m.code}
-											value={m.code}
-											disabled={usedByOthers.has(m.code)}
-										>
-											{m.name}
-											{usedByOthers.has(m.code) ? " (used)" : ""}
-										</option>
-									))}
+									{paymentMethods.map((m) => {
+										const isWalletMethod = m.code === "wallet";
+										const noWallet =
+											isWalletMethod &&
+											(walletBalance == null || walletBalance <= 0);
+										return (
+											<option
+												key={m.code}
+												value={m.code}
+												disabled={usedByOthers.has(m.code) || noWallet}
+											>
+												{m.name}
+												{usedByOthers.has(m.code)
+													? " (used)"
+													: noWallet
+														? " (no balance)"
+														: ""}
+											</option>
+										);
+									})}
 									{!method && (
 										<option key={p.mode} value={p.mode}>
 											{p.mode}
@@ -169,13 +189,21 @@ export function PaymentSection({
 								)}
 							</div>
 							<div className="flex items-center justify-between">
-								{isCash && change > 0 ? (
+								{isWallet && walletShort > 0 ? (
+									<span className="text-[10px] font-medium text-red-600">
+										Exceeds wallet by RM {money(walletShort)}
+									</span>
+								) : isCash && change > 0 ? (
 									<span className="text-[10px] font-medium text-emerald-700">
 										Change due: RM {money(change)}
 									</span>
 								) : exceeds > 0 ? (
 									<span className="text-[10px] font-medium text-red-600">
 										Exceeds balance by RM {money(exceeds)}
+									</span>
+								) : isWallet && walletBalance != null ? (
+									<span className="text-[10px] font-medium text-teal-700">
+										Wallet balance: RM {money(walletBalance)}
 									</span>
 								) : (
 									<span />

@@ -1,6 +1,7 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
+import { Printer } from "lucide-react";
+import Image from "next/image";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import {
 	Tooltip,
@@ -9,6 +10,8 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { SalesOrderWithRelations } from "@/lib/services/sales";
+import { mediaPublicUrl } from "@/lib/storage/urls";
+import { cn } from "@/lib/utils";
 
 type Props = {
 	orders: SalesOrderWithRelations[];
@@ -45,8 +48,103 @@ function fullName(
 	return [first, last].filter(Boolean).join(" ").trim();
 }
 
+function statusDotClass(status: SalesOrderWithRelations["status"]) {
+	switch (status) {
+		case "completed":
+			return "bg-emerald-500";
+		case "cancelled":
+		case "void":
+			return "bg-red-500";
+		case "draft":
+			return "bg-amber-500";
+		default:
+			return "bg-muted-foreground/50";
+	}
+}
+
+function initials(
+	first: string | null | undefined,
+	last: string | null | undefined,
+) {
+	return `${first?.[0] ?? ""}${last?.[0] ?? ""}`.toUpperCase() || "?";
+}
+
+function AvatarCircle({
+	path,
+	initials: init,
+	size = 36,
+}: {
+	path: string | null | undefined;
+	initials: string;
+	size?: number;
+}) {
+	const url = mediaPublicUrl(path ?? null);
+	return (
+		<div
+			className="relative shrink-0 overflow-hidden rounded-full border bg-muted"
+			style={{ width: size, height: size }}
+		>
+			{url ? (
+				<Image
+					src={url}
+					alt=""
+					fill
+					sizes={`${size}px`}
+					className="object-cover"
+					unoptimized
+				/>
+			) : (
+				<div className="flex size-full items-center justify-center font-medium text-muted-foreground text-xs">
+					{init}
+				</div>
+			)}
+		</div>
+	);
+}
+
+function statusLabel(status: SalesOrderWithRelations["status"]) {
+	switch (status) {
+		case "completed":
+			return "Completed";
+		case "cancelled":
+			return "Cancelled";
+		case "void":
+			return "Void";
+		case "draft":
+			return "Draft";
+		default:
+			return status;
+	}
+}
+
 export function SalesOrdersTable({ orders, onOpen }: Props) {
 	const columns: DataTableColumn<SalesOrderWithRelations>[] = [
+		{
+			key: "print",
+			header: "",
+			cell: (o) => (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<button
+							type="button"
+							onClick={(e) => {
+								e.stopPropagation();
+								window.open(
+									`/invoices/${o.id}?autoPrint=1`,
+									"_blank",
+									"noopener",
+								);
+							}}
+							className="inline-flex size-7 items-center justify-center rounded-md text-blue-600 hover:bg-blue-50"
+							aria-label={`Print invoice ${o.so_number}`}
+						>
+							<Printer className="size-4" />
+						</button>
+					</TooltipTrigger>
+					<TooltipContent>Print invoice</TooltipContent>
+				</Tooltip>
+			),
+		},
 		{
 			key: "date",
 			header: "Date",
@@ -67,13 +165,27 @@ export function SalesOrdersTable({ orders, onOpen }: Props) {
 			header: "Sales order #",
 			sortable: true,
 			cell: (o) => (
-				<button
-					type="button"
-					onClick={() => onOpen?.(o.id)}
-					className="font-mono font-medium text-blue-600 text-sm hover:underline"
-				>
-					{o.so_number}
-				</button>
+				<div className="flex items-center gap-2">
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span
+								className={cn(
+									"inline-block size-2.5 shrink-0 rounded-full",
+									statusDotClass(o.status),
+								)}
+								aria-label={statusLabel(o.status)}
+							/>
+						</TooltipTrigger>
+						<TooltipContent>{statusLabel(o.status)}</TooltipContent>
+					</Tooltip>
+					<button
+						type="button"
+						onClick={() => onOpen?.(o.id)}
+						className="font-mono font-medium text-blue-600 text-sm hover:underline"
+					>
+						{o.so_number}
+					</button>
+				</div>
 			),
 		},
 		{
@@ -94,24 +206,6 @@ export function SalesOrdersTable({ orders, onOpen }: Props) {
 				) : (
 					<span className="text-muted-foreground text-sm">—</span>
 				),
-		},
-		{
-			key: "status",
-			header: "Status",
-			sortable: true,
-			sortValue: (o) => o.status,
-			cell: (o) => {
-				switch (o.status) {
-					case "completed":
-						return <Badge variant="default">Completed</Badge>;
-					case "cancelled":
-						return <Badge variant="destructive">Cancelled</Badge>;
-					case "void":
-						return <Badge variant="outline">Void</Badge>;
-					default:
-						return <Badge variant="secondary">{o.status}</Badge>;
-				}
-			},
 		},
 		{
 			key: "total",
@@ -138,16 +232,30 @@ export function SalesOrdersTable({ orders, onOpen }: Props) {
 					? fullName(o.consultant.first_name, o.consultant.last_name)
 					: null;
 				return (
-					<div>
-						<div className="font-medium text-sm uppercase">{name}</div>
-						<div className="text-muted-foreground text-xs">
-							{o.customer.code}
-						</div>
-						{consultant && (
+					<div className="flex items-center gap-3">
+						<AvatarCircle
+							path={o.customer.profile_image_path}
+							initials={initials(o.customer.first_name, o.customer.last_name)}
+						/>
+						<div className="min-w-0">
+							<div className="font-medium text-sm uppercase">{name}</div>
 							<div className="text-muted-foreground text-xs">
-								Consultant: {consultant}
+								{o.customer.code}
 							</div>
-						)}
+							{consultant && (
+								<div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+									<AvatarCircle
+										path={o.consultant?.profile_image_path}
+										initials={initials(
+											o.consultant?.first_name,
+											o.consultant?.last_name,
+										)}
+										size={16}
+									/>
+									<span>Consultant: {consultant}</span>
+								</div>
+							)}
+						</div>
 					</div>
 				);
 			},
@@ -165,12 +273,21 @@ export function SalesOrdersTable({ orders, onOpen }: Props) {
 					: "",
 			cell: (o) =>
 				o.created_by_employee ? (
-					<span className="text-muted-foreground text-sm uppercase">
-						{fullName(
-							o.created_by_employee.first_name,
-							o.created_by_employee.last_name,
-						)}
-					</span>
+					<div className="flex items-center gap-3">
+						<AvatarCircle
+							path={o.created_by_employee.profile_image_path}
+							initials={initials(
+								o.created_by_employee.first_name,
+								o.created_by_employee.last_name,
+							)}
+						/>
+						<span className="text-muted-foreground text-sm uppercase">
+							{fullName(
+								o.created_by_employee.first_name,
+								o.created_by_employee.last_name,
+							)}
+						</span>
+					</div>
 				) : (
 					<span className="text-muted-foreground text-sm">—</span>
 				),

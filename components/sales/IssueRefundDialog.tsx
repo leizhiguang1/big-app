@@ -79,8 +79,7 @@ export function IssueRefundDialog({
 
 	const amountNum = Number.parseFloat(amount || "0") || 0;
 	const amountValid = amountNum > 0 && amountNum <= orderTotal;
-	const canSubmit =
-		amountValid && refundMethod !== "" && !isPending;
+	const canSubmit = amountValid && refundMethod !== "" && !isPending;
 
 	const submit = () => {
 		if (!canSubmit) return;

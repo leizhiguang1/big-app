@@ -63,6 +63,10 @@ import type {
 	PaymentWithRelations,
 	SalesOrderWithRelations,
 } from "@/lib/services/sales";
+import type {
+	CustomerWallet,
+	WalletTransactionWithRefs,
+} from "@/lib/services/wallet";
 import { mediaPublicUrl } from "@/lib/storage/urls";
 import { cn } from "@/lib/utils";
 import { CustomerFormDialog } from "./CustomerForm";
@@ -80,6 +84,8 @@ type Props = {
 	outlets: OutletWithRoomCount[];
 	employees: EmployeeWithRelations[];
 	defaultConsultantId: string | null;
+	wallet: CustomerWallet | null;
+	walletTransactions: WalletTransactionWithRefs[];
 };
 
 type TabKey =
@@ -176,6 +182,8 @@ export function CustomerDetailView({
 	outlets,
 	employees,
 	defaultConsultantId,
+	wallet,
+	walletTransactions,
 }: Props) {
 	const [activeTab, setActiveTab] = useState<TabKey>("timeline");
 	const [editing, setEditing] = useState(false);
@@ -466,20 +474,24 @@ export function CustomerDetailView({
 							</div>
 						)}
 
-						<div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
+						<button
+							type="button"
+							onClick={() => setActiveTab("cash-wallet")}
+							className="flex items-center justify-between rounded-lg border bg-background px-3 py-2 text-left transition hover:bg-muted/40"
+						>
 							<div className="flex items-center gap-2">
 								<div className="flex size-8 items-center justify-center rounded-full bg-teal-500 font-semibold text-[10px] text-white">
 									MYR
 								</div>
 								<div className="flex flex-col">
 									<span className="font-semibold text-xs">Wallet</span>
-									<span className="text-[10px] text-muted-foreground">
-										0.00
+									<span className="text-[10px] text-muted-foreground tabular-nums">
+										{formatMoney(Number(wallet?.balance ?? 0))}
 									</span>
 								</div>
 							</div>
 							<ChevronRight className="size-4 text-muted-foreground" />
-						</div>
+						</button>
 					</div>
 
 					<MedicalInfoCard customer={customer} />
@@ -548,7 +560,10 @@ export function CustomerDetailView({
 					) : activeTab === "visuals" ? (
 						<CustomerVisualsTab documents={documents} />
 					) : activeTab === "cash-wallet" ? (
-						<CustomerCashWalletTab />
+						<CustomerCashWalletTab
+							wallet={wallet}
+							transactions={walletTransactions}
+						/>
 					) : (
 						<PlaceholderTab
 							label={TABS.find((t) => t.key === activeTab)?.label ?? ""}

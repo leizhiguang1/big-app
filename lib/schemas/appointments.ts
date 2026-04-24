@@ -133,11 +133,7 @@ export const appointmentStatusSchema = z.object({
 export type AppointmentStatusInput = z.infer<typeof appointmentStatusSchema>;
 
 export const appointmentCancelSchema = z.object({
-	reason: z
-		.string()
-		.trim()
-		.min(1, "Cancellation reason is required")
-		.max(200),
+	reason: z.string().trim().min(1, "Cancellation reason is required").max(200),
 });
 export type AppointmentCancelInput = z.infer<typeof appointmentCancelSchema>;
 
@@ -185,13 +181,21 @@ export type AppointmentFollowUpInput = z.infer<
 // flow reads to build sale_items. One table, two roles — see
 // docs/modules/02-appointments.md.
 
-export const LINE_ITEM_TYPES = ["service", "product", "charge"] as const;
+export const LINE_ITEM_TYPES = [
+	"service",
+	"product",
+	"charge",
+	"wallet_topup",
+] as const;
 export type LineItemType = (typeof LINE_ITEM_TYPES)[number];
 
 // Polymorphic by `item_type`:
-//   service → service_id required, product_id must be null
-//   product → product_id required, service_id must be null
-//   charge  → both null (ad-hoc charges like a consultation fee)
+//   service       → service_id required, product_id must be null
+//   product       → product_id required, service_id must be null
+//   charge        → both null (ad-hoc charges like a consultation fee)
+//   wallet_topup  → product_id required (points at the system Cash Wallet row),
+//                   service_id null. Must be the only line on the appointment;
+//                   that exclusivity is enforced in the service layer, not via CHECK.
 // Matches the DB CHECK constraint `appointment_line_items_type_ref_check`.
 export const lineItemInputSchema = z
 	.object({

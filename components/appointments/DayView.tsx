@@ -6,6 +6,7 @@ import {
 	APPOINTMENT_DRAG_MIME,
 	AppointmentCard,
 } from "@/components/appointments/AppointmentCard";
+import { DragSelectOverlay } from "@/components/appointments/DragSelectOverlay";
 import {
 	cardStyle,
 	dayStartIso,
@@ -21,6 +22,7 @@ import {
 	TOTAL_GRID_HEIGHT_PX,
 	timeToY,
 } from "@/lib/calendar/layout";
+import { useDragCreate } from "@/lib/calendar/use-drag-create";
 import {
 	fmtDate,
 	getNonRosteredBands,
@@ -48,6 +50,7 @@ type Props = {
 		dateStr: string;
 		hour: number;
 		minute: number;
+		durationMinutes?: number;
 		employeeId: string | null;
 		roomId: string | null;
 	}) => void;
@@ -92,6 +95,7 @@ export function DayView({
 	onResize,
 }: Props) {
 	const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+	const dragCreate = useDragCreate();
 
 	// In employee mode, only show employees who are rostered on this date
 	// OR already have an appointment on this date.
@@ -206,10 +210,7 @@ export function DayView({
 				</div>
 
 				{/* Body */}
-				<div
-					className="relative grid"
-					style={{ gridTemplateColumns }}
-				>
+				<div className="relative grid" style={{ gridTemplateColumns }}>
 					{/* Time gutter — frozen at left */}
 					<div
 						className="sticky left-0 z-10 border-r bg-card"
@@ -254,11 +255,30 @@ export function DayView({
 						const greyBands = c.id
 							? (nonRosteredBandsByEmployee.get(c.id) ?? [])
 							: [];
+						const showOverlay =
+							dragCreate.selection?.colKey === colKey
+								? dragCreate.selection
+								: null;
 						return (
 							<div
 								key={c.id ?? "_unassigned"}
-								className="relative border-r"
+								className="relative select-none border-r"
 								style={{ height: TOTAL_GRID_HEIGHT_PX }}
+								onPointerDown={(e) => dragCreate.onPointerDown(e, colKey)}
+								onPointerMove={dragCreate.onPointerMove}
+								onPointerCancel={dragCreate.onPointerCancel}
+								onPointerUp={(e) =>
+									dragCreate.onPointerUp(e, (args) =>
+										onCellClick({
+											dateStr,
+											hour: args.startHour,
+											minute: args.startMinute,
+											durationMinutes: args.durationMinutes,
+											employeeId: resourceMode === "employee" ? c.id : null,
+											roomId: resourceMode === "room" ? c.id : null,
+										}),
+									)
+								}
 							>
 								{/* Non-rostered greyout — pointer-events-none so cells stay clickable */}
 								{greyBands.map((b) => {
@@ -283,6 +303,7 @@ export function DayView({
 											<button
 												key={`${h}-${min}`}
 												type="button"
+												data-grid-cell="true"
 												onClick={() =>
 													onCellClick({
 														dateStr,
@@ -356,6 +377,8 @@ export function DayView({
 										/>
 									);
 								})}
+
+								{showOverlay && <DragSelectOverlay selection={showOverlay} />}
 							</div>
 						);
 					})}

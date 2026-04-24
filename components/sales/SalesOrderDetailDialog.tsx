@@ -119,7 +119,7 @@ export function SalesOrderDetailDialog({
 		type: "success" | "error";
 		message: string;
 	} | null>(null);
-	const [reloadKey, setReloadKey] = useState(0);
+	const [_reloadKey, setReloadKey] = useState(0);
 
 	useEffect(() => {
 		if (!open || !salesOrderId) {
@@ -156,7 +156,7 @@ export function SalesOrderDetailDialog({
 		return () => {
 			cancelled = true;
 		};
-	}, [open, salesOrderId, reloadKey]);
+	}, [open, salesOrderId]);
 
 	const order = state.status === "ready" ? state.order : null;
 	const isCancellable =
@@ -216,10 +216,10 @@ export function SalesOrderDetailDialog({
 							<TooltipProvider delayDuration={200}>
 								<LeftPanel order={state.order} items={state.items} />
 								<RightPanel
-								order={state.order}
-								payments={state.payments}
-								refundNotes={state.refundNotes}
-							/>
+									order={state.order}
+									payments={state.payments}
+									refundNotes={state.refundNotes}
+								/>
 							</TooltipProvider>
 						)}
 					</div>
