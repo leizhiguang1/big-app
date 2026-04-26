@@ -219,24 +219,14 @@ export function VoidSalesOrderDialog({
 
 				<DialogFooter className="border-t px-6 py-3">
 					{step === 1 && (
-						<>
-							<Button
-								type="button"
-								variant="outline"
-								onClick={() => onOpenChange(false)}
-								disabled={isPending}
-							>
-								Keep order
-							</Button>
-							<Button
-								type="button"
-								variant="destructive"
-								onClick={() => setStep(2)}
-								disabled={!canAdvanceFromItems || isPending}
-							>
-								Next
-							</Button>
-						</>
+						<Button
+							type="button"
+							variant="destructive"
+							onClick={() => setStep(2)}
+							disabled={!canAdvanceFromItems || isPending}
+						>
+							Next
+						</Button>
 					)}
 					{step === 2 && (
 						<>

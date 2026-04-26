@@ -7,12 +7,14 @@ import {
 	Cigarette,
 	Crown,
 	IdCard,
+	Mars,
 	Megaphone,
 	Minus,
 	Pencil,
 	Plane,
 	Printer,
 	Trash2,
+	Venus,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition } from "react";
@@ -307,6 +309,23 @@ function NameCell({ customer: c }: { customer: CustomerWithRelations }) {
 					</Link>
 				</div>
 				<div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+					{c.gender && (
+						<>
+							<IconBadge
+								label={c.gender === "male" ? "Male" : "Female"}
+								className={
+									c.gender === "male" ? "text-sky-600" : "text-pink-600"
+								}
+							>
+								{c.gender === "male" ? (
+									<Mars className="size-3" />
+								) : (
+									<Venus className="size-3" />
+								)}
+							</IconBadge>
+							<span className="text-muted-foreground/50">·</span>
+						</>
+					)}
 					{age && <span>{age}</span>}
 					{age && <span className="text-muted-foreground/50">·</span>}
 					<span className="font-mono">{c.code}</span>

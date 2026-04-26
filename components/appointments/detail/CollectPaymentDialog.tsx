@@ -590,6 +590,10 @@ export function CollectPaymentDialog({
 						}))
 					: null;
 
+				const incentivesPayload = empAlloc.buildSaleItemIncentivesPayload();
+				const incentives =
+					incentivesPayload.length > 0 ? incentivesPayload : null;
+
 				const capturedTotalPaid = payments.totalPaid;
 
 				const result = await collectAppointmentPaymentAction(appointment.id, {
@@ -624,6 +628,7 @@ export function CollectPaymentDialog({
 							months: p.months ? Number(p.months) : null,
 						})),
 					allocations,
+					incentives,
 					remarks: remarks.trim() || null,
 					sold_at:
 						backdate && backdateValue

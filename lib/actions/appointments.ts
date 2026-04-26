@@ -246,6 +246,30 @@ export async function revertBillingForAppointmentAction(
 	revalidatePath("/appointments/[ref]", "page");
 }
 
+export async function cancelBillingForCustomerAction(
+	customerId: string,
+	targetAppointmentId: string,
+) {
+	const ctx = await getServerContext();
+	await lineItemsService.cancelLineItemsForAppointment(
+		ctx,
+		targetAppointmentId,
+	);
+	revalidatePath(`/customers/${customerId}`);
+}
+
+export async function revertBillingForCustomerAction(
+	customerId: string,
+	targetAppointmentId: string,
+) {
+	const ctx = await getServerContext();
+	await lineItemsService.revertLineItemsForAppointment(
+		ctx,
+		targetAppointmentId,
+	);
+	revalidatePath(`/customers/${customerId}`);
+}
+
 export async function listPastLineItemsForCustomerAction(customerId: string) {
 	const ctx = await getServerContext();
 	return lineItemsService.listLineItemsForCustomer(ctx, customerId);

@@ -1,3 +1,4 @@
+import { Mail, MapPin, Phone } from "lucide-react";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type { Outlet } from "@/lib/services/outlets";
 import type {
@@ -26,59 +27,55 @@ function money(n: number | string | null | undefined): string {
 
 function formatDate(iso: string | null | undefined): string {
 	if (!iso) return "—";
-	return new Date(iso).toLocaleDateString("en-GB", {
+	const d = new Date(iso);
+	return d.toLocaleDateString("en-GB", {
 		day: "2-digit",
-		month: "short",
+		month: "2-digit",
 		year: "numeric",
 	});
 }
 
-function formatDateTime(iso: string | null | undefined): string {
-	if (!iso) return "—";
-	const d = new Date(iso);
-	return `${d.toLocaleDateString("en-GB", {
-		day: "2-digit",
-		month: "short",
-		year: "numeric",
-	})} ${d.toLocaleTimeString("en-GB", {
-		hour: "2-digit",
-		minute: "2-digit",
-		hour12: false,
-	})}`;
-}
-
-function prettyCode(code: string): string {
-	return code
-		.split("_")
-		.map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
-		.join(" ");
-}
-
-function outletAddressLines(outlet: Outlet | null): string[] {
-	if (!outlet) return [];
-	const lines: string[] = [];
-	if (outlet.address1) lines.push(outlet.address1);
-	if (outlet.address2) lines.push(outlet.address2);
-	const cityLine = [outlet.postcode, outlet.city, outlet.state]
+function customerAddressLine(c: CustomerWithRelations | null): string {
+	if (!c) return "";
+	const parts = [
+		c.address1,
+		c.address2,
+		[c.postcode, c.city, c.state].filter(Boolean).join(" ").trim(),
+		c.address_country,
+	]
 		.filter(Boolean)
-		.join(" ")
-		.trim();
-	if (cityLine) lines.push(cityLine);
-	if (outlet.country) lines.push(outlet.country);
-	return lines;
+		.map((p) => String(p).trim())
+		.filter(Boolean);
+	return parts.join(", ").toUpperCase();
 }
 
-function customerAddressLines(c: CustomerWithRelations | null): string[] {
-	if (!c) return [];
-	const lines: string[] = [];
-	if (c.address1) lines.push(c.address1);
-	if (c.address2) lines.push(c.address2);
-	const cityLine = [c.postcode, c.city, c.state]
+function outletAddressLine(outlet: Outlet | null): string {
+	if (!outlet) return "";
+	const parts = [
+		outlet.address1,
+		outlet.address2,
+		[outlet.postcode, outlet.city, outlet.state]
+			.filter(Boolean)
+			.join(" ")
+			.trim(),
+		outlet.country,
+	]
 		.filter(Boolean)
+		.map((p) => String(p).trim())
+		.filter(Boolean);
+	return parts.join(", ").toUpperCase();
+}
+
+function fullName(
+	first: string | null | undefined,
+	last: string | null | undefined,
+	salutation?: string | null,
+): string {
+	return [salutation, first, last]
+		.filter(Boolean)
+		.map((p) => String(p).trim())
 		.join(" ")
-		.trim();
-	if (cityLine) lines.push(cityLine);
-	return lines;
+		.toUpperCase();
 }
 
 export function PrintableInvoice({
@@ -89,152 +86,130 @@ export function PrintableInvoice({
 	customer,
 }: Props) {
 	const customerName = customer
-		? [customer.salutation, customer.first_name, customer.last_name]
-				.filter(Boolean)
-				.join(" ")
-				.trim()
+		? fullName(customer.first_name, customer.last_name, customer.salutation)
 		: order.customer
-			? [order.customer.first_name, order.customer.last_name]
-					.filter(Boolean)
-					.join(" ")
-					.trim()
-			: "Walk-in";
+			? fullName(order.customer.first_name, order.customer.last_name)
+			: "WALK-IN";
 
 	const subtotal = Number(order.subtotal ?? 0);
 	const discount = Number(order.discount ?? 0);
-	const tax = Number(order.tax ?? 0);
-	const rounding = Number(order.rounding ?? 0);
 	const total = Number(order.total ?? 0);
 	const amountPaid = Number(order.amount_paid ?? 0);
 	const outstanding = Number(order.outstanding ?? 0);
-	const paidInFull = outstanding <= 0.005;
+
+	const latestPayment = payments[payments.length - 1] ?? null;
+	const headerInvoiceNo = latestPayment?.invoice_no ?? "—";
+
+	const tendered = payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+
+	const servedBy = latestPayment?.processed_by_employee
+		? fullName(
+				latestPayment.processed_by_employee.first_name,
+				latestPayment.processed_by_employee.last_name,
+			)
+		: order.consultant
+			? fullName(order.consultant.first_name, order.consultant.last_name)
+			: "—";
+
+	const showRegNumber = outlet?.show_reg_number_on_invoice ?? true;
+	const showTaxNumber = outlet?.show_tax_number_on_invoice ?? true;
 
 	return (
-		<div className="invoice-sheet mx-auto max-w-[780px] bg-white p-10 text-[12px] text-zinc-900 print:p-0 print:text-[11px]">
-			<header className="flex items-start justify-between gap-6 border-zinc-300 border-b pb-4">
-				<div>
-					<div className="font-semibold text-lg tracking-tight">
-						{outlet?.name ?? "BIG"}
-					</div>
-					<div className="mt-1 space-y-0.5 text-[11px] text-zinc-600">
-						{outletAddressLines(outlet).map((line) => (
-							<div key={line}>{line}</div>
-						))}
-						{outlet?.phone && <div>Tel: {outlet.phone}</div>}
-						{outlet?.email && <div>{outlet.email}</div>}
-					</div>
+		<div className="invoice-sheet mx-auto max-w-[820px] bg-white p-8 text-[11px] text-zinc-900 print:p-0 print:text-[10px]">
+			<div className="flex items-end gap-3">
+				<div
+					className="h-[18px] flex-1 border-zinc-500 border-b"
+					aria-hidden
+				/>
+				<div className="font-semibold text-[18px] leading-none tracking-wide">
+					INVOICE
 				</div>
-				<div className="text-right">
-					<div className="font-semibold text-xl uppercase tracking-[0.12em]">
-						Invoice
+			</div>
+
+			<header className="flex items-start gap-6 border-zinc-400 border-b py-4">
+				<OutletLogo outlet={outlet} />
+				<div className="flex flex-1 flex-col gap-2">
+					<div className="grid grid-cols-2 gap-x-8 gap-y-1">
+						<HeaderField label="Customer Name" value={customerName} />
+						<HeaderField label="Invoice #" value={headerInvoiceNo} />
+						<HeaderField
+							label="Identification #"
+							value={customer?.id_number ?? "—"}
+						/>
+						<HeaderField label="Sales Order #" value={order.so_number} />
+						<HeaderField
+							label="Membership #"
+							value={customer?.code ?? "—"}
+						/>
+						<HeaderField label="Date" value={formatDate(order.sold_at)} />
+						<HeaderField label="Phone #" value={customer?.phone ?? "—"} />
+						<HeaderField label="Served By" value={servedBy} />
 					</div>
-					<div className="mt-1 text-[11px] text-zinc-600">
-						<div>
-							<span className="inline-block w-20 text-left">SO No.</span>
-							<span className="font-medium text-zinc-900">
-								{order.so_number}
-							</span>
-						</div>
-						<div>
-							<span className="inline-block w-20 text-left">Date</span>
-							<span>{formatDateTime(order.sold_at)}</span>
-						</div>
-						<div>
-							<span className="inline-block w-20 text-left">Status</span>
-							<span className="capitalize">{order.status}</span>
-						</div>
-					</div>
+					<HeaderField
+						label="Customer Address"
+						value={customerAddressLine(customer) || "—"}
+						labelWidth="146px"
+						multiline
+					/>
 				</div>
 			</header>
 
-			<section className="grid grid-cols-2 gap-6 pt-4 pb-2">
-				<div>
-					<div className="font-medium text-[10px] text-zinc-500 uppercase tracking-wide">
-						Bill To
-					</div>
-					<div className="mt-1 font-semibold text-sm">{customerName}</div>
-					{customer?.code && (
-						<div className="text-[11px] text-zinc-600">{customer.code}</div>
-					)}
-					<div className="mt-1 space-y-0.5 text-[11px] text-zinc-600">
-						{customerAddressLines(customer).map((line) => (
-							<div key={line}>{line}</div>
-						))}
-						{customer?.phone && <div>Tel: {customer.phone}</div>}
-						{customer?.email && <div>{customer.email}</div>}
-					</div>
-				</div>
-				<div>
-					<div className="font-medium text-[10px] text-zinc-500 uppercase tracking-wide">
-						Consultant
-					</div>
-					<div className="mt-1 text-sm">
-						{order.consultant
-							? [order.consultant.first_name, order.consultant.last_name]
-									.filter(Boolean)
-									.join(" ")
-							: "—"}
-					</div>
-					<div className="mt-3 font-medium text-[10px] text-zinc-500 uppercase tracking-wide">
-						Prepared By
-					</div>
-					<div className="mt-1 text-sm">
-						{order.created_by_employee
-							? [
-									order.created_by_employee.first_name,
-									order.created_by_employee.last_name,
-								]
-									.filter(Boolean)
-									.join(" ")
-							: "—"}
-					</div>
-				</div>
-			</section>
-
-			<section className="mt-4">
+			<section className="mt-2">
 				<table className="w-full border-collapse text-[11px]">
 					<thead>
-						<tr className="border-zinc-400 border-y bg-zinc-50 text-left">
-							<th className="w-10 py-2 pl-1 font-semibold">#</th>
-							<th className="py-2 font-semibold">Description</th>
-							<th className="w-16 py-2 text-right font-semibold">Qty</th>
-							<th className="w-24 py-2 text-right font-semibold">Unit</th>
-							<th className="w-24 py-2 text-right font-semibold">Discount</th>
-							<th className="w-24 py-2 pr-1 text-right font-semibold">Total</th>
+						<tr className="border-zinc-300 border-y bg-zinc-50 text-left">
+							<th className="py-2 pl-2 font-semibold">Description</th>
+							<th className="w-[110px] py-2 font-semibold">Item Code</th>
+							<th className="w-[60px] py-2 text-center font-semibold">Qty</th>
+							<th className="w-[110px] py-2 text-right font-semibold">
+								U/Price (MYR)
+							</th>
+							<th className="w-[110px] py-2 text-right font-semibold">
+								Discount (MYR)
+							</th>
+							<th className="w-[120px] py-2 pr-2 text-right font-semibold">
+								Amount (MYR)
+							</th>
 						</tr>
 					</thead>
 					<tbody>
-						{items.map((item, idx) => (
-							<tr key={item.id} className="border-zinc-200 border-b align-top">
-								<td className="py-2 pl-1 text-zinc-500">{idx + 1}</td>
-								<td className="py-2">
-									<div className="font-medium">{item.item_name}</div>
-									{item.sku && (
+						{items.map((item) => {
+							const qty = Number(item.quantity ?? 0);
+							const unitPrice = Number(item.unit_price ?? 0);
+							const itemDiscount = Number(item.discount ?? 0);
+							const lineAmount = Number(item.total ?? 0);
+							const grossLine = qty * unitPrice;
+							const taxRate = Number(item.tax_rate_pct ?? 0);
+							const taxLineAmount =
+								taxRate > 0
+									? ((grossLine - itemDiscount) * taxRate) / 100
+									: 0;
+							const isFoc = lineAmount === 0 && qty > 0;
+							return (
+								<tr key={item.id} className="border-zinc-200 border-b align-top">
+									<td className="py-1.5 pl-2">
+										<div>{item.item_name}</div>
+										{isFoc && (
+											<div className="text-zinc-700">FOC</div>
+										)}
+									</td>
+									<td className="py-1.5">{item.sku ?? "—"}</td>
+									<td className="py-1.5 text-center tabular-nums">{qty}</td>
+									<td className="py-1.5 text-right tabular-nums">
+										{money(unitPrice)}
+									</td>
+									<td className="py-1.5 text-right tabular-nums">
+										{money(itemDiscount)}
+									</td>
+									<td className="py-1.5 pr-2 text-right tabular-nums">
+										<div>{money(lineAmount)}</div>
 										<div className="text-[10px] text-zinc-500">
-											SKU: {item.sku}
+											(LOCAL) ({taxRate}%): {money(taxLineAmount)}
 										</div>
-									)}
-									<div className="text-[10px] text-zinc-500 capitalize">
-										{item.item_type}
-										{item.tax_name
-											? ` · ${item.tax_name} ${item.tax_rate_pct}%`
-											: ""}
-									</div>
-								</td>
-								<td className="py-2 text-right tabular-nums">
-									{item.quantity}
-								</td>
-								<td className="py-2 text-right tabular-nums">
-									{money(item.unit_price)}
-								</td>
-								<td className="py-2 text-right tabular-nums">
-									{Number(item.discount) > 0 ? money(item.discount) : "—"}
-								</td>
-								<td className="py-2 pr-1 text-right tabular-nums font-medium">
-									{money(item.total)}
-								</td>
-							</tr>
-						))}
+									</td>
+								</tr>
+							);
+						})}
 						{items.length === 0 && (
 							<tr>
 								<td
@@ -245,90 +220,130 @@ export function PrintableInvoice({
 								</td>
 							</tr>
 						)}
+						<tr className="border-zinc-300 border-t-2">
+							<td colSpan={3} className="py-2 pl-2 font-semibold">
+								Sub Total (MYR)
+							</td>
+							<td className="py-2 text-right font-semibold tabular-nums">
+								{money(subtotal)}
+							</td>
+							<td className="py-2 text-right font-semibold tabular-nums">
+								{money(discount)}
+							</td>
+							<td className="py-2 pr-2 text-right font-semibold tabular-nums">
+								{money(total)}
+							</td>
+						</tr>
 					</tbody>
 				</table>
 			</section>
 
-			<section className="mt-4 flex justify-end">
-				<dl className="w-72 text-[11px]">
-					<Row label="Subtotal" value={money(subtotal)} />
-					{discount > 0 && (
-						<Row label="Discount" value={`-${money(discount)}`} />
-					)}
-					{tax > 0 && <Row label="Tax" value={money(tax)} />}
-					{Math.abs(rounding) > 0.005 && (
-						<Row label="Rounding" value={money(rounding)} />
-					)}
-					<Row label="Total" value={money(total)} emphasize />
-					<Row label="Amount Paid" value={money(amountPaid)} />
-					<Row
-						label="Outstanding"
-						value={money(outstanding)}
-						emphasize={!paidInFull}
-					/>
-				</dl>
+			<section className="mt-4 flex items-center justify-between border-zinc-300 border-y py-2">
+				<span className="font-semibold">Gross Total (MYR)</span>
+				<span className="font-semibold tabular-nums">{money(total)}</span>
 			</section>
 
-			{payments.length > 0 && (
-				<section className="mt-6 border-zinc-300 border-t pt-3">
-					<div className="font-semibold text-[10px] text-zinc-500 uppercase tracking-wide">
-						Payments
-					</div>
-					<table className="mt-2 w-full border-collapse text-[11px]">
-						<thead>
-							<tr className="text-left text-zinc-500">
-								<th className="w-28 py-1 font-medium">Date</th>
-								<th className="py-1 font-medium">Method</th>
-								<th className="py-1 font-medium">Reference</th>
-								<th className="w-24 py-1 text-right font-medium">Amount</th>
-							</tr>
-						</thead>
-						<tbody>
-							{payments.map((p) => (
-								<tr key={p.id} className="border-zinc-100 border-t align-top">
-									<td className="py-1 tabular-nums">{formatDate(p.paid_at)}</td>
-									<td className="py-1">
-										{p.method?.name ?? prettyCode(p.payment_mode)}
-									</td>
-									<td className="py-1 text-[10px] text-zinc-600">
-										{[
-											p.bank,
-											p.card_type,
-											p.trace_no,
-											p.approval_code,
-											p.reference_no,
-										]
-											.filter(Boolean)
-											.join(" · ") || "—"}
-									</td>
-									<td className="py-1 text-right tabular-nums">
-										{money(p.amount)}
-									</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-				</section>
-			)}
+			<section className="mt-4">
+				<div className="font-semibold underline">Payment Details</div>
+				<div className="mt-1 flex items-center justify-between">
+					<span>Tendered Amount (MYR)</span>
+					<span className="tabular-nums">{money(tendered)}</span>
+				</div>
+				<div className="mt-2 flex items-center justify-between border-zinc-300 border-b font-semibold">
+					<span className="underline">Payment Type</span>
+					<span className="underline">Amount(MYR)</span>
+				</div>
+				{payments.length === 0 ? (
+					<div className="py-2 text-zinc-500 italic">No payments collected.</div>
+				) : (
+					payments.map((p) => {
+						const methodLabel = formatMethodLabel(p);
+						const trace = p.trace_no?.trim();
+						const approval = p.approval_code?.trim();
+						const reference = p.reference_no?.trim();
+						return (
+							<div key={p.id} className="border-zinc-200 border-b py-1.5">
+								<div className="flex items-center justify-between">
+									<span>{methodLabel}</span>
+									<span className="tabular-nums">{money(p.amount)}</span>
+								</div>
+								{(trace || approval || reference) && (
+									<div className="mt-0.5 flex gap-4 text-[10px] text-zinc-500">
+										{trace && <span>Trace No: {trace}</span>}
+										{approval && <span>Approval Code: {approval}</span>}
+										{reference && <span>Ref: {reference}</span>}
+									</div>
+								)}
+							</div>
+						);
+					})
+				)}
+			</section>
 
-			{order.remarks && (
-				<section className="mt-6 border-zinc-300 border-t pt-3">
-					<div className="font-semibold text-[10px] text-zinc-500 uppercase tracking-wide">
-						Remarks
-					</div>
-					<div className="mt-1 whitespace-pre-line text-[11px]">
-						{order.remarks}
-					</div>
-				</section>
-			)}
+			<section className="mt-4">
+				<div className="font-semibold underline">Payment Summary</div>
+				<div className="mt-1 flex items-center justify-between">
+					<span>Total Paid to date (MYR)</span>
+					<span className="tabular-nums">{money(amountPaid)}</span>
+				</div>
+				<div className="flex items-center justify-between">
+					<span>Outstanding (MYR)</span>
+					<span className="tabular-nums">{money(outstanding)}</span>
+				</div>
+			</section>
 
-			<footer className="mt-10 border-zinc-300 border-t pt-3 text-center text-[10px] text-zinc-500">
-				Thank you for choosing {outlet?.name ?? "us"}.
+			<section className="mt-4">
+				<div className="font-semibold underline">Terms & Conditions</div>
+				<div className="mt-1">Goods sold are not refundable.</div>
+			</section>
+
+			<footer className="mt-12 border-zinc-400 border-t pt-3">
+				<div className="grid grid-cols-[16px_1fr] items-start gap-x-3 gap-y-2 text-[10px]">
+					<MapPin className="mt-0.5 size-3.5 text-zinc-500" aria-hidden />
+					<div>
+						<div className="font-semibold">
+							{outlet?.name?.toUpperCase() ?? ""}
+							{outlet?.company_reg_name
+								? ` ${outlet.company_reg_name.toUpperCase()}`
+								: ""}
+							{showRegNumber && outlet?.company_reg_number
+								? ` (${outlet.company_reg_number})`
+								: ""}
+						</div>
+						<div>{outletAddressLine(outlet) || "—"}</div>
+					</div>
+					{outlet?.phone && (
+						<>
+							<Phone
+								className="mt-0.5 size-3.5 text-zinc-500"
+								aria-hidden
+							/>
+							<div>{outlet.phone}</div>
+						</>
+					)}
+					{outlet?.email && (
+						<>
+							<Mail
+								className="mt-0.5 size-3.5 text-zinc-500"
+								aria-hidden
+							/>
+							<div>{outlet.email.toUpperCase()}</div>
+						</>
+					)}
+					{showTaxNumber && outlet?.tax_number && (
+						<>
+							<span aria-hidden />
+							<div className="font-semibold">
+								Tax No.{outlet.tax_number}
+							</div>
+						</>
+					)}
+				</div>
 			</footer>
 
 			<style>{`
 				@media print {
-					@page { size: A4; margin: 14mm; }
+					@page { size: A4; margin: 12mm; }
 					html, body { background: white !important; }
 					body * { visibility: hidden !important; }
 					.invoice-sheet, .invoice-sheet * { visibility: visible !important; }
@@ -342,23 +357,64 @@ export function PrintableInvoice({
 	);
 }
 
-function Row({
+function HeaderField({
 	label,
 	value,
-	emphasize,
+	labelWidth = "120px",
+	multiline,
 }: {
 	label: string;
 	value: string;
-	emphasize?: boolean;
+	labelWidth?: string;
+	multiline?: boolean;
 }) {
 	return (
 		<div
-			className={`flex justify-between border-zinc-200 border-b py-1 ${
-				emphasize ? "font-semibold text-zinc-900" : "text-zinc-700"
-			}`}
+			className="grid items-baseline gap-x-2"
+			style={{ gridTemplateColumns: `${labelWidth} 8px 1fr` }}
 		>
-			<dt>{label}</dt>
-			<dd className="tabular-nums">{value}</dd>
+			<span className="font-semibold">{label}</span>
+			<span className="text-zinc-700">:</span>
+			<span className={multiline ? "whitespace-pre-wrap" : ""}>{value}</span>
 		</div>
 	);
+}
+
+function OutletLogo({ outlet }: { outlet: Outlet | null }) {
+	if (outlet?.logo_url) {
+		return (
+			// eslint-disable-next-line @next/next/no-img-element
+			<img
+				src={outlet.logo_url}
+				alt={outlet.name ?? "Outlet logo"}
+				className="size-20 shrink-0 object-contain"
+			/>
+		);
+	}
+	return (
+		<div className="flex size-20 shrink-0 items-center justify-center rounded border border-zinc-200 bg-zinc-50 text-zinc-300">
+			<svg
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				strokeWidth="1.5"
+				aria-hidden
+				className="size-10"
+			>
+				<title>Outlet logo placeholder</title>
+				<rect x="3" y="3" width="18" height="18" rx="2" />
+				<path d="m3 16 5-5 4 4 3-3 6 6" />
+				<circle cx="9" cy="9" r="1.5" />
+			</svg>
+		</div>
+	);
+}
+
+function formatMethodLabel(p: PaymentWithProcessedBy): string {
+	const base = p.method?.name ?? p.payment_mode;
+	const meta: string[] = [];
+	if (p.card_type) meta.push(p.card_type);
+	if (p.bank) meta.push(p.bank);
+	if (meta.length > 0) return `${base} (${meta.join(",")})`;
+	return base;
 }

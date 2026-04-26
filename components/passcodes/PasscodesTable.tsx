@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -19,9 +19,6 @@ import type {
 	PasscodeEmployeeRef,
 	PasscodeListItem,
 } from "@/lib/services/passcodes";
-import { PasscodeFormDialog } from "./PasscodeForm";
-
-type OutletOption = { id: string; name: string };
 
 function employeeName(e: PasscodeEmployeeRef | null): string {
 	if (!e) return "—";
@@ -42,12 +39,9 @@ const STATUS_CLASS: Record<string, string> = {
 
 export function PasscodesTable({
 	passcodes,
-	outlets,
 }: {
 	passcodes: PasscodeListItem[];
-	outlets: OutletOption[];
 }) {
-	const [editing, setEditing] = useState<PasscodeListItem | null>(null);
 	const [deleting, setDeleting] = useState<PasscodeListItem | null>(null);
 	const [actionError, setActionError] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
@@ -75,13 +69,6 @@ export function PasscodesTable({
 			header: "Applied on",
 			cell: (p) => (
 				<span className="text-muted-foreground">{p.applied_on || "—"}</span>
-			),
-		},
-		{
-			key: "remarks",
-			header: "Remarks",
-			cell: (p) => (
-				<span className="text-muted-foreground">{p.remarks || "—"}</span>
 			),
 		},
 		{
@@ -118,11 +105,18 @@ export function PasscodesTable({
 			cell: (p) => {
 				const s = deriveStatus(p);
 				return (
-					<span
-						className={`rounded-full px-2 py-0.5 text-xs capitalize ${STATUS_CLASS[s]}`}
-					>
-						{s}
-					</span>
+					<div className="flex flex-col gap-0.5">
+						<span
+							className={`w-fit rounded-full px-2 py-0.5 text-xs capitalize ${STATUS_CLASS[s]}`}
+						>
+							{s}
+						</span>
+						{s === "active" && p.expires_at && (
+							<span className="text-muted-foreground text-xs">
+								expires {new Date(p.expires_at).toLocaleDateString()}
+							</span>
+						)}
+					</div>
 				);
 			},
 		},
@@ -131,37 +125,22 @@ export function PasscodesTable({
 			header: "Actions",
 			align: "right",
 			cell: (p) => (
-				<div className="inline-flex gap-1">
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon-sm"
-								onClick={() => setEditing(p)}
-								aria-label="Edit"
-							>
-								<Pencil />
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Edit</TooltipContent>
-					</Tooltip>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon-sm"
-								onClick={() => {
-									setActionError(null);
-									setDeleting(p);
-								}}
-								aria-label="Delete"
-							>
-								<Trash2 />
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Delete</TooltipContent>
-					</Tooltip>
-				</div>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							onClick={() => {
+								setActionError(null);
+								setDeleting(p);
+							}}
+							aria-label="Delete"
+						>
+							<Trash2 />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Delete</TooltipContent>
+				</Tooltip>
 			),
 		},
 	];
@@ -172,16 +151,10 @@ export function PasscodesTable({
 				data={passcodes}
 				columns={columns}
 				getRowKey={(p) => p.id}
-				searchKeys={["passcode", "remarks", "applied_on"]}
+				searchKeys={["passcode", "applied_on"]}
 				searchPlaceholder="Search passcodes…"
 				emptyMessage="No passcodes yet. Click “Generate passcode” to create one."
 				minWidth={960}
-			/>
-			<PasscodeFormDialog
-				open={!!editing}
-				passcode={editing}
-				outlets={outlets}
-				onClose={() => setEditing(null)}
 			/>
 			<ConfirmDialog
 				open={!!deleting}

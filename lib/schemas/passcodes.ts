@@ -26,13 +26,6 @@ export const PASSCODE_FUNCTION_LABELS: Record<PasscodeFunction, string> = {
 export const passcodeInputSchema = z.object({
 	outlet_id: z.string().uuid("Outlet is required"),
 	function: z.enum(PASSCODE_FUNCTIONS),
-	remarks: z.string().trim().max(500).optional().or(z.literal("")),
 });
 
 export type PasscodeInput = z.infer<typeof passcodeInputSchema>;
-
-export const passcodeUpdateSchema = z.object({
-	remarks: z.string().trim().max(500).optional().or(z.literal("")),
-});
-
-export type PasscodeUpdate = z.infer<typeof passcodeUpdateSchema>;

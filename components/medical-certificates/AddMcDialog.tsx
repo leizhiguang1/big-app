@@ -1,7 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -12,16 +12,21 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { createMedicalCertificateAction } from "@/lib/actions/medical-certificates";
+import {
+	createMedicalCertificateAction,
+	updateMedicalCertificateAction,
+} from "@/lib/actions/medical-certificates";
+import type { MedicalCertificateWithRefs } from "@/lib/services/medical-certificates";
 
 type Props = {
 	open: boolean;
 	onClose: () => void;
-	appointmentId: string;
+	appointmentId: string | null;
 	customerId: string;
 	outletId: string;
 	issuingEmployeeId: string | null;
 	defaultStartDate: string;
+	editing?: MedicalCertificateWithRefs | null;
 	onCreated: (result: { id: string; code: string }) => void;
 };
 
@@ -37,11 +42,7 @@ function formatDmy(iso: string): string {
 	return `${d}/${m}/${y}`;
 }
 
-function deriveDayOffEnd(
-	startISO: string,
-	duration: number,
-	halfDay: boolean,
-) {
+function deriveDayOffEnd(startISO: string, duration: number, halfDay: boolean) {
 	const total = halfDay ? duration + 0.5 : duration;
 	const frac = Math.abs(total - Math.floor(total)) > 0.01;
 	const offset = frac ? Math.floor(total) : Math.floor(total) - 1;
@@ -62,6 +63,16 @@ function addMinutesToTime(hhmm: string, minutes: number): string {
 	return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
+function deriveDayOffDuration(mc: MedicalCertificateWithRefs): {
+	whole: number;
+	halfDay: boolean;
+} {
+	const total = Number(mc.duration_days ?? 0);
+	const halfDay = Math.abs(total - Math.floor(total)) > 0.01;
+	const whole = halfDay ? Math.floor(total) : total;
+	return { whole, halfDay };
+}
+
 export function AddMcDialog({
 	open,
 	onClose,
@@ -70,8 +81,11 @@ export function AddMcDialog({
 	outletId,
 	issuingEmployeeId,
 	defaultStartDate,
+	editing,
 	onCreated,
 }: Props) {
+	const isEdit = !!editing;
+
 	const [slipType, setSlipType] = useState<"day_off" | "time_off">("day_off");
 	const [startDate, setStartDate] = useState(defaultStartDate);
 
@@ -86,6 +100,33 @@ export function AddMcDialog({
 	const [reason, setReason] = useState("");
 	const [pending, startTransition] = useTransition();
 	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (!open) return;
+		setError(null);
+		if (editing) {
+			setSlipType(editing.slip_type as "day_off" | "time_off");
+			setStartDate(editing.start_date);
+			setReason(editing.reason ?? "");
+			if (editing.slip_type === "day_off") {
+				const { whole, halfDay: hd } = deriveDayOffDuration(editing);
+				setDuration(whole > 0 ? whole : 1);
+				setHalfDay(hd);
+			} else {
+				const t = (editing.start_time ?? "09:00").slice(0, 5);
+				setStartDateTime(`${editing.start_date}T${t}`);
+				setDurationHours(Number(editing.duration_hours ?? 1));
+			}
+			return;
+		}
+		setSlipType("day_off");
+		setStartDate(defaultStartDate);
+		setDuration(1);
+		setHalfDay(false);
+		setStartDateTime(`${defaultStartDate}T09:00`);
+		setDurationHours(1);
+		setReason("");
+	}, [open, editing, defaultStartDate]);
 
 	const dayOffDerived = useMemo(
 		() => deriveDayOffEnd(startDate, duration, halfDay),
@@ -131,18 +172,31 @@ export function AddMcDialog({
 			if (!duration || duration <= 0) return setError("Duration is required");
 			startTransition(async () => {
 				try {
-					const result = await createMedicalCertificateAction({
-						appointment_id: appointmentId,
-						customer_id: customerId,
-						outlet_id: outletId,
-						issuing_employee_id: issuingEmployeeId,
-						slip_type: "day_off",
-						start_date: startDate,
-						duration_days: halfDay ? duration + 0.5 : duration,
-						has_half_day: halfDay,
-						reason: reason.trim() || undefined,
-					});
-					onCreated(result);
+					if (isEdit && editing) {
+						const result = await updateMedicalCertificateAction(editing.id, {
+							issuing_employee_id:
+								editing.issuing_employee_id ?? issuingEmployeeId,
+							slip_type: "day_off",
+							start_date: startDate,
+							duration_days: halfDay ? duration + 0.5 : duration,
+							has_half_day: halfDay,
+							reason: reason.trim() || undefined,
+						});
+						onCreated(result);
+					} else {
+						const result = await createMedicalCertificateAction({
+							appointment_id: appointmentId,
+							customer_id: customerId,
+							outlet_id: outletId,
+							issuing_employee_id: issuingEmployeeId,
+							slip_type: "day_off",
+							start_date: startDate,
+							duration_days: halfDay ? duration + 0.5 : duration,
+							has_half_day: halfDay,
+							reason: reason.trim() || undefined,
+						});
+						onCreated(result);
+					}
 					onClose();
 				} catch (err) {
 					setError(
@@ -158,19 +212,33 @@ export function AddMcDialog({
 
 		startTransition(async () => {
 			try {
-				const result = await createMedicalCertificateAction({
-					appointment_id: appointmentId,
-					customer_id: customerId,
-					outlet_id: outletId,
-					issuing_employee_id: issuingEmployeeId,
-					slip_type: "time_off",
-					start_date: timeOffParts.date,
-					start_time: timeOffParts.startTime,
-					end_time: timeOffParts.endTime,
-					duration_hours: durationHours,
-					reason: reason.trim() || undefined,
-				});
-				onCreated(result);
+				if (isEdit && editing) {
+					const result = await updateMedicalCertificateAction(editing.id, {
+						issuing_employee_id:
+							editing.issuing_employee_id ?? issuingEmployeeId,
+						slip_type: "time_off",
+						start_date: timeOffParts.date,
+						start_time: timeOffParts.startTime,
+						end_time: timeOffParts.endTime,
+						duration_hours: durationHours,
+						reason: reason.trim() || undefined,
+					});
+					onCreated(result);
+				} else {
+					const result = await createMedicalCertificateAction({
+						appointment_id: appointmentId,
+						customer_id: customerId,
+						outlet_id: outletId,
+						issuing_employee_id: issuingEmployeeId,
+						slip_type: "time_off",
+						start_date: timeOffParts.date,
+						start_time: timeOffParts.startTime,
+						end_time: timeOffParts.endTime,
+						duration_hours: durationHours,
+						reason: reason.trim() || undefined,
+					});
+					onCreated(result);
+				}
 				onClose();
 			} catch (err) {
 				setError(
@@ -180,6 +248,13 @@ export function AddMcDialog({
 		});
 	};
 
+	const title = isEdit
+		? "Edit Medical Certificate (MC)"
+		: "Add New Medical Certificate (MC)";
+	const description = appointmentId
+		? "The certificate is linked to this appointment and customer."
+		: "The certificate is linked to this customer.";
+
 	return (
 		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
 			<DialogContent
@@ -187,11 +262,9 @@ export function AddMcDialog({
 				className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
 			>
 				<DialogHeader className="border-b px-5 py-3">
-					<DialogTitle className="text-base">
-						Add New Medical Certificate (MC)
-					</DialogTitle>
+					<DialogTitle className="text-base">{title}</DialogTitle>
 					<DialogDescription className="text-xs">
-						The certificate is linked to this appointment and customer.
+						{description}
 					</DialogDescription>
 				</DialogHeader>
 
@@ -265,9 +338,7 @@ export function AddMcDialog({
 										step={0.5}
 										value={durationHours}
 										onChange={(e) =>
-											setDurationHours(
-												Number.parseFloat(e.target.value || "0"),
-											)
+											setDurationHours(Number.parseFloat(e.target.value || "0"))
 										}
 									/>
 								</Field>
@@ -310,7 +381,7 @@ export function AddMcDialog({
 						className="gap-1"
 					>
 						<Check className="size-4" />
-						{pending ? "Saving…" : "Save"}
+						{pending ? "Saving…" : isEdit ? "Update" : "Save"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

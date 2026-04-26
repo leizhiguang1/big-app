@@ -1,15 +1,18 @@
 "use client";
 
-import { Ban, Pencil, Receipt, Undo2 } from "lucide-react";
+import { Ban, Loader2, Pencil, Receipt, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { redistribute } from "@/components/appointments/detail/collect-payment/helpers";
+import type { Allocation } from "@/components/appointments/detail/collect-payment/types";
+import { EmployeePicker } from "@/components/employees/EmployeePicker";
 import { ChangePaymentMethodDialog } from "@/components/sales/ChangePaymentMethodDialog";
 import { CustomerIdentityCard } from "@/components/customers/CustomerIdentityCard";
 import { IssueRefundDialog } from "@/components/sales/IssueRefundDialog";
-import { ReallocatePaymentsEditor } from "@/components/sales/ReallocatePaymentsEditor";
 import { VoidSalesOrderDialog } from "@/components/sales/VoidSalesOrderDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PercentInput } from "@/components/ui/numeric-input";
 import {
 	Dialog,
 	DialogContent,
@@ -26,13 +29,15 @@ import {
 } from "@/components/ui/tooltip";
 import {
 	getSalesOrderDetailAction,
+	replaceSaleItemIncentivesAction,
 	type SalesOrderDetailResult,
 } from "@/lib/actions/sales";
+import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type {
-	PaymentAllocationForOrder,
 	PaymentWithProcessedBy,
 	RefundNoteWithRefs,
 	SaleItem,
+	SaleItemIncentiveRow,
 	SalesOrderWithRelations,
 } from "@/lib/services/sales";
 import { cn } from "@/lib/utils";
@@ -52,7 +57,8 @@ type LoadState =
 			items: SaleItem[];
 			payments: PaymentWithProcessedBy[];
 			refundNotes: RefundNoteWithRefs[];
-			allocations: PaymentAllocationForOrder[];
+			incentives: SaleItemIncentiveRow[];
+			employees: EmployeeWithRelations[];
 	  }
 	| { status: "not_found" }
 	| { status: "error"; message: string };
@@ -121,23 +127,123 @@ export function SalesOrderDetailDialog({
 	const [refundOpen, setRefundOpen] = useState(false);
 	const [changeMethodPayment, setChangeMethodPayment] =
 		useState<PaymentWithProcessedBy | null>(null);
-	const [reallocMode, setReallocMode] = useState(false);
+	const [editAllocMode, setEditAllocMode] = useState(false);
+	const [editSlots, setEditSlots] = useState<Map<string, Allocation[]>>(
+		() => new Map(),
+	);
+	const [isSavingAlloc, startSaveAlloc] = useTransition();
 	const [feedback, setFeedback] = useState<{
 		type: "success" | "error";
 		message: string;
 	} | null>(null);
-	const [_reloadKey, setReloadKey] = useState(0);
+	const [reloadKey, setReloadKey] = useState(0);
 
 	const reload = () => {
 		setReloadKey((k) => k + 1);
 		router.refresh();
 	};
 
+	const buildEditSlotsFromIncentives = (
+		items: SaleItem[],
+		incentives: SaleItemIncentiveRow[],
+		fallbackEmployeeId: string | null,
+	): Map<string, Allocation[]> => {
+		const map = new Map<string, Allocation[]>();
+		for (const item of items) {
+			const lineIncentives = incentives.filter(
+				(i) => i.sale_item_id === item.id,
+			);
+			const slots: Allocation[] = [];
+			for (let i = 0; i < 3; i++) {
+				const inc = lineIncentives[i];
+				slots.push({
+					employeeId: inc?.employee_id ?? "",
+					percent: inc ? Number(inc.percent) : 0,
+				});
+			}
+			if (lineIncentives.length === 0 && fallbackEmployeeId) {
+				slots[0] = { employeeId: fallbackEmployeeId, percent: 100 };
+			}
+			map.set(item.id, slots);
+		}
+		return map;
+	};
+
+	const setLineEmployee = (
+		lineId: string,
+		idx: number,
+		empId: string | null,
+	) => {
+		setEditSlots((prev) => {
+			const cur = prev.get(lineId) ?? [
+				{ employeeId: "", percent: 0 },
+				{ employeeId: "", percent: 0 },
+				{ employeeId: "", percent: 0 },
+			];
+			const next = redistribute(
+				cur.map((a, i) =>
+					i === idx ? { ...a, employeeId: empId ?? "" } : a,
+				),
+			);
+			return new Map(prev).set(lineId, next);
+		});
+	};
+
+	const setLinePercent = (lineId: string, idx: number, pct: number) => {
+		setEditSlots((prev) => {
+			const cur = prev.get(lineId);
+			if (!cur) return prev;
+			const next = cur.map((a, i) => (i === idx ? { ...a, percent: pct } : a));
+			return new Map(prev).set(lineId, next);
+		});
+	};
+
+	const applyLineToAll = (fromLineId: string) => {
+		setEditSlots((prev) => {
+			const source = prev.get(fromLineId);
+			if (!source) return prev;
+			const next = new Map(prev);
+			for (const key of next.keys()) {
+				next.set(
+					key,
+					source.map((a) => ({ ...a })),
+				);
+			}
+			return next;
+		});
+	};
+
+	const balanceLine = (lineId: string) => {
+		setEditSlots((prev) => {
+			const cur = prev.get(lineId);
+			if (!cur) return prev;
+			const filledIdx = cur.findIndex((a) => a.employeeId);
+			if (filledIdx === -1) return prev;
+			const sum = cur
+				.filter((a) => a.employeeId)
+				.reduce((s, a) => s + (a.percent || 0), 0);
+			const delta = 100 - sum;
+			const next = cur.map((a, i) =>
+				i === filledIdx
+					? {
+							...a,
+							percent: Math.max(
+								0,
+								Math.min(100, (a.percent || 0) + delta),
+							),
+						}
+					: a,
+			);
+			return new Map(prev).set(lineId, next);
+		});
+	};
+
 	useEffect(() => {
 		if (!open || !salesOrderId) {
 			setState({ status: "idle" });
 			setFeedback(null);
-			setReallocMode(false);
+			setEditAllocMode(false);
+			setEditSlots(new Map());
 			return;
 		}
 		let cancelled = false;
@@ -157,7 +263,8 @@ export function SalesOrderDetailDialog({
 					items: res.items,
 					payments: res.payments,
 					refundNotes: res.refundNotes,
-					allocations: res.allocations,
+					incentives: res.incentives,
+					employees: res.employees,
 				});
 			})
 			.catch((err) => {
@@ -170,7 +277,7 @@ export function SalesOrderDetailDialog({
 		return () => {
 			cancelled = true;
 		};
-	}, [open, salesOrderId]);
+	}, [open, salesOrderId, reloadKey]);
 
 	const order = state.status === "ready" ? state.order : null;
 	const isCancellable =
@@ -179,6 +286,71 @@ export function SalesOrderDetailDialog({
 	const canRefund = order !== null && order.status === "completed";
 	const isCancelled = order?.status === "cancelled";
 	const appointmentRef = order?.appointment?.booking_ref ?? null;
+
+	const startEditAlloc = () => {
+		if (state.status !== "ready") return;
+		setEditSlots(
+			buildEditSlotsFromIncentives(
+				state.items,
+				state.incentives,
+				state.order.consultant?.id ?? null,
+			),
+		);
+		setFeedback(null);
+		setEditAllocMode(true);
+	};
+
+	const cancelEditAlloc = () => {
+		setEditAllocMode(false);
+		setEditSlots(new Map());
+	};
+
+	const saveEditAlloc = () => {
+		if (state.status !== "ready" || !salesOrderId) return;
+		for (const [lineId, slots] of editSlots.entries()) {
+			const filled = slots.filter((a) => a.employeeId);
+			if (filled.length === 0) continue;
+			const sum = filled.reduce((s, a) => s + (a.percent || 0), 0);
+			if (Math.abs(sum - 100) > 0.01) {
+				const item = state.items.find((it) => it.id === lineId);
+				setFeedback({
+					type: "error",
+					message: `${item?.item_name ?? "An item"} allocation must sum to 100%`,
+				});
+				return;
+			}
+		}
+		startSaveAlloc(async () => {
+			try {
+				await Promise.all(
+					Array.from(editSlots.entries()).map(([lineId, slots]) => {
+						const filled = slots.filter((a) => a.employeeId);
+						return replaceSaleItemIncentivesAction(
+							salesOrderId,
+							{
+								sale_item_id: lineId,
+								employees: filled.map((a) => ({
+									employee_id: a.employeeId,
+									percent: a.percent,
+								})),
+							},
+							appointmentRef,
+						);
+					}),
+				);
+				setFeedback({ type: "success", message: "Allocation updated" });
+				setEditAllocMode(false);
+				setEditSlots(new Map());
+				reload();
+			} catch (err) {
+				setFeedback({
+					type: "error",
+					message:
+						err instanceof Error ? err.message : "Failed to save allocation",
+				});
+			}
+		});
+	};
 
 	return (
 		<>
@@ -233,22 +405,20 @@ export function SalesOrderDetailDialog({
 								<LeftPanel
 									order={state.order}
 									items={state.items}
-									payments={state.payments}
-									allocations={state.allocations}
-									appointmentRef={appointmentRef}
-									canReallocate={
-										!isCancelled && state.payments.length > 0
-									}
-									reallocMode={reallocMode}
-									onReallocToggle={() => setReallocMode((m) => !m)}
-									onReallocSuccess={(msg) => {
-										setFeedback({ type: "success", message: msg });
-										setReallocMode(false);
-										reload();
-									}}
-									onReallocError={(msg) =>
-										setFeedback({ type: "error", message: msg })
-									}
+									incentives={state.incentives}
+									employees={state.employees}
+									isCancelled={isCancelled}
+									editAllocMode={editAllocMode}
+									editSlots={editSlots}
+									isSavingAlloc={isSavingAlloc}
+									onStartEditAlloc={startEditAlloc}
+									onCancelEditAlloc={cancelEditAlloc}
+									onSaveEditAlloc={saveEditAlloc}
+									onLineEmployeeChange={setLineEmployee}
+									onLinePercentChange={setLinePercent}
+									onLineBalance={balanceLine}
+									onLineApplyToAll={applyLineToAll}
+									canApplyToAll={state.items.length > 1}
 								/>
 								<RightPanel
 									order={state.order}
@@ -404,29 +574,48 @@ function LoadingSkeleton() {
 function LeftPanel({
 	order,
 	items,
-	payments,
-	allocations,
-	appointmentRef,
-	canReallocate,
-	reallocMode,
-	onReallocToggle,
-	onReallocSuccess,
-	onReallocError,
+	incentives,
+	employees,
+	isCancelled,
+	editAllocMode,
+	editSlots,
+	isSavingAlloc,
+	onStartEditAlloc,
+	onCancelEditAlloc,
+	onSaveEditAlloc,
+	onLineEmployeeChange,
+	onLinePercentChange,
+	onLineBalance,
+	onLineApplyToAll,
+	canApplyToAll,
 }: {
 	order: SalesOrderWithRelations;
 	items: SaleItem[];
-	payments: PaymentWithProcessedBy[];
-	allocations: PaymentAllocationForOrder[];
-	appointmentRef: string | null;
-	canReallocate: boolean;
-	reallocMode: boolean;
-	onReallocToggle: () => void;
-	onReallocSuccess: (message: string) => void;
-	onReallocError: (message: string) => void;
+	incentives: SaleItemIncentiveRow[];
+	employees: EmployeeWithRelations[];
+	isCancelled: boolean;
+	editAllocMode: boolean;
+	editSlots: Map<string, Allocation[]>;
+	isSavingAlloc: boolean;
+	onStartEditAlloc: () => void;
+	onCancelEditAlloc: () => void;
+	onSaveEditAlloc: () => void;
+	onLineEmployeeChange: (
+		lineId: string,
+		idx: number,
+		empId: string | null,
+	) => void;
+	onLinePercentChange: (lineId: string, idx: number, pct: number) => void;
+	onLineBalance: (lineId: string) => void;
+	onLineApplyToAll: (lineId: string) => void;
+	canApplyToAll: boolean;
 }) {
-	const consultantName = order.consultant
-		? fullName(order.consultant.first_name, order.consultant.last_name)
-		: null;
+	const incentivesByLine = new Map<string, SaleItemIncentiveRow[]>();
+	for (const i of incentives) {
+		const arr = incentivesByLine.get(i.sale_item_id) ?? [];
+		arr.push(i);
+		incentivesByLine.set(i.sale_item_id, arr);
+	}
 	const totalPaid = Number(order.amount_paid ?? 0);
 	const orderTotal = Number(order.total ?? 0);
 	const paidRatio = orderTotal > 0 ? totalPaid / orderTotal : 0;
@@ -450,19 +639,40 @@ function LeftPanel({
 						fallbackLabel="Walk-in"
 					/>
 					<div className="flex flex-wrap gap-2">
-						{canReallocate ? (
+						{editAllocMode ? (
+							<>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={onCancelEditAlloc}
+									disabled={isSavingAlloc}
+								>
+									Cancel
+								</Button>
+								<Button
+									size="sm"
+									onClick={onSaveEditAlloc}
+									disabled={isSavingAlloc}
+								>
+									{isSavingAlloc && (
+										<Loader2 className="mr-2 size-3.5 animate-spin" />
+									)}
+									Save changes
+								</Button>
+							</>
+						) : isCancelled ? (
+							<PlaceholderPill tooltip="Cancelled orders can't be edited">
+								Edit Allocation
+							</PlaceholderPill>
+						) : (
 							<Button
 								variant="outline"
 								size="sm"
-								onClick={onReallocToggle}
+								onClick={onStartEditAlloc}
 							>
 								<Pencil className="mr-2 size-3.5" />
-								{reallocMode ? "Close reallocation" : "Reallocate payments"}
+								Edit Allocation
 							</Button>
-						) : (
-							<PlaceholderPill tooltip="No payments to reallocate">
-								Reallocate payments
-							</PlaceholderPill>
 						)}
 						<PlaceholderPill tooltip="Refunds — Phase 2">
 							Refund
@@ -470,21 +680,6 @@ function LeftPanel({
 					</div>
 				</div>
 			</section>
-
-			{reallocMode && (
-				<section className="rounded-md border bg-white p-3 shadow-sm">
-					<ReallocatePaymentsEditor
-						salesOrderId={order.id}
-						appointmentRef={appointmentRef}
-						items={items}
-						payments={payments}
-						allocations={allocations}
-						onCancel={onReallocToggle}
-						onSuccess={onReallocSuccess}
-						onError={onReallocError}
-					/>
-				</section>
-			)}
 
 			<section className="rounded-md border bg-white shadow-sm">
 				<div className="grid grid-cols-[1.8fr_90px_90px_110px_90px] items-center border-b bg-muted/30 px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase">
@@ -504,7 +699,15 @@ function LeftPanel({
 								key={item.id}
 								item={item}
 								itemPaid={itemPaid}
-								consultantName={consultantName}
+								lineIncentives={incentivesByLine.get(item.id) ?? []}
+								employees={employees}
+								editAllocMode={editAllocMode}
+								editSlots={editSlots.get(item.id) ?? null}
+								onLineEmployeeChange={onLineEmployeeChange}
+								onLinePercentChange={onLinePercentChange}
+								onLineBalance={onLineBalance}
+								onLineApplyToAll={onLineApplyToAll}
+								canApplyToAll={canApplyToAll}
 							/>
 						);
 					})}
@@ -522,11 +725,31 @@ function LeftPanel({
 function ItemRow({
 	item,
 	itemPaid,
-	consultantName,
+	lineIncentives,
+	employees,
+	editAllocMode,
+	editSlots,
+	onLineEmployeeChange,
+	onLinePercentChange,
+	onLineBalance,
+	onLineApplyToAll,
+	canApplyToAll,
 }: {
 	item: SaleItem;
 	itemPaid: number;
-	consultantName: string | null;
+	lineIncentives: SaleItemIncentiveRow[];
+	employees: EmployeeWithRelations[];
+	editAllocMode: boolean;
+	editSlots: Allocation[] | null;
+	onLineEmployeeChange: (
+		lineId: string,
+		idx: number,
+		empId: string | null,
+	) => void;
+	onLinePercentChange: (lineId: string, idx: number, pct: number) => void;
+	onLineBalance: (lineId: string) => void;
+	onLineApplyToAll: (lineId: string) => void;
+	canApplyToAll: boolean;
 }) {
 	const typeLabel =
 		item.item_type === "service"
@@ -575,25 +798,115 @@ function ItemRow({
 				<div className="text-right tabular-nums">MYR {money(itemPaid)}</div>
 			</div>
 
-			{consultantName && (
-				<div className="mt-3 flex items-center gap-2 text-[11px]">
-					<span className="text-sky-600">Sales Order Allocation:</span>
-					<span className="inline-flex items-center gap-1.5 rounded-full border bg-white px-2 py-0.5">
-						<span className="inline-block size-4 rounded-full bg-muted" />
-						<span className="font-semibold uppercase">{consultantName}</span>
-						<span className="text-muted-foreground">(100.00%)</span>
+			<div className="mt-3 text-[11px]">
+				<span className="text-sky-600">Allocation:</span>
+				{editAllocMode && editSlots ? (
+					<LineAllocEditor
+						slots={editSlots}
+						employees={employees}
+						onEmployee={(idx, id) =>
+							onLineEmployeeChange(item.id, idx, id)
+						}
+						onPercent={(idx, pct) =>
+							onLinePercentChange(item.id, idx, pct)
+						}
+						onBalance={() => onLineBalance(item.id)}
+						onApplyToAll={
+							canApplyToAll ? () => onLineApplyToAll(item.id) : null
+						}
+					/>
+				) : (
+					<span className="ml-2 inline-flex items-center gap-1.5 rounded-full border bg-white px-2 py-0.5">
+						{lineIncentives.length === 0 ? (
+							<span className="text-muted-foreground italic">
+								No allocation
+							</span>
+						) : (
+							<span>
+								{lineIncentives
+									.map((i) => {
+										const name = i.employee
+											? fullName(i.employee.first_name, i.employee.last_name)
+											: "—";
+										return `${name} (${Number(i.percent).toFixed(0)}%)`;
+									})
+									.join(", ")}
+							</span>
+						)}
 					</span>
-				</div>
-			)}
+				)}
+			</div>
+		</div>
+	);
+}
 
-			<details className="mt-2 text-[11px]">
-				<summary className="cursor-pointer text-sky-600 marker:text-sky-600">
-					Payment Allocation
-				</summary>
-				<div className="mt-1 rounded-md border border-dashed bg-muted/20 p-2 text-muted-foreground">
-					Per-item payment allocation — Phase 2.
+function LineAllocEditor({
+	slots,
+	employees,
+	onEmployee,
+	onPercent,
+	onBalance,
+	onApplyToAll,
+}: {
+	slots: Allocation[];
+	employees: EmployeeWithRelations[];
+	onEmployee: (idx: number, empId: string | null) => void;
+	onPercent: (idx: number, pct: number) => void;
+	onBalance: () => void;
+	onApplyToAll: (() => void) | null;
+}) {
+	const filled = slots.filter((a) => a.employeeId);
+	const sum = filled.reduce((s, a) => s + (a.percent || 0), 0);
+	const invalid = filled.length > 0 && Math.abs(sum - 100) > 0.01;
+	return (
+		<div className="mt-1 flex flex-wrap items-center gap-2 rounded-md border border-dashed bg-muted/20 p-2">
+			{slots.map((slot, si) => (
+				<div key={si} className="flex items-center gap-1">
+					<EmployeePicker
+						employees={employees}
+						value={slot.employeeId || null}
+						onChange={(id) => onEmployee(si, id)}
+						size="sm"
+						placeholder={`Employee ${si + 1}`}
+					/>
+					{slot.employeeId && (
+						<>
+							<PercentInput
+								value={slot.percent}
+								onChange={(n) => onPercent(si, n)}
+								className="h-6 w-14 px-1 text-center text-[11px] tabular-nums"
+								aria-label="Employee percent"
+							/>
+							<span className="text-[10px] text-muted-foreground">%</span>
+						</>
+					)}
 				</div>
-			</details>
+			))}
+			{filled.length > 0 && (
+				<span className="inline-flex items-center gap-1.5 text-[10px] tabular-nums text-muted-foreground">
+					<span className={cn(invalid && "text-red-600 font-medium")}>
+						{sum.toFixed(0)}%
+					</span>
+					{invalid && (
+						<button
+							type="button"
+							onClick={onBalance}
+							className="rounded border border-amber-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-amber-900 hover:bg-amber-50"
+						>
+							Balance
+						</button>
+					)}
+				</span>
+			)}
+			{onApplyToAll && filled.length > 0 && !invalid && (
+				<button
+					type="button"
+					onClick={onApplyToAll}
+					className="rounded border border-blue-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-50"
+				>
+					Apply to all items
+				</button>
+			)}
 		</div>
 	);
 }

@@ -19,7 +19,7 @@ const reminderOn = z.object({
 });
 
 const baseFields = z.object({
-	appointment_id: z.string().uuid(),
+	appointment_id: z.string().uuid().nullable(),
 	customer_id: z.string().uuid().nullable(),
 	author_id: z.string().uuid().nullable(),
 	content: z.string().trim().min(1, "Follow-up content is required").max(8000),

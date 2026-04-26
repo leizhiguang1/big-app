@@ -16,7 +16,7 @@ export type Database = {
     Tables: {
       appointment_follow_ups: {
         Row: {
-          appointment_id: string
+          appointment_id: string | null
           author_id: string | null
           content: string
           created_at: string
@@ -31,7 +31,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          appointment_id: string
+          appointment_id?: string | null
           author_id?: string | null
           content: string
           created_at?: string
@@ -46,7 +46,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          appointment_id?: string
+          appointment_id?: string | null
           author_id?: string | null
           content?: string
           created_at?: string
@@ -569,28 +569,64 @@ export type Database = {
       }
       brands: {
         Row: {
+          address: string | null
           code: string
+          contact_phone: string | null
           created_at: string
+          currency_code: string
+          email: string | null
           id: string
           is_active: boolean
+          logo_url: string | null
           name: string
+          nickname: string | null
+          registered_name: string | null
+          registration_number: string | null
+          subdomain: string | null
+          tagline: string | null
+          tax_id: string | null
           updated_at: string
+          website: string | null
         }
         Insert: {
+          address?: string | null
           code: string
+          contact_phone?: string | null
           created_at?: string
+          currency_code?: string
+          email?: string | null
           id?: string
           is_active?: boolean
+          logo_url?: string | null
           name: string
+          nickname?: string | null
+          registered_name?: string | null
+          registration_number?: string | null
+          subdomain?: string | null
+          tagline?: string | null
+          tax_id?: string | null
           updated_at?: string
+          website?: string | null
         }
         Update: {
+          address?: string | null
           code?: string
+          contact_phone?: string | null
           created_at?: string
+          currency_code?: string
+          email?: string | null
           id?: string
           is_active?: boolean
+          logo_url?: string | null
           name?: string
+          nickname?: string | null
+          registered_name?: string | null
+          registration_number?: string | null
+          subdomain?: string | null
+          tagline?: string | null
+          tax_id?: string | null
           updated_at?: string
+          website?: string | null
         }
         Relationships: []
       }
@@ -834,6 +870,7 @@ export type Database = {
       }
       customers: {
         Row: {
+          address_country: string
           address1: string | null
           address2: string | null
           brand_id: string
@@ -872,6 +909,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          address_country?: string
           address1?: string | null
           address2?: string | null
           brand_id: string
@@ -910,6 +948,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          address_country?: string
           address1?: string | null
           address2?: string | null
           brand_id?: string
@@ -1550,7 +1589,9 @@ export type Database = {
       }
       medical_certificates: {
         Row: {
-          appointment_id: string
+          appointment_id: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           code: string
           created_at: string
           customer_id: string
@@ -1571,7 +1612,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          appointment_id: string
+          appointment_id?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           code?: string
           created_at?: string
           customer_id: string
@@ -1592,7 +1635,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          appointment_id?: string
+          appointment_id?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           code?: string
           created_at?: string
           customer_id?: string
@@ -1618,6 +1663,13 @@ export type Database = {
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medical_certificates_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
             referencedColumns: ["id"]
           },
           {
@@ -2108,6 +2160,106 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      receipt_edits: {
+        Row: {
+          created_at: string
+          customer_name: string | null
+          edited_by: string | null
+          id: string
+          outlet_id: string
+          receipt_id: string
+          remarks: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_name?: string | null
+          edited_by?: string | null
+          id?: string
+          outlet_id: string
+          receipt_id: string
+          remarks?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_name?: string | null
+          edited_by?: string | null
+          id?: string
+          outlet_id?: string
+          receipt_id?: string
+          remarks?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receipt_edits_edited_by_fkey"
+            columns: ["edited_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receipt_edits_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receipt_edits_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      receipts: {
+        Row: {
+          created_at: string
+          customer_name_override: string | null
+          id: string
+          outlet_id: string
+          payment_id: string
+          receipt_no: string
+          remarks_override: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_name_override?: string | null
+          id?: string
+          outlet_id: string
+          payment_id: string
+          receipt_no?: string
+          remarks_override?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_name_override?: string | null
+          id?: string
+          outlet_id?: string
+          payment_id?: string
+          receipt_no?: string
+          remarks_override?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receipts_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receipts_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: true
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       refund_notes: {
         Row: {
@@ -3675,22 +3827,40 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      collect_appointment_payment: {
-        Args: {
-          p_allocations?: Json
-          p_appointment_id: string
-          p_discount: number
-          p_frontdesk_message?: string
-          p_items: Json
-          p_payments: Json
-          p_processed_by: string
-          p_remarks: string
-          p_rounding: number
-          p_sold_at?: string
-          p_tax: number
-        }
-        Returns: Json
-      }
+      collect_appointment_payment:
+        | {
+            Args: {
+              p_allocations?: Json
+              p_appointment_id: string
+              p_discount: number
+              p_frontdesk_message?: string
+              p_items: Json
+              p_payments: Json
+              p_processed_by: string
+              p_remarks: string
+              p_rounding: number
+              p_sold_at?: string
+              p_tax: number
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_allocations?: Json
+              p_appointment_id: string
+              p_discount: number
+              p_frontdesk_message?: string
+              p_incentives?: Json
+              p_items: Json
+              p_payments: Json
+              p_processed_by: string
+              p_remarks: string
+              p_rounding: number
+              p_sold_at?: string
+              p_tax: number
+            }
+            Returns: Json
+          }
       collect_walkin_sale:
         | {
             Args: {

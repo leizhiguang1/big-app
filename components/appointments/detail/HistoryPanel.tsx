@@ -20,7 +20,7 @@ import {
 	XCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { Fragment, useMemo, useState, useTransition } from "react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -30,22 +30,32 @@ import {
 } from "@/components/ui/tooltip";
 import {
 	cancelBillingForAppointmentAction,
+	cancelBillingForCustomerAction,
 	revertBillingForAppointmentAction,
+	revertBillingForCustomerAction,
 } from "@/lib/actions/appointments";
 import {
 	cancelCaseNoteAction,
+	cancelCustomerCaseNoteAction,
 	revertCaseNoteAction,
+	revertCustomerCaseNoteAction,
 	setCaseNotePinAction,
+	setCustomerCaseNotePinAction,
 } from "@/lib/actions/case-notes";
 import {
+	deleteCustomerFollowUpAction,
 	deleteFollowUpAction,
+	setCustomerFollowUpPinAction,
 	setFollowUpPinAction,
 } from "@/lib/actions/follow-ups";
 import {
 	APPOINTMENT_PAYMENT_MODE_LABEL,
 	type AppointmentPaymentMode,
 } from "@/lib/constants/appointment-status";
-import type { CustomerLineItem } from "@/lib/services/appointment-line-items";
+import type {
+	AppointmentLineItem,
+	CustomerLineItem,
+} from "@/lib/services/appointment-line-items";
 import type { CustomerAppointmentSummary } from "@/lib/services/appointments";
 import type { CaseNoteWithContext } from "@/lib/services/case-notes";
 import type { FollowUpWithRefs } from "@/lib/services/follow-ups";
@@ -90,6 +100,90 @@ function IconBtn({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Shared compact appointment-context header                         */
+/* ------------------------------------------------------------------ */
+
+function Pipe() {
+	return (
+		<span aria-hidden className="font-semibold text-foreground/70">
+			|
+		</span>
+	);
+}
+
+export function ContextHeader({
+	bookingRef,
+	outletCode,
+	date,
+	serviceSummary,
+	onJump,
+}: {
+	bookingRef: string | null;
+	outletCode: string | null;
+	date: Date | null;
+	serviceSummary: ServiceChip[];
+	onJump?: () => void;
+}) {
+	const hasServices = serviceSummary.length > 0;
+	if (!bookingRef && !outletCode && !date && !hasServices) return null;
+	const segments: { key: string; node: React.ReactNode }[] = [];
+	if (bookingRef) {
+		segments.push({
+			key: "bref",
+			node: (
+				<button
+					type="button"
+					onClick={onJump}
+					disabled={!onJump}
+					className="font-bold text-foreground tabular-nums hover:underline disabled:cursor-default disabled:no-underline"
+				>
+					{bookingRef}
+				</button>
+			),
+		});
+	}
+	if (outletCode) {
+		segments.push({
+			key: "outlet",
+			node: (
+				<span className="font-semibold text-foreground uppercase tracking-wide">
+					{outletCode}
+				</span>
+			),
+		});
+	}
+	if (date) {
+		segments.push({
+			key: "date",
+			node: (
+				<span className="text-foreground tabular-nums">
+					{formatDateTimeNumeric(date)}
+				</span>
+			),
+		});
+	}
+	for (let i = 0; i < serviceSummary.length; i++) {
+		const chip = serviceSummary[i];
+		const color = chip.truncated ? "text-muted-foreground" : "text-sky-600";
+		segments.push({
+			key: `svc-${chip.label}-${i}`,
+			node: <span className={cn("font-semibold", color)}>{chip.label}</span>,
+		});
+	}
+
+	return (
+		<div className="mt-1 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10px] leading-tight">
+			{segments.map((seg, i) => (
+				<Fragment key={seg.key}>
+					{i > 0 && <Pipe />}
+					{seg.node}
+				</Fragment>
+			))}
+		</div>
+	);
+}
+
+/* ------------------------------------------------------------------ */
 /*  Types                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -101,9 +195,12 @@ type BillingThread = {
 	date: Date;
 	appointmentId: string;
 	bookingRef: string;
+	outletCode: string | null;
+	serviceSummary: ServiceChip[];
 	paymentStatus: string;
 	paidVia: string | null;
 	servedBy: string | null;
+	salesOrderNumber: string | null;
 	items: CustomerLineItem[];
 	total: number;
 	isCurrent: boolean;
@@ -116,6 +213,9 @@ type NoteThread = {
 	date: Date;
 	note: CaseNoteWithContext;
 	bookingRef: string | null;
+	outletCode: string | null;
+	serviceSummary: ServiceChip[];
+	appointmentDate: Date | null;
 	appointmentId: string | null;
 	isCurrent: boolean;
 	isPinned: boolean;
@@ -124,11 +224,16 @@ type NoteThread = {
 
 type Thread = BillingThread | NoteThread;
 
+export type HistoryScope =
+	| { kind: "appointment"; appointmentId: string }
+	| { kind: "customer"; customerId: string };
+
 type Props = {
-	currentAppointmentId: string;
+	scope: HistoryScope;
 	caseNotes: CaseNoteWithContext[];
 	customerBillingHistory: CustomerLineItem[];
 	customerHistory: CustomerAppointmentSummary[];
+	currentAppointmentLineItems?: AppointmentLineItem[];
 	onToast: (message: string, variant?: Toast["variant"]) => void;
 	onEditNote?: (noteId: string, content: string) => void;
 };
@@ -152,9 +257,157 @@ function formatWeekdayTime(d: Date) {
 	)}`;
 }
 
+function pad2(n: number) {
+	return n < 10 ? `0${n}` : String(n);
+}
+
+function formatDateTimeNumeric(d: Date) {
+	const dd = pad2(d.getDate());
+	const mm = pad2(d.getMonth() + 1);
+	const yyyy = d.getFullYear();
+	const hour24 = d.getHours();
+	const ampm = hour24 >= 12 ? "PM" : "AM";
+	const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+	const minute = pad2(d.getMinutes());
+	return `${dd}/${mm}/${yyyy} ${hour12}:${minute} ${ampm}`;
+}
+
+function formatDateTime24(d: Date) {
+	const dd = pad2(d.getDate());
+	const mm = pad2(d.getMonth() + 1);
+	const yyyy = d.getFullYear();
+	const hh = pad2(d.getHours());
+	const min = pad2(d.getMinutes());
+	const ss = pad2(d.getSeconds());
+	return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
+}
+
+function ordinal(n: number) {
+	const s = ["th", "st", "nd", "rd"];
+	const v = n % 100;
+	return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+function formatHeaderDate(d: Date) {
+	const month = d.toLocaleDateString("en-US", { month: "short" });
+	const year = d.getFullYear();
+	return `${ordinal(d.getDate())} ${month} ${year}`;
+}
+
+function formatHeaderTime(d: Date) {
+	const weekday = d.toLocaleDateString("en-US", { weekday: "short" });
+	const hour24 = d.getHours();
+	const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+	const ampm = hour24 >= 12 ? "PM" : "AM";
+	return `${weekday} · ${pad2(hour12)}:${pad2(d.getMinutes())} ${ampm}`;
+}
+
+const SERVICE_SUMMARY_MAX = 120;
+
+type SummarizableItem = {
+	description: string;
+	quantity: number | string;
+	is_cancelled?: boolean;
+};
+
+export type ServiceChip = { label: string; truncated?: true };
+
+export function summarizeServices(items: SummarizableItem[]): ServiceChip[] {
+	if (items.length === 0) return [];
+	const grouped = new Map<string, number>();
+	for (const it of items) {
+		if (it.is_cancelled) continue;
+		const desc = it.description.trim();
+		if (!desc) continue;
+		const qty = Number(it.quantity);
+		grouped.set(
+			desc,
+			(grouped.get(desc) ?? 0) + (Number.isFinite(qty) ? qty : 0),
+		);
+	}
+	const chips: ServiceChip[] = [];
+	let length = 0;
+	for (const [desc, qty] of grouped) {
+		const piece = `${desc} ×${qty % 1 === 0 ? qty : qty.toFixed(2)}`;
+		const sep = chips.length === 0 ? 0 : 3;
+		if (length + sep + piece.length > SERVICE_SUMMARY_MAX) {
+			chips.push({ label: "…", truncated: true });
+			break;
+		}
+		chips.push({ label: piece });
+		length += sep + piece.length;
+	}
+	return chips;
+}
+
 function authorLabel(n: CaseNoteWithContext): string {
 	if (!n.employee) return "—";
 	return `${n.employee.first_name} ${n.employee.last_name}`.trim();
+}
+
+type AppointmentMeta = {
+	bookingRef: string;
+	outletCode: string | null;
+	startAt: Date | null;
+	serviceSummary: ServiceChip[];
+};
+
+function buildMetaByAppointment(
+	customerHistory: CustomerAppointmentSummary[],
+	billing: CustomerLineItem[],
+	currentAppointmentId: string | null,
+	currentAppointmentLineItems: AppointmentLineItem[] | undefined,
+): Map<string, AppointmentMeta> {
+	const meta = new Map<string, AppointmentMeta>();
+	for (const a of customerHistory) {
+		meta.set(a.id, {
+			bookingRef: a.booking_ref,
+			outletCode: a.outlet?.code ?? null,
+			startAt: new Date(a.start_at),
+			serviceSummary: [],
+		});
+	}
+
+	const itemsByAppointment = new Map<string, CustomerLineItem[]>();
+	for (const b of billing) {
+		if (!b.appointment) continue;
+		const list = itemsByAppointment.get(b.appointment.id);
+		if (list) list.push(b);
+		else itemsByAppointment.set(b.appointment.id, [b]);
+	}
+	for (const [aptId, items] of itemsByAppointment) {
+		const existing = meta.get(aptId);
+		const summary = summarizeServices(items);
+		if (existing) {
+			existing.serviceSummary = summary;
+		} else {
+			const first = items[0];
+			meta.set(aptId, {
+				bookingRef: first.appointment?.booking_ref ?? "",
+				outletCode: null,
+				startAt: first.appointment
+					? new Date(first.appointment.start_at)
+					: null,
+				serviceSummary: summary,
+			});
+		}
+	}
+
+	if (currentAppointmentId && currentAppointmentLineItems?.length) {
+		const summary = summarizeServices(currentAppointmentLineItems);
+		const existing = meta.get(currentAppointmentId);
+		if (existing) {
+			if (summary.length) existing.serviceSummary = summary;
+		} else if (summary.length) {
+			meta.set(currentAppointmentId, {
+				bookingRef: "",
+				outletCode: null,
+				startAt: null,
+				serviceSummary: summary,
+			});
+		}
+	}
+	return meta;
 }
 
 function buildThreads(
@@ -163,9 +416,14 @@ function buildThreads(
 	customerHistory: CustomerAppointmentSummary[],
 	currentAppointmentId: string,
 	pinnedBillingIds: Set<string>,
+	currentAppointmentLineItems: AppointmentLineItem[] | undefined,
 ): { threads: Thread[]; noteCount: number; billingCount: number } {
-	const refByAppointment = new Map<string, string>();
-	for (const a of customerHistory) refByAppointment.set(a.id, a.booking_ref);
+	const meta = buildMetaByAppointment(
+		customerHistory,
+		billing,
+		currentAppointmentId,
+		currentAppointmentLineItems,
+	);
 
 	const byAppointment = new Map<
 		string,
@@ -175,6 +433,7 @@ function buildThreads(
 			paymentStatus: string;
 			paidVia: string | null;
 			servedBy: string | null;
+			salesOrderNumber: string | null;
 			items: CustomerLineItem[];
 			total: number;
 			allCancelled: boolean;
@@ -191,12 +450,16 @@ function buildThreads(
 			if (!b.is_cancelled) existing.allCancelled = false;
 		} else {
 			const emp = b.appointment.employee;
+			const activeSo = b.appointment.sales_orders?.find(
+				(so) => so.status !== "cancelled",
+			);
 			byAppointment.set(aptId, {
 				bookingRef: b.appointment.booking_ref,
 				date: new Date(b.appointment.start_at),
 				paymentStatus: b.appointment.payment_status,
 				paidVia: b.appointment.paid_via,
 				servedBy: emp ? `${emp.first_name} ${emp.last_name}`.trim() : null,
+				salesOrderNumber: activeSo?.so_number ?? null,
 				items: [b],
 				total,
 				allCancelled: b.is_cancelled,
@@ -206,15 +469,19 @@ function buildThreads(
 
 	const threads: Thread[] = [];
 	for (const [appointmentId, g] of byAppointment) {
+		const m = meta.get(appointmentId);
 		threads.push({
 			kind: "billing",
 			id: `b-${appointmentId}`,
 			date: g.date,
 			appointmentId,
 			bookingRef: g.bookingRef,
+			outletCode: m?.outletCode ?? null,
+			serviceSummary: summarizeServices(g.items),
 			paymentStatus: g.paymentStatus,
 			paidVia: g.paidVia,
 			servedBy: g.servedBy,
+			salesOrderNumber: g.salesOrderNumber,
 			items: g.items,
 			total: g.total,
 			isCurrent: appointmentId === currentAppointmentId,
@@ -223,15 +490,17 @@ function buildThreads(
 	}
 
 	for (const n of caseNotes) {
+		const m = n.appointment_id ? meta.get(n.appointment_id) : null;
 		threads.push({
 			kind: "note",
 			id: `n-${n.id}`,
 			date: new Date(n.created_at),
 			note: n,
 			appointmentId: n.appointment_id ?? null,
-			bookingRef: n.appointment_id
-				? (refByAppointment.get(n.appointment_id) ?? null)
-				: null,
+			bookingRef: m?.bookingRef ?? null,
+			outletCode: m?.outletCode ?? null,
+			serviceSummary: m?.serviceSummary ?? [],
+			appointmentDate: m?.startAt ?? null,
 			isCurrent: n.appointment_id === currentAppointmentId,
 			isPinned: n.is_pinned,
 			isCancelled: n.is_cancelled,
@@ -264,10 +533,11 @@ function buildThreads(
 /* ------------------------------------------------------------------ */
 
 export function HistoryPanel({
-	currentAppointmentId,
+	scope,
 	caseNotes,
 	customerBillingHistory,
 	customerHistory,
+	currentAppointmentLineItems,
 	onToast,
 	onEditNote,
 }: Props) {
@@ -278,6 +548,8 @@ export function HistoryPanel({
 		new Set(),
 	);
 	const [pending, startTransition] = useTransition();
+	const currentAppointmentId =
+		scope.kind === "appointment" ? scope.appointmentId : "";
 
 	const toggleBillingPin = (id: string) =>
 		setPinnedBillingIds((prev) => {
@@ -295,6 +567,7 @@ export function HistoryPanel({
 				customerHistory,
 				currentAppointmentId,
 				pinnedBillingIds,
+				currentAppointmentLineItems,
 			),
 		[
 			caseNotes,
@@ -302,6 +575,7 @@ export function HistoryPanel({
 			customerHistory,
 			currentAppointmentId,
 			pinnedBillingIds,
+			currentAppointmentLineItems,
 		],
 	);
 
@@ -337,11 +611,19 @@ export function HistoryPanel({
 	const handleToggleNotePin = (noteId: string, currentPinned: boolean) => {
 		startTransition(async () => {
 			try {
-				await setCaseNotePinAction(
-					currentAppointmentId,
-					noteId,
-					!currentPinned,
-				);
+				if (scope.kind === "appointment") {
+					await setCaseNotePinAction(
+						scope.appointmentId,
+						noteId,
+						!currentPinned,
+					);
+				} else {
+					await setCustomerCaseNotePinAction(
+						scope.customerId,
+						noteId,
+						!currentPinned,
+					);
+				}
 				onToast(currentPinned ? "Unpinned" : "Pinned to top", "success");
 				router.refresh();
 			} catch (err) {
@@ -356,7 +638,11 @@ export function HistoryPanel({
 	const handleCancelNote = (noteId: string) => {
 		startTransition(async () => {
 			try {
-				await cancelCaseNoteAction(currentAppointmentId, noteId);
+				if (scope.kind === "appointment") {
+					await cancelCaseNoteAction(scope.appointmentId, noteId);
+				} else {
+					await cancelCustomerCaseNoteAction(scope.customerId, noteId);
+				}
 				onToast("Note cancelled", "success");
 				router.refresh();
 			} catch (err) {
@@ -371,7 +657,11 @@ export function HistoryPanel({
 	const handleRevertNote = (noteId: string) => {
 		startTransition(async () => {
 			try {
-				await revertCaseNoteAction(currentAppointmentId, noteId);
+				if (scope.kind === "appointment") {
+					await revertCaseNoteAction(scope.appointmentId, noteId);
+				} else {
+					await revertCustomerCaseNoteAction(scope.customerId, noteId);
+				}
 				onToast("Note restored", "success");
 				router.refresh();
 			} catch (err) {
@@ -386,10 +676,17 @@ export function HistoryPanel({
 	const handleCancelBilling = (targetAppointmentId: string) => {
 		startTransition(async () => {
 			try {
-				await cancelBillingForAppointmentAction(
-					currentAppointmentId,
-					targetAppointmentId,
-				);
+				if (scope.kind === "appointment") {
+					await cancelBillingForAppointmentAction(
+						scope.appointmentId,
+						targetAppointmentId,
+					);
+				} else {
+					await cancelBillingForCustomerAction(
+						scope.customerId,
+						targetAppointmentId,
+					);
+				}
 				onToast("Billing cancelled", "success");
 				router.refresh();
 			} catch (err) {
@@ -404,10 +701,17 @@ export function HistoryPanel({
 	const handleRevertBilling = (targetAppointmentId: string) => {
 		startTransition(async () => {
 			try {
-				await revertBillingForAppointmentAction(
-					currentAppointmentId,
-					targetAppointmentId,
-				);
+				if (scope.kind === "appointment") {
+					await revertBillingForAppointmentAction(
+						scope.appointmentId,
+						targetAppointmentId,
+					);
+				} else {
+					await revertBillingForCustomerAction(
+						scope.customerId,
+						targetAppointmentId,
+					);
+				}
 				onToast("Billing restored", "success");
 				router.refresh();
 			} catch (err) {
@@ -588,236 +892,252 @@ function BillingRow({
 	return (
 		<div
 			className={cn(
-				"border-b border-border/60 bg-muted/10 px-2 py-2",
+				"border-b border-border/60 bg-card px-2 py-2",
 				item.isCurrent &&
 					"border-l-[3px] border-l-emerald-600 bg-emerald-50/40",
 				pinned && !cancelled && "bg-amber-50/50",
 				cancelled && "opacity-60",
 			)}
 		>
-			<div
-				className={cn(
-					"rounded-sm border border-dashed border-border bg-background px-3 py-2.5 font-mono text-[11px] text-foreground shadow-sm",
-					cancelled && "bg-muted/30",
-				)}
-			>
-				<div className="flex items-start gap-1.5">
-					<button
-						type="button"
-						aria-expanded={!collapsed}
-						aria-label={collapsed ? "Expand receipt" : "Collapse receipt"}
-						onClick={onToggle}
-						className="mt-px shrink-0 text-muted-foreground hover:text-foreground"
+			<div className="flex items-start justify-between gap-2">
+				<button
+					type="button"
+					onClick={onToggle}
+					aria-expanded={!collapsed}
+					className="min-w-0 flex-1 text-left"
+				>
+					<div
+						className={cn(
+							"font-bold text-[12px] text-foreground",
+							cancelled && "line-through",
+						)}
 					>
-						{collapsed ? (
-							<ChevronDown className="size-[14px]" />
-						) : (
-							<ChevronUp className="size-[14px]" />
-						)}
-					</button>
-					<div className="flex-1">
-						<div className="flex items-center gap-1.5">
-							<Receipt className="size-[12px] text-emerald-600" />
-							<span
-								className={cn(
-									"font-bold text-[11px] uppercase tracking-wide",
-									cancelled && "line-through",
-								)}
-							>
-								Receipt
-							</span>
-							{pinned && <Pin className="size-[10px] text-amber-600" />}
-							{cancelled && (
-								<span className="rounded bg-slate-400 px-1.5 py-px font-bold text-[9px] text-white">
-									CANCELLED
-								</span>
-							)}
-							{item.isCurrent && !cancelled && (
-								<span className="rounded bg-emerald-600 px-1.5 py-px font-bold text-[9px] text-white">
-									CURRENT
-								</span>
-							)}
-							<div className="ml-auto flex items-center gap-1">
-								<IconBtn
-									label={pinned ? "Unpin" : "Pin to top"}
-									onClick={onTogglePin}
-									className={
-										pinned
-											? "bg-amber-500 text-white hover:bg-amber-600"
-											: "border border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100"
-									}
-								>
-									{pinned ? (
-										<PinOff className="size-[11px]" />
-									) : (
-										<Pin className="size-[11px]" />
-									)}
-								</IconBtn>
-								{onJump && (
-									<IconBtn
-										label="Go to appointment"
-										onClick={onJump}
-										className="bg-emerald-500 text-white hover:bg-emerald-600"
-									>
-										<ExternalLink className="size-[11px]" />
-									</IconBtn>
-								)}
-								{cancelled ? (
-									<IconBtn
-										label="Restore billing"
-										onClick={onRevert}
-										className="bg-blue-500 text-white hover:bg-blue-600"
-									>
-										<RotateCcw className="size-[11px]" />
-									</IconBtn>
-								) : (
-									<IconBtn
-										label="Cancel billing"
-										onClick={onCancel}
-										className="bg-rose-500 text-white hover:bg-rose-600"
-									>
-										<XCircle className="size-[11px]" />
-									</IconBtn>
-								)}
-								{!cancelled && (
-									<span
-										className={cn(
-											"rounded px-1.5 py-px font-bold text-[9px] uppercase tracking-wide",
-											paymentStatusClass,
-										)}
-									>
-										{item.paymentStatus}
-									</span>
-								)}
-							</div>
-						</div>
-						<div className="mt-[2px] text-[10px] text-muted-foreground">
-							{formatDayMonthYear(item.date)} · {formatWeekdayTime(item.date)}
-						</div>
+						{formatHeaderDate(item.date)}
 					</div>
-				</div>
-
-				<div className="mt-2 border-border/70 border-t border-dashed pt-2">
-					<div className="flex items-baseline justify-between gap-2">
-						<span className="text-[9px] text-muted-foreground uppercase tracking-wide">
-							Booking Ref
+					<div className="text-[10px] text-muted-foreground">
+						{formatHeaderTime(item.date)}
+					</div>
+				</button>
+				<div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+					{pinned && <Pin className="size-[10px] text-amber-600" />}
+					{cancelled && (
+						<span className="rounded bg-slate-400 px-1.5 py-px font-bold text-[9px] text-white">
+							CANCELLED
 						</span>
-						<button
-							type="button"
-							onClick={onJump}
-							disabled={!onJump}
-							className="truncate text-right font-bold text-[11px] tabular-nums hover:underline disabled:cursor-default disabled:no-underline"
-						>
-							{item.bookingRef || "—"}
-						</button>
-					</div>
-					{item.servedBy && (
-						<div className="flex items-baseline justify-between gap-2">
-							<span className="text-[9px] text-muted-foreground uppercase tracking-wide">
-								Served By
-							</span>
-							<span className="truncate text-right text-[10px]">
-								{item.servedBy}
-							</span>
-						</div>
 					)}
-				</div>
-
-				{!collapsed && (
-					<>
-						<div className="mt-2 border-border/70 border-t border-dashed pt-1.5">
-							<div className="flex gap-1 pb-1 font-semibold text-[9px] text-muted-foreground uppercase tracking-wide">
-								<span className="flex-1">Description</span>
-								<span className="w-[50px] text-right">Qty × Price</span>
-								<span className="w-[48px] text-right">Amount</span>
-							</div>
-							<div className="space-y-1">
-								{item.items.map((bi) => {
-									const lineTotal = Number(
-										bi.total ?? bi.quantity * bi.unit_price,
-									);
-									const qty = Number(bi.quantity);
-									const price = Number(bi.unit_price);
-									const itemCancelled = bi.is_cancelled;
-									return (
-										<div
-											key={bi.id}
-											className={cn(
-												"flex gap-1 text-[10px]",
-												itemCancelled && "line-through opacity-50",
-											)}
-										>
-											<div className="flex-1 min-w-0">
-												<div className="truncate">{bi.description}</div>
-												{bi.service?.sku && (
-													<div className="truncate text-[9px] text-muted-foreground">
-														{bi.service.sku}
-													</div>
-												)}
-											</div>
-											<div className="w-[50px] shrink-0 text-right tabular-nums text-muted-foreground">
-												{qty % 1 === 0 ? qty : qty.toFixed(2)} ×{" "}
-												{price.toFixed(2)}
-											</div>
-											<div className="w-[48px] shrink-0 text-right tabular-nums font-semibold">
-												{lineTotal.toFixed(2)}
-											</div>
-										</div>
-									);
-								})}
-							</div>
-						</div>
-
-						<div className="mt-2 border-border/70 border-t border-dashed pt-1.5">
-							<div className="flex justify-between text-[10px] text-muted-foreground">
-								<span>Sub Total (MYR)</span>
-								<span
-									className={cn("tabular-nums", cancelled && "line-through")}
-								>
-									{item.total.toFixed(2)}
-								</span>
-							</div>
-							<div
-								className={cn(
-									"mt-0.5 flex justify-between font-bold text-[11px]",
-									cancelled && "line-through",
-								)}
-							>
-								<span>TOTAL (MYR)</span>
-								<span className="tabular-nums">{item.total.toFixed(2)}</span>
-							</div>
-						</div>
-
-						{payMode && !cancelled && (
-							<div className="mt-2 border-border/70 border-t border-dashed pt-1.5">
-								<div className="flex justify-between text-[10px]">
-									<span className="text-muted-foreground uppercase tracking-wide text-[9px]">
-										Payment
-									</span>
-									<span className="font-semibold">{payMode}</span>
-								</div>
-							</div>
-						)}
-					</>
-				)}
-
-				{collapsed && (
-					<div className="mt-2 flex justify-between border-border/70 border-t border-dashed pt-1.5 text-[10px]">
-						<span className="text-muted-foreground">
-							{item.items.length} line{item.items.length !== 1 ? "s" : ""}
-							{payMode && !cancelled && ` · ${payMode}`}
-						</span>
+					{!cancelled && (
 						<span
 							className={cn(
-								"font-bold tabular-nums",
+								"rounded px-1.5 py-px font-bold text-[9px] uppercase tracking-wide",
+								paymentStatusClass,
+							)}
+						>
+							{item.paymentStatus}
+						</span>
+					)}
+					<IconBtn
+						label={pinned ? "Unpin" : "Pin to top"}
+						onClick={onTogglePin}
+						className={
+							pinned
+								? "bg-amber-500 text-white hover:bg-amber-600"
+								: "border border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100"
+						}
+					>
+						{pinned ? (
+							<PinOff className="size-[11px]" />
+						) : (
+							<Pin className="size-[11px]" />
+						)}
+					</IconBtn>
+					{onJump && (
+						<IconBtn
+							label="Go to appointment"
+							onClick={onJump}
+							className="bg-emerald-500 text-white hover:bg-emerald-600"
+						>
+							<ExternalLink className="size-[11px]" />
+						</IconBtn>
+					)}
+					{cancelled ? (
+						<IconBtn
+							label="Restore billing"
+							onClick={onRevert}
+							className="bg-blue-500 text-white hover:bg-blue-600"
+						>
+							<RotateCcw className="size-[11px]" />
+						</IconBtn>
+					) : (
+						<IconBtn
+							label="Cancel billing"
+							onClick={onCancel}
+							className="bg-rose-500 text-white hover:bg-rose-600"
+						>
+							<XCircle className="size-[11px]" />
+						</IconBtn>
+					)}
+				</div>
+			</div>
+
+			<ContextHeader
+				bookingRef={item.bookingRef}
+				outletCode={item.outletCode}
+				date={item.date}
+				serviceSummary={item.serviceSummary}
+				onJump={onJump}
+			/>
+
+			{!collapsed && (
+				<>
+					<dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-0.5 text-[11px]">
+						{item.salesOrderNumber && (
+							<>
+								<dt className="text-muted-foreground">Sales Order # :</dt>
+								<dd className="text-right font-bold tabular-nums">
+									{item.salesOrderNumber}
+								</dd>
+							</>
+						)}
+						<dt className="text-muted-foreground">Date :</dt>
+						<dd className="text-right tabular-nums">
+							{formatDateTime24(item.date)}
+						</dd>
+						{item.servedBy && (
+							<>
+								<dt className="text-muted-foreground">Served By :</dt>
+								<dd className="truncate text-right uppercase tracking-wide">
+									{item.servedBy}
+								</dd>
+							</>
+						)}
+					</dl>
+
+					<div className="mt-2 grid grid-cols-[minmax(0,1fr)_38px_24px_52px_52px_52px] gap-x-1 border-border border-b pb-1 font-semibold text-[9px] text-muted-foreground uppercase leading-tight tracking-wide">
+						<span>Description</span>
+						<span className="text-center">Item Code</span>
+						<span className="text-center">Qty</span>
+						<span className="text-right">U/Price</span>
+						<span className="text-right">Discount</span>
+						<span className="text-right">Amount</span>
+					</div>
+					<div className="divide-y divide-border/40">
+						{item.items.map((bi) => {
+							const qty = Number(bi.quantity);
+							const price = Number(bi.unit_price);
+							const lineTotal = Number(bi.total ?? qty * price);
+							const discount = Math.max(0, qty * price - lineTotal);
+							const itemCancelled = bi.is_cancelled;
+							return (
+								<div
+									key={bi.id}
+									className={cn(
+										"grid grid-cols-[minmax(0,1fr)_38px_24px_52px_52px_52px] gap-x-1 py-1.5 text-[11px] leading-tight",
+										itemCancelled && "line-through opacity-50",
+									)}
+								>
+									<div className="min-w-0 break-words">{bi.description}</div>
+									<div className="break-all text-center text-[10px] text-muted-foreground tabular-nums">
+										{bi.service?.sku ?? "—"}
+									</div>
+									<div className="text-center tabular-nums">
+										{qty % 1 === 0 ? qty : qty.toFixed(2)}
+									</div>
+									<div className="text-right tabular-nums">
+										{price.toFixed(2)}
+									</div>
+									<div className="text-right tabular-nums">
+										<div>{discount.toFixed(2)}</div>
+										<div className="break-words text-[9px] text-muted-foreground">
+											(LOCAL 0%): 0.00
+										</div>
+									</div>
+									<div className="text-right font-semibold tabular-nums">
+										{lineTotal.toFixed(2)}
+									</div>
+								</div>
+							);
+						})}
+					</div>
+
+					<dl className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-0.5 text-[11px]">
+						<dt className="font-bold uppercase tracking-wide">
+							Sub Total (MYR)
+						</dt>
+						<dd
+							className={cn(
+								"text-right font-bold tabular-nums",
 								cancelled && "line-through",
 							)}
 						>
-							RM {item.total.toFixed(2)}
-						</span>
+							{item.total.toFixed(2)}
+						</dd>
+					</dl>
+
+					<div className="mt-2">
+						<div className="border-foreground/40 border-b pb-0.5 font-semibold text-[10px] uppercase tracking-wide">
+							Discounts
+						</div>
+						<dl className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-0.5 text-[11px]">
+							<dt className="text-muted-foreground">Voucher (MYR)</dt>
+							<dd className="text-right tabular-nums">0.00</dd>
+						</dl>
 					</div>
-				)}
-			</div>
+
+					<dl className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-0.5 text-[11px]">
+						<dt className="font-bold uppercase tracking-wide">
+							Gross Total (MYR)
+						</dt>
+						<dd
+							className={cn(
+								"text-right font-bold tabular-nums",
+								cancelled && "line-through",
+							)}
+						>
+							{item.total.toFixed(2)}
+						</dd>
+					</dl>
+
+					<div className="mt-2">
+						<div className="border-foreground/40 border-b pb-0.5 font-semibold text-[10px] uppercase tracking-wide">
+							Payment Details
+						</div>
+						<dl className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-0.5 text-[11px]">
+							<dt className="text-muted-foreground">
+								Tendered Amount (before Tax) (MYR)
+							</dt>
+							<dd
+								className={cn(
+									"text-right tabular-nums",
+									cancelled && "line-through",
+								)}
+							>
+								{item.total.toFixed(2)}
+							</dd>
+							<dt className="text-muted-foreground">Total Tax Amount (MYR)</dt>
+							<dd className="text-right tabular-nums">0.00</dd>
+							<dt className="text-muted-foreground">Payment Type</dt>
+							<dd className="text-right">{payMode ?? "—"}</dd>
+						</dl>
+					</div>
+				</>
+			)}
+
+			{collapsed && (
+				<div className="mt-2 flex justify-between text-[11px]">
+					<span className="text-muted-foreground">
+						{item.items.length} line{item.items.length !== 1 ? "s" : ""}
+						{payMode && !cancelled && ` · ${payMode}`}
+					</span>
+					<span
+						className={cn(
+							"font-bold tabular-nums",
+							cancelled && "line-through",
+						)}
+					>
+						RM {item.total.toFixed(2)}
+					</span>
+				</div>
+			)}
 		</div>
 	);
 }
@@ -940,16 +1260,13 @@ function NoteRow({
 					)}
 				</div>
 			</div>
-			{item.bookingRef && (
-				<button
-					type="button"
-					onClick={onJump}
-					disabled={!onJump}
-					className="mt-1 block text-left font-bold text-[10px] text-foreground tabular-nums hover:underline disabled:cursor-default disabled:no-underline"
-				>
-					{item.bookingRef}
-				</button>
-			)}
+			<ContextHeader
+				bookingRef={item.bookingRef}
+				outletCode={item.outletCode}
+				date={item.appointmentDate}
+				serviceSummary={item.serviceSummary}
+				onJump={onJump}
+			/>
 			<button
 				type="button"
 				aria-expanded={!collapsed}
@@ -993,7 +1310,10 @@ type FollowUpThread = {
 	date: Date;
 	followUp: FollowUpWithRefs;
 	bookingRef: string | null;
-	appointmentId: string;
+	outletCode: string | null;
+	serviceSummary: ServiceChip[];
+	appointmentDate: Date | null;
+	appointmentId: string | null;
 	isCurrent: boolean;
 	isPinned: boolean;
 };
@@ -1019,17 +1339,21 @@ function formatReminderDate(iso: string): string {
 }
 
 type FollowUpHistoryPanelProps = {
-	currentAppointmentId: string;
+	scope: HistoryScope;
 	followUps: FollowUpWithRefs[];
 	customerHistory: CustomerAppointmentSummary[];
+	customerBillingHistory?: CustomerLineItem[];
+	currentAppointmentLineItems?: AppointmentLineItem[];
 	onToast: (message: string, variant?: Toast["variant"]) => void;
 	onEdit: (followUp: FollowUpWithRefs) => void;
 };
 
 export function FollowUpHistoryPanel({
-	currentAppointmentId,
+	scope,
 	followUps,
 	customerHistory,
+	customerBillingHistory,
+	currentAppointmentLineItems,
 	onToast,
 	onEdit,
 }: FollowUpHistoryPanelProps) {
@@ -1037,27 +1361,47 @@ export function FollowUpHistoryPanel({
 	const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 	const [deleteId, setDeleteId] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
+	const currentAppointmentId =
+		scope.kind === "appointment" ? scope.appointmentId : null;
 
 	const threads = useMemo<FollowUpThread[]>(() => {
-		const refByAppointment = new Map<string, string>();
-		for (const a of customerHistory) refByAppointment.set(a.id, a.booking_ref);
+		const meta = buildMetaByAppointment(
+			customerHistory,
+			customerBillingHistory ?? [],
+			currentAppointmentId,
+			currentAppointmentLineItems,
+		);
 		return followUps
-			.map((f) => ({
-				id: `f-${f.id}`,
-				date: new Date(f.created_at),
-				followUp: f,
-				appointmentId: f.appointment_id,
-				bookingRef: refByAppointment.get(f.appointment_id) ?? null,
-				isCurrent: f.appointment_id === currentAppointmentId,
-				isPinned: f.is_pinned,
-			}))
+			.map((f) => {
+				const m = f.appointment_id ? meta.get(f.appointment_id) : null;
+				return {
+					id: `f-${f.id}`,
+					date: new Date(f.created_at),
+					followUp: f,
+					appointmentId: f.appointment_id,
+					bookingRef: m?.bookingRef ?? null,
+					outletCode: m?.outletCode ?? null,
+					serviceSummary: m?.serviceSummary ?? [],
+					appointmentDate: m?.startAt ?? null,
+					isCurrent:
+						f.appointment_id != null &&
+						f.appointment_id === currentAppointmentId,
+					isPinned: f.is_pinned,
+				};
+			})
 			.sort((a, b) => {
 				const aPinned = a.isPinned ? 1 : 0;
 				const bPinned = b.isPinned ? 1 : 0;
 				if (aPinned !== bPinned) return bPinned - aPinned;
 				return b.date.getTime() - a.date.getTime();
 			});
-	}, [followUps, customerHistory, currentAppointmentId]);
+	}, [
+		followUps,
+		customerHistory,
+		customerBillingHistory,
+		currentAppointmentLineItems,
+		currentAppointmentId,
+	]);
 
 	const allCollapsed =
 		threads.length > 0 && threads.every((t) => collapsedIds.has(t.id));
@@ -1078,11 +1422,19 @@ export function FollowUpHistoryPanel({
 	const handleTogglePin = (followUpId: string, currentPinned: boolean) => {
 		startTransition(async () => {
 			try {
-				await setFollowUpPinAction(
-					currentAppointmentId,
-					followUpId,
-					!currentPinned,
-				);
+				if (scope.kind === "appointment") {
+					await setFollowUpPinAction(
+						scope.appointmentId,
+						followUpId,
+						!currentPinned,
+					);
+				} else {
+					await setCustomerFollowUpPinAction(
+						scope.customerId,
+						followUpId,
+						!currentPinned,
+					);
+				}
 				onToast(currentPinned ? "Unpinned" : "Pinned to top", "success");
 				router.refresh();
 			} catch (err) {
@@ -1098,7 +1450,11 @@ export function FollowUpHistoryPanel({
 		if (!deleteId) return;
 		startTransition(async () => {
 			try {
-				await deleteFollowUpAction(currentAppointmentId, deleteId);
+				if (scope.kind === "appointment") {
+					await deleteFollowUpAction(scope.appointmentId, deleteId);
+				} else {
+					await deleteCustomerFollowUpAction(scope.customerId, deleteId);
+				}
 				setDeleteId(null);
 				onToast("Follow-up deleted", "success");
 				router.refresh();
@@ -1158,7 +1514,7 @@ export function FollowUpHistoryPanel({
 							onEdit={() => onEdit(t.followUp)}
 							onDelete={() => setDeleteId(t.followUp.id)}
 							onJump={
-								t.isCurrent
+								t.isCurrent || t.appointmentId == null
 									? undefined
 									: () =>
 											router.push(
@@ -1276,16 +1632,13 @@ function FollowUpRow({
 					</IconBtn>
 				</div>
 			</div>
-			{item.bookingRef && (
-				<button
-					type="button"
-					onClick={onJump}
-					disabled={!onJump}
-					className="mt-1 block text-left font-bold text-[10px] text-foreground tabular-nums hover:underline disabled:cursor-default disabled:no-underline"
-				>
-					{item.bookingRef}
-				</button>
-			)}
+			<ContextHeader
+				bookingRef={item.bookingRef}
+				outletCode={item.outletCode}
+				date={item.appointmentDate}
+				serviceSummary={item.serviceSummary}
+				onJump={onJump}
+			/>
 			<button
 				type="button"
 				aria-expanded={!collapsed}

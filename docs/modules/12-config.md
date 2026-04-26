@@ -59,21 +59,41 @@ typed table; the generic `brand_settings` cannot express FK integrity.
 
 ### Shape 1 — Lists stored in `brand_config_items`
 
-| Category key | Label | UI status |
-|---|---|---|
-| `void_reason` | Void / cancel reasons | **live** — `/config/sales?section=void-reasons` |
-| `appointment_tag` | Appointment tags | **live** — `/config/appointments?section=appointment-tag` |
-| `customer_tag` | Customer tag vocabulary | **live** — `/config/customers?section=tags` |
-| `salutation` | Salutations | registry only (TS) |
-| `customer_language` | Languages | registry only (TS) |
-| `customer_race` | Races | registry only (TS) |
-| `customer_religion` | Religions | registry only (TS) |
-| `customer_occupation` | Occupations | registry only (TS) |
-| `customer_source` | Customer sources | registry only (TS) |
-| `customer_reminder_method` | Reminder methods | registry only (TS) |
-| `reason.stock_add` | Stock-add reasons | registry only (TS) |
-| `reason.stock_reduce` | Stock-reduce reasons | registry only (TS) |
-| `reason.appointment_cancel` | Appointment cancel reasons | **live** — `/config/appointments?section=cancel-reasons` |
+Every Shape-1 category carries a `storage` field on its
+[BrandConfigCategoryDef](../../lib/brand-config/categories.ts):
+
+- **`live`** — dependent rows hold the current label; renames cascade
+  across history (handled by `cascadeLiveRename` in
+  [lib/services/brand-config.ts](../../lib/services/brand-config.ts)).
+  Use for current-state / display attributes (salutation, language,
+  current tag set). Brand renames "Ms" → "Miss" → every customer is
+  re-addressed.
+- **`snapshot`** — dependent rows hold the label that was current at
+  write-time; renames don't touch history. Use for historical facts
+  (cancel reason, void reason, customer source). Renaming
+  "Customer changed mind" → "Customer reconsidered" must NOT
+  silently rewrite the audit trail.
+
+When adding a new Shape-1 category to
+[lib/brand-config/categories.ts](../../lib/brand-config/categories.ts),
+the `storage` field is required. If `storage="live"` and the dependent
+column comes online, add an arm to `cascadeLiveRename`'s switch.
+
+| Category key | Label | Storage | UI status |
+|---|---|---|---|
+| `void_reason` | Void / cancel reasons | snapshot | **live** — `/config/sales?section=void-reasons` |
+| `appointment_tag` | Appointment tags | live | **live** — `/config/appointments?section=appointment-tag` |
+| `customer_tag` | Customer tag vocabulary | live | **live** — `/config/customers?section=tags` |
+| `salutation` | Salutations | live | **live** — `/config/general?section=salutation` (wired 2026-04-27, default seed of Mr/Ms/Mrs/Dr per brand via migration `0093_seed_default_salutations`; customer + employee forms read this list with hardcoded fallback when empty) |
+| `customer_language` | Languages | live | registry only (TS) |
+| `customer_race` | Races | live | registry only (TS) |
+| `customer_religion` | Religions | live | registry only (TS) |
+| `customer_occupation` | Occupations | live | registry only (TS) |
+| `customer_source` | Customer sources | snapshot | registry only (TS) |
+| `customer_reminder_method` | Reminder methods | live | registry only (TS) |
+| `reason.stock_add` | Stock-add reasons | snapshot | registry only (TS) |
+| `reason.stock_reduce` | Stock-reduce reasons | snapshot | registry only (TS) |
+| `reason.appointment_cancel` | Appointment cancel reasons | snapshot | **live** — `/config/appointments?section=cancel-reasons` |
 
 ### Shape 1 — Lists in existing typed tables
 

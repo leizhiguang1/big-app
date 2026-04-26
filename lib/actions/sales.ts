@@ -4,15 +4,16 @@ import { revalidatePath } from "next/cache";
 import { getServerContext } from "@/lib/context/server";
 import { NotFoundError } from "@/lib/errors";
 import { listCustomers } from "@/lib/services/customers";
+import type { EmployeeWithRelations } from "@/lib/services/employees";
 import { listEmployees } from "@/lib/services/employees";
 import { listSellableProducts } from "@/lib/services/inventory";
 import { listOutlets } from "@/lib/services/outlets";
 import { listActivePaymentMethods } from "@/lib/services/payment-methods";
 import type {
-	PaymentAllocationForOrder,
 	PaymentWithProcessedBy,
 	RefundNoteWithRefs,
 	SaleItem,
+	SaleItemIncentiveRow,
 	SalesOrderWithRelations,
 } from "@/lib/services/sales";
 import * as salesService from "@/lib/services/sales";
@@ -80,7 +81,8 @@ export type SalesOrderDetailResult =
 			items: SaleItem[];
 			payments: PaymentWithProcessedBy[];
 			refundNotes: RefundNoteWithRefs[];
-			allocations: PaymentAllocationForOrder[];
+			incentives: SaleItemIncentiveRow[];
+			employees: EmployeeWithRelations[];
 	  }
 	| { ok: false; reason: "not_found" };
 
@@ -89,15 +91,24 @@ export async function getSalesOrderDetailAction(
 ): Promise<SalesOrderDetailResult> {
 	const ctx = await getServerContext();
 	try {
-		const [order, items, payments, refundNotes, allocations] =
+		const [order, items, payments, refundNotes, incentives, employees] =
 			await Promise.all([
 				salesService.getSalesOrder(ctx, id),
 				salesService.listSaleItems(ctx, id),
 				salesService.listPaymentsForOrder(ctx, id),
 				salesService.listRefundNotesForOrder(ctx, id),
-				salesService.listPaymentAllocationsForOrder(ctx, id),
+				salesService.listIncentivesForOrder(ctx, id),
+				listEmployees(ctx),
 			]);
-		return { ok: true, order, items, payments, refundNotes, allocations };
+		return {
+			ok: true,
+			order,
+			items,
+			payments,
+			refundNotes,
+			incentives,
+			employees: employees.filter((e) => e.is_active),
+		};
 	} catch (err) {
 		if (err instanceof NotFoundError) return { ok: false, reason: "not_found" };
 		throw err;

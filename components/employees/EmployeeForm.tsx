@@ -22,6 +22,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { listActiveBrandConfigItemsAction } from "@/lib/actions/brand-config";
 import {
 	createEmployeeAction,
 	updateEmployeeAction,
@@ -292,6 +293,9 @@ export function EmployeeFormDialog({
 	const [pending, startTransition] = useTransition();
 	const [serverError, setServerError] = useState<string | null>(null);
 	const [pendingId, setPendingId] = useState<string | null>(null);
+	const [salutationOptions, setSalutationOptions] = useState<string[]>([
+		...SALUTATIONS,
+	]);
 	const savedRef = useRef(false);
 
 	const form = useForm<EmployeeFormInput>({
@@ -335,6 +339,18 @@ export function EmployeeFormDialog({
 		form.setValue("date_of_birth", parsed.dob, { shouldValidate: true });
 		form.setValue("gender", parsed.gender, { shouldValidate: true });
 	}, [idType, idNumber, form]);
+
+	// Brand-managed salutation list. Falls back to the hardcoded set when
+	// the brand has not added any of their own.
+	useEffect(() => {
+		if (!open) return;
+		listActiveBrandConfigItemsAction("salutation")
+			.then((items) => {
+				const labels = items.map((i) => i.label);
+				setSalutationOptions(labels.length > 0 ? labels : [...SALUTATIONS]);
+			})
+			.catch(() => setSalutationOptions([...SALUTATIONS]));
+	}, [open]);
 
 	const icParse =
 		idType === "ic" && idNumber ? parseMalaysianIc(idNumber) : null;
@@ -626,7 +642,7 @@ export function EmployeeFormDialog({
 											className={SELECT_CLASS}
 											{...form.register("salutation")}
 										>
-											{SALUTATIONS.map((s) => (
+											{salutationOptions.map((s) => (
 												<option key={s} value={s}>
 													{s.toUpperCase()}
 												</option>

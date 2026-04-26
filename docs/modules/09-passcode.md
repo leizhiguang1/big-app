@@ -39,8 +39,8 @@ bypass) remain deferred.
 **Key elements:**
 - "+" button top-left → opens Generate Passcode dialog
 - Tabs: Active / All / Expired (Phase 1 ships "All" only; tab filtering is cosmetic follow-up)
-- DataTable columns: Passcode, Applied On, Remarks, Used By, Created By, Created At, Actions
-- Row actions: edit remarks, delete
+- DataTable columns: Passcode (with outlet + function under the digits), Applied on, Used by, Created by, Status (with "expires YYYY-MM-DD" under Active rows), Actions
+- Row actions: delete (no edit — there's nothing user-editable on a passcode)
 
 ### Dialog: Generate Passcode
 
@@ -49,8 +49,20 @@ bypass) remain deferred.
 **Fields:**
 - Outlet (required) — select from outlets the current user belongs to
 - Function (required) — select from the fixed function list (see below)
-- Remarks (optional) — free text, why the passcode was generated
 - Passcode value is **generated server-side** (4-digit numeric) — not user-input
+- Expiry is fixed at 30 days from creation; the dialog tells the user this
+  up-front and the listing surfaces "expires YYYY-MM-DD" under the Active
+  status badge.
+
+**Why no remarks input at create time:** the manager has no meaningful
+context to type at the moment they generate a code (they don't yet know
+which transaction it'll be applied to). The post-use breadcrumb lives in
+`applied_on` (e.g. `SO-000123`) and shows in the "Applied on" column —
+that's the kumodent-equivalent "what was this used for" view. The
+`remarks` column on the table itself remains in the database for now (any
+historical rows keep their text) but is no longer captured or surfaced in
+the UI; it can be dropped in a follow-up cleanup migration once nobody
+relies on legacy values.
 
 ## Data Fields
 
@@ -60,11 +72,11 @@ bypass) remain deferred.
 | passcode | text | yes | 4-digit numeric string, generated server-side, not unique |
 | outlet_id | uuid (FK outlets) | yes | Scoped to an outlet |
 | function | text | yes | One of the function enum values below |
-| remarks | text | no | Free text |
+| remarks | text | no | Legacy free-text column. No longer captured or shown in the UI as of 2026-04-27 — the kumodent-style "remarks" UX was a misread of what's actually a post-use breadcrumb (see `applied_on`). Column kept nullable on the table for historical rows; safe to drop in a later cleanup migration. |
 | applied_on | text | no | Populated when redeemed — e.g. the sales order code. Nullable in Phase 1 (redemption flow not yet wired) |
 | used_by_employee_id | uuid (FK employees) | no | Who redeemed it |
 | used_at | timestamptz | no | When it was redeemed |
-| expires_at | timestamptz | no | Optional expiry. Defaults to `now() + 24h` on insert |
+| expires_at | timestamptz | yes | Defaults to `now() + 30 days` on insert (DB column default; `not null`). The 30-day window covers weekend / next-month-of-the-quarter use cases without leaving codes valid forever. Was 24h up to 2026-04-27 — see Schema Notes. |
 | created_by_employee_id | uuid (FK employees) | no | Who generated it. Nullable only because current-user context may be absent in dev |
 | created_at | timestamptz | yes | default now() |
 | updated_at | timestamptz | yes | default now(), via shared trigger |
@@ -102,6 +114,12 @@ Status is **derived**, not stored. Query-time logic:
 - Passcode value is 4 random digits. Collisions are allowed (not unique) —
   the effective key is `(outlet_id, function, passcode, status=active)`.
 - A passcode is single-use: once `used_at` is set it cannot be redeemed again.
+- A passcode auto-expires 30 days after creation (DB-side default on
+  `expires_at`). Single-use is the primary protection; the 30-day window is
+  a defence-in-depth so a manager can't pre-print a stack of override codes
+  and hand them out indefinitely. The user is told the 30-day window in
+  the Generate Passcode dialog copy and the listing surfaces "expires
+  YYYY-MM-DD" under the Active status badge.
 - Deleting an *unused* passcode is fine. Deleting a *used* one is blocked in
   Phase 1 (breaks audit trail). Enforced in the service layer.
 - No soft delete / `is_active` column — hard delete with FK `ON DELETE RESTRICT`.
@@ -151,14 +169,24 @@ fails the redemption rolls back and the code is still usable. This is how
 - `applied_on` stays `text`. It's set by the consumer (SO code for sales,
   customer code for future customer gates, etc.). A single FK column
   won't fit because the consumer list is polymorphic — revisit when the
-  second consumer lands and decide between polymorphic pair (`applied_on_type`,
-  `applied_on_id`) or keeping text.
+  second consumer lands and decide between polymorphic pair
+  (`applied_on_type`, `applied_on_id`) or keeping text. Until then the
+  text breadcrumb is enough for an audit log; a manager who wants to jump
+  to the underlying record can copy the code into the relevant module's
+  search.
+- Drop the now-unused `remarks` column in a follow-up cleanup migration
+  once we're confident no historical-row consumer relies on it.
 
 ## Schema Notes
 
 Migrations:
-- `0032_passcodes` — table + CRUD.
+- `0032_passcodes` — table + CRUD. Originally shipped with `expires_at`
+  default of `now() + 24h`.
 - `0067_passcode_redemption` — `redeem_passcode` RPC (2026-04-20).
+- `passcodes_extend_expiry_to_30_days` — bumped the `expires_at` column
+  default from 24h to 30 days (2026-04-27). Pre-existing unused passcodes
+  retained their original 24h `expires_at`; only newly-created rows get
+  the 30-day window.
 
 Follows the standard conventions in `CLAUDE.md`: uuid PK, shared
 `set_updated_at` trigger, RLS on with the temp dual anon/authenticated

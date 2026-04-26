@@ -22,11 +22,23 @@ export type BrandConfigCategoryDef = {
 	hasColor: boolean;
 	// Human-readable hint under the section header in the admin page.
 	hint?: string;
-	// True = admin UI hides the `code` and `sort_order` fields and lets the
-	// service auto-derive them. Use for categories whose values are really
-	// just free-text labels (e.g. cancellation reasons) — keeps the form one
-	// field instead of four.
-	simple?: boolean;
+	// How the chosen label is stored on dependent rows.
+	//
+	// - "live": dependent columns hold the current label; renaming the item
+	//   cascades the new label across history. Use for current-state /
+	//   display attributes (salutation, language, religion, current tag set).
+	//   The brand says "from now on we address Ms as Miss" → every customer
+	//   updates.
+	//
+	// - "snapshot": dependent columns hold the label that was current at
+	//   write-time; renaming does not touch history. Use for historical
+	//   facts (cancel reason, void reason, customer source — captured at
+	//   that moment). Renaming "Customer changed mind" → "Customer
+	//   reconsidered" must NOT silently rewrite the audit trail.
+	//
+	// Cascade for live categories is implemented in
+	// lib/services/brand-config.ts (cascadeLiveRename).
+	storage: "live" | "snapshot";
 };
 
 export const BRAND_CONFIG_CATEGORIES = {
@@ -36,74 +48,87 @@ export const BRAND_CONFIG_CATEGORIES = {
 		codeEditable: true,
 		hasColor: false,
 		hint: "Reasons shown in the Void Sales Order flow.",
+		storage: "snapshot",
 	},
 	appointment_tag: {
 		label: "Appointment tags",
 		codeEditable: true,
 		hasColor: true,
 		hint: "Color-coded tags shown on appointment cards and the calendar.",
+		storage: "live",
 	},
 	customer_tag: {
 		label: "Customer tag vocabulary",
 		codeEditable: true,
 		hasColor: true,
 		hint: "Suggested tags for the customer profile. Free-text entries are still accepted.",
+		storage: "live",
+	},
+	salutation: {
+		label: "Salutations",
+		codeEditable: true,
+		hasColor: false,
+		hint: "How customers and employees are addressed (Mr, Ms, Datuk, Encik…). Renames apply to all existing records.",
+		storage: "live",
 	},
 
 	// ── registered but UI not wired yet ───────────────────────────────────
 	// Each one lights up when its owning module migrates its hardcoded
 	// usage to read from brand_config_items.
-	salutation: {
-		label: "Salutations",
-		codeEditable: true,
-		hasColor: false,
-	},
 	customer_language: {
 		label: "Languages",
 		codeEditable: true,
 		hasColor: false,
+		storage: "live",
 	},
 	customer_race: {
 		label: "Races",
 		codeEditable: true,
 		hasColor: false,
+		storage: "live",
 	},
 	customer_religion: {
 		label: "Religions",
 		codeEditable: true,
 		hasColor: false,
+		storage: "live",
 	},
 	customer_occupation: {
 		label: "Occupations",
 		codeEditable: true,
 		hasColor: false,
+		storage: "live",
 	},
 	customer_source: {
 		label: "Customer sources",
 		codeEditable: true,
 		hasColor: false,
+		storage: "snapshot",
 	},
 	customer_reminder_method: {
 		label: "Reminder methods",
 		codeEditable: true,
 		hasColor: false,
+		storage: "live",
 	},
 	"reason.stock_add": {
 		label: "Stock-add reasons",
 		codeEditable: true,
 		hasColor: false,
+		storage: "snapshot",
 	},
 	"reason.stock_reduce": {
 		label: "Stock-reduce reasons",
 		codeEditable: true,
 		hasColor: false,
+		storage: "snapshot",
 	},
 	"reason.appointment_cancel": {
 		label: "Appointment cancel reasons",
 		singularLabel: "Cancel reason",
 		codeEditable: true,
 		hasColor: false,
-		simple: true,
+		storage: "snapshot",
 	},
 } as const satisfies Record<string, BrandConfigCategoryDef>;
 

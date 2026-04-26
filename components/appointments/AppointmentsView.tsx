@@ -145,6 +145,7 @@ export function AppointmentsView({
 				resource={resource}
 				rooms={rooms}
 				employees={employees}
+				shifts={shifts}
 				statusFilter={statusFilter}
 				typeFilter={typeFilter}
 				paymentStatusFilter={paymentStatusFilter}

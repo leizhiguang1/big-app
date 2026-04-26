@@ -1,6 +1,6 @@
 "use client";
 
-import { Printer } from "lucide-react";
+import { Printer, X } from "lucide-react";
 import { PrintableInvoice } from "@/components/sales/PrintableInvoice";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -46,17 +46,19 @@ export function ViewInvoiceDialog({
 						</span>
 					</div>
 					<div className="flex items-center gap-2">
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							onClick={() => onOpenChange(false)}
-						>
-							Close
-						</Button>
 						<Button type="button" size="sm" onClick={() => window.print()}>
 							<Printer className="mr-2 size-4" />
 							Print
+						</Button>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							className="size-8"
+							onClick={() => onOpenChange(false)}
+							aria-label="Close"
+						>
+							<X className="size-4" />
 						</Button>
 					</div>
 				</div>

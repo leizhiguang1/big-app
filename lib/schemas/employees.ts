@@ -15,8 +15,11 @@ const requiredDate = z
 
 export const ID_TYPES = ["ic", "passport"] as const;
 export const GENDERS = ["male", "female", "other"] as const;
+// Fallback list when a brand has no salutation rows configured in
+// brand_config_items. Same list shared with customers; the moment the
+// brand adds their own first one, the fallback stops being used.
 export const SALUTATIONS = ["Dr", "Mr", "Mrs", "Ms"] as const;
-export type Salutation = (typeof SALUTATIONS)[number];
+export type Salutation = string;
 export type Gender = (typeof GENDERS)[number];
 
 // Malaysian IC: 12 digits, optional dashes YYMMDD-PB-###G
@@ -28,9 +31,7 @@ const employeeInputBase = z.object({
 	id: z.string().uuid().optional(),
 
 	// Identity
-	salutation: z.enum(SALUTATIONS, {
-		errorMap: () => ({ message: "Salutation is required" }),
-	}),
+	salutation: z.string().trim().min(1, "Salutation is required").max(40),
 	first_name: z.string().trim().min(1, "First name is required").max(80),
 	last_name: z.string().trim().min(1, "Last name is required").max(80),
 	gender: z.enum(GENDERS, {

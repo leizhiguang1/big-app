@@ -49,10 +49,10 @@ Deferred from the reference prototype: "View Follow Up", "Lead Management", and 
 
 **Layout:** scrollable modal body, sections rendered as stacked cards:
 
-1. **Identity** — salutation, first name, last name, gender, date of birth
-2. **Identification** — IC / Passport toggle → id_number field (label + validation swap based on toggle)
-3. **Contact** — phone, phone2, email, country of origin
-4. **Address** — address1, address2, city, state, postcode
+1. **Identity** — salutation (loaded from `brand_config_items` category `salutation`, falls back to Mr/Ms/Mrs/Dr if brand has no rows), first name, last name, gender, date of birth
+2. **Identification** — IC / Passport toggle → id_number field (label + validation swap based on toggle). Toggling IC also defaults `country_of_origin` to MY; toggling Passport clears it (since most passports are non-MY). User can still override the country manually — the auto-default only fires on actual toggle clicks, not on form load.
+3. **Contact** — phone, phone2, email, country of origin (= nationality)
+4. **Address** — address1, address2, city, state, postcode, country (`address_country`, defaults to MY)
 5. **Clinic** — home outlet (required), consultant (required, defaults to current user), source, external code, VIP flag
 6. **Medical** — smoker (yes/no/occasionally), drug allergies (free text), current illness / medical condition (multi-select from `MEDICAL_CONDITIONS` in `lib/constants/medical.ts`), alert / known allergies (free text, surfaces as the yellow "Medical History" banner on the appointment detail view). Customer tag (single free-text field, e.g. "UNABLE TO WALK") lives here too — may become `tags[]` later
 7. **Notifications** — opt-in notifications, opt-in marketing
@@ -126,7 +126,7 @@ _v1 customer creation form fields:_
 | profile_image_path | text | No | Relative path in Supabase Storage `media` bucket. Uploaded via `<ImageUpload entity="customers" />`. |
 | first_name | text | Yes | |
 | last_name | text | No | |
-| salutation | text | Yes | Mr, Ms, Mrs, Dr |
+| salutation | text | Yes | Brand-configurable via `/config/general?section=salutation` (`brand_config_items.category='salutation'`). Form falls back to Mr/Ms/Mrs/Dr if the brand has zero rows configured. Stored as the literal label; renames cascade to existing rows because the category is registered as `storage: "live"` ([categories.ts](../../lib/brand-config/categories.ts)). |
 | gender | text | No | male, female |
 | date_of_birth | date | No | |
 | id_type | text | Yes | `'ic'` (default) or `'passport'` — toggle in the form |
@@ -140,6 +140,7 @@ _v1 customer creation form fields:_
 | city | text | No | |
 | state | text | No | |
 | postcode | text | No | |
+| address_country | text | Yes | ISO 3166-1 alpha-2 code of the country where the customer's mailing address lives. Defaults to `MY`. **Distinct from `country_of_origin`** (which is nationality). Surfaced in the form's Address section as a Country select; surfaced on the customer detail card as the "Country" line under the address (with a Unicode flag emoji from `flagForCountryCode`). Added 2026-04-27 in migration `0092_customers_address_country`. |
 | home_outlet_id | uuid (FK) | Yes | Branch where registered — `ON DELETE RESTRICT` |
 | consultant_id | uuid (FK) | Yes | Assigned staff member — `ON DELETE RESTRICT`, form defaults to current user |
 | source | text | No | walk_in, referral, ads, online_booking (free text in DB, constrained in Zod) |

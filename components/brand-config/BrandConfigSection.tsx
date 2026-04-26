@@ -76,20 +76,6 @@ export function BrandConfigSection({ category, items }: Props) {
 		},
 	];
 
-	if (!def.simple) {
-		columns.push({
-			key: "code",
-			header: "Code",
-			cell: (r) => (
-				<span className="font-mono text-muted-foreground text-xs">
-					{r.code}
-				</span>
-			),
-			sortable: true,
-			sortValue: (r) => r.code,
-		});
-	}
-
 	if (def.hasColor) {
 		columns.push({
 			key: "color",
@@ -106,22 +92,6 @@ export function BrandConfigSection({ category, items }: Props) {
 					<span className="text-muted-foreground text-xs">—</span>
 				),
 			className: "w-40",
-		});
-	}
-
-	if (!def.simple) {
-		columns.push({
-			key: "sort_order",
-			header: "Sort",
-			cell: (r) => (
-				<span className="tabular-nums text-muted-foreground text-xs">
-					{r.sort_order}
-				</span>
-			),
-			sortable: true,
-			sortValue: (r) => r.sort_order,
-			align: "right",
-			className: "w-20",
 		});
 	}
 
@@ -198,7 +168,7 @@ export function BrandConfigSection({ category, items }: Props) {
 						data={items}
 						columns={columns}
 						getRowKey={(r) => r.id}
-						searchKeys={def.simple ? ["label"] : ["label", "code"]}
+						searchKeys={["label"]}
 						emptyMessage={
 							def.codeEditable
 								? "No items yet. Click Add to create the first one."
@@ -228,9 +198,9 @@ export function BrandConfigSection({ category, items }: Props) {
 					onOpenChange={(o) => !o && setDeleting(null)}
 					title={`Delete "${deleting.label}"?`}
 					description={
-						def.simple
-							? "Past records keep their original wording. Removing this only stops it from showing up as a future option."
-							: "If the item has been used on historical records, it will be archived instead (history rows still resolve via stored code)."
+						def.storage === "live"
+							? "Existing records that use this item will keep displaying it (it just stops appearing as an option for future entries)."
+							: "Past records keep their original wording. Removing this only stops it from showing up as a future option."
 					}
 					confirmLabel="Delete"
 					pending={pending}

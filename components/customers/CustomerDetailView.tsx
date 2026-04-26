@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import { CustomerCaseNotesTab } from "@/components/customers/CustomerCaseNotesTab";
 import { CustomerCashWalletTab } from "@/components/customers/CustomerCashWalletTab";
 import { CustomerDocumentsTab } from "@/components/customers/CustomerDocumentsTab";
@@ -49,18 +50,29 @@ import {
 	APPOINTMENT_STATUS_CONFIG,
 	type AppointmentStatus,
 } from "@/lib/constants/appointment-status";
-import { countryNameForCode } from "@/lib/constants/countries";
+import {
+	countryNameForCode,
+	DEFAULT_COUNTRY_CODE,
+	flagForCountryCode,
+	nationalityForCode,
+} from "@/lib/constants/countries";
 import type { CustomerLineItem } from "@/lib/services/appointment-line-items";
 import type { CustomerTimelineAppointment } from "@/lib/services/appointments";
 import type { CaseNoteWithContext } from "@/lib/services/case-notes";
 import type { CustomerDocumentWithRefs } from "@/lib/services/customer-documents";
 import type { CustomerWithRelations } from "@/lib/services/customers";
+import type {
+	EmployeeShift,
+	RosterEmployee,
+} from "@/lib/services/employee-shifts";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { FollowUpWithRefs } from "@/lib/services/follow-ups";
 import type { MedicalCertificateWithRefs } from "@/lib/services/medical-certificates";
-import type { OutletWithRoomCount } from "@/lib/services/outlets";
+import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
 import type {
+	CancellationWithRelations,
 	PaymentWithRelations,
+	RefundNoteWithRelations,
 	SalesOrderWithRelations,
 } from "@/lib/services/sales";
 import type {
@@ -77,7 +89,9 @@ type Props = {
 	lineItems: CustomerLineItem[];
 	caseNotes: CaseNoteWithContext[];
 	salesOrders: SalesOrderWithRelations[];
+	cancellations: CancellationWithRelations[];
 	payments: PaymentWithRelations[];
+	refundNotes: RefundNoteWithRelations[];
 	followUps: FollowUpWithRefs[];
 	documents: CustomerDocumentWithRefs[];
 	medicalCertificates: MedicalCertificateWithRefs[];
@@ -86,6 +100,12 @@ type Props = {
 	defaultConsultantId: string | null;
 	wallet: CustomerWallet | null;
 	walletTransactions: WalletTransactionWithRefs[];
+	homeOutletId: string;
+	rosterEmployees: RosterEmployee[];
+	rooms: Room[];
+	shifts: EmployeeShift[];
+	allOutlets: OutletWithRoomCount[];
+	allEmployees: EmployeeWithRelations[];
 };
 
 type TabKey =
@@ -175,7 +195,9 @@ export function CustomerDetailView({
 	lineItems,
 	caseNotes,
 	salesOrders,
+	cancellations,
 	payments,
+	refundNotes,
 	followUps,
 	documents,
 	medicalCertificates,
@@ -184,12 +206,34 @@ export function CustomerDetailView({
 	defaultConsultantId,
 	wallet,
 	walletTransactions,
+	homeOutletId,
+	rosterEmployees,
+	rooms,
+	shifts,
+	allOutlets,
+	allEmployees,
 }: Props) {
 	const [activeTab, setActiveTab] = useState<TabKey>("timeline");
 	const [paymentsSubTab, setPaymentsSubTab] = useState<
 		"history" | "outstanding"
 	>("history");
 	const [editing, setEditing] = useState(false);
+	const [creatingAppointment, setCreatingAppointment] = useState<{
+		startAt: string;
+		endAt: string;
+	} | null>(null);
+
+	const openCreateAppointment = () => {
+		const start = new Date();
+		start.setMinutes(0, 0, 0);
+		start.setHours(start.getHours() + 1);
+		const end = new Date(start);
+		end.setMinutes(end.getMinutes() + 30);
+		setCreatingAppointment({
+			startAt: start.toISOString(),
+			endAt: end.toISOString(),
+		});
+	};
 
 	const displayName = `${customer.first_name} ${customer.last_name ?? ""}`
 		.trim()
@@ -384,6 +428,13 @@ export function CustomerDetailView({
 										</span>
 									</div>
 								)}
+								<OriginRows
+									addressCountryCode={
+										(customer as { address_country?: string | null })
+											.address_country ?? null
+									}
+									nationalityCode={customer.country_of_origin}
+								/>
 								{age && (
 									<div className="flex items-center gap-1 text-[11px] text-muted-foreground">
 										<CalendarDays className="size-3 shrink-0" />
@@ -419,12 +470,22 @@ export function CustomerDetailView({
 						</div>
 
 						<div className="grid grid-cols-2 gap-2">
-							<StatPill
-								dotClass="bg-sky-500"
-								label="Spent"
-								value={`MYR ${formatMoney(totalSpent)}`}
-								valueClass="text-sky-700"
-							/>
+							<button
+								type="button"
+								onClick={() => {
+									setPaymentsSubTab("history");
+									setActiveTab("payments");
+								}}
+								className="rounded-full text-left transition hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+								aria-label="View payment history"
+							>
+								<StatPill
+									dotClass="bg-sky-500"
+									label="Spent"
+									value={`MYR ${formatMoney(totalSpent)}`}
+									valueClass="text-sky-700"
+								/>
+							</button>
 							<button
 								type="button"
 								onClick={() => {
@@ -465,10 +526,6 @@ export function CustomerDetailView({
 								value={customer.id_number ?? "—"}
 							/>
 							<DetailRow label="Birthday" value={dob ?? "—"} />
-							<DetailRow
-								label="Country"
-								value={countryNameForCode(customer.country_of_origin)}
-							/>
 							<DetailRow
 								label="Consultant"
 								value={
@@ -565,27 +622,49 @@ export function CustomerDetailView({
 							groupedTimeline={groupedTimeline}
 							stats={stats}
 							lineItemsByAppointment={lineItemsByAppointment}
+							onAdd={openCreateAppointment}
 						/>
 					) : activeTab === "casenotes" ? (
 						<CustomerCaseNotesTab
 							customerId={customer.id}
 							caseNotes={caseNotes}
+							lineItems={lineItems}
+							customerHistory={timeline}
+							outletId={homeOutletId}
+							issuingEmployeeId={defaultConsultantId}
 						/>
 					) : activeTab === "sales" ? (
-						<CustomerSalesTab salesOrders={salesOrders} />
+						<CustomerSalesTab
+						salesOrders={salesOrders}
+						cancellations={cancellations}
+					/>
 					) : activeTab === "payments" ? (
 						<CustomerPaymentsTab
 							payments={payments}
+							refundNotes={refundNotes}
 							outstandingSalesOrders={outstandingSalesOrders}
 							subTab={paymentsSubTab}
 							onSubTabChange={setPaymentsSubTab}
 						/>
 					) : activeTab === "followup" ? (
-						<CustomerFollowUpsTab followUps={followUps} />
+						<CustomerFollowUpsTab
+							customerId={customer.id}
+							followUps={followUps}
+							customerHistory={timeline}
+							lineItems={lineItems}
+							allEmployees={employees}
+						/>
 					) : activeTab === "documents" ? (
-						<CustomerDocumentsTab documents={documents} />
+						<CustomerDocumentsTab
+							customerId={customer.id}
+							defaultUploaderId={defaultConsultantId}
+							documents={documents}
+						/>
 					) : activeTab === "medical-certificate" ? (
 						<CustomerMedicalCertificatesTab
+							customerId={customer.id}
+							outletId={homeOutletId}
+							issuingEmployeeId={defaultConsultantId}
 							medicalCertificates={medicalCertificates}
 						/>
 					) : activeTab === "services" ? (
@@ -614,6 +693,27 @@ export function CustomerDetailView({
 				defaultConsultantId={defaultConsultantId}
 				onClose={() => setEditing(false)}
 			/>
+			{creatingAppointment && (
+				<AppointmentDialog
+					open
+					onClose={() => setCreatingAppointment(null)}
+					outletId={homeOutletId}
+					appointment={null}
+					prefill={{
+						startAt: creatingAppointment.startAt,
+						endAt: creatingAppointment.endAt,
+						employeeId: null,
+						roomId: rooms[0]?.id ?? null,
+						customerId: customer.id,
+					}}
+					customers={[customer]}
+					employees={rosterEmployees}
+					rooms={rooms}
+					allOutlets={allOutlets}
+					allEmployees={allEmployees}
+					shifts={shifts}
+				/>
+			)}
 		</div>
 	);
 }
@@ -644,6 +744,54 @@ function StatPill({
 	);
 }
 
+function OriginRows({
+	addressCountryCode,
+	nationalityCode,
+}: {
+	addressCountryCode: string | null | undefined;
+	nationalityCode: string | null | undefined;
+}) {
+	const resolvedAddressCode = addressCountryCode || DEFAULT_COUNTRY_CODE;
+	const addressFlag = flagForCountryCode(resolvedAddressCode);
+	const addressName = countryNameForCode(resolvedAddressCode);
+	const showNationality = !!nationalityCode;
+	const nationalityFlag = showNationality
+		? flagForCountryCode(nationalityCode)
+		: "";
+	const nationalityName = showNationality
+		? nationalityForCode(nationalityCode)
+		: "";
+
+	return (
+		<div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<span className="flex cursor-default items-center gap-1">
+						{addressFlag && (
+							<span className="text-sm leading-none">{addressFlag}</span>
+						)}
+						<span>{addressName}</span>
+					</span>
+				</TooltipTrigger>
+				<TooltipContent>Country</TooltipContent>
+			</Tooltip>
+			{showNationality && (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<span className="flex cursor-default items-center gap-1">
+							{nationalityFlag && (
+								<span className="text-sm leading-none">{nationalityFlag}</span>
+							)}
+							<span>{nationalityName}</span>
+						</span>
+					</TooltipTrigger>
+					<TooltipContent>Nationality</TooltipContent>
+				</Tooltip>
+			)}
+		</div>
+	);
+}
+
 function DetailRow({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="flex flex-col">
@@ -659,6 +807,7 @@ function TimelineTab({
 	groupedTimeline,
 	stats,
 	lineItemsByAppointment,
+	onAdd,
 }: {
 	groupedTimeline: {
 		key: string;
@@ -671,18 +820,24 @@ function TimelineTab({
 		noShow: number;
 	};
 	lineItemsByAppointment: Map<string, CustomerLineItem[]>;
+	onAdd: () => void;
 }) {
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex items-start justify-between gap-3">
-				<button
-					type="button"
-					className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
-					aria-label="New entry"
-					disabled
-				>
-					<Plus className="size-5" />
-				</button>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<button
+							type="button"
+							className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm transition hover:bg-emerald-600"
+							aria-label="New appointment"
+							onClick={onAdd}
+						>
+							<Plus className="size-5" />
+						</button>
+					</TooltipTrigger>
+					<TooltipContent>New appointment</TooltipContent>
+				</Tooltip>
 				<div className="flex flex-col items-end gap-2">
 					<div className="font-semibold text-muted-foreground/70 text-sm uppercase tracking-wide">
 						Summary
@@ -822,16 +977,16 @@ function AppointmentTimelineCard({
 			)}
 		>
 			<div className="flex items-start justify-between gap-3">
-				<div className="flex items-baseline gap-3">
+				<div className="flex items-center gap-3">
 					<div
 						className={cn(
-							"font-bold text-3xl tabular-nums",
+							"font-bold text-3xl leading-none tabular-nums",
 							isCancelled && "text-muted-foreground line-through",
 						)}
 					>
 						{day}
 					</div>
-					<div className="flex flex-col">
+					<div className="flex flex-col leading-tight">
 						<span className="font-medium text-sm">{weekday}</span>
 						<span className="text-[11px] text-muted-foreground">
 							{monthYear} | {time}

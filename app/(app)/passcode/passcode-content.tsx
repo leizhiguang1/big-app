@@ -22,7 +22,7 @@ export async function PasscodeContent() {
 				</p>
 				<NewPasscodeButton outlets={outletOptions} />
 			</div>
-			<PasscodesTable passcodes={passcodes} outlets={outletOptions} />
+			<PasscodesTable passcodes={passcodes} />
 		</div>
 	);
 }

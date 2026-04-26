@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarDays, Lock, Trash2, UserPlus } from "lucide-react";
+import { AlertTriangle, CalendarDays, Lock, Trash2, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { useAppointmentTagList } from "@/components/brand-config/AppointmentConfigProvider";
@@ -628,6 +628,25 @@ export function AppointmentDialog({
 									</select>
 								</Field>
 							</div>
+
+							{(() => {
+								if (!selectedEmployeeId) return null;
+								if (!startAt || !endAt) return null;
+								if (availableEmployeeIds.has(selectedEmployeeId)) return null;
+								const emp = employees.find((e) => e.id === selectedEmployeeId);
+								if (!emp) return null;
+								const name = `${emp.first_name} ${emp.last_name}`.trim();
+								return (
+									<div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 text-xs">
+										<AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+										<span>
+											<span className="font-semibold">{name}</span> is not
+											rostered for the time selected, but you can still book
+											them.
+										</span>
+									</div>
+								);
+							})()}
 
 							{!isBlock && (
 								<>

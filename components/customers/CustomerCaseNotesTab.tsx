@@ -8,12 +8,15 @@ import {
 	ImagePlus,
 	Pill,
 	Save,
-	StickyNote,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { CaseNoteRow } from "@/components/case-notes/CaseNoteRow";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import {
+	AppointmentToastStack,
+	type Toast,
+} from "@/components/appointments/AppointmentToastStack";
+import { HistoryPanel } from "@/components/appointments/detail/HistoryPanel";
+import { AddMcDialog } from "@/components/medical-certificates/AddMcDialog";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -22,81 +25,78 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-	cancelCustomerCaseNoteAction,
 	createCustomerCaseNoteAction,
-	deleteCustomerCaseNoteAction,
-	revertCustomerCaseNoteAction,
-	setCustomerCaseNotePinAction,
 	updateCustomerCaseNoteAction,
 } from "@/lib/actions/case-notes";
+import type { CustomerLineItem } from "@/lib/services/appointment-line-items";
+import type { CustomerAppointmentSummary } from "@/lib/services/appointments";
 import type { CaseNoteWithContext } from "@/lib/services/case-notes";
 import { cn } from "@/lib/utils";
 
 type Props = {
 	customerId: string;
 	caseNotes: CaseNoteWithContext[];
+	lineItems: CustomerLineItem[];
+	customerHistory: CustomerAppointmentSummary[];
+	outletId: string;
+	issuingEmployeeId: string | null;
 };
 
-type NoteGroup = {
-	key: string;
-	appointmentId: string | null;
-	bookingRef: string | null;
-	startAt: string | null;
-	notes: CaseNoteWithContext[];
-};
-
-function buildGroups(notes: CaseNoteWithContext[]): NoteGroup[] {
-	const map = new Map<string, NoteGroup>();
-
-	for (const n of notes) {
-		const key = n.appointment_id ?? "standalone";
-		if (!map.has(key)) {
-			map.set(key, {
-				key,
-				appointmentId: n.appointment_id,
-				bookingRef: n.appointment?.booking_ref ?? null,
-				startAt: n.appointment?.start_at ?? null,
-				notes: [],
-			});
-		}
-		map.get(key)!.notes.push(n);
-	}
-
-	return Array.from(map.values()).sort((a, b) => {
-		const aTime = a.notes.reduce(
-			(acc, n) => (n.created_at > acc ? n.created_at : acc),
-			"",
-		);
-		const bTime = b.notes.reduce(
-			(acc, n) => (n.created_at > acc ? n.created_at : acc),
-			"",
-		);
-		return bTime.localeCompare(aTime);
-	});
-}
-
-export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
+export function CustomerCaseNotesTab({
+	customerId,
+	caseNotes,
+	lineItems,
+	customerHistory,
+	outletId,
+	issuingEmployeeId,
+}: Props) {
 	const router = useRouter();
 	const [draft, setDraft] = useState("");
 	const [editingFromHistoryId, setEditingFromHistoryId] = useState<
 		string | null
 	>(null);
-	const [editingId, setEditingId] = useState<string | null>(null);
-	const [editContent, setEditContent] = useState("");
-	const [deleteId, setDeleteId] = useState<string | null>(null);
-	const [cancelId, setCancelId] = useState<string | null>(null);
-	const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+	const [pendingEdit, setPendingEdit] = useState<{
+		noteId: string;
+		content: string;
+	} | null>(null);
+	const [overwriteConfirmOpen, setOverwriteConfirmOpen] = useState(false);
+	const [mcDialogOpen, setMcDialogOpen] = useState(false);
 	const [pending, startTransition] = useTransition();
 	const [localNotes, setLocalNotes] =
 		useState<CaseNoteWithContext[]>(caseNotes);
+	const [toasts, setToasts] = useState<Toast[]>([]);
 
 	useEffect(() => {
 		setLocalNotes(caseNotes);
 	}, [caseNotes]);
 
-	const refresh = () => startTransition(() => router.refresh());
+	const showToast = useCallback(
+		(message: string, variant: Toast["variant"] = "default") => {
+			const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+			setToasts((prev) => [...prev, { id, message, variant }]);
+			setTimeout(() => {
+				setToasts((prev) => prev.filter((t) => t.id !== id));
+			}, 2000);
+		},
+		[],
+	);
 
-	const groups = useMemo(() => buildGroups(localNotes), [localNotes]);
+	const dismissToast = useCallback((id: string) => {
+		setToasts((prev) => prev.filter((t) => t.id !== id));
+	}, []);
+
+	useEffect(() => {
+		if (pendingEdit == null) return;
+		if (draft.trim()) {
+			setOverwriteConfirmOpen(true);
+		} else {
+			setDraft(pendingEdit.content);
+			setEditingFromHistoryId(pendingEdit.noteId);
+			setPendingEdit(null);
+		}
+	}, [pendingEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	const refresh = () => startTransition(() => router.refresh());
 
 	const clearDraft = () => {
 		setDraft("");
@@ -116,8 +116,13 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 			startTransition(async () => {
 				try {
 					await updateCustomerCaseNoteAction(customerId, id, { content });
+					showToast("Note updated", "success");
 					refresh();
-				} catch {
+				} catch (err) {
+					showToast(
+						err instanceof Error ? err.message : "Could not update note",
+						"error",
+					);
 					refresh();
 				}
 			});
@@ -145,248 +150,120 @@ export function CustomerCaseNotesTab({ customerId, caseNotes }: Props) {
 				await createCustomerCaseNoteAction(customerId, {
 					appointment_id: null,
 					customer_id: customerId,
+					employee_id: null,
 					content,
 				});
+				showToast("Note saved", "success");
 				refresh();
-			} catch {
+			} catch (err) {
 				setLocalNotes((prev) => prev.filter((n) => n.id !== tempId));
 				setDraft(content);
+				showToast(
+					err instanceof Error ? err.message : "Could not save note",
+					"error",
+				);
 			}
 		});
 	};
-
-	const handleUpdate = () => {
-		if (!editingId || !editContent.trim()) return;
-		const id = editingId;
-		const content = editContent.trim();
-		setLocalNotes((prev) =>
-			prev.map((n) => (n.id === id ? { ...n, content } : n)),
-		);
-		setEditingId(null);
-		setEditContent("");
-		startTransition(async () => {
-			try {
-				await updateCustomerCaseNoteAction(customerId, id, { content });
-				refresh();
-			} catch {
-				refresh();
-			}
-		});
-	};
-
-	const handleDelete = () => {
-		if (!deleteId) return;
-		const id = deleteId;
-		setLocalNotes((prev) => prev.filter((n) => n.id !== id));
-		setDeleteId(null);
-		startTransition(async () => {
-			try {
-				await deleteCustomerCaseNoteAction(customerId, id);
-				refresh();
-			} catch {
-				refresh();
-			}
-		});
-	};
-
-	const handleTogglePin = (id: string, currentPinned: boolean) => {
-		setLocalNotes((prev) =>
-			prev.map((n) => (n.id === id ? { ...n, is_pinned: !currentPinned } : n)),
-		);
-		startTransition(async () => {
-			try {
-				await setCustomerCaseNotePinAction(customerId, id, !currentPinned);
-				refresh();
-			} catch {
-				refresh();
-			}
-		});
-	};
-
-	const handleConfirmCancel = () => {
-		if (!cancelId) return;
-		const id = cancelId;
-		setLocalNotes((prev) =>
-			prev.map((n) => (n.id === id ? { ...n, is_cancelled: true } : n)),
-		);
-		setCancelId(null);
-		startTransition(async () => {
-			try {
-				await cancelCustomerCaseNoteAction(customerId, id);
-				refresh();
-			} catch {
-				refresh();
-			}
-		});
-	};
-
-	const handleRevert = (id: string) => {
-		setLocalNotes((prev) =>
-			prev.map((n) => (n.id === id ? { ...n, is_cancelled: false } : n)),
-		);
-		startTransition(async () => {
-			try {
-				await revertCustomerCaseNoteAction(customerId, id);
-				refresh();
-			} catch {
-				refresh();
-			}
-		});
-	};
-
-	const toggleCollapse = (id: string) =>
-		setCollapsedIds((prev) => {
-			const next = new Set(prev);
-			if (next.has(id)) next.delete(id);
-			else next.add(id);
-			return next;
-		});
 
 	return (
-		<div className="flex flex-col gap-4">
-			<div
-				className={cn(
-					"rounded-md border bg-card p-4",
-					editingFromHistoryId && "border-amber-300 bg-amber-50/30",
-				)}
-			>
-				<div className="flex items-center justify-between">
-					<div className="text-muted-foreground text-xs uppercase tracking-wide">
-						{editingFromHistoryId ? "Editing note" : "New case note"}
+		<div className="flex flex-col gap-4 lg:flex-row">
+			<main className="flex min-w-0 flex-1 flex-col gap-4">
+				<div
+					className={cn(
+						"rounded-md border bg-card p-4",
+						editingFromHistoryId && "border-amber-300 bg-amber-50/30",
+					)}
+				>
+					<div className="flex items-center justify-between">
+						<div className="text-muted-foreground text-xs uppercase tracking-wide">
+							{editingFromHistoryId ? "Editing note" : "New case note"}
+						</div>
+						<CaseNoteToolbar onOpenMc={() => setMcDialogOpen(true)} />
 					</div>
-					<CaseNoteToolbar />
-				</div>
-				<textarea
-					value={draft}
-					onChange={(e) => setDraft(e.target.value)}
-					rows={6}
-					placeholder="Chief complaint, findings, procedure details, medication…"
-					className="mt-3 w-full resize-y rounded-md border bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-				/>
-				<div className="mt-3 flex items-center justify-end gap-2">
-					{editingFromHistoryId && (
+					<textarea
+						value={draft}
+						onChange={(e) => setDraft(e.target.value)}
+						rows={10}
+						placeholder="Chief complaint, findings, procedure details, medication…"
+						className="mt-3 w-full resize-y rounded-md border bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+					/>
+					<div className="mt-3 flex items-center justify-end gap-2">
+						{editingFromHistoryId && (
+							<Button
+								type="button"
+								size="sm"
+								variant="ghost"
+								onClick={clearDraft}
+							>
+								Cancel
+							</Button>
+						)}
 						<Button
 							type="button"
 							size="sm"
-							variant="ghost"
-							onClick={clearDraft}
+							onClick={handleSave}
+							disabled={!draft.trim() || pending}
 						>
-							Cancel
+							<Save className="size-3.5" />
+							{editingFromHistoryId ? "Update note" : "Save note"}
 						</Button>
-					)}
-					<Button
-						type="button"
-						size="sm"
-						onClick={handleSave}
-						disabled={!draft.trim() || pending}
-					>
-						<Save className="size-3.5" />
-						{editingFromHistoryId ? "Update note" : "Save note"}
-					</Button>
-				</div>
-			</div>
-
-			<div className="flex items-center gap-2 text-muted-foreground text-sm">
-				<StickyNote className="size-4" />
-				<span className="tabular-nums">
-					{localNotes.length} {localNotes.length === 1 ? "note" : "notes"} across{" "}
-					{groups.length} {groups.length === 1 ? "visit" : "visits"}
-				</span>
-			</div>
-
-			{groups.length === 0 ? (
-				<div className="rounded-md border bg-muted/30 p-12 text-center text-muted-foreground text-sm">
-					No case notes yet.
-				</div>
-			) : (
-				groups.map((group) => (
-					<div
-						key={group.key}
-						className="overflow-hidden rounded-md border bg-card"
-					>
-						<div className="flex items-center justify-between border-b bg-muted/30 px-3.5 py-2.5">
-							{group.appointmentId ? (
-								<div className="flex items-center gap-2 text-xs">
-									<Link
-										href={`/appointments/${group.bookingRef ?? group.appointmentId}`}
-										className="font-mono font-semibold text-sky-600 hover:underline"
-									>
-										{group.bookingRef ?? group.appointmentId}
-									</Link>
-									{group.startAt && (
-										<span className="text-muted-foreground">
-											{new Date(group.startAt).toLocaleDateString(undefined, {
-												day: "2-digit",
-												month: "short",
-												year: "numeric",
-											})}
-										</span>
-									)}
-								</div>
-							) : (
-								<div className="text-muted-foreground text-xs">
-									General notes
-								</div>
-							)}
-							<span className="text-[10px] text-muted-foreground tabular-nums">
-								{group.notes.length}{" "}
-								{group.notes.length === 1 ? "note" : "notes"}
-							</span>
-						</div>
-
-						{group.notes.map((n) => (
-							<CaseNoteRow
-								key={n.id}
-								note={n}
-								collapsed={collapsedIds.has(n.id)}
-								isEditing={editingId === n.id}
-								editContent={editContent}
-								pending={pending}
-								onToggle={() => toggleCollapse(n.id)}
-								onEditStart={() => {
-									setEditingId(n.id);
-									setEditContent(n.content);
-								}}
-								onEditCancel={() => {
-									setEditingId(null);
-									setEditContent("");
-								}}
-								onEditChange={setEditContent}
-								onEditSave={handleUpdate}
-								onDelete={() => setDeleteId(n.id)}
-								onTogglePin={() => handleTogglePin(n.id, n.is_pinned)}
-								onCancel={() => setCancelId(n.id)}
-								onRevert={() => handleRevert(n.id)}
-							/>
-						))}
 					</div>
-				))
-			)}
+				</div>
+			</main>
+
+			<aside className="lg:sticky lg:top-4 lg:h-[calc(100vh-8rem)] lg:w-[340px] lg:shrink-0">
+				<HistoryPanel
+					scope={{ kind: "customer", customerId }}
+					caseNotes={localNotes}
+					customerBillingHistory={lineItems}
+					customerHistory={customerHistory}
+					onToast={showToast}
+					onEditNote={(noteId, content) =>
+						setPendingEdit({ noteId, content })
+					}
+				/>
+			</aside>
 
 			<ConfirmDialog
-				open={deleteId !== null}
-				onOpenChange={(o) => !o && setDeleteId(null)}
-				title="Delete this case note?"
-				description="This removes the note permanently."
-				confirmLabel="Delete"
-				pending={pending}
-				onConfirm={handleDelete}
+				open={overwriteConfirmOpen}
+				onOpenChange={(o) => {
+					if (!o) {
+						setOverwriteConfirmOpen(false);
+						setPendingEdit(null);
+					}
+				}}
+				title="Overwrite current draft?"
+				description="The editor already has text. Loading this note will replace it."
+				confirmLabel="Replace"
+				onConfirm={() => {
+					setDraft(pendingEdit?.content ?? "");
+					setEditingFromHistoryId(pendingEdit?.noteId ?? null);
+					setOverwriteConfirmOpen(false);
+					setPendingEdit(null);
+				}}
 			/>
 
-			<ConfirmDialog
-				open={cancelId !== null}
-				onOpenChange={(o) => !o && setCancelId(null)}
-				title="Cancel this case note?"
-				description="The note stays on the record marked as cancelled. You can restore it later."
-				confirmLabel="Cancel note"
-				pending={pending}
-				onConfirm={handleConfirmCancel}
+			<AddMcDialog
+				open={mcDialogOpen}
+				onClose={() => setMcDialogOpen(false)}
+				appointmentId={null}
+				customerId={customerId}
+				outletId={outletId}
+				issuingEmployeeId={issuingEmployeeId}
+				defaultStartDate={new Date().toISOString().slice(0, 10)}
+				onCreated={(result) => {
+					showToast(`Medical certificate ${result.code} saved`, "success");
+					refresh();
+				}}
 			/>
+
+			<AppointmentToastStack toasts={toasts} onDismiss={dismissToast} />
 		</div>
 	);
 }
 
-function CaseNoteToolbar() {
+function CaseNoteToolbar({ onOpenMc }: { onOpenMc: () => void }) {
 	return (
 		<div className="flex items-center gap-1">
 			<StubButton
@@ -404,10 +281,11 @@ function CaseNoteToolbar() {
 				label="Prescription"
 				description="Write, save, and print a prescription slip."
 			/>
-			<StubButton
+			<ToolbarButton
 				icon={FileBadge}
 				label="Medical certificate"
-				description="Issue an MC. Open this customer's appointment to add an MC tied to that visit."
+				description="Issue an MC for this customer."
+				onClick={onOpenMc}
 			/>
 			<StubButton
 				icon={BookMarked}
@@ -420,6 +298,41 @@ function CaseNoteToolbar() {
 				description="Open the interactive tooth chart to record findings, treatments, and restorations per tooth."
 			/>
 		</div>
+	);
+}
+
+function ToolbarButton({
+	icon: Icon,
+	label,
+	description,
+	onClick,
+}: {
+	icon: React.ComponentType<{ className?: string }>;
+	label: string;
+	description: string;
+	onClick: () => void;
+}) {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					aria-label={label}
+					onClick={onClick}
+					className="flex size-8 items-center justify-center rounded-md bg-blue-600 text-white shadow-sm transition hover:bg-blue-700"
+				>
+					<Icon className="size-4" />
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="top" className="max-w-xs items-start px-3 py-2">
+				<div className="flex flex-col gap-1">
+					<span className="font-semibold">{label}</span>
+					<p className="text-[11px] leading-snug text-background/75">
+						{description}
+					</p>
+				</div>
+			</TooltipContent>
+		</Tooltip>
 	);
 }
 

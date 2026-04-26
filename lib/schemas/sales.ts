@@ -69,6 +69,7 @@ export const collectPaymentInputSchema = z.object({
 		.array(paymentEntrySchema)
 		.min(1, "At least one payment entry is required"),
 	allocations: z.array(paymentAllocationSchema).nullish(),
+	incentives: z.array(lineIncentiveSchema).nullish(),
 	remarks: nullishTrimmed(500),
 	sold_at: z
 		.string()

@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
+import { SalesOrderDetailDialog } from "@/components/sales/SalesOrderDetailDialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import type { CancellationWithRelations } from "@/lib/services/sales";
 
@@ -39,6 +40,8 @@ function fullName(
 }
 
 export function CancellationsTable({ cancellations }: Props) {
+	const [openId, setOpenId] = useState<string | null>(null);
+
 	const columns: DataTableColumn<CancellationWithRelations>[] = [
 		{
 			key: "cn_number",
@@ -70,12 +73,15 @@ export function CancellationsTable({ cancellations }: Props) {
 			sortValue: (c) => c.sales_order?.so_number ?? "",
 			cell: (c) =>
 				c.sales_order ? (
-					<Link
-						href={`/sales/${c.sales_order.id}`}
+					<button
+						type="button"
+						onClick={() => {
+							if (c.sales_order) setOpenId(c.sales_order.id);
+						}}
 						className="font-mono text-blue-600 text-sm hover:underline"
 					>
 						{c.sales_order.so_number}
-					</Link>
+					</button>
 				) : (
 					<span className="text-muted-foreground text-sm">—</span>
 				),
@@ -150,12 +156,21 @@ export function CancellationsTable({ cancellations }: Props) {
 	];
 
 	return (
-		<DataTable
-			data={cancellations}
-			columns={columns}
-			getRowKey={(c) => c.id}
-			searchPlaceholder="Search cancellations…"
-			emptyMessage="No cancellation records yet."
-		/>
+		<>
+			<DataTable
+				data={cancellations}
+				columns={columns}
+				getRowKey={(c) => c.id}
+				searchPlaceholder="Search cancellations…"
+				emptyMessage="No cancellation records yet."
+			/>
+			<SalesOrderDetailDialog
+				open={openId !== null}
+				onOpenChange={(open) => {
+					if (!open) setOpenId(null);
+				}}
+				salesOrderId={openId}
+			/>
+		</>
 	);
 }

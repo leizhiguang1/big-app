@@ -4,6 +4,11 @@ import { BellRing, Pencil, Save, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import type { Toast } from "@/components/appointments/AppointmentToastStack";
+import {
+	ContextHeader,
+	type ServiceChip,
+	summarizeServices,
+} from "@/components/appointments/detail/HistoryPanel";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -24,6 +29,7 @@ type Props = {
 	appointment: AppointmentWithRelations;
 	followUps: FollowUpWithRefs[];
 	allEmployees: EmployeeWithRelations[];
+	outletCode: string | null;
 	editingFollowUpId: string | null;
 	onStartEdit: (id: string | null) => void;
 	onToast: (message: string, variant?: Toast["variant"]) => void;
@@ -88,6 +94,7 @@ export function FollowUpTab({
 	appointment,
 	followUps,
 	allEmployees,
+	outletCode,
 	editingFollowUpId,
 	onStartEdit,
 	onToast,
@@ -353,6 +360,10 @@ export function FollowUpTab({
 								followUp={f}
 								isEditing={editing?.id === f.id}
 								reminderEmployee={reminderEmployeeLabel(f, allEmployees)}
+								bookingRef={appointment.booking_ref}
+								outletCode={outletCode}
+								appointmentDate={new Date(appointment.start_at)}
+								serviceSummary={summarizeServices(appointment.line_items)}
 								onEdit={() => onStartEdit(f.id)}
 								onDelete={() => setDeleteId(f.id)}
 							/>
@@ -378,12 +389,20 @@ function FollowUpListRow({
 	followUp,
 	isEditing,
 	reminderEmployee,
+	bookingRef,
+	outletCode,
+	appointmentDate,
+	serviceSummary,
 	onEdit,
 	onDelete,
 }: {
 	followUp: FollowUpWithRefs;
 	isEditing: boolean;
 	reminderEmployee: string | null;
+	bookingRef: string | null;
+	outletCode: string | null;
+	appointmentDate: Date | null;
+	serviceSummary: ServiceChip[];
 	onEdit: () => void;
 	onDelete: () => void;
 }) {
@@ -426,6 +445,12 @@ function FollowUpListRow({
 					)}
 				</div>
 			</div>
+			<ContextHeader
+				bookingRef={bookingRef}
+				outletCode={outletCode}
+				date={appointmentDate}
+				serviceSummary={serviceSummary}
+			/>
 			<p className="mt-2 whitespace-pre-wrap">{f.content}</p>
 			{f.has_reminder && f.reminder_date && (
 				<div

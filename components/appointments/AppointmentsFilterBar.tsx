@@ -13,7 +13,7 @@ import {
 	X,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { AppointmentsAdvancedFilter } from "@/components/appointments/AppointmentsAdvancedFilter";
 import { ColumnSettingsPopover } from "@/components/appointments/ColumnSettingsPopover";
 import { MonthYearPicker } from "@/components/appointments/MonthYearPicker";
@@ -55,8 +55,12 @@ import {
 	fmtWeekRange,
 	getWeekStart,
 	parseDate,
+	shiftCoversDate,
 } from "@/lib/roster/week";
-import type { RosterEmployee } from "@/lib/services/employee-shifts";
+import type {
+	EmployeeShift,
+	RosterEmployee,
+} from "@/lib/services/employee-shifts";
 import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
 import { cn } from "@/lib/utils";
 
@@ -106,6 +110,7 @@ type Props = {
 	resource: ResourceFilter;
 	rooms: Room[];
 	employees: RosterEmployee[];
+	shifts: EmployeeShift[];
 	statusFilter: AppointmentStatus[];
 	typeFilter: AppointmentTypeFilter[];
 	paymentStatusFilter: AppointmentPaymentStatus[];
@@ -125,6 +130,7 @@ export function AppointmentsFilterBar({
 	resource,
 	rooms,
 	employees,
+	shifts,
 	statusFilter,
 	typeFilter,
 	paymentStatusFilter,
@@ -195,6 +201,44 @@ export function AppointmentsFilterBar({
 			eid: mode === "employee" ? (value ?? null) : null,
 		});
 	};
+
+	const rosteredEmployeeIds = useMemo(() => {
+		const dates: string[] = [];
+		if (scope === "day") {
+			dates.push(dateStr);
+		} else if (scope === "week") {
+			const start = getWeekStart(date);
+			for (let i = 0; i < 7; i++) dates.push(fmtDate(addDays(start, i)));
+		} else {
+			const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+			const gridStart = getWeekStart(firstOfMonth);
+			for (let i = 0; i < 42; i++) dates.push(fmtDate(addDays(gridStart, i)));
+		}
+		const ids = new Set<string>();
+		for (const s of shifts) {
+			if (ids.has(s.employee_id)) continue;
+			if (dates.some((d) => shiftCoversDate(s, d))) {
+				ids.add(s.employee_id);
+			}
+		}
+		return ids;
+	}, [shifts, scope, dateStr, date]);
+
+	const sortedEmployees = useMemo(
+		() =>
+			[...employees].sort((a, b) =>
+				`${a.first_name} ${a.last_name}`.localeCompare(
+					`${b.first_name} ${b.last_name}`,
+				),
+			),
+		[employees],
+	);
+	const rosteredEmployees = sortedEmployees.filter((e) =>
+		rosteredEmployeeIds.has(e.id),
+	);
+	const offRosterEmployees = sortedEmployees.filter(
+		(e) => !rosteredEmployeeIds.has(e.id),
+	);
 
 	const resourceLabel = (() => {
 		if (resource.value === null) {
@@ -311,7 +355,7 @@ export function AppointmentsFilterBar({
 					>
 						All Staff
 					</DropdownMenuItem>
-					{employees.map((e) => (
+					{rosteredEmployees.map((e) => (
 						<DropdownMenuItem
 							key={e.id}
 							onSelect={() => onResourcePick("employee", e.id)}
@@ -320,6 +364,26 @@ export function AppointmentsFilterBar({
 								resource.mode === "employee" &&
 									resource.value === e.id &&
 									"font-bold",
+							)}
+						>
+							{e.first_name} {e.last_name}
+						</DropdownMenuItem>
+					))}
+					{rosteredEmployees.length > 0 && offRosterEmployees.length > 0 && (
+						<div
+							className="mx-2 my-1 border-t border-dashed border-border/70"
+							aria-hidden
+						/>
+					)}
+					{offRosterEmployees.map((e) => (
+						<DropdownMenuItem
+							key={e.id}
+							onSelect={() => onResourcePick("employee", e.id)}
+							className={cn(
+								"pl-6 text-muted-foreground/70",
+								resource.mode === "employee" &&
+									resource.value === e.id &&
+									"font-bold text-foreground",
 							)}
 						>
 							{e.first_name} {e.last_name}
@@ -512,3 +576,4 @@ export function AppointmentsFilterBar({
 		</div>
 	);
 }
+

@@ -24,6 +24,7 @@ export type CustomerLineItem = AppointmentLineItem & {
 			first_name: string;
 			last_name: string;
 		} | null;
+		sales_orders: { id: string; so_number: string; status: string }[];
 	} | null;
 };
 
@@ -64,7 +65,7 @@ export async function listLineItemsForCustomer(
 	const { data, error } = await ctx.db
 		.from("appointment_line_items")
 		.select(
-			"*, service:services!appointment_line_items_service_id_fkey(sku, name), appointment:appointments!appointment_line_items_appointment_id_fkey(id, booking_ref, start_at, status, payment_status, paid_via, customer_id, employee:employees!appointments_employee_id_fkey(id, first_name, last_name))",
+			"*, service:services!appointment_line_items_service_id_fkey(sku, name), appointment:appointments!appointment_line_items_appointment_id_fkey(id, booking_ref, start_at, status, payment_status, paid_via, customer_id, employee:employees!appointments_employee_id_fkey(id, first_name, last_name), sales_orders:sales_orders!sales_orders_appointment_id_fkey(id, so_number, status))",
 		)
 		.eq("appointment.customer_id", customerId)
 		.order("created_at", { ascending: false });

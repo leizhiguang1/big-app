@@ -280,15 +280,21 @@ export function DayView({
 									)
 								}
 							>
-								{/* Non-rostered greyout — pointer-events-none so cells stay clickable */}
+								{/* Non-rostered greyout — diagonal stripes signal "off-roster" but
+								    cells stay clickable (pointer-events-none on the overlay). */}
 								{greyBands.map((b) => {
 									const top = minutesToY(b.startMin);
 									const bottom = minutesToY(b.endMin);
 									return (
 										<div
 											key={`grey-${b.startMin}-${b.endMin}`}
-											className="pointer-events-none absolute right-0 left-0 z-0 bg-muted/60"
-											style={{ top, height: Math.max(0, bottom - top) }}
+											className="pointer-events-none absolute right-0 left-0 z-0 bg-muted"
+											style={{
+												top,
+												height: Math.max(0, bottom - top),
+												backgroundImage:
+													"repeating-linear-gradient(-45deg, color-mix(in oklch, var(--color-muted-foreground) 18%, transparent) 0px, color-mix(in oklch, var(--color-muted-foreground) 18%, transparent) 6px, transparent 6px, transparent 12px)",
+											}}
 											aria-hidden
 										/>
 									);

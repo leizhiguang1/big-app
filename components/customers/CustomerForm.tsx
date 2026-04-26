@@ -81,6 +81,7 @@ const EMPTY: CustomerInput = {
 	city: undefined,
 	state: undefined,
 	postcode: undefined,
+	address_country: DEFAULT_COUNTRY_CODE,
 	home_outlet_id: "",
 	consultant_id: "",
 	source: null,
@@ -117,6 +118,9 @@ function fromCustomer(c: CustomerWithRelations | null): CustomerInput {
 		city: c.city ?? undefined,
 		state: c.state ?? undefined,
 		postcode: c.postcode ?? undefined,
+		address_country:
+			(c as { address_country?: string | null }).address_country ??
+			DEFAULT_COUNTRY_CODE,
 		home_outlet_id: c.home_outlet_id,
 		consultant_id: c.consultant_id,
 		source: (c.source as CustomerInput["source"]) ?? null,
@@ -303,6 +307,9 @@ export function CustomerFormDialog({
 	const [section, setSection] = useState<SectionKey>("personal");
 	const [pendingId, setPendingId] = useState<string | null>(null);
 	const [customerTags, setCustomerTags] = useState<BrandConfigItem[]>([]);
+	const [salutationOptions, setSalutationOptions] = useState<string[]>([
+		...SALUTATIONS,
+	]);
 	const savedRef = useRef(false);
 
 	const form = useForm<CustomerInput>({
@@ -359,6 +366,18 @@ export function CustomerFormDialog({
 		listActiveBrandConfigItemsAction("customer_tag")
 			.then(setCustomerTags)
 			.catch(() => setCustomerTags([]));
+	}, [open]);
+
+	// Brand-managed salutation list. Empty result → use the hardcoded
+	// fallback so the dropdown is never empty for new brands.
+	useEffect(() => {
+		if (!open) return;
+		listActiveBrandConfigItemsAction("salutation")
+			.then((items) => {
+				const labels = items.map((i) => i.label);
+				setSalutationOptions(labels.length > 0 ? labels : [...SALUTATIONS]);
+			})
+			.catch(() => setSalutationOptions([...SALUTATIONS]));
 	}, [open]);
 
 	const icParse =
@@ -467,31 +486,33 @@ export function CustomerFormDialog({
 										{customer.code}
 									</p>
 								)}
-								<label className="mt-1 flex items-center gap-2 text-xs">
-									<input
-										type="checkbox"
-										className="size-3.5"
-										{...form.register("is_vip")}
-									/>
-									<Star
-										className={cn(
-											"size-3.5 shrink-0",
-											isVip
-												? "fill-amber-400 text-amber-500"
-												: "text-muted-foreground",
-										)}
-									/>
-									<span>This customer is a VIP</span>
-								</label>
-								<label className="flex items-center gap-2 text-xs">
-									<input
-										type="checkbox"
-										className="size-3.5"
-										{...form.register("is_staff")}
-									/>
-									<BadgePercent className="size-3.5 shrink-0 text-muted-foreground" />
-									<span>Staff / family (auto 10% discount)</span>
-								</label>
+								<div className="mt-1 flex w-full flex-col gap-1.5 text-left">
+									<label className="flex items-start gap-2 text-xs">
+										<input
+											type="checkbox"
+											className="mt-0.5 size-3.5"
+											{...form.register("is_vip")}
+										/>
+										<Star
+											className={cn(
+												"mt-0.5 size-3.5 shrink-0",
+												isVip
+													? "fill-amber-400 text-amber-500"
+													: "text-muted-foreground",
+											)}
+										/>
+										<span>This customer is a VIP</span>
+									</label>
+									<label className="flex items-start gap-2 text-xs">
+										<input
+											type="checkbox"
+											className="mt-0.5 size-3.5"
+											{...form.register("is_staff")}
+										/>
+										<BadgePercent className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+										<span>Staff / family (auto 10% discount)</span>
+									</label>
+								</div>
 							</div>
 							<nav className="flex flex-col px-2 pb-4 text-sm">
 								{SECTIONS.map((s) => (
@@ -529,26 +550,6 @@ export function CustomerFormDialog({
 									</div>
 
 									<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-										<Field
-											label="Country of Origin"
-											htmlFor="cus-country"
-											required
-											full
-											error={errors.country_of_origin?.message}
-										>
-											<select
-												id="cus-country"
-												className={SELECT_CLASS}
-												{...form.register("country_of_origin")}
-											>
-												{COUNTRIES.map((c) => (
-													<option key={c.code} value={c.code}>
-														{c.name}
-													</option>
-												))}
-											</select>
-										</Field>
-
 										<Field
 											label="First Name"
 											htmlFor="cus-first"
@@ -588,11 +589,16 @@ export function CustomerFormDialog({
 												<div className="inline-flex h-6 items-center rounded-md border bg-background p-0.5 text-xs">
 													<button
 														type="button"
-														onClick={() =>
+														onClick={() => {
 															form.setValue("id_type", "ic", {
 																shouldValidate: true,
-															})
-														}
+															});
+															form.setValue(
+																"country_of_origin",
+																DEFAULT_COUNTRY_CODE,
+																{ shouldValidate: true, shouldDirty: true },
+															);
+														}}
 														className={cn(
 															"rounded px-2 py-0.5 font-medium transition",
 															idType === "ic"
@@ -604,11 +610,15 @@ export function CustomerFormDialog({
 													</button>
 													<button
 														type="button"
-														onClick={() =>
+														onClick={() => {
 															form.setValue("id_type", "passport", {
 																shouldValidate: true,
-															})
-														}
+															});
+															form.setValue("country_of_origin", "", {
+																shouldValidate: false,
+																shouldDirty: true,
+															});
+														}}
 														className={cn(
 															"rounded px-2 py-0.5 font-medium transition",
 															idType === "passport"
@@ -637,6 +647,26 @@ export function CustomerFormDialog({
 												<p className="text-amber-600 text-xs">{icWarning}</p>
 											) : null}
 										</div>
+										<Field
+											label="Country of Origin"
+											htmlFor="cus-country"
+											required
+											error={errors.country_of_origin?.message}
+										>
+											<select
+												id="cus-country"
+												className={SELECT_CLASS}
+												{...form.register("country_of_origin")}
+											>
+												<option value="">— Select country —</option>
+												{COUNTRIES.map((c) => (
+													<option key={c.code} value={c.code}>
+														{c.name}
+													</option>
+												))}
+											</select>
+										</Field>
+
 										<Field
 											label="Email Address"
 											htmlFor="cus-email"
@@ -682,7 +712,7 @@ export function CustomerFormDialog({
 												className={SELECT_CLASS}
 												{...form.register("salutation")}
 											>
-												{SALUTATIONS.map((s) => (
+												{salutationOptions.map((s) => (
 													<option key={s} value={s}>
 														{s}
 													</option>
@@ -801,8 +831,26 @@ export function CustomerFormDialog({
 									<Field label="City" htmlFor="cus-city">
 										<Input id="cus-city" {...form.register("city")} />
 									</Field>
-									<Field label="State" htmlFor="cus-state" full>
+									<Field label="State" htmlFor="cus-state">
 										<Input id="cus-state" {...form.register("state")} />
+									</Field>
+									<Field
+										label="Country"
+										htmlFor="cus-addr-country"
+										required
+										error={errors.address_country?.message}
+									>
+										<select
+											id="cus-addr-country"
+											className={SELECT_CLASS}
+											{...form.register("address_country")}
+										>
+											{COUNTRIES.map((c) => (
+												<option key={c.code} value={c.code}>
+													{c.name}
+												</option>
+											))}
+										</select>
 									</Field>
 								</div>
 							)}

@@ -13,7 +13,8 @@ export type MediaEntity =
 	| "customers"
 	| "services"
 	| "outlets"
-	| "products";
+	| "products"
+	| "brands";
 
 const EXT_FROM_MIME: Record<string, string> = {
 	"image/jpeg": "jpg",

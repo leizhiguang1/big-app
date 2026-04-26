@@ -142,6 +142,15 @@ export async function collectAppointmentPayment(
 					amount: a.amount,
 				}))
 			: null,
+		p_incentives: parsed.incentives
+			? parsed.incentives.map((i) => ({
+					item_index: i.item_index,
+					employees: i.employees.map((e) => ({
+						employee_id: e.employee_id,
+						percent: e.percent,
+					})),
+				}))
+			: null,
 		...(parsed.sold_at ? { p_sold_at: parsed.sold_at } : {}),
 	});
 	if (error) throw new ValidationError(error.message);
@@ -390,11 +399,15 @@ export type CancellationWithRelations = Cancellation & {
 };
 
 const CANCELLATION_LIST_SELECT =
-	"*, sales_order:sales_orders!cancellations_sales_order_id_fkey(id, so_number, total, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name)), processed_by_employee:employees!cancellations_processed_by_fkey(id, first_name, last_name)";
+	"*, sales_order:sales_orders!cancellations_sales_order_id_fkey!inner(id, so_number, total, customer:customers!sales_orders_customer_id_fkey(id, code, first_name, last_name)), processed_by_employee:employees!cancellations_processed_by_fkey(id, first_name, last_name)";
 
 export async function listCancellations(
 	ctx: Context,
-	opts: { outletId?: string | null; limit?: number } = {},
+	opts: {
+		outletId?: string | null;
+		customerId?: string | null;
+		limit?: number;
+	} = {},
 ): Promise<CancellationWithRelations[]> {
 	let query = ctx.db
 		.from("cancellations")
@@ -402,6 +415,8 @@ export async function listCancellations(
 		.order("cancelled_at", { ascending: false })
 		.limit(opts.limit ?? 200);
 	if (opts.outletId) query = query.eq("outlet_id", opts.outletId);
+	if (opts.customerId)
+		query = query.eq("sales_order.customer_id", opts.customerId);
 	const { data, error } = await query;
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []) as unknown as CancellationWithRelations[];
@@ -634,6 +649,45 @@ export async function listRefundNotesForOrder(
 		.order("refunded_at", { ascending: false });
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []) as unknown as RefundNoteWithRefs[];
+}
+
+export type RefundNoteWithRelations = RefundNote & {
+	processed_by_employee: {
+		id: string;
+		first_name: string;
+		last_name: string | null;
+	} | null;
+	method: { code: string; name: string } | null;
+	outlet: { id: string; code: string; name: string } | null;
+	sales_order: {
+		id: string;
+		so_number: string;
+		status: SalesOrder["status"];
+	} | null;
+};
+
+const REFUND_NOTE_LIST_SELECT =
+	"*, processed_by_employee:employees!refund_notes_processed_by_fkey(id, first_name, last_name), method:payment_methods!refund_notes_refund_method_fkey(code, name), outlet:outlets!refund_notes_outlet_id_fkey(id, code, name), sales_order:sales_orders!refund_notes_sales_order_id_fkey!inner(id, so_number, status, customer_id)";
+
+export async function listRefundNotes(
+	ctx: Context,
+	opts: {
+		outletId?: string | null;
+		customerId?: string | null;
+		limit?: number;
+	} = {},
+): Promise<RefundNoteWithRelations[]> {
+	let query = ctx.db
+		.from("refund_notes")
+		.select(REFUND_NOTE_LIST_SELECT)
+		.order("refunded_at", { ascending: false })
+		.limit(opts.limit ?? 200);
+	if (opts.outletId) query = query.eq("outlet_id", opts.outletId);
+	if (opts.customerId)
+		query = query.eq("sales_order.customer_id", opts.customerId);
+	const { data, error } = await query;
+	if (error) throw new ValidationError(error.message);
+	return (data ?? []) as unknown as RefundNoteWithRelations[];
 }
 
 // ---------------------------------------------------------------------------

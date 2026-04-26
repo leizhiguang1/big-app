@@ -179,6 +179,10 @@ export function AppointmentDetailView({
 		() => allOutlets.find((o) => o.id === appointment.outlet_id)?.name ?? null,
 		[allOutlets, appointment.outlet_id],
 	);
+	const outletCode = useMemo(
+		() => allOutlets.find((o) => o.id === appointment.outlet_id)?.code ?? null,
+		[allOutlets, appointment.outlet_id],
+	);
 
 	return (
 		<div className="flex flex-col gap-3">
@@ -311,6 +315,7 @@ export function AppointmentDetailView({
 							appointment={appointment}
 							followUps={followUps}
 							allEmployees={allEmployees}
+							outletCode={outletCode}
 							editingFollowUpId={editingFollowUpId}
 							onStartEdit={setEditingFollowUpId}
 							onToast={showToast}
@@ -334,10 +339,11 @@ export function AppointmentDetailView({
 					<aside className="sticky top-4 hidden h-[calc(100vh-8rem)] w-[340px] shrink-0 lg:block">
 						{showHistoryPanel ? (
 							<HistoryPanel
-								currentAppointmentId={appointment.id}
+								scope={{ kind: "appointment", appointmentId: appointment.id }}
 								caseNotes={caseNotes}
 								customerBillingHistory={customerLineItemsHistory}
 								customerHistory={customerHistory}
+								currentAppointmentLineItems={lineItems}
 								onToast={showToast}
 								onEditNote={(noteId, content) => {
 									setActiveTab("casenotes");
@@ -346,9 +352,11 @@ export function AppointmentDetailView({
 							/>
 						) : (
 							<FollowUpHistoryPanel
-								currentAppointmentId={appointment.id}
+								scope={{ kind: "appointment", appointmentId: appointment.id }}
 								followUps={followUps}
 								customerHistory={customerHistory}
+								customerBillingHistory={customerLineItemsHistory}
+								currentAppointmentLineItems={lineItems}
 								onToast={showToast}
 								onEdit={(f) => setEditingFollowUpId(f.id)}
 							/>

@@ -1,6 +1,9 @@
 import type { Context } from "@/lib/context/types";
 import { NotFoundError, ValidationError } from "@/lib/errors";
-import { medicalCertificateCreateSchema } from "@/lib/schemas/medical-certificates";
+import {
+	medicalCertificateCreateSchema,
+	medicalCertificateUpdateSchema,
+} from "@/lib/schemas/medical-certificates";
 import type { Tables } from "@/lib/supabase/types";
 
 export type MedicalCertificate = Tables<"medical_certificates">;
@@ -33,17 +36,26 @@ type EmployeeRef = {
 	last_name: string;
 } | null;
 
+type AppointmentRef = {
+	id: string;
+	booking_ref: string;
+} | null;
+
 export type MedicalCertificateWithRefs = MedicalCertificate & {
 	customer: CustomerRef;
 	outlet: OutletRef;
 	issuing_employee: EmployeeRef;
+	cancelled_by_employee: EmployeeRef;
+	appointment: AppointmentRef;
 };
 
 const SELECT_WITH_REFS = `
 	*,
 	customer:customers!medical_certificates_customer_id_fkey(id, code, first_name, last_name, id_number),
 	outlet:outlets!medical_certificates_outlet_id_fkey(id, code, name, address1, address2, city, state, postcode, country, phone, email),
-	issuing_employee:employees!medical_certificates_issuing_employee_id_fkey(id, first_name, last_name)
+	issuing_employee:employees!medical_certificates_issuing_employee_id_fkey(id, first_name, last_name),
+	cancelled_by_employee:employees!medical_certificates_cancelled_by_fkey(id, first_name, last_name),
+	appointment:appointments!medical_certificates_appointment_id_fkey(id, booking_ref)
 `;
 
 function addDaysISO(startISO: string, wholeDays: number): string {
@@ -155,5 +167,85 @@ export async function createMedicalCertificate(
 		.select("*")
 		.single();
 	if (error) throw new ValidationError(error.message);
+	return data;
+}
+
+export async function updateMedicalCertificate(
+	ctx: Context,
+	id: string,
+	input: unknown,
+): Promise<MedicalCertificate> {
+	const p = medicalCertificateUpdateSchema.parse(input);
+
+	const existing = await getMedicalCertificate(ctx, id);
+	if (existing.cancelled_at) {
+		throw new ValidationError("Cancelled certificates cannot be edited");
+	}
+
+	const shared = {
+		issuing_employee_id: p.issuing_employee_id,
+		slip_type: p.slip_type,
+		start_date: p.start_date,
+		reason: p.reason,
+	};
+
+	const row =
+		p.slip_type === "day_off"
+			? (() => {
+					const { end_date, half_day_period } = deriveDayOffEnd({
+						start_date: p.start_date,
+						duration_days: p.duration_days,
+					});
+					return {
+						...shared,
+						end_date,
+						duration_days: p.duration_days,
+						has_half_day: p.has_half_day,
+						half_day_period: p.has_half_day ? half_day_period : null,
+						start_time: null,
+						end_time: null,
+						duration_hours: null,
+					};
+				})()
+			: {
+					...shared,
+					end_date: p.start_date,
+					start_time: p.start_time,
+					end_time: p.end_time,
+					duration_hours: p.duration_hours,
+					duration_days: null,
+					has_half_day: false,
+					half_day_period: null,
+				};
+
+	const { data, error } = await ctx.db
+		.from("medical_certificates")
+		.update(row)
+		.eq("id", id)
+		.select("*")
+		.single();
+	if (error) throw new ValidationError(error.message);
+	if (!data) throw new NotFoundError(`Medical certificate ${id} not found`);
+	return data;
+}
+
+export async function cancelMedicalCertificate(
+	ctx: Context,
+	id: string,
+): Promise<MedicalCertificate> {
+	const existing = await getMedicalCertificate(ctx, id);
+	if (existing.cancelled_at) return existing;
+
+	const { data, error } = await ctx.db
+		.from("medical_certificates")
+		.update({
+			cancelled_at: new Date().toISOString(),
+			cancelled_by: ctx.currentUser?.employeeId ?? null,
+		})
+		.eq("id", id)
+		.select("*")
+		.single();
+	if (error) throw new ValidationError(error.message);
+	if (!data) throw new NotFoundError(`Medical certificate ${id} not found`);
 	return data;
 }

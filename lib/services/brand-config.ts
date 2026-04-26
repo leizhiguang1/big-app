@@ -174,7 +174,57 @@ export async function updateBrandConfigItem(
 		.single();
 	if (error) throw new ValidationError(error.message);
 	if (!data) throw new NotFoundError(`brand_config_items ${id} not found`);
+
+	// Live categories cascade label renames to dependent rows so the brand's
+	// "Ms → Miss" rename actually changes how every existing customer is
+	// addressed. Snapshot categories deliberately don't cascade.
+	if (
+		def.storage === "live" &&
+		parsed.label !== undefined &&
+		parsed.label !== existing.label
+	) {
+		await cascadeLiveRename(
+			ctx,
+			category,
+			existing.label,
+			parsed.label,
+			brandId,
+		);
+	}
 	return data;
+}
+
+// Cascades a `live` category label rename to every column that holds the
+// old label. Add an arm here when a new "live" category's owning column
+// comes online — keeps the table/column types statically checked.
+async function cascadeLiveRename(
+	ctx: Context,
+	category: BrandConfigCategory,
+	oldLabel: string,
+	newLabel: string,
+	brandId: string,
+): Promise<void> {
+	switch (category) {
+		case "salutation": {
+			await ctx.db
+				.from("customers")
+				.update({ salutation: newLabel })
+				.eq("salutation", oldLabel)
+				.eq("brand_id", brandId);
+			await ctx.db
+				.from("employees")
+				.update({ salutation: newLabel })
+				.eq("salutation", oldLabel)
+				.eq("brand_id", brandId);
+			break;
+		}
+		// Other "live" categories don't have a write target on dependent
+		// rows yet (customer_tag/appointment_tag are still free-text in
+		// their owning columns; demographic columns aren't live). Add
+		// arms here as those modules come online.
+		default:
+			break;
+	}
 }
 
 export async function archiveBrandConfigItem(
@@ -219,6 +269,8 @@ export const listAppointmentTags = (ctx: Context) =>
 	listBrandConfigItems(ctx, "appointment_tag");
 export const listCustomerTags = (ctx: Context) =>
 	listBrandConfigItems(ctx, "customer_tag");
+export const listSalutations = (ctx: Context) =>
+	listBrandConfigItems(ctx, "salutation");
 
 // Resolver used by renders that need to display a transactional row's stored
 // `code`. Looks up the current label; falls back to the provided snapshot

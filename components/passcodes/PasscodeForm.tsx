@@ -13,17 +13,13 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import {
-	createPasscodeAction,
-	updatePasscodeAction,
-} from "@/lib/actions/passcodes";
+import { createPasscodeAction } from "@/lib/actions/passcodes";
 import {
 	PASSCODE_FUNCTION_LABELS,
 	PASSCODE_FUNCTIONS,
 	type PasscodeInput,
 	passcodeInputSchema,
 } from "@/lib/schemas/passcodes";
-import type { PasscodeListItem } from "@/lib/services/passcodes";
 
 const SELECT_CLASS =
 	"h-9 rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
@@ -32,51 +28,35 @@ type OutletOption = { id: string; name: string };
 
 type Props = {
 	open: boolean;
-	passcode: PasscodeListItem | null;
 	outlets: OutletOption[];
 	onClose: () => void;
 };
 
-export function PasscodeFormDialog({
-	open,
-	passcode,
-	outlets,
-	onClose,
-}: Props) {
+export function NewPasscodeDialog({ open, outlets, onClose }: Props) {
 	const [pending, startTransition] = useTransition();
 	const [serverError, setServerError] = useState<string | null>(null);
-	const isEdit = !!passcode;
 
 	const form = useForm<PasscodeInput>({
 		resolver: zodResolver(passcodeInputSchema),
 		defaultValues: {
 			outlet_id: "",
 			function: "VOID_SALES_ORDER_INVOICE",
-			remarks: "",
 		},
 	});
 
 	useEffect(() => {
 		if (!open) return;
 		form.reset({
-			outlet_id:
-				passcode?.outlet_id ?? (outlets.length === 1 ? outlets[0].id : ""),
-			function:
-				(passcode?.function as PasscodeInput["function"]) ??
-				"VOID_SALES_ORDER_INVOICE",
-			remarks: passcode?.remarks ?? "",
+			outlet_id: outlets.length === 1 ? outlets[0].id : "",
+			function: "VOID_SALES_ORDER_INVOICE",
 		});
 		setServerError(null);
-	}, [open, passcode, outlets, form]);
+	}, [open, outlets, form]);
 
 	const onSubmit = form.handleSubmit((values) => {
 		startTransition(async () => {
 			try {
-				if (passcode) {
-					await updatePasscodeAction(passcode.id, { remarks: values.remarks });
-				} else {
-					await createPasscodeAction(values);
-				}
+				await createPasscodeAction(values);
 				onClose();
 			} catch (err) {
 				setServerError(
@@ -90,13 +70,10 @@ export function PasscodeFormDialog({
 		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
 			<DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 p-0 sm:max-w-lg">
 				<DialogHeader>
-					<DialogTitle>
-						{isEdit ? "Edit passcode" : "Generate passcode"}
-					</DialogTitle>
+					<DialogTitle>Generate passcode</DialogTitle>
 					<DialogDescription>
-						{isEdit
-							? "Update the remarks for this passcode."
-							: "A 4-digit passcode will be generated for the chosen outlet and function."}
+						A 4-digit passcode will be generated for the chosen outlet and
+						function. It can be used once and stays valid for 30 days.
 					</DialogDescription>
 				</DialogHeader>
 				<form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
@@ -108,7 +85,6 @@ export function PasscodeFormDialog({
 							<select
 								id="pc-outlet"
 								className={SELECT_CLASS}
-								disabled={isEdit}
 								{...form.register("outlet_id")}
 							>
 								<option value="">— Select —</option>
@@ -131,7 +107,6 @@ export function PasscodeFormDialog({
 							<select
 								id="pc-function"
 								className={SELECT_CLASS}
-								disabled={isEdit}
 								{...form.register("function")}
 							>
 								{PASSCODE_FUNCTIONS.map((fn) => (
@@ -140,17 +115,6 @@ export function PasscodeFormDialog({
 									</option>
 								))}
 							</select>
-						</div>
-						<div className="flex flex-col gap-1.5">
-							<label htmlFor="pc-remarks" className="text-sm font-medium">
-								Remarks
-							</label>
-							<textarea
-								id="pc-remarks"
-								{...form.register("remarks")}
-								rows={3}
-								className="min-h-20 rounded-md border bg-background px-2.5 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-							/>
 						</div>
 						{serverError && (
 							<p className="text-destructive text-sm">{serverError}</p>
@@ -161,7 +125,7 @@ export function PasscodeFormDialog({
 							Cancel
 						</Button>
 						<Button type="submit" disabled={pending}>
-							{pending ? "Saving…" : isEdit ? "Save" : "Generate"}
+							{pending ? "Generating…" : "Generate"}
 						</Button>
 					</DialogFooter>
 				</form>
@@ -177,9 +141,8 @@ export function NewPasscodeButton({ outlets }: { outlets: OutletOption[] }) {
 			<CreateButton onClick={() => setOpen(true)}>
 				Generate passcode
 			</CreateButton>
-			<PasscodeFormDialog
+			<NewPasscodeDialog
 				open={open}
-				passcode={null}
 				outlets={outlets}
 				onClose={() => setOpen(false)}
 			/>

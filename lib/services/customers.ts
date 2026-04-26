@@ -59,6 +59,7 @@ function normalize(input: unknown) {
 		city: nz(p.city),
 		state: nz(p.state),
 		postcode: nz(p.postcode),
+		address_country: p.address_country,
 		home_outlet_id: p.home_outlet_id,
 		consultant_id: p.consultant_id,
 		source: p.source ?? null,

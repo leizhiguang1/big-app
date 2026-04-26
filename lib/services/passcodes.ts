@@ -3,7 +3,6 @@ import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import {
 	type PasscodeFunction,
 	passcodeInputSchema,
-	passcodeUpdateSchema,
 } from "@/lib/schemas/passcodes";
 import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
@@ -67,29 +66,11 @@ export async function createPasscode(
 			passcode: generatePasscodeValue(),
 			outlet_id: parsed.outlet_id,
 			function: parsed.function,
-			remarks: parsed.remarks || null,
 			created_by_employee_id: ctx.currentUser?.employeeId ?? null,
 		})
 		.select("*")
 		.single();
 	if (error) throw new ValidationError(error.message);
-	return data;
-}
-
-export async function updatePasscode(
-	ctx: Context,
-	id: string,
-	input: unknown,
-): Promise<Passcode> {
-	const parsed = passcodeUpdateSchema.parse(input);
-	const { data, error } = await ctx.db
-		.from("passcodes")
-		.update({ remarks: parsed.remarks || null })
-		.eq("id", id)
-		.select("*")
-		.single();
-	if (error) throw new ValidationError(error.message);
-	if (!data) throw new NotFoundError(`Passcode ${id} not found`);
 	return data;
 }
 

@@ -19,6 +19,9 @@ const optionalDate = z
 
 export const ID_TYPES = ["ic", "passport"] as const;
 export const GENDERS = ["male", "female"] as const;
+// Fallback list when a brand has no salutation rows configured in
+// brand_config_items. Once they add their first one (via /config/general),
+// the brand list takes over and this fallback stops being used.
 export const SALUTATIONS = ["Mr", "Ms", "Mrs", "Dr"] as const;
 export const SOURCES = [
 	"walk_in",
@@ -59,9 +62,11 @@ export const customerInputSchema = z
 		id: z.string().uuid().optional(),
 
 		// Identity
-		salutation: z.enum(SALUTATIONS, {
-			errorMap: () => ({ message: "Salutation is required" }),
-		}),
+		salutation: z
+			.string()
+			.trim()
+			.min(1, "Salutation is required")
+			.max(40),
 		first_name: z.string().trim().min(1, "First name is required").max(80),
 		last_name: z.string().trim().min(1, "Last name is required").max(80),
 		gender: z.enum(GENDERS).nullable().optional(),
@@ -97,6 +102,15 @@ export const customerInputSchema = z
 		city: optionalText(80),
 		state: optionalText(80),
 		postcode: optionalText(20),
+		address_country: z
+			.string()
+			.trim()
+			.min(1, "Address country is required")
+			.toUpperCase()
+			.refine(
+				(v) => (COUNTRY_CODES as readonly string[]).includes(v),
+				"Select a valid country",
+			),
 
 		// Clinic
 		home_outlet_id: z.string().uuid("Home outlet is required"),

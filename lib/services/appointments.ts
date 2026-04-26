@@ -433,7 +433,9 @@ export async function setAppointmentFollowUp(
 export type CustomerAppointmentSummary = Pick<
 	Appointment,
 	"id" | "start_at" | "end_at" | "status" | "payment_status" | "booking_ref"
->;
+> & {
+	outlet: { code: string } | null;
+};
 
 export async function listCustomerAppointments(
 	ctx: Context,
@@ -441,15 +443,17 @@ export async function listCustomerAppointments(
 ): Promise<CustomerAppointmentSummary[]> {
 	const { data, error } = await ctx.db
 		.from("appointments")
-		.select("id, start_at, end_at, status, payment_status, booking_ref")
+		.select(
+			"id, start_at, end_at, status, payment_status, booking_ref, outlet:outlets!appointments_outlet_id_fkey(code)",
+		)
 		.eq("customer_id", customerId)
 		.order("start_at", { ascending: false });
 	if (error) throw new ValidationError(error.message);
-	return data ?? [];
+	return (data ?? []) as unknown as CustomerAppointmentSummary[];
 }
 
 export type CustomerTimelineAppointment = Appointment & {
-	outlet: { id: string; name: string } | null;
+	outlet: { id: string; name: string; code: string } | null;
 	room: { id: string; name: string } | null;
 	employee: {
 		id: string;
@@ -470,7 +474,7 @@ export async function listCustomerTimeline(
 	const { data, error } = await ctx.db
 		.from("appointments")
 		.select(
-			"*, outlet:outlets!appointments_outlet_id_fkey(id, name), room:rooms!appointments_room_id_fkey(id, name), employee:employees!appointments_employee_id_fkey(id, first_name, last_name), cancelled_by_employee:employees!appointments_cancelled_by_fkey(id, first_name, last_name)",
+			"*, outlet:outlets!appointments_outlet_id_fkey(id, name, code), room:rooms!appointments_room_id_fkey(id, name), employee:employees!appointments_employee_id_fkey(id, first_name, last_name), cancelled_by_employee:employees!appointments_cancelled_by_fkey(id, first_name, last_name)",
 		)
 		.eq("customer_id", customerId)
 		.order("start_at", { ascending: false });

@@ -20,10 +20,37 @@ export type FollowUpWithRefs = FollowUp & {
 	reminder_employee: EmployeeRef;
 };
 
+type CustomerRef = {
+	id: string;
+	code: string;
+	first_name: string;
+	last_name: string | null;
+	phone: string | null;
+} | null;
+
+type AppointmentRef = {
+	id: string;
+	booking_ref: string;
+	start_at: string;
+} | null;
+
+export type ReminderFollowUp = FollowUp & {
+	author: EmployeeRef;
+	customer: CustomerRef;
+	appointment: AppointmentRef;
+};
+
 const SELECT_WITH_REFS = `
 	*,
 	author:employees!appointment_follow_ups_author_id_fkey(id, first_name, last_name),
 	reminder_employee:employees!appointment_follow_ups_reminder_employee_id_fkey(id, first_name, last_name)
+`;
+
+const SELECT_FOR_REMINDER = `
+	*,
+	author:employees!appointment_follow_ups_author_id_fkey(id, first_name, last_name),
+	customer:customers!appointment_follow_ups_customer_id_fkey(id, code, first_name, last_name, phone),
+	appointment:appointments!appointment_follow_ups_appointment_id_fkey(id, booking_ref, start_at)
 `;
 
 export async function listFollowUpsForCustomer(
@@ -50,6 +77,21 @@ export async function listFollowUpsForAppointment(
 		.order("created_at", { ascending: false });
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []) as unknown as FollowUpWithRefs[];
+}
+
+export async function listRemindersForEmployee(
+	ctx: Context,
+	employeeId: string,
+): Promise<ReminderFollowUp[]> {
+	const { data, error } = await ctx.db
+		.from("appointment_follow_ups")
+		.select(SELECT_FOR_REMINDER)
+		.eq("reminder_employee_id", employeeId)
+		.eq("has_reminder", true)
+		.order("reminder_done", { ascending: true })
+		.order("reminder_date", { ascending: true });
+	if (error) throw new ValidationError(error.message);
+	return (data ?? []) as unknown as ReminderFollowUp[];
 }
 
 export async function createFollowUp(

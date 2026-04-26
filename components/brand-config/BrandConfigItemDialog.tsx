@@ -38,9 +38,7 @@ export function BrandConfigItemDialog({
 	const def = getCategoryDef(category);
 	const isEdit = !!item;
 	const [label, setLabel] = useState("");
-	const [code, setCode] = useState("");
 	const [color, setColor] = useState("#60a5fa");
-	const [sortOrder, setSortOrder] = useState<number>(0);
 	const [serverError, setServerError] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
 
@@ -49,14 +47,10 @@ export function BrandConfigItemDialog({
 		setServerError(null);
 		if (item) {
 			setLabel(item.label);
-			setCode(item.code);
 			setColor(item.color ?? "#60a5fa");
-			setSortOrder(item.sort_order);
 		} else {
 			setLabel("");
-			setCode("");
 			setColor("#60a5fa");
-			setSortOrder(0);
 		}
 	}, [open, item]);
 
@@ -68,15 +62,12 @@ export function BrandConfigItemDialog({
 					await updateBrandConfigItemAction(item.id, {
 						label,
 						color: def.hasColor ? color : null,
-						sort_order: sortOrder,
 					});
 				} else {
 					await createBrandConfigItemAction({
 						category,
 						label,
-						code: code || undefined,
 						color: def.hasColor ? color : null,
-						sort_order: sortOrder || undefined,
 					});
 				}
 				onClose();
@@ -88,7 +79,6 @@ export function BrandConfigItemDialog({
 		});
 	};
 
-	const codeReadOnly = isEdit; // codes are immutable after create
 	const noun = (def.singularLabel ?? def.label).toLowerCase();
 
 	return (
@@ -100,13 +90,10 @@ export function BrandConfigItemDialog({
 					</DialogTitle>
 					<DialogDescription>
 						{isEdit
-							? def.simple
-								? `Rename this ${noun}. Past records keep their original wording.`
-								: "Rename, recolor, or reorder. Codes are fixed once created so historical data stays linked."
-							: (def.hint ??
-								(def.simple
-									? `Type the ${noun} and save.`
-									: "Add a new item. A code is derived from the label if you leave it blank."))}
+							? def.storage === "live"
+								? "Renames apply to every existing record using this item."
+								: `Rename this ${noun}. Past records keep their original wording.`
+							: (def.hint ?? `Type the ${noun} and save.`)}
 					</DialogDescription>
 				</DialogHeader>
 				<form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
@@ -119,32 +106,10 @@ export function BrandConfigItemDialog({
 								id="bc-label"
 								value={label}
 								onChange={(e) => setLabel(e.target.value)}
-								placeholder={
-									def.simple ? "e.g. Customer rescheduled" : "e.g. Wrong customer"
-								}
+								placeholder={`e.g. ${def.singularLabel ?? def.label}`}
 								required
 							/>
 						</div>
-						{!def.simple && (
-							<div className="flex flex-col gap-1.5">
-								<Label htmlFor="bc-code">
-									Code{" "}
-									<span className="font-normal text-muted-foreground text-xs">
-										{codeReadOnly
-											? "(immutable)"
-											: "(auto-derived from label if blank)"}
-									</span>
-								</Label>
-								<Input
-									id="bc-code"
-									value={code}
-									onChange={(e) => setCode(e.target.value.toUpperCase())}
-									placeholder="WRONG_CUSTOMER"
-									readOnly={codeReadOnly}
-									className={codeReadOnly ? "bg-muted/50" : undefined}
-								/>
-							</div>
-						)}
 						{def.hasColor && (
 							<div className="flex flex-col gap-1.5">
 								<Label htmlFor="bc-color">Color</Label>
@@ -163,18 +128,6 @@ export function BrandConfigItemDialog({
 										maxLength={7}
 									/>
 								</div>
-							</div>
-						)}
-						{!def.simple && (
-							<div className="flex flex-col gap-1.5">
-								<Label htmlFor="bc-sort">Sort order</Label>
-								<Input
-									id="bc-sort"
-									type="number"
-									min={0}
-									value={sortOrder}
-									onChange={(e) => setSortOrder(Number(e.target.value) || 0)}
-								/>
 							</div>
 						)}
 						{serverError && (

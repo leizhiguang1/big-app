@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowDownRight, ArrowUpRight, Wallet } from "lucide-react";
-import Link from "next/link";
+import { useState } from "react";
+import { SalesOrderDetailDialog } from "@/components/sales/SalesOrderDetailDialog";
 import type {
 	CustomerWallet,
 	WalletTransactionWithRefs,
@@ -40,6 +41,7 @@ const KIND_LABEL: Record<WalletTransactionWithRefs["kind"], string> = {
 
 export function CustomerCashWalletTab({ wallet, transactions }: Props) {
 	const balance = Number(wallet?.balance ?? 0);
+	const [openId, setOpenId] = useState<string | null>(null);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -118,12 +120,15 @@ export function CustomerCashWalletTab({ wallet, transactions }: Props) {
 										</td>
 										<td className="px-3 py-2 font-mono text-[12px]">
 											{tx.sales_order ? (
-												<Link
-													href={`/sales/${tx.sales_order.id}`}
+												<button
+													type="button"
+													onClick={() => {
+														if (tx.sales_order) setOpenId(tx.sales_order.id);
+													}}
 													className="text-sky-700 hover:underline"
 												>
 													{tx.sales_order.so_number}
-												</Link>
+												</button>
 											) : (
 												<span className="text-muted-foreground">—</span>
 											)}
@@ -139,6 +144,13 @@ export function CustomerCashWalletTab({ wallet, transactions }: Props) {
 					</table>
 				</div>
 			)}
+			<SalesOrderDetailDialog
+				open={openId !== null}
+				onOpenChange={(open) => {
+					if (!open) setOpenId(null);
+				}}
+				salesOrderId={openId}
+			/>
 		</div>
 	);
 }

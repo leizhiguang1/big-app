@@ -1,8 +1,9 @@
 "use client";
 
-import { ExternalLink, FileText } from "lucide-react";
-import Link from "next/link";
+import { FileText } from "lucide-react";
+import { useState } from "react";
 import { AppointmentServicesList } from "@/components/appointments/detail/AppointmentServicesList";
+import { SalesOrderDetailDialog } from "@/components/sales/SalesOrderDetailDialog";
 import { APPOINTMENT_TAG_CONFIG } from "@/lib/constants/appointment-status";
 import type { AppointmentLineItem } from "@/lib/services/appointment-line-items";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
@@ -46,6 +47,7 @@ export function BookingInfoCard({
 	lineItems,
 	salesOrderId,
 }: Props) {
+	const [salesOrderOpen, setSalesOrderOpen] = useState(false);
 	const employeeName = appointment.employee
 		? `${appointment.employee.first_name} ${appointment.employee.last_name}`
 		: null;
@@ -120,15 +122,20 @@ export function BookingInfoCard({
 
 			{salesOrderId && (
 				<Section label="Sales Order">
-					<Link
-						href={`/sales/${salesOrderId}`}
+					<button
+						type="button"
+						onClick={() => setSalesOrderOpen(true)}
 						className="inline-flex items-center gap-1 text-blue-600 hover:underline"
 					>
 						View invoice
-						<ExternalLink className="size-2.5" />
-					</Link>
+					</button>
 				</Section>
 			)}
+			<SalesOrderDetailDialog
+				open={salesOrderOpen}
+				onOpenChange={setSalesOrderOpen}
+				salesOrderId={salesOrderId}
+			/>
 		</div>
 	);
 }

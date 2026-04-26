@@ -171,6 +171,27 @@ export function useEmployeeAllocations({
 		return payload;
 	}, [entries, lines, itemized, getLineAlloc, globalAlloc]);
 
+	const buildSaleItemIncentivesPayload = useCallback(() => {
+		const payload: {
+			item_index: number;
+			employees: { employee_id: string; percent: number }[];
+		}[] = [];
+		lines.forEach((line, idx) => {
+			const allocs = itemized ? getLineAlloc(line.id) : globalAlloc;
+			const valid = allocs.filter((a) => a.employeeId);
+			if (valid.length > 0) {
+				payload.push({
+					item_index: idx,
+					employees: valid.map((a) => ({
+						employee_id: a.employeeId,
+						percent: a.percent,
+					})),
+				});
+			}
+		});
+		return payload;
+	}, [lines, itemized, getLineAlloc, globalAlloc]);
+
 	return {
 		itemized,
 		setItemized,
@@ -186,5 +207,6 @@ export function useEmployeeAllocations({
 		globalAllocInvalid,
 		itemizedInvalidLineIds,
 		buildAllocationsPayload,
+		buildSaleItemIncentivesPayload,
 	};
 }
