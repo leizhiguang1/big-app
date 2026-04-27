@@ -559,6 +559,10 @@ Created when staff clicks "Collect Payment". Billing entries on the appointment 
 - References the sales order, optionally the service
 - Holds item_name, item_type (`service` / `product`), quantity, unit_price, discount, generated `total`
 - Allows discounts per line (even though UI may only expose order-level discount in v1 — the column is there for future)
+- Read-side surface: the customer-detail **Services → Balance** sub-tab
+  groups these rows by service and computes purchased / redeemed / balance
+  by FIFO-allocating the customer's `appointment_line_items` redemptions
+  against them. See [03-customers.md](./03-customers.md) "Services tab".
 
 ### Tier 3: Payments
 

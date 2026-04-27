@@ -29,6 +29,7 @@ import {
 	loadReceiptForPaymentAction,
 	saveReceiptAction,
 } from "@/lib/actions/receipts";
+import type { Brand } from "@/lib/services/brands";
 import {
 	defaultBeingPaymentOf,
 	defaultCustomerName,
@@ -45,18 +46,20 @@ type Props = {
 
 function formatDateTime(iso: string): string {
 	const d = new Date(iso);
-	return d.toLocaleDateString("en-US", {
-		month: "long",
-		day: "numeric",
-		year: "numeric",
-	}).concat(
-		`, ${d.toLocaleTimeString("en-US", {
-			hour: "numeric",
-			minute: "2-digit",
-			second: "2-digit",
-			hour12: true,
-		})}`,
-	);
+	return d
+		.toLocaleDateString("en-US", {
+			month: "long",
+			day: "numeric",
+			year: "numeric",
+		})
+		.concat(
+			`, ${d.toLocaleTimeString("en-US", {
+				hour: "numeric",
+				minute: "2-digit",
+				second: "2-digit",
+				hour12: true,
+			})}`,
+		);
 }
 
 export function PrintReceiptDialog({ open, paymentId, onOpenChange }: Props) {
@@ -65,6 +68,7 @@ export function PrintReceiptDialog({ open, paymentId, onOpenChange }: Props) {
 	const [data, setData] = useState<{
 		receipt: ReceiptDetail;
 		edits: ReceiptEditWithRefs[];
+		brand: Brand | null;
 	} | null>(null);
 
 	const [customerName, setCustomerName] = useState("");
@@ -76,6 +80,7 @@ export function PrintReceiptDialog({ open, paymentId, onOpenChange }: Props) {
 	function applyDataToForm(res: {
 		receipt: ReceiptDetail;
 		edits: ReceiptEditWithRefs[];
+		brand: Brand | null;
 	}) {
 		setCustomerName(
 			res.receipt.customer_name_override ??
@@ -211,6 +216,7 @@ export function PrintReceiptDialog({ open, paymentId, onOpenChange }: Props) {
 							<div className="rounded border bg-zinc-50/50 p-2">
 								<PrintableReceipt
 									receipt={data.receipt}
+									brand={data.brand}
 									customerNameOverride={customerName}
 									remarksOverride={beingPaymentOf}
 									bare

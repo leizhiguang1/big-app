@@ -1,11 +1,14 @@
+import type { Brand } from "@/lib/services/brands";
 import {
 	defaultBeingPaymentOf,
 	defaultCustomerName,
 	type ReceiptDetail,
 } from "@/lib/services/receipts";
+import { publicMediaUrl } from "@/lib/services/storage";
 
 type Props = {
 	receipt: ReceiptDetail;
+	brand: Brand | null;
 	customerNameOverride?: string;
 	remarksOverride?: string;
 	bare?: boolean;
@@ -42,7 +45,9 @@ function fullName(
 		.toUpperCase();
 }
 
-function customerAddressLine(c: ReceiptDetail["salesOrder"]["customer"]): string {
+function customerAddressLine(
+	c: ReceiptDetail["salesOrder"]["customer"],
+): string {
 	if (!c) return "";
 	const parts = [
 		c.address1,
@@ -70,10 +75,23 @@ function outletAddressLines(outlet: ReceiptDetail["outlet"]): string[] {
 
 export function PrintableReceipt({
 	receipt,
+	brand,
 	customerNameOverride,
 	remarksOverride,
 	bare,
 }: Props) {
+	const logoSrc =
+		publicMediaUrl(receipt.outlet.logo_url) ?? publicMediaUrl(brand?.logo_url);
+	const showRegNumber = receipt.outlet.show_reg_number_on_invoice;
+	const regName =
+		receipt.outlet.company_reg_name ??
+		brand?.registered_name ??
+		brand?.name ??
+		null;
+	const regNumber =
+		(showRegNumber ? receipt.outlet.company_reg_number : null) ??
+		brand?.registration_number ??
+		null;
 	const customerName =
 		customerNameOverride ??
 		receipt.customer_name_override ??
@@ -98,7 +116,8 @@ export function PrintableReceipt({
 			)
 		: "—";
 
-	const paymentMode = receipt.payment.method?.name ?? receipt.payment.payment_mode;
+	const paymentMode =
+		receipt.payment.method?.name ?? receipt.payment.payment_mode;
 
 	const balance = receipt.salesOrder.outstanding;
 	const ordinalSuffix = ordinal(receipt.payment.ordinal);
@@ -109,23 +128,38 @@ export function PrintableReceipt({
 		<div className="receipt-sheet mx-auto max-w-[640px] bg-white p-8 text-[11px] text-zinc-900 print:p-0 print:text-[10px]">
 			<header className="rounded-md bg-sky-50/40 p-4 text-center">
 				<div className="flex items-start justify-between">
-					<div className="size-10 text-sky-600">
-						<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-							<title>Brand</title>
-							<path d="M12 2.5c-2.6 0-3.7.7-5 .7-1.3 0-2.2-.7-3.6-.7-1.4 0-2.4 1.1-2.4 4 0 2.5.9 5.6 2.1 8.6 1 2.5 1.6 6.4 3.4 6.4 1.6 0 1.6-2.6 2.7-2.6 1 0 1.6 2.6 3.1 2.6 1.6 0 2.5-3.5 3.4-6.4 1.1-3.1 2.1-6.1 2.1-8.6 0-2.9-1-4-2.4-4-1.4 0-2.3.7-3.6.7-1.3 0-2.4-.7-5-.7Z" />
-						</svg>
+					<div className="size-10 shrink-0">
+						{logoSrc ? (
+							// biome-ignore lint/performance/noImgElement: print page, native img is fine
+							<img
+								src={logoSrc}
+								alt={receipt.outlet.name ?? brand?.name ?? "Logo"}
+								className="size-10 object-contain"
+							/>
+						) : (
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="1.5"
+								className="size-10 text-sky-300"
+								aria-hidden
+							>
+								<title>Logo placeholder</title>
+								<rect x="3" y="3" width="18" height="18" rx="2" />
+								<path d="m3 16 5-5 4 4 3-3 6 6" />
+								<circle cx="9" cy="9" r="1.5" />
+							</svg>
+						)}
 					</div>
 					<div className="flex-1">
 						<div className="font-semibold text-[13px] uppercase tracking-wide">
 							{receipt.outlet.name}
 						</div>
-						{receipt.outlet.company_reg_name && (
+						{regName && (
 							<div className="font-semibold uppercase">
-								{receipt.outlet.company_reg_name}
-								{receipt.outlet.show_reg_number_on_invoice &&
-								receipt.outlet.company_reg_number
-									? ` (${receipt.outlet.company_reg_number})`
-									: ""}
+								{regName}
+								{regNumber ? ` (${regNumber})` : ""}
 							</div>
 						)}
 						<div className="mt-1 space-y-0.5 text-[10px] text-zinc-700">

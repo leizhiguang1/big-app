@@ -76,6 +76,18 @@ export function getPublicUrl(
 	return data.publicUrl;
 }
 
+/**
+ * Resolve a `media`-bucket storage path to its public URL without needing
+ * a request context. Used by printables (MC, invoice, receipt) where logos
+ * are rendered as `<img src>` in server-rendered HTML.
+ */
+export function publicMediaUrl(path: string | null | undefined): string | null {
+	if (!path) return null;
+	const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+	if (!base) return null;
+	return `${base}/storage/v1/object/public/media/${path}`;
+}
+
 export async function createSignedUploadUrl(
 	ctx: Context,
 	bucket: BucketId,

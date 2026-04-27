@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { CustomerDetailView } from "@/components/customers/CustomerDetailView";
 import { AppointmentConfigProvider } from "@/components/brand-config/AppointmentConfigProvider";
+import { CustomerDetailView } from "@/components/customers/CustomerDetailView";
 import { Button } from "@/components/ui/button";
 import { getServerContext } from "@/lib/context/server";
 import { NotFoundError } from "@/lib/errors";
@@ -10,6 +10,10 @@ import { listCustomerTimeline } from "@/lib/services/appointments";
 import { listAppointmentTags } from "@/lib/services/brand-config";
 import { listCaseNotesWithContext } from "@/lib/services/case-notes";
 import { listCustomerDocuments } from "@/lib/services/customer-documents";
+import {
+	listCustomerServiceBalances,
+	listCustomerServiceRedemptions,
+} from "@/lib/services/customer-services";
 import { getCustomer } from "@/lib/services/customers";
 import {
 	listBookableEmployeesForOutlet,
@@ -58,6 +62,8 @@ export async function CustomerDetailContent({ id }: { id: string }) {
 			brandTags,
 			wallet,
 			walletTransactions,
+			serviceRedemptions,
+			serviceBalances,
 		] = await Promise.all([
 			listCustomerTimeline(ctx, id),
 			listLineItemsForCustomer(ctx, id),
@@ -81,6 +87,8 @@ export async function CustomerDetailContent({ id }: { id: string }) {
 			listAppointmentTags(ctx),
 			getWalletByCustomer(ctx, id),
 			listWalletTransactions(ctx, id),
+			listCustomerServiceRedemptions(ctx, id),
+			listCustomerServiceBalances(ctx, id),
 		]);
 		const defaultConsultantId = ctx.currentUser?.employeeId ?? null;
 		const activeOutlets = outlets.filter((o) => o.is_active);
@@ -105,6 +113,8 @@ export async function CustomerDetailContent({ id }: { id: string }) {
 					defaultConsultantId={defaultConsultantId}
 					wallet={wallet}
 					walletTransactions={walletTransactions}
+					serviceRedemptions={serviceRedemptions}
+					serviceBalances={serviceBalances}
 					homeOutletId={homeOutletId}
 					rosterEmployees={rosterEmployees}
 					rooms={activeRooms}

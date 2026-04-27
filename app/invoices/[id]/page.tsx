@@ -4,6 +4,7 @@ import { PrintableInvoice } from "@/components/sales/PrintableInvoice";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getServerContext } from "@/lib/context/server";
 import { NotFoundError } from "@/lib/errors";
+import { getBrand } from "@/lib/services/brands";
 import { getCustomer } from "@/lib/services/customers";
 import { getOutlet } from "@/lib/services/outlets";
 import {
@@ -65,11 +66,12 @@ async function InvoiceContent({
 			listPaymentsForOrder(ctx, id),
 		]);
 
-		const [outlet, customer] = await Promise.all([
+		const [outlet, customer, brand] = await Promise.all([
 			order.outlet ? getOutlet(ctx, order.outlet.id) : Promise.resolve(null),
 			order.customer
 				? getCustomer(ctx, order.customer.id).catch(() => null)
 				: Promise.resolve(null),
+			getBrand(ctx).catch(() => null),
 		]);
 
 		return (
@@ -80,6 +82,7 @@ async function InvoiceContent({
 					payments={payments}
 					outlet={outlet}
 					customer={customer}
+					brand={brand}
 				/>
 				<AutoPrint enabled={autoPrint} />
 			</>

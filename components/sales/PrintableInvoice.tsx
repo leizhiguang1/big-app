@@ -1,4 +1,5 @@
 import { Mail, MapPin, Phone } from "lucide-react";
+import type { Brand } from "@/lib/services/brands";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type { Outlet } from "@/lib/services/outlets";
 import type {
@@ -6,6 +7,7 @@ import type {
 	SaleItem,
 	SalesOrderWithRelations,
 } from "@/lib/services/sales";
+import { publicMediaUrl } from "@/lib/services/storage";
 
 type Props = {
 	order: SalesOrderWithRelations;
@@ -13,6 +15,7 @@ type Props = {
 	payments: PaymentWithProcessedBy[];
 	outlet: Outlet | null;
 	customer: CustomerWithRelations | null;
+	brand: Brand | null;
 };
 
 function money(n: number | string | null | undefined): string {
@@ -84,6 +87,7 @@ export function PrintableInvoice({
 	payments,
 	outlet,
 	customer,
+	brand,
 }: Props) {
 	const customerName = customer
 		? fullName(customer.first_name, customer.last_name, customer.salutation)
@@ -114,20 +118,28 @@ export function PrintableInvoice({
 	const showRegNumber = outlet?.show_reg_number_on_invoice ?? true;
 	const showTaxNumber = outlet?.show_tax_number_on_invoice ?? true;
 
+	const logoSrc =
+		publicMediaUrl(outlet?.logo_url) ?? publicMediaUrl(brand?.logo_url);
+	const regName =
+		outlet?.company_reg_name ?? brand?.registered_name ?? brand?.name ?? null;
+	const regNumber =
+		(showRegNumber ? outlet?.company_reg_number : null) ??
+		brand?.registration_number ??
+		null;
+	const taxNumber =
+		(showTaxNumber ? outlet?.tax_number : null) ?? brand?.tax_id ?? null;
+
 	return (
 		<div className="invoice-sheet mx-auto max-w-[820px] bg-white p-8 text-[11px] text-zinc-900 print:p-0 print:text-[10px]">
 			<div className="flex items-end gap-3">
-				<div
-					className="h-[18px] flex-1 border-zinc-500 border-b"
-					aria-hidden
-				/>
+				<div className="h-[18px] flex-1 border-zinc-500 border-b" aria-hidden />
 				<div className="font-semibold text-[18px] leading-none tracking-wide">
 					INVOICE
 				</div>
 			</div>
 
 			<header className="flex items-start gap-6 border-zinc-400 border-b py-4">
-				<OutletLogo outlet={outlet} />
+				<HeaderLogo src={logoSrc} alt={outlet?.name ?? brand?.name ?? "Logo"} />
 				<div className="flex flex-1 flex-col gap-2">
 					<div className="grid grid-cols-2 gap-x-8 gap-y-1">
 						<HeaderField label="Customer Name" value={customerName} />
@@ -137,10 +149,7 @@ export function PrintableInvoice({
 							value={customer?.id_number ?? "—"}
 						/>
 						<HeaderField label="Sales Order #" value={order.so_number} />
-						<HeaderField
-							label="Membership #"
-							value={customer?.code ?? "—"}
-						/>
+						<HeaderField label="Membership #" value={customer?.code ?? "—"} />
 						<HeaderField label="Date" value={formatDate(order.sold_at)} />
 						<HeaderField label="Phone #" value={customer?.phone ?? "—"} />
 						<HeaderField label="Served By" value={servedBy} />
@@ -181,17 +190,16 @@ export function PrintableInvoice({
 							const grossLine = qty * unitPrice;
 							const taxRate = Number(item.tax_rate_pct ?? 0);
 							const taxLineAmount =
-								taxRate > 0
-									? ((grossLine - itemDiscount) * taxRate) / 100
-									: 0;
+								taxRate > 0 ? ((grossLine - itemDiscount) * taxRate) / 100 : 0;
 							const isFoc = lineAmount === 0 && qty > 0;
 							return (
-								<tr key={item.id} className="border-zinc-200 border-b align-top">
+								<tr
+									key={item.id}
+									className="border-zinc-200 border-b align-top"
+								>
 									<td className="py-1.5 pl-2">
 										<div>{item.item_name}</div>
-										{isFoc && (
-											<div className="text-zinc-700">FOC</div>
-										)}
+										{isFoc && <div className="text-zinc-700">FOC</div>}
 									</td>
 									<td className="py-1.5">{item.sku ?? "—"}</td>
 									<td className="py-1.5 text-center tabular-nums">{qty}</td>
@@ -254,7 +262,9 @@ export function PrintableInvoice({
 					<span className="underline">Amount(MYR)</span>
 				</div>
 				{payments.length === 0 ? (
-					<div className="py-2 text-zinc-500 italic">No payments collected.</div>
+					<div className="py-2 text-zinc-500 italic">
+						No payments collected.
+					</div>
 				) : (
 					payments.map((p) => {
 						const methodLabel = formatMethodLabel(p);
@@ -303,39 +313,27 @@ export function PrintableInvoice({
 					<div>
 						<div className="font-semibold">
 							{outlet?.name?.toUpperCase() ?? ""}
-							{outlet?.company_reg_name
-								? ` ${outlet.company_reg_name.toUpperCase()}`
-								: ""}
-							{showRegNumber && outlet?.company_reg_number
-								? ` (${outlet.company_reg_number})`
-								: ""}
+							{regName ? ` ${regName.toUpperCase()}` : ""}
+							{regNumber ? ` (${regNumber})` : ""}
 						</div>
 						<div>{outletAddressLine(outlet) || "—"}</div>
 					</div>
 					{outlet?.phone && (
 						<>
-							<Phone
-								className="mt-0.5 size-3.5 text-zinc-500"
-								aria-hidden
-							/>
+							<Phone className="mt-0.5 size-3.5 text-zinc-500" aria-hidden />
 							<div>{outlet.phone}</div>
 						</>
 					)}
 					{outlet?.email && (
 						<>
-							<Mail
-								className="mt-0.5 size-3.5 text-zinc-500"
-								aria-hidden
-							/>
+							<Mail className="mt-0.5 size-3.5 text-zinc-500" aria-hidden />
 							<div>{outlet.email.toUpperCase()}</div>
 						</>
 					)}
-					{showTaxNumber && outlet?.tax_number && (
+					{taxNumber && (
 						<>
 							<span aria-hidden />
-							<div className="font-semibold">
-								Tax No.{outlet.tax_number}
-							</div>
+							<div className="font-semibold">Tax No.{taxNumber}</div>
 						</>
 					)}
 				</div>
@@ -380,15 +378,11 @@ function HeaderField({
 	);
 }
 
-function OutletLogo({ outlet }: { outlet: Outlet | null }) {
-	if (outlet?.logo_url) {
+function HeaderLogo({ src, alt }: { src: string | null; alt: string }) {
+	if (src) {
 		return (
-			// eslint-disable-next-line @next/next/no-img-element
-			<img
-				src={outlet.logo_url}
-				alt={outlet.name ?? "Outlet logo"}
-				className="size-20 shrink-0 object-contain"
-			/>
+			// biome-ignore lint/performance/noImgElement: print page, native img is fine
+			<img src={src} alt={alt} className="size-20 shrink-0 object-contain" />
 		);
 	}
 	return (
@@ -401,7 +395,7 @@ function OutletLogo({ outlet }: { outlet: Outlet | null }) {
 				aria-hidden
 				className="size-10"
 			>
-				<title>Outlet logo placeholder</title>
+				<title>Logo placeholder</title>
 				<rect x="3" y="3" width="18" height="18" rx="2" />
 				<path d="m3 16 5-5 4 4 3-3 6 6" />
 				<circle cx="9" cy="9" r="1.5" />

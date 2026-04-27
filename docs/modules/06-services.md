@@ -181,6 +181,7 @@ Deactivation:
 | Service Categories | service → category | `services.category_id` (RESTRICT) |
 | Appointments | **none** | No FK in either direction. Appointments are scheduled without referencing services; services are entered post-visit on the bill. |
 | Sales | service → sale_items | `sale_items.service_id` + `sku` + `item_name` + `unit_price` snapshot. The snapshot fields are how a historical bill survives later edits to the catalog. |
+| Customers | service → customer detail | Customer-detail **Services tab** (Redemption + Balance sub-tabs) reads `appointment_line_items` and `sale_items` per service for that customer. Spec lives in [03-customers.md](./03-customers.md) under "Services tab". |
 | Inventory (Phase 2) | service → products | Future `service_products` junction table (not in v1). |
 
 ## Gaps & Improvements Over the prototype

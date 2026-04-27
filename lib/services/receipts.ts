@@ -57,6 +57,7 @@ type OutletSnapshot = {
 	phone: string | null;
 	email: string | null;
 	tax_number: string | null;
+	logo_url: string | null;
 	show_reg_number_on_invoice: boolean;
 	show_tax_number_on_invoice: boolean;
 };
@@ -121,7 +122,7 @@ const RECEIPT_BASE_SELECT = `
 	outlet:outlets!receipts_outlet_id_fkey!inner(
 		id, code, name, company_reg_name, company_reg_number,
 		address1, address2, postcode, city, state, country,
-		phone, email, tax_number,
+		phone, email, tax_number, logo_url,
 		show_reg_number_on_invoice, show_tax_number_on_invoice
 	)
 `;
@@ -317,8 +318,7 @@ async function shapeReceipt(
 				unit_price: Number(i.unit_price ?? 0),
 				discount: Number(i.discount ?? 0),
 				total: Number(i.total ?? 0),
-				tax_rate_pct:
-					i.tax_rate_pct == null ? null : Number(i.tax_rate_pct),
+				tax_rate_pct: i.tax_rate_pct == null ? null : Number(i.tax_rate_pct),
 			})),
 		},
 	};
@@ -335,9 +335,7 @@ export function defaultBeingPaymentOf(items: SaleItemSnapshot[]): string {
 		.join("\n");
 }
 
-export function defaultCustomerName(
-	customer: CustomerSnapshot | null,
-): string {
+export function defaultCustomerName(customer: CustomerSnapshot | null): string {
 	if (!customer) return "WALK-IN";
 	const name = [customer.first_name, customer.last_name]
 		.filter(Boolean)

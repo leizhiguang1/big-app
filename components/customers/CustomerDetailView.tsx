@@ -60,6 +60,10 @@ import type { CustomerLineItem } from "@/lib/services/appointment-line-items";
 import type { CustomerTimelineAppointment } from "@/lib/services/appointments";
 import type { CaseNoteWithContext } from "@/lib/services/case-notes";
 import type { CustomerDocumentWithRefs } from "@/lib/services/customer-documents";
+import type {
+	CustomerServiceBalance,
+	CustomerServiceRedemption,
+} from "@/lib/services/customer-services";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type {
 	EmployeeShift,
@@ -100,6 +104,8 @@ type Props = {
 	defaultConsultantId: string | null;
 	wallet: CustomerWallet | null;
 	walletTransactions: WalletTransactionWithRefs[];
+	serviceRedemptions: CustomerServiceRedemption[];
+	serviceBalances: CustomerServiceBalance[];
 	homeOutletId: string;
 	rosterEmployees: RosterEmployee[];
 	rooms: Room[];
@@ -206,6 +212,8 @@ export function CustomerDetailView({
 	defaultConsultantId,
 	wallet,
 	walletTransactions,
+	serviceRedemptions,
+	serviceBalances,
 	homeOutletId,
 	rosterEmployees,
 	rooms,
@@ -635,9 +643,9 @@ export function CustomerDetailView({
 						/>
 					) : activeTab === "sales" ? (
 						<CustomerSalesTab
-						salesOrders={salesOrders}
-						cancellations={cancellations}
-					/>
+							salesOrders={salesOrders}
+							cancellations={cancellations}
+						/>
 					) : activeTab === "payments" ? (
 						<CustomerPaymentsTab
 							payments={payments}
@@ -668,7 +676,10 @@ export function CustomerDetailView({
 							medicalCertificates={medicalCertificates}
 						/>
 					) : activeTab === "services" ? (
-						<CustomerServicesTab lineItems={lineItems} />
+						<CustomerServicesTab
+							redemptions={serviceRedemptions}
+							balances={serviceBalances}
+						/>
 					) : activeTab === "products" ? (
 						<CustomerProductsTab lineItems={lineItems} />
 					) : activeTab === "visuals" ? (

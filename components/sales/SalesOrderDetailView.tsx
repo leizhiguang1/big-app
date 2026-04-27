@@ -25,6 +25,7 @@ import { ViewInvoiceDialog } from "@/components/sales/ViewInvoiceDialog";
 import { VoidSalesOrderDialog } from "@/components/sales/VoidSalesOrderDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { Brand } from "@/lib/services/brands";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
 import type { Outlet } from "@/lib/services/outlets";
@@ -47,6 +48,7 @@ type Props = {
 	employees: EmployeeWithRelations[];
 	outlet: Outlet | null;
 	customer: CustomerWithRelations | null;
+	brand: Brand | null;
 	autoPrint?: boolean;
 };
 
@@ -149,6 +151,7 @@ export function SalesOrderDetailView({
 	employees,
 	outlet,
 	customer,
+	brand,
 	autoPrint,
 }: Props) {
 	const [voidOpen, setVoidOpen] = useState(false);
@@ -799,6 +802,7 @@ export function SalesOrderDetailView({
 				payments={payments}
 				outlet={outlet}
 				customer={customer}
+				brand={brand}
 			/>
 		</div>
 	);

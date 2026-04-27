@@ -5,6 +5,7 @@ import { PrintableReceipt } from "@/components/sales/PrintableReceipt";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getServerContext } from "@/lib/context/server";
 import { NotFoundError } from "@/lib/errors";
+import { getBrand } from "@/lib/services/brands";
 import { getReceiptById } from "@/lib/services/receipts";
 
 export const dynamic = "force-dynamic";
@@ -53,10 +54,13 @@ async function ReceiptContent({
 	if (!ctx.currentUser) redirect("/login");
 
 	try {
-		const receipt = await getReceiptById(ctx, id);
+		const [receipt, brand] = await Promise.all([
+			getReceiptById(ctx, id),
+			getBrand(ctx).catch(() => null),
+		]);
 		return (
 			<>
-				<PrintableReceipt receipt={receipt} />
+				<PrintableReceipt receipt={receipt} brand={brand} />
 				<AutoPrint enabled={autoPrint} />
 			</>
 		);

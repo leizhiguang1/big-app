@@ -3,6 +3,7 @@ import { SalesOrderDetailView } from "@/components/sales/SalesOrderDetailView";
 import { Button } from "@/components/ui/button";
 import { getServerContext } from "@/lib/context/server";
 import { NotFoundError } from "@/lib/errors";
+import { getBrand } from "@/lib/services/brands";
 import { getCustomer } from "@/lib/services/customers";
 import { listEmployees } from "@/lib/services/employees";
 import { getOutlet } from "@/lib/services/outlets";
@@ -43,11 +44,12 @@ export async function SalesOrderDetailContent({
 			listEmployees(ctx),
 		]);
 
-		const [outlet, customer] = await Promise.all([
+		const [outlet, customer, brand] = await Promise.all([
 			order.outlet ? getOutlet(ctx, order.outlet.id) : Promise.resolve(null),
 			order.customer
 				? getCustomer(ctx, order.customer.id).catch(() => null)
 				: Promise.resolve(null),
+			getBrand(ctx).catch(() => null),
 		]);
 
 		return (
@@ -61,6 +63,7 @@ export async function SalesOrderDetailContent({
 				employees={employees.filter((e) => e.is_active)}
 				outlet={outlet}
 				customer={customer}
+				brand={brand}
 				autoPrint={autoPrint}
 			/>
 		);

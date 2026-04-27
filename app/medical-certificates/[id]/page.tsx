@@ -2,13 +2,15 @@ import { redirect } from "next/navigation";
 import { getServerContext } from "@/lib/context/server";
 import { NotFoundError } from "@/lib/errors";
 import {
-	CLINIC_HEADER,
+	MC_DEFAULT_LOGO_PATH,
 	MC_FOOTER_NOTE,
 } from "@/lib/medical-certificates/template";
+import { getBrand } from "@/lib/services/brands";
 import {
 	getMedicalCertificate,
 	type MedicalCertificateWithRefs,
 } from "@/lib/services/medical-certificates";
+import { publicMediaUrl } from "@/lib/services/storage";
 import { PrintButton } from "./print-button";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +65,8 @@ export default async function MedicalCertificatePrintPage({
 		throw err;
 	}
 
+	const brand = await getBrand(ctx);
+
 	const customerName = [mc.customer.first_name, mc.customer.last_name]
 		.filter(Boolean)
 		.join(" ")
@@ -79,6 +83,13 @@ export default async function MedicalCertificatePrintPage({
 	]
 		.filter(Boolean)
 		.join(", ");
+
+	const logoSrc =
+		publicMediaUrl(mc.outlet.logo_url) ??
+		publicMediaUrl(brand.logo_url) ??
+		MC_DEFAULT_LOGO_PATH;
+	const groupName = (brand.registered_name || brand.name || "").toUpperCase();
+	const regNumber = brand.registration_number ?? "";
 
 	return (
 		<div className="min-h-screen bg-muted/30 print:bg-white">
@@ -103,7 +114,7 @@ export default async function MedicalCertificatePrintPage({
 					<div className="flex items-center gap-4">
 						{/* biome-ignore lint/performance/noImgElement: print page, native img is fine */}
 						<img
-							src={CLINIC_HEADER.logoPath}
+							src={logoSrc}
 							alt="Clinic logo"
 							className="size-20 object-contain"
 						/>
@@ -112,8 +123,14 @@ export default async function MedicalCertificatePrintPage({
 								{mc.outlet.name}
 							</div>
 							<div className="font-semibold">
-								{CLINIC_HEADER.groupName} {CLINIC_HEADER.registrationNumber}
+								{groupName}
+								{regNumber ? ` (${regNumber})` : ""}
 							</div>
+							{brand.tagline && (
+								<div className="text-muted-foreground italic">
+									{brand.tagline}
+								</div>
+							)}
 							<div className="mt-1 max-w-md text-muted-foreground">
 								{addressLine}
 							</div>

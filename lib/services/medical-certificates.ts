@@ -28,6 +28,7 @@ type OutletRef = {
 	country: string | null;
 	phone: string | null;
 	email: string | null;
+	logo_url: string | null;
 };
 
 type EmployeeRef = {
@@ -52,7 +53,7 @@ export type MedicalCertificateWithRefs = MedicalCertificate & {
 const SELECT_WITH_REFS = `
 	*,
 	customer:customers!medical_certificates_customer_id_fkey(id, code, first_name, last_name, id_number),
-	outlet:outlets!medical_certificates_outlet_id_fkey(id, code, name, address1, address2, city, state, postcode, country, phone, email),
+	outlet:outlets!medical_certificates_outlet_id_fkey(id, code, name, address1, address2, city, state, postcode, country, phone, email, logo_url),
 	issuing_employee:employees!medical_certificates_issuing_employee_id_fkey(id, first_name, last_name),
 	cancelled_by_employee:employees!medical_certificates_cancelled_by_fkey(id, first_name, last_name),
 	appointment:appointments!medical_certificates_appointment_id_fkey(id, booking_ref)

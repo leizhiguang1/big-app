@@ -4,6 +4,7 @@ import { Printer, X } from "lucide-react";
 import { PrintableInvoice } from "@/components/sales/PrintableInvoice";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import type { Brand } from "@/lib/services/brands";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type { Outlet } from "@/lib/services/outlets";
 import type {
@@ -20,6 +21,7 @@ type Props = {
 	payments: PaymentWithProcessedBy[];
 	outlet: Outlet | null;
 	customer: CustomerWithRelations | null;
+	brand: Brand | null;
 };
 
 export function ViewInvoiceDialog({
@@ -30,6 +32,7 @@ export function ViewInvoiceDialog({
 	payments,
 	outlet,
 	customer,
+	brand,
 }: Props) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -69,6 +72,7 @@ export function ViewInvoiceDialog({
 						payments={payments}
 						outlet={outlet}
 						customer={customer}
+						brand={brand}
 					/>
 				</div>
 			</DialogContent>
