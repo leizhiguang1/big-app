@@ -25,6 +25,7 @@ import {
 	SUPPORTED_CURRENCIES,
 } from "@/lib/schemas/brands";
 import type { Brand } from "@/lib/services/brands";
+import { SubdomainRenameDialog } from "./SubdomainRenameDialog";
 
 const SOCIAL_PLATFORMS = [
 	{
@@ -111,10 +112,16 @@ function brandToValues(brand: Brand): BrandUpdateInput {
 	};
 }
 
-export function GeneralTab({ brand }: { brand: Brand }) {
+type GeneralTabProps = {
+	brand: Brand;
+	rootDomainLabel: string;
+};
+
+export function GeneralTab({ brand, rootDomainLabel }: GeneralTabProps) {
 	const [pending, startTransition] = useTransition();
 	const [serverError, setServerError] = useState<string | null>(null);
 	const [saved, setSaved] = useState(false);
+	const [renameOpen, setRenameOpen] = useState(false);
 
 	const form = useForm<BrandUpdateInput>({
 		resolver: zodResolver(brandUpdateSchema),
@@ -219,23 +226,21 @@ export function GeneralTab({ brand }: { brand: Brand }) {
 								<div className="flex">
 									<Input
 										id="biz-subdomain"
-										placeholder="yourbrand"
-										className="rounded-r-none"
-										{...form.register("subdomain")}
+										value={brand.subdomain}
+										readOnly
+										className="rounded-r-none font-mono"
 									/>
 									<span className="inline-flex items-center rounded-r-md border border-l-0 bg-muted px-3 text-muted-foreground text-sm">
-										.app.com
+										.{rootDomainLabel}
 									</span>
 								</div>
-								{form.formState.errors.subdomain ? (
-									<p className="text-destructive text-xs">
-										{form.formState.errors.subdomain.message}
-									</p>
-								) : (
-									<p className="text-muted-foreground text-xs">
-										Saved now; routing wires up later.
-									</p>
-								)}
+								<button
+									type="button"
+									onClick={() => setRenameOpen(true)}
+									className="text-xs text-primary hover:underline"
+								>
+									Rename subdomain…
+								</button>
 							</div>
 							<div className="space-y-1.5">
 								<Label htmlFor="currency">
@@ -380,6 +385,12 @@ export function GeneralTab({ brand }: { brand: Brand }) {
 					</CardContent>
 				</Card>
 			</div>
+			<SubdomainRenameDialog
+				open={renameOpen}
+				onClose={() => setRenameOpen(false)}
+				currentSubdomain={brand.subdomain}
+				rootDomainLabel={rootDomainLabel}
+			/>
 		</form>
 	);
 }
