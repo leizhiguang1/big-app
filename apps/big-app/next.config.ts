@@ -11,6 +11,7 @@ const supabaseHost = (() => {
 })();
 
 const nextConfig: NextConfig = {
+	transpilePackages: ["@aimbig/chat-ui", "@aimbig/wa-client"],
 	experimental: {
 		staleTimes: {
 			dynamic: 30,

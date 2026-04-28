@@ -1,42 +1,15 @@
 {
-  "name": "big-app",
-  "version": "0.1.0",
+  "name": "aimbig-superapp",
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "test": "vitest"
-  },
-  "dependencies": {
-    "@hookform/resolvers": "^5.2.2",
-    "@supabase/ssr": "^0.10.2",
-    "@supabase/supabase-js": "^2.103.0",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
-    "lucide-react": "^1.8.0",
-    "next": "16.2.3",
-    "radix-ui": "^1.4.3",
-    "react": "19.2.4",
-    "react-day-picker": "^9.14.0",
-    "react-dom": "19.2.4",
-    "react-hook-form": "^7.72.1",
-    "shadcn": "^4.2.0",
-    "socket.io-client": "^4.8.3",
-    "tailwind-merge": "^3.5.0",
-    "tw-animate-css": "^1.4.0",
-    "zod": "^3.25.76"
+    "dev:big": "pnpm --filter @aimbig/big-app dev",
+    "dev:aim": "pnpm --filter @aimbig/aim-app dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.11",
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "tailwindcss": "^4",
-    "typescript": "^5",
-    "vitest": "^4.1.4"
+    "typescript": "^5"
   }
 }
