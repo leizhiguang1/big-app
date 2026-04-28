@@ -415,6 +415,32 @@ flows in via JWT custom claim or as an explicit RPC parameter.
 - SECURITY DEFINER RPC bodies still don't read `brand_id` themselves
   (carried forward from PR 3 known gap).
 
+### PR 4 follow-up — apex sign-in for platform admins (2026-04-28)
+PR 4 shipped `/admin/*` but no login surface at apex — `superadmin@gmail.com`
+isn't a member of any brand, so the tenant `/login` page (which gates
+on `employees`-row membership) wasn't a path. This follow-up landed the
+apex sign-in:
+
+- Migration `0098_swap_platform_admin_to_superadmin`:
+  - Creates `superadmin@gmail.com` auth user (uuid `a1000000-…-100`)
+    with password `password` (dev convenience — rotate in prod).
+  - Removes `admin@gmail.com` from `platform_admins` (it's now
+    brand-admin only, member of every brand but not a platform admin).
+  - Adds `superadmin@gmail.com` to `platform_admins`. The platform admin
+    deliberately has NO `employees` rows so they can only enter through
+    `/admin/*`, not any brand subdomain.
+- Routing structure under `/admin`:
+  - `/admin/login` — unauthenticated form (`app/admin/login/page.tsx`).
+  - `/admin/(auth)/*` — gated by `currentUser ∧ platform_admins`
+    membership in `app/admin/(auth)/layout.tsx`. Route groups don't
+    affect URLs, so `/admin/(auth)/brands/page.tsx` is reachable at
+    `/admin/brands`.
+  - `/admin/logout` — POST that signs out and returns to `/admin/login`
+    (separate from `/logout` which targets brand-subdomain `/login`).
+- The unauth redirect from the auth gate now goes to `/admin/login`
+  (was `/select-brand?next=…` in PR 4). Cleaner UX for the platform-
+  admin flow.
+
 ### PR 5 — Auth UX polish — _not started_
 - Branded login (logo, brand name on `<brand>.bigapp.online/login`)
 - Post-login membership verification + redirect on mismatch
