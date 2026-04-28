@@ -1,10 +1,19 @@
+import { headers } from "next/headers";
 import Image from "next/image";
-import { brandUrl, ROOT_DOMAIN } from "@/lib/multibrand/host";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 export default async function SelectBrandPage() {
+	// Read the actual request host so brand links work correctly even when
+	// NEXT_PUBLIC_ROOT_DOMAIN is misconfigured at build time. We're at the
+	// apex here, so the request's host IS the root domain.
+	const h = await headers();
+	const requestHost = h.get("host") ?? "";
+	const requestProto =
+		h.get("x-forwarded-proto") ??
+		(process.env.NODE_ENV === "production" ? "https" : "http");
+
 	const dbAdmin = createSupabaseAdminClient();
 	const { data: brands } = await dbAdmin
 		.from("brands")
@@ -13,6 +22,11 @@ export default async function SelectBrandPage() {
 		.order("name", { ascending: true });
 
 	const list = brands ?? [];
+
+	const brandUrl = (subdomain: string) =>
+		requestHost
+			? `${requestProto}://${subdomain}.${requestHost}/login`
+			: `/login`;
 
 	return (
 		<div className="mx-auto flex min-h-svh max-w-3xl flex-col items-center justify-center px-6 py-16">
@@ -34,7 +48,7 @@ export default async function SelectBrandPage() {
 					{list.map((b) => (
 						<li key={b.id}>
 							<a
-								href={brandUrl(b.subdomain, "/login")}
+								href={brandUrl(b.subdomain)}
 								className="flex items-center gap-4 px-5 py-4 transition hover:bg-muted/50"
 							>
 								<div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
@@ -58,7 +72,7 @@ export default async function SelectBrandPage() {
 										{b.nickname || b.name}
 									</div>
 									<div className="truncate text-xs text-muted-foreground">
-										{b.subdomain}.{ROOT_DOMAIN}
+										{b.subdomain}.{requestHost.split(":")[0] || ""}
 									</div>
 								</div>
 								<span className="text-xs text-muted-foreground">Sign in →</span>
