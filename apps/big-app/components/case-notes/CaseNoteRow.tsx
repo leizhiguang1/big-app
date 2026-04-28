@@ -17,7 +17,7 @@ import type { CaseNoteWithAuthor } from "@/lib/services/case-notes";
 import { cn } from "@/lib/utils";
 
 function formatDayMonthYear(d: Date) {
-	return d.toLocaleDateString(undefined, {
+	return d.toLocaleDateString("en-GB", {
 		day: "2-digit",
 		month: "short",
 		year: "numeric",
@@ -25,7 +25,7 @@ function formatDayMonthYear(d: Date) {
 }
 
 function formatWeekdayTime(d: Date) {
-	return `${d.toLocaleDateString(undefined, { weekday: "short" })} · ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true })}`;
+	return `${d.toLocaleDateString("en-GB", { weekday: "short" })} · ${d.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true })}`;
 }
 
 export function authorLabel(

@@ -243,7 +243,7 @@ type Props = {
 /* ------------------------------------------------------------------ */
 
 function formatDayMonthYear(d: Date) {
-	return d.toLocaleDateString(undefined, {
+	return d.toLocaleDateString("en-GB", {
 		day: "2-digit",
 		month: "short",
 		year: "numeric",
@@ -251,8 +251,8 @@ function formatDayMonthYear(d: Date) {
 }
 
 function formatWeekdayTime(d: Date) {
-	return `${d.toLocaleDateString(undefined, { weekday: "short" })} · ${d.toLocaleTimeString(
-		undefined,
+	return `${d.toLocaleDateString("en-GB", { weekday: "short" })} · ${d.toLocaleTimeString(
+		"en-GB",
 		{ hour: "numeric", minute: "2-digit", hour12: true },
 	)}`;
 }
@@ -1331,7 +1331,7 @@ function reminderEmployeeLabel(f: FollowUpWithRefs): string | null {
 function formatReminderDate(iso: string): string {
 	const [y, m, d] = iso.split("-").map(Number);
 	if (!y || !m || !d) return iso;
-	return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+	return new Date(y, m - 1, d).toLocaleDateString("en-GB", {
 		day: "2-digit",
 		month: "short",
 		year: "numeric",

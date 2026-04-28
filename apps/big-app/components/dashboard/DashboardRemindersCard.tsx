@@ -45,13 +45,25 @@ function bucketOf(
 	return "upcoming";
 }
 
+const MONTH_SHORT = [
+	"Jan",
+	"Feb",
+	"Mar",
+	"Apr",
+	"May",
+	"Jun",
+	"Jul",
+	"Aug",
+	"Sep",
+	"Oct",
+	"Nov",
+	"Dec",
+];
+
 function formatReminderDate(iso: string) {
 	const [y, m, d] = iso.split("-").map(Number);
 	if (!y || !m || !d) return iso;
-	return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-		day: "2-digit",
-		month: "short",
-	});
+	return `${String(d).padStart(2, "0")} ${MONTH_SHORT[m - 1]}`;
 }
 
 export function DashboardRemindersCard({ reminders }: Props) {

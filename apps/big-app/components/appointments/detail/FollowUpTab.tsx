@@ -62,11 +62,11 @@ function fromFollowUp(f: FollowUpWithRefs): FormState {
 }
 
 function formatDateTime(d: Date): string {
-	return `${d.toLocaleDateString(undefined, {
+	return `${d.toLocaleDateString("en-GB", {
 		month: "short",
 		day: "numeric",
 		year: "numeric",
-	})} · ${d.toLocaleTimeString(undefined, {
+	})} · ${d.toLocaleTimeString("en-GB", {
 		hour: "numeric",
 		minute: "2-digit",
 		hour12: true,
