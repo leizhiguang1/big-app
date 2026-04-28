@@ -4,6 +4,7 @@ import {
 	type PasscodeFunction,
 	passcodeInputSchema,
 } from "@/lib/schemas/passcodes";
+import { assertOutletInBrand } from "@/lib/supabase/brand-ownership";
 import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
@@ -36,6 +37,7 @@ export async function listPasscodes(ctx: Context): Promise<PasscodeListItem[]> {
 	const { data, error } = await ctx.db
 		.from("passcodes")
 		.select(LIST_SELECT)
+		.eq("brand_id", assertBrandId(ctx))
 		.order("created_at", { ascending: false });
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []) as unknown as PasscodeListItem[];
@@ -49,6 +51,7 @@ export async function getPasscode(
 		.from("passcodes")
 		.select(LIST_SELECT)
 		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx))
 		.single();
 	if (error || !data) throw new NotFoundError(`Passcode ${id} not found`);
 	return data as unknown as PasscodeListItem;
@@ -59,6 +62,7 @@ export async function createPasscode(
 	input: unknown,
 ): Promise<Passcode> {
 	const parsed = passcodeInputSchema.parse(input);
+	if (parsed.outlet_id) await assertOutletInBrand(ctx, parsed.outlet_id);
 	const { data, error } = await ctx.db
 		.from("passcodes")
 		.insert({
@@ -85,6 +89,7 @@ export async function redeemPasscode(
 	ctx: Context,
 	input: RedeemPasscodeInput,
 ): Promise<Passcode> {
+	await assertOutletInBrand(ctx, input.outletId);
 	const { data, error } = await ctx.db.rpc("redeem_passcode", {
 		p_passcode: input.passcode,
 		p_function: input.function,
@@ -103,10 +108,12 @@ export async function redeemPasscode(
 }
 
 export async function deletePasscode(ctx: Context, id: string): Promise<void> {
+	const brandId = assertBrandId(ctx);
 	const { data: existing, error: fetchError } = await ctx.db
 		.from("passcodes")
 		.select("id, used_at")
 		.eq("id", id)
+		.eq("brand_id", brandId)
 		.single();
 	if (fetchError || !existing)
 		throw new NotFoundError(`Passcode ${id} not found`);
@@ -115,6 +122,10 @@ export async function deletePasscode(ctx: Context, id: string): Promise<void> {
 			"Cannot delete a passcode that has already been used.",
 		);
 
-	const { error } = await ctx.db.from("passcodes").delete().eq("id", id);
+	const { error } = await ctx.db
+		.from("passcodes")
+		.delete()
+		.eq("id", id)
+		.eq("brand_id", brandId);
 	if (error) throw new ValidationError(error.message);
 }

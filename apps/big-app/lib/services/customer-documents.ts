@@ -2,6 +2,11 @@ import type { Context } from "@/lib/context/types";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { customerDocumentInputSchema } from "@/lib/schemas/customer-documents";
 import { createSignedReadUrls } from "@/lib/services/storage";
+import {
+	assertAppointmentInBrand,
+	assertCustomerInBrand,
+} from "@/lib/supabase/brand-ownership";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type CustomerDocument = Tables<"customer_documents">;
@@ -34,6 +39,7 @@ export async function listCustomerDocuments(
 	ctx: Context,
 	customerId: string,
 ): Promise<CustomerDocumentWithRefs[]> {
+	await assertCustomerInBrand(ctx, customerId);
 	const { data, error } = await ctx.db
 		.from("customer_documents")
 		.select(SELECT_WITH_REFS)
@@ -64,6 +70,8 @@ export async function createCustomerDocument(
 	input: unknown,
 ): Promise<CustomerDocument> {
 	const p = customerDocumentInputSchema.parse(input);
+	await assertCustomerInBrand(ctx, p.customer_id);
+	if (p.appointment_id) await assertAppointmentInBrand(ctx, p.appointment_id);
 	const { data, error } = await ctx.db
 		.from("customer_documents")
 		.insert({
@@ -85,14 +93,19 @@ export async function getCustomerDocument(
 	ctx: Context,
 	id: string,
 ): Promise<CustomerDocument> {
+	const brandId = assertBrandId(ctx);
 	const { data, error } = await ctx.db
 		.from("customer_documents")
-		.select("*")
+		.select("*, customers!inner(brand_id)")
 		.eq("id", id)
+		.eq("customers.brand_id", brandId)
 		.single();
 	if (error) throw new ValidationError(error.message);
 	if (!data) throw new NotFoundError(`Document ${id} not found`);
-	return data;
+	const { customers: _omit, ...rest } = data as CustomerDocument & {
+		customers: { brand_id: string };
+	};
+	return rest as CustomerDocument;
 }
 
 export async function deleteCustomerDocument(

@@ -4,6 +4,11 @@ import {
 	lineItemIncentiveInputSchema,
 	lineItemInputSchema,
 } from "@/lib/schemas/appointments";
+import {
+	assertAppointmentInBrand,
+	assertCustomerInBrand,
+} from "@/lib/supabase/brand-ownership";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type AppointmentLineItem = Tables<"appointment_line_items">;
@@ -49,6 +54,7 @@ export async function listLineItemsForAppointment(
 	ctx: Context,
 	appointmentId: string,
 ): Promise<AppointmentLineItem[]> {
+	await assertAppointmentInBrand(ctx, appointmentId);
 	const { data, error } = await ctx.db
 		.from("appointment_line_items")
 		.select("*")
@@ -62,10 +68,11 @@ export async function listLineItemsForCustomer(
 	ctx: Context,
 	customerId: string,
 ): Promise<CustomerLineItem[]> {
+	await assertCustomerInBrand(ctx, customerId);
 	const { data, error } = await ctx.db
 		.from("appointment_line_items")
 		.select(
-			"*, service:services!appointment_line_items_service_id_fkey(sku, name), appointment:appointments!appointment_line_items_appointment_id_fkey(id, booking_ref, start_at, status, payment_status, paid_via, customer_id, employee:employees!appointments_employee_id_fkey(id, first_name, last_name), sales_orders:sales_orders!sales_orders_appointment_id_fkey(id, so_number, status))",
+			"*, service:services!appointment_line_items_service_id_fkey(sku, name), appointment:appointments!appointment_line_items_appointment_id_fkey!inner(id, booking_ref, start_at, status, payment_status, paid_via, customer_id, employee:employees!appointments_employee_id_fkey(id, first_name, last_name), sales_orders:sales_orders!sales_orders_appointment_id_fkey(id, so_number, status))",
 		)
 		.eq("appointment.customer_id", customerId)
 		.order("created_at", { ascending: false });
@@ -120,6 +127,7 @@ export async function createLineItem(
 	input: unknown,
 ): Promise<AppointmentLineItem> {
 	const row = normalize(input);
+	await assertAppointmentInBrand(ctx, row.appointment_id);
 	const insert = {
 		...row,
 		created_by: ctx.currentUser?.employeeId ?? null,
@@ -146,6 +154,8 @@ export async function createLineItemsBulk(
 		...normalize(input),
 		created_by: createdBy,
 	}));
+	const apptIds = Array.from(new Set(rows.map((r) => r.appointment_id)));
+	for (const apptId of apptIds) await assertAppointmentInBrand(ctx, apptId);
 
 	await assertWalletExclusivity(ctx, rows);
 
@@ -192,7 +202,9 @@ export async function updateLineItem(
 	id: string,
 	input: unknown,
 ): Promise<AppointmentLineItem> {
+	await assertLineItemInBrand(ctx, id);
 	const row = normalize(input);
+	await assertAppointmentInBrand(ctx, row.appointment_id);
 	const { data, error } = await ctx.db
 		.from("appointment_line_items")
 		.update(row)
@@ -208,6 +220,7 @@ export async function cancelLineItemsForAppointment(
 	ctx: Context,
 	appointmentId: string,
 ): Promise<void> {
+	await assertAppointmentInBrand(ctx, appointmentId);
 	const { error } = await ctx.db
 		.from("appointment_line_items")
 		.update({ is_cancelled: true })
@@ -219,6 +232,7 @@ export async function revertLineItemsForAppointment(
 	ctx: Context,
 	appointmentId: string,
 ): Promise<void> {
+	await assertAppointmentInBrand(ctx, appointmentId);
 	const { error } = await ctx.db
 		.from("appointment_line_items")
 		.update({ is_cancelled: false })
@@ -227,11 +241,28 @@ export async function revertLineItemsForAppointment(
 }
 
 export async function deleteLineItem(ctx: Context, id: string): Promise<void> {
+	await assertLineItemInBrand(ctx, id);
 	const { error } = await ctx.db
 		.from("appointment_line_items")
 		.delete()
 		.eq("id", id);
 	if (error) throw new ValidationError(error.message);
+}
+
+// appointment_line_items inherit brand via appointments → outlets.brand_id.
+async function assertLineItemInBrand(
+	ctx: Context,
+	lineItemId: string,
+): Promise<void> {
+	const brandId = assertBrandId(ctx);
+	const { data, error } = await ctx.db
+		.from("appointment_line_items")
+		.select("id, appointments!inner(outlets!inner(brand_id))")
+		.eq("id", lineItemId)
+		.eq("appointments.outlets.brand_id", brandId)
+		.maybeSingle();
+	if (error) throw error;
+	if (!data) throw new NotFoundError(`Line item ${lineItemId} not found`);
 }
 
 // ─── Incentives (per-line employee attribution) ─────────────────────────────
@@ -269,6 +300,7 @@ export async function listIncentivesForAppointment(
 	ctx: Context,
 	appointmentId: string,
 ): Promise<IncentiveWithEmployee[]> {
+	await assertAppointmentInBrand(ctx, appointmentId);
 	const { data, error } = await ctx.db
 		.from("appointment_line_item_incentives")
 		.select(
@@ -288,6 +320,7 @@ export async function ensureDefaultIncentives(
 	ctx: Context,
 	appointmentId: string,
 ): Promise<void> {
+	await assertAppointmentInBrand(ctx, appointmentId);
 	const { data: lines } = await ctx.db
 		.from("appointment_line_items")
 		.select("id, appointment_id, item_type")
@@ -315,6 +348,7 @@ export async function createIncentive(
 	input: unknown,
 ): Promise<AppointmentLineItemIncentive> {
 	const p = lineItemIncentiveInputSchema.parse(input);
+	await assertLineItemInBrand(ctx, p.line_item_id);
 	await assertServiceLineItem(ctx, p.line_item_id);
 	const { data, error } = await ctx.db
 		.from("appointment_line_item_incentives")
@@ -338,6 +372,17 @@ export async function createIncentive(
 }
 
 export async function deleteIncentive(ctx: Context, id: string): Promise<void> {
+	const brandId = assertBrandId(ctx);
+	const { data: existing, error: lookupErr } = await ctx.db
+		.from("appointment_line_item_incentives")
+		.select(
+			"id, appointment_line_items!inner(appointments!inner(outlets!inner(brand_id)))",
+		)
+		.eq("id", id)
+		.eq("appointment_line_items.appointments.outlets.brand_id", brandId)
+		.maybeSingle();
+	if (lookupErr) throw lookupErr;
+	if (!existing) throw new NotFoundError(`Incentive ${id} not found`);
 	const { error } = await ctx.db
 		.from("appointment_line_item_incentives")
 		.delete()
@@ -350,6 +395,7 @@ export async function replaceIncentivesForLineItem(
 	lineItemId: string,
 	allocations: { employee_id: string; percent: number }[],
 ): Promise<void> {
+	await assertLineItemInBrand(ctx, lineItemId);
 	const { error: delErr } = await ctx.db
 		.from("appointment_line_item_incentives")
 		.delete()

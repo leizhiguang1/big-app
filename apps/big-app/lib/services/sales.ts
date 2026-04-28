@@ -18,6 +18,13 @@ import {
 	walkInSaleInputSchema,
 } from "@/lib/schemas/sales";
 import { assertPaymentFields } from "@/lib/services/payment-methods";
+import {
+	assertAppointmentInBrand,
+	assertCustomerInBrand,
+	assertOutletInBrand,
+	assertSalesOrderInBrand,
+} from "@/lib/supabase/brand-ownership";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type SalesOrder = Tables<"sales_orders">;
@@ -74,9 +81,13 @@ export async function listSalesOrders(
 		limit?: number;
 	} = {},
 ): Promise<SalesOrderWithRelations[]> {
+	const brandId = assertBrandId(ctx);
 	let query = ctx.db
 		.from("sales_orders")
-		.select(SALES_ORDER_SELECT)
+		.select(
+			`${SALES_ORDER_SELECT}, _brand_outlet:outlets!sales_orders_outlet_id_fkey!inner(brand_id)`,
+		)
+		.eq("_brand_outlet.brand_id", brandId)
 		.order("sold_at", { ascending: false })
 		.limit(opts.limit ?? 200);
 	if (opts.outletId) query = query.eq("outlet_id", opts.outletId);
@@ -99,6 +110,7 @@ export async function collectAppointmentPayment(
 	appointmentId: string,
 	input: unknown,
 ): Promise<CollectPaymentResult> {
+	await assertAppointmentInBrand(ctx, appointmentId);
 	const parsed: CollectPaymentInput = collectPaymentInputSchema.parse(input);
 	await assertLineDiscountCaps(ctx, parsed.items);
 	const normalizedPayments = await assertPaymentFields(ctx, parsed.payments);
@@ -163,6 +175,8 @@ export async function collectWalkInSale(
 	input: unknown,
 ): Promise<CollectPaymentResult> {
 	const parsed: WalkInSaleInput = walkInSaleInputSchema.parse(input);
+	await assertOutletInBrand(ctx, parsed.outlet_id);
+	await assertCustomerInBrand(ctx, parsed.customer_id);
 	await assertLineDiscountCaps(ctx, parsed.items);
 	const normalizedPayments = await assertPaymentFields(ctx, parsed.payments);
 	const { data, error } = await ctx.db.rpc("collect_walkin_sale", {
@@ -235,6 +249,7 @@ async function assertLineDiscountCaps(
 	const { data, error } = await ctx.db
 		.from("services")
 		.select("id, name, discount_cap")
+		.eq("brand_id", assertBrandId(ctx))
 		.in("id", serviceIds);
 	if (error) throw new ValidationError(error.message);
 	const capMap = new Map<string, number | null>();
@@ -262,6 +277,7 @@ export async function getSalesOrderForAppointment(
 	ctx: Context,
 	appointmentId: string,
 ): Promise<SalesOrder | null> {
+	await assertAppointmentInBrand(ctx, appointmentId);
 	const { data, error } = await ctx.db
 		.from("sales_orders")
 		.select("*")
@@ -277,10 +293,14 @@ export async function getSalesOrder(
 	ctx: Context,
 	id: string,
 ): Promise<SalesOrderWithRelations> {
+	const brandId = assertBrandId(ctx);
 	const { data, error } = await ctx.db
 		.from("sales_orders")
-		.select(SALES_ORDER_SELECT)
+		.select(
+			`${SALES_ORDER_SELECT}, _brand_outlet:outlets!sales_orders_outlet_id_fkey!inner(brand_id)`,
+		)
 		.eq("id", id)
+		.eq("_brand_outlet.brand_id", brandId)
 		.single();
 	if (error) {
 		if (error.code === "PGRST116")
@@ -294,6 +314,7 @@ export async function listSaleItems(
 	ctx: Context,
 	salesOrderId: string,
 ): Promise<SaleItem[]> {
+	await assertSalesOrderInBrand(ctx, salesOrderId);
 	const { data, error } = await ctx.db
 		.from("sale_items")
 		.select("*")
@@ -307,6 +328,7 @@ export async function listPaymentsForOrder(
 	ctx: Context,
 	salesOrderId: string,
 ): Promise<PaymentWithProcessedBy[]> {
+	await assertSalesOrderInBrand(ctx, salesOrderId);
 	const { data, error } = await ctx.db
 		.from("payments")
 		.select(
@@ -362,9 +384,13 @@ export async function listPayments(
 		limit?: number;
 	} = {},
 ): Promise<PaymentWithRelations[]> {
+	const brandId = assertBrandId(ctx);
 	let query = ctx.db
 		.from("payments")
-		.select(PAYMENT_LIST_SELECT)
+		.select(
+			`${PAYMENT_LIST_SELECT}, _brand_outlet:outlets!payments_outlet_id_fkey!inner(brand_id)`,
+		)
+		.eq("_brand_outlet.brand_id", brandId)
 		.order("paid_at", { ascending: false })
 		.limit(opts.limit ?? 200);
 	if (opts.outletId) query = query.eq("outlet_id", opts.outletId);
@@ -409,9 +435,13 @@ export async function listCancellations(
 		limit?: number;
 	} = {},
 ): Promise<CancellationWithRelations[]> {
+	const brandId = assertBrandId(ctx);
 	let query = ctx.db
 		.from("cancellations")
-		.select(CANCELLATION_LIST_SELECT)
+		.select(
+			`${CANCELLATION_LIST_SELECT}, _brand_outlet:outlets!cancellations_outlet_id_fkey!inner(brand_id)`,
+		)
+		.eq("_brand_outlet.brand_id", brandId)
 		.order("cancelled_at", { ascending: false })
 		.limit(opts.limit ?? 200);
 	if (opts.outletId) query = query.eq("outlet_id", opts.outletId);
@@ -436,6 +466,7 @@ export async function voidSalesOrder(
 	salesOrderId: string,
 	input: unknown,
 ): Promise<VoidSalesOrderResult> {
+	await assertSalesOrderInBrand(ctx, salesOrderId);
 	const parsed: VoidSalesOrderInput = voidSalesOrderInputSchema.parse(input);
 
 	const { data, error } = await ctx.db.rpc("void_sales_order", {
@@ -485,6 +516,7 @@ export async function issueRefund(
 	salesOrderId: string,
 	input: unknown,
 ): Promise<IssueRefundResult> {
+	await assertSalesOrderInBrand(ctx, salesOrderId);
 	const parsed: IssueRefundInput = issueRefundInputSchema.parse(input);
 
 	const { data, error } = await ctx.db.rpc("issue_refund", {
@@ -519,6 +551,7 @@ export async function revertLastPayment(
 	ctx: Context,
 	salesOrderId: string,
 ): Promise<RevertLastPaymentResult> {
+	await assertSalesOrderInBrand(ctx, salesOrderId);
 	const { data, error } = await ctx.db.rpc("revert_last_payment", {
 		p_sales_order_id: salesOrderId,
 		p_processed_by: (ctx.currentUser?.employeeId ?? null) as string,
@@ -552,6 +585,7 @@ export async function updatePaymentAllocations(
 	salesOrderId: string,
 	input: unknown,
 ): Promise<void> {
+	await assertSalesOrderInBrand(ctx, salesOrderId);
 	const parsed: UpdatePaymentAllocationsInput =
 		updatePaymentAllocationsInputSchema.parse(input);
 	const { error } = await ctx.db.rpc("update_payment_allocations", {
@@ -593,6 +627,7 @@ export async function listPaymentAllocationsForOrder(
 	ctx: Context,
 	salesOrderId: string,
 ): Promise<PaymentAllocationForOrder[]> {
+	await assertSalesOrderInBrand(ctx, salesOrderId);
 	const { data, error } = await ctx.db
 		.from("payment_allocations")
 		.select(
@@ -620,6 +655,7 @@ export async function listIncentivesForOrder(
 	ctx: Context,
 	salesOrderId: string,
 ): Promise<SaleItemIncentiveRow[]> {
+	await assertSalesOrderInBrand(ctx, salesOrderId);
 	const { data, error } = await ctx.db
 		.from("sale_item_incentives")
 		.select(
@@ -640,6 +676,7 @@ export async function listRefundNotesForOrder(
 	ctx: Context,
 	salesOrderId: string,
 ): Promise<RefundNoteWithRefs[]> {
+	await assertSalesOrderInBrand(ctx, salesOrderId);
 	const { data, error } = await ctx.db
 		.from("refund_notes")
 		.select(
@@ -677,9 +714,13 @@ export async function listRefundNotes(
 		limit?: number;
 	} = {},
 ): Promise<RefundNoteWithRelations[]> {
+	const brandId = assertBrandId(ctx);
 	let query = ctx.db
 		.from("refund_notes")
-		.select(REFUND_NOTE_LIST_SELECT)
+		.select(
+			`${REFUND_NOTE_LIST_SELECT}, _brand_outlet:outlets!refund_notes_outlet_id_fkey!inner(brand_id)`,
+		)
+		.eq("_brand_outlet.brand_id", brandId)
 		.order("refunded_at", { ascending: false })
 		.limit(opts.limit ?? 200);
 	if (opts.outletId) query = query.eq("outlet_id", opts.outletId);
@@ -705,6 +746,8 @@ export async function getSalesSummary(
 	ctx: Context,
 	opts: { outletId?: string | null; from?: string; to?: string } = {},
 ): Promise<SalesSummary> {
+	const brandId = assertBrandId(ctx);
+	if (opts.outletId) await assertOutletInBrand(ctx, opts.outletId);
 	const today = new Date().toISOString().slice(0, 10);
 	const from = opts.from ?? today;
 	const to = opts.to ?? today;
@@ -712,7 +755,11 @@ export async function getSalesSummary(
 	// Sales orders in range
 	let soQuery = ctx.db
 		.from("sales_orders")
-		.select("total", { count: "exact" })
+		.select(
+			"total, _brand_outlet:outlets!sales_orders_outlet_id_fkey!inner(brand_id)",
+			{ count: "exact" },
+		)
+		.eq("_brand_outlet.brand_id", brandId)
 		.gte("sold_at", `${from}T00:00:00`)
 		.lte("sold_at", `${to}T23:59:59`)
 		.neq("status", "void");
@@ -728,7 +775,11 @@ export async function getSalesSummary(
 	// Payments in range
 	let payQuery = ctx.db
 		.from("payments")
-		.select("amount", { count: "exact" })
+		.select(
+			"amount, _brand_outlet:outlets!payments_outlet_id_fkey!inner(brand_id)",
+			{ count: "exact" },
+		)
+		.eq("_brand_outlet.brand_id", brandId)
 		.gte("paid_at", `${from}T00:00:00`)
 		.lte("paid_at", `${to}T23:59:59`);
 	if (opts.outletId) payQuery = payQuery.eq("outlet_id", opts.outletId);

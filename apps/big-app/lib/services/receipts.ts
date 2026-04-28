@@ -4,6 +4,7 @@ import {
 	type SaveReceiptInput,
 	saveReceiptInputSchema,
 } from "@/lib/schemas/receipts";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type Receipt = Tables<"receipts">;
@@ -127,15 +128,33 @@ const RECEIPT_BASE_SELECT = `
 	)
 `;
 
+// receipts inherit brand via outlets.brand_id.
+async function assertReceiptInBrand(
+	ctx: Context,
+	receiptId: string,
+): Promise<void> {
+	const brandId = assertBrandId(ctx);
+	const { data, error } = await ctx.db
+		.from("receipts")
+		.select("id, outlets!inner(brand_id)")
+		.eq("id", receiptId)
+		.eq("outlets.brand_id", brandId)
+		.maybeSingle();
+	if (error) throw error;
+	if (!data) throw new NotFoundError(`Receipt ${receiptId} not found`);
+}
+
 async function fetchReceiptByCriteria(
 	ctx: Context,
 	column: "id" | "payment_id",
 	value: string,
 ): Promise<ReceiptDetail> {
+	const brandId = assertBrandId(ctx);
 	const { data, error } = await ctx.db
 		.from("receipts")
 		.select(RECEIPT_BASE_SELECT)
 		.eq(column, value)
+		.eq("outlet.brand_id", brandId)
 		.single();
 	if (error) {
 		if (error.code === "PGRST116") throw new NotFoundError("Receipt not found");
@@ -162,6 +181,7 @@ export async function listReceiptEdits(
 	ctx: Context,
 	receiptId: string,
 ): Promise<ReceiptEditWithRefs[]> {
+	await assertReceiptInBrand(ctx, receiptId);
 	const { data, error } = await ctx.db
 		.from("receipt_edits")
 		.select(
@@ -179,6 +199,7 @@ export async function saveReceiptEdit(
 	input: unknown,
 ): Promise<{ receipt: Receipt; edit: ReceiptEdit }> {
 	const parsed: SaveReceiptInput = saveReceiptInputSchema.parse(input);
+	await assertReceiptInBrand(ctx, receiptId);
 
 	const { data: existing, error: fetchErr } = await ctx.db
 		.from("receipts")

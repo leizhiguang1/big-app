@@ -296,10 +296,54 @@ This section is the live tracker. Update it when a PR lands.
 
 **`curl -H "Host: bigdental.localhost:3000" http://localhost:3000` shows redirect to `http://localhost:3000/...`** → Curl artifact only. Curl's `%{redirect_url}` resolves Location against the TCP destination, not the Host header. Use `curl --resolve "bigdental.localhost:3000:127.0.0.1" http://bigdental.localhost:3000/` or just test in a real browser — both will see the relative `Location: /login?next=%2F` and resolve it correctly against `bigdental.localhost:3000`.
 
-### PR 3 — Filter-on-read sweep — _not started_
-- Every Tier-A read in `lib/services/*.ts` adds `.eq("brand_id", assertBrandId(ctx))`
-- Brand-isolation Vitest suite (seeds 2 brands, asserts no cross-leak)
-- Brand checks added to RPCs (`collect_appointment_payment`, `cancel_sales_order`)
+### PR 3 — Filter-on-read sweep — _done (2026-04-28)_
+- ✅ Every Tier-A read in `lib/services/*.ts` filters by `brand_id`. Touched
+  services: `customers`, `employees`, `outlets`, `services`, `inventory`,
+  `payment-methods`, `taxes`, `passcodes`, `billing-settings`, `wallet`
+  (the `brands`, `brand-config`, `brand-settings` services already
+  filtered pre-PR 3).
+- ✅ Tier-C reads use ownership-assertion helpers in
+  [lib/supabase/brand-ownership.ts](../lib/supabase/brand-ownership.ts):
+  `assertOutletInBrand`, `assertCustomerInBrand`, `assertEmployeeInBrand`,
+  `assertServiceInBrand`, `assertInventoryItemInBrand`,
+  `assertAppointmentInBrand` (joins `outlets!inner(brand_id)`),
+  `assertSalesOrderInBrand` (joins `outlets!inner(brand_id)`). Each
+  helper filters via `.eq("brand_id", brandId)` (or the joined column for
+  two-hop parents) so the brand filter shows up in any query trace.
+  Touched services: `appointments`, `appointment-line-items`, `sales`,
+  `case-notes`, `customer-documents`, `customer-services`,
+  `employee-shifts`, `follow-ups`, `medical-certificates`, `receipts`,
+  plus `rooms` inside `outlets.ts`. List queries that span outlets
+  (`listSalesOrders`, `listPayments`, `listCancellations`,
+  `listRefundNotes`, `getSalesSummary`) use a chained `outlets!inner`
+  embed with `.eq("outlets.brand_id", brandId)` to filter without a
+  separate ownership round-trip.
+- ✅ Brand checks at RPC **call sites** (defense in depth — see "Known
+  gap" below for the DB-internal piece): `collectAppointmentPayment` →
+  `assertAppointmentInBrand`; `collectWalkInSale` →
+  `assertOutletInBrand` + `assertCustomerInBrand`; `voidSalesOrder` /
+  `revertLastPayment` / `updatePaymentAllocations` / `issueRefund` →
+  `assertSalesOrderInBrand`; `redeemPasscode` → `assertOutletInBrand`.
+- ✅ Vitest brand-isolation suite at
+  `lib/services/__tests__/brand-isolation.test.ts` (26 cases). Uses a
+  proxy-based mock that records every `.from / .eq / .in` call and asserts
+  every list/get function references the caller's `brandId` in the
+  recorded query trace — directly for Tier-A or via an ownership
+  pre-check for Tier-C. Catches future regressions where a brand filter
+  is silently dropped.
+- ✅ Existing `sales.test.ts` mock harness reworked to a chainable
+  Proxy so the new pre-check chains pass through without per-test
+  bookkeeping. 57 tests pass; `tsc --noEmit` clean.
+
+**Known gap (handle in a follow-up):** SECURITY DEFINER RPCs
+(`collect_appointment_payment`, `collect_walkin_sale`, `void_sales_order`,
+`redeem_passcode`, wallet RPCs) do not yet read `brand_id` themselves.
+The service-layer guards above ensure callers never reach an RPC with a
+cross-brand parent, but a direct DB caller (e.g. a future server-side
+job that calls the RPC outside a service) would not be protected. The
+follow-up should add SQL `assert_caller_owns_brand(p_brand_id)` checks
+inside each SECURITY DEFINER body once we decide whether `brand_id`
+flows in via JWT custom claim or as an explicit RPC parameter.
 
 ### PR 4 — Brand creation + apex flows — _not started_
 - `createBrand` server action (admin-passcode-gated, atomic with bootstrap employees row)

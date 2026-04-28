@@ -11,6 +11,12 @@ import {
 	appointmentTagsSchema,
 } from "@/lib/schemas/appointments";
 import { createCustomer } from "@/lib/services/customers";
+import {
+	assertAppointmentInBrand,
+	assertCustomerInBrand,
+	assertOutletInBrand,
+} from "@/lib/supabase/brand-ownership";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables, TablesUpdate } from "@/lib/supabase/types";
 
 export type Appointment = Tables<"appointments">;
@@ -121,6 +127,7 @@ export async function listAppointmentsForRange(
 	ctx: Context,
 	args: { outletId: string; from: string; to: string },
 ): Promise<AppointmentWithRelations[]> {
+	await assertOutletInBrand(ctx, args.outletId);
 	const { data, error } = await ctx.db
 		.from("appointments")
 		.select(SELECT_WITH_RELATIONS)
@@ -136,10 +143,14 @@ export async function getAppointmentByBookingRef(
 	ctx: Context,
 	bookingRef: string,
 ): Promise<AppointmentWithRelations> {
+	const brandId = assertBrandId(ctx);
 	const { data, error } = await ctx.db
 		.from("appointments")
-		.select(SELECT_WITH_RELATIONS)
+		.select(
+			`${SELECT_WITH_RELATIONS}, _brand_outlet:outlets!appointments_outlet_id_fkey!inner(brand_id)`,
+		)
 		.eq("booking_ref", bookingRef)
+		.eq("_brand_outlet.brand_id", brandId)
 		.single();
 	if (error || !data)
 		throw new NotFoundError(`Appointment ${bookingRef} not found`);
@@ -151,6 +162,7 @@ export async function createAppointment(
 	input: unknown,
 ): Promise<Appointment> {
 	const row = normalize(input);
+	await assertOutletInBrand(ctx, row.outlet_id);
 	const insert = {
 		...row,
 		created_by: ctx.currentUser?.employeeId ?? null,
@@ -188,6 +200,7 @@ export async function updateAppointment(
 	id: string,
 	input: unknown,
 ): Promise<Appointment> {
+	await assertAppointmentInBrand(ctx, id);
 	const row = normalize(input);
 	const { data: prev } = await ctx.db
 		.from("appointments")
@@ -218,6 +231,7 @@ export async function rescheduleAppointment(
 	id: string,
 	input: unknown,
 ): Promise<Appointment> {
+	await assertAppointmentInBrand(ctx, id);
 	const p = appointmentRescheduleSchema.parse(input);
 	const update: TablesUpdate<"appointments"> = {
 		start_at: new Date(p.start_at).toISOString(),
@@ -241,6 +255,7 @@ export async function setAppointmentStatus(
 	id: string,
 	input: unknown,
 ): Promise<Appointment> {
+	await assertAppointmentInBrand(ctx, id);
 	const p = appointmentStatusSchema.parse(input);
 	if (p.status === "completed") {
 		throw new ValidationError(
@@ -278,6 +293,7 @@ export async function markAppointmentCompleted(
 	ctx: Context,
 	id: string,
 ): Promise<Appointment> {
+	await assertAppointmentInBrand(ctx, id);
 	const { data: prev } = await ctx.db
 		.from("appointments")
 		.select("status")
@@ -314,6 +330,7 @@ export async function revertCompletedAppointment(
 	ctx: Context,
 	id: string,
 ): Promise<Appointment> {
+	await assertAppointmentInBrand(ctx, id);
 	const { data: prev } = await ctx.db
 		.from("appointments")
 		.select("status")
@@ -351,6 +368,7 @@ export async function listAppointmentStatusLog(
 	ctx: Context,
 	appointmentId: string,
 ): Promise<AppointmentStatusLogEntry[]> {
+	await assertAppointmentInBrand(ctx, appointmentId);
 	const { data, error } = await ctx.db
 		.from("appointment_status_log")
 		.select(
@@ -367,6 +385,7 @@ export async function setAppointmentPayment(
 	id: string,
 	input: unknown,
 ): Promise<Appointment> {
+	await assertAppointmentInBrand(ctx, id);
 	const p = appointmentPaymentSchema.parse(input);
 	const { data, error } = await ctx.db
 		.from("appointments")
@@ -384,6 +403,7 @@ export async function setAppointmentPaymentRemark(
 	id: string,
 	input: unknown,
 ): Promise<Appointment> {
+	await assertAppointmentInBrand(ctx, id);
 	const p = appointmentPaymentRemarkSchema.parse(input);
 	const { data, error } = await ctx.db
 		.from("appointments")
@@ -401,6 +421,7 @@ export async function setAppointmentTags(
 	id: string,
 	input: unknown,
 ): Promise<Appointment> {
+	await assertAppointmentInBrand(ctx, id);
 	const p = appointmentTagsSchema.parse(input);
 	const { data, error } = await ctx.db
 		.from("appointments")
@@ -418,6 +439,7 @@ export async function setAppointmentFollowUp(
 	id: string,
 	input: unknown,
 ): Promise<Appointment> {
+	await assertAppointmentInBrand(ctx, id);
 	const p = appointmentFollowUpSchema.parse(input);
 	const { data, error } = await ctx.db
 		.from("appointments")
@@ -441,6 +463,7 @@ export async function listCustomerAppointments(
 	ctx: Context,
 	customerId: string,
 ): Promise<CustomerAppointmentSummary[]> {
+	await assertCustomerInBrand(ctx, customerId);
 	const { data, error } = await ctx.db
 		.from("appointments")
 		.select(
@@ -471,6 +494,7 @@ export async function listCustomerTimeline(
 	ctx: Context,
 	customerId: string,
 ): Promise<CustomerTimelineAppointment[]> {
+	await assertCustomerInBrand(ctx, customerId);
 	const { data, error } = await ctx.db
 		.from("appointments")
 		.select(
@@ -491,6 +515,7 @@ export async function cancelAppointment(
 	id: string,
 	input: unknown,
 ): Promise<Appointment> {
+	await assertAppointmentInBrand(ctx, id);
 	const { reason } = appointmentCancelSchema.parse(input);
 	const { data: prev } = await ctx.db
 		.from("appointments")
@@ -530,6 +555,7 @@ export async function convertLeadToCustomer(
 	leadAppointmentId: string,
 	input: unknown,
 ): Promise<{ customer: Tables<"customers">; linkedAppointments: number }> {
+	await assertAppointmentInBrand(ctx, leadAppointmentId);
 	const { data: lead, error: leadErr } = await ctx.db
 		.from("appointments")
 		.select("id, outlet_id, lead_phone, customer_id, is_time_block")
@@ -573,6 +599,7 @@ export async function findOverlappingAppointments(
 	},
 ): Promise<Appointment[]> {
 	if (!args.employeeId) return [];
+	await assertOutletInBrand(ctx, args.outletId);
 	const { data, error } = await ctx.db
 		.from("appointments")
 		.select("*")

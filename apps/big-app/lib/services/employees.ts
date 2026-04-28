@@ -22,10 +22,15 @@ export type EmployeeWithRelations = Employee & {
 	outlets: EmployeeOutletLink[];
 };
 
-function describeUniqueViolation(error: { message?: string; details?: string }): string {
+function describeUniqueViolation(error: {
+	message?: string;
+	details?: string;
+}): string {
 	const detail = error.details ?? error.message ?? "";
-	if (detail.includes("id_number")) return "An employee with that ID number already exists";
-	if (detail.includes("auth_user_id")) return "This login account is already linked to another employee";
+	if (detail.includes("id_number"))
+		return "An employee with that ID number already exists";
+	if (detail.includes("auth_user_id"))
+		return "This login account is already linked to another employee";
 	if (detail.includes("code")) return "Employee code conflict — please retry";
 	return "A duplicate value conflicts with an existing employee record";
 }
@@ -41,6 +46,7 @@ export async function listEmployees(
 	const { data, error } = await ctx.db
 		.from("employees")
 		.select(SELECT_WITH_RELATIONS)
+		.eq("brand_id", assertBrandId(ctx))
 		.order("code", { ascending: true });
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []) as unknown as EmployeeWithRelations[];
@@ -54,6 +60,7 @@ export async function getEmployee(
 		.from("employees")
 		.select(SELECT_WITH_RELATIONS)
 		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx))
 		.single();
 	if (error || !data) throw new NotFoundError(`Employee ${id} not found`);
 	return data as unknown as EmployeeWithRelations;
@@ -216,7 +223,11 @@ export async function createEmployee(
 		}
 	}
 
-	const insert = { ...row, auth_user_id: authUserId, brand_id: assertBrandId(ctx) };
+	const insert = {
+		...row,
+		auth_user_id: authUserId,
+		brand_id: assertBrandId(ctx),
+	};
 	if (insert.id === undefined) {
 		delete (insert as { id?: string }).id;
 	}
@@ -229,7 +240,8 @@ export async function createEmployee(
 
 	if (error) {
 		if (authUserId) await deleteAuthUser(ctx, authUserId);
-		if (error.code === "23505") throw new ConflictError(describeUniqueViolation(error));
+		if (error.code === "23505")
+			throw new ConflictError(describeUniqueViolation(error));
 		throw new ValidationError(error.message);
 	}
 
@@ -260,6 +272,7 @@ export async function updateEmployee(
 		.from("employees")
 		.select("*")
 		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx))
 		.single();
 	if (fetchError || !existing)
 		throw new NotFoundError(`Employee ${id} not found`);
@@ -322,6 +335,7 @@ export async function updateEmployee(
 		.from("employees")
 		.update(update)
 		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx))
 		.select("*")
 		.single();
 
@@ -329,7 +343,8 @@ export async function updateEmployee(
 		if (createdAuthUserHere && authUserId) {
 			await deleteAuthUser(ctx, authUserId);
 		}
-		if (error.code === "23505") throw new ConflictError(describeUniqueViolation(error));
+		if (error.code === "23505")
+			throw new ConflictError(describeUniqueViolation(error));
 		throw new ValidationError(error.message);
 	}
 	if (!data) throw new NotFoundError(`Employee ${id} not found`);
@@ -357,21 +372,20 @@ export async function generatePasswordResetLink(
 		.from("employees")
 		.select("email, auth_user_id")
 		.eq("id", employeeId)
+		.eq("brand_id", assertBrandId(ctx))
 		.single();
-	if (error || !emp) throw new NotFoundError(`Employee ${employeeId} not found`);
+	if (error || !emp)
+		throw new NotFoundError(`Employee ${employeeId} not found`);
 	if (!emp.auth_user_id || !emp.email)
-		throw new ValidationError(
-			"This employee does not have web login enabled",
-		);
+		throw new ValidationError("This employee does not have web login enabled");
 
-	const { data, error: linkError } =
-		await ctx.dbAdmin.auth.admin.generateLink({
-			type: "recovery",
-			email: emp.email,
-			options: {
-				redirectTo: `${siteUrl}/auth/callback?type=recovery`,
-			},
-		});
+	const { data, error: linkError } = await ctx.dbAdmin.auth.admin.generateLink({
+		type: "recovery",
+		email: emp.email,
+		options: {
+			redirectTo: `${siteUrl}/auth/callback?type=recovery`,
+		},
+	});
 
 	if (linkError || !data.properties?.action_link) {
 		throw new ValidationError(
@@ -445,14 +459,20 @@ export async function verifyPin(
 }
 
 export async function deleteEmployee(ctx: Context, id: string): Promise<void> {
+	const brandId = assertBrandId(ctx);
 	const { data: existing, error: fetchError } = await ctx.db
 		.from("employees")
 		.select("id, auth_user_id")
 		.eq("id", id)
+		.eq("brand_id", brandId)
 		.single();
 	if (fetchError || !existing)
 		throw new NotFoundError(`Employee ${id} not found`);
-	const { error } = await ctx.db.from("employees").delete().eq("id", id);
+	const { error } = await ctx.db
+		.from("employees")
+		.delete()
+		.eq("id", id)
+		.eq("brand_id", brandId);
 	if (error) {
 		if (error.code === "23503")
 			throw new ConflictError(

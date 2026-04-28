@@ -1,6 +1,7 @@
 import type { Context } from "@/lib/context/types";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { billingSettingsInputSchema } from "@/lib/schemas/billing-settings";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type BillingSettings = Tables<"billing_settings">;
@@ -11,6 +12,7 @@ export async function getBillingSettings(
 	const { data, error } = await ctx.db
 		.from("billing_settings")
 		.select("*")
+		.eq("brand_id", assertBrandId(ctx))
 		.eq("singleton", true)
 		.maybeSingle();
 	if (error) throw new ValidationError(error.message);
@@ -26,6 +28,7 @@ export async function updateBillingSettings(
 	const { data, error } = await ctx.db
 		.from("billing_settings")
 		.update(parsed)
+		.eq("brand_id", assertBrandId(ctx))
 		.eq("singleton", true)
 		.select("*")
 		.single();

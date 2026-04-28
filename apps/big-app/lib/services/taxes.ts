@@ -10,6 +10,7 @@ export async function listTaxes(ctx: Context): Promise<Tax[]> {
 	const { data, error } = await ctx.db
 		.from("taxes")
 		.select("*")
+		.eq("brand_id", assertBrandId(ctx))
 		.order("rate_pct", { ascending: true })
 		.order("name", { ascending: true });
 	if (error) throw new ValidationError(error.message);
@@ -20,6 +21,7 @@ export async function listActiveTaxes(ctx: Context): Promise<Tax[]> {
 	const { data, error } = await ctx.db
 		.from("taxes")
 		.select("*")
+		.eq("brand_id", assertBrandId(ctx))
 		.eq("is_active", true)
 		.order("rate_pct", { ascending: true })
 		.order("name", { ascending: true });
@@ -52,6 +54,7 @@ export async function updateTax(
 		.from("taxes")
 		.update(parsed)
 		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx))
 		.select("*")
 		.single();
 	if (error) {
@@ -64,7 +67,11 @@ export async function updateTax(
 }
 
 export async function deleteTax(ctx: Context, id: string): Promise<void> {
-	const { error } = await ctx.db.from("taxes").delete().eq("id", id);
+	const { error } = await ctx.db
+		.from("taxes")
+		.delete()
+		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx));
 	if (error) {
 		if (error.code === "23503")
 			throw new ConflictError(

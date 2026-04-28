@@ -66,6 +66,7 @@ export async function listInventoryItems(
 	const { data, error } = await ctx.db
 		.from("inventory_items")
 		.select(SELECT_WITH_REFS)
+		.eq("brand_id", assertBrandId(ctx))
 		.order("name", { ascending: true });
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []).map((row) => attachTaxIds(row));
@@ -79,6 +80,7 @@ export async function listSellableProducts(
 	const { data, error } = await ctx.db
 		.from("inventory_items")
 		.select(SELECT_WITH_REFS)
+		.eq("brand_id", assertBrandId(ctx))
 		.eq("kind", "product")
 		.eq("is_sellable", true)
 		.eq("is_active", true)
@@ -95,6 +97,7 @@ export async function getInventoryItem(
 		.from("inventory_items")
 		.select(SELECT_WITH_REFS)
 		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx))
 		.single();
 	if (error || !data) throw new NotFoundError(`Inventory item ${id} not found`);
 	return attachTaxIds(data);
@@ -208,10 +211,12 @@ export async function updateInventoryItem(
 		kind,
 	} as InventoryItemCreateInput);
 	const { sku: _omit, ...updateRow } = row;
+	const brandId = assertBrandId(ctx);
 	const { data, error } = await ctx.db
 		.from("inventory_items")
 		.update(updateRow)
 		.eq("id", id)
+		.eq("brand_id", brandId)
 		.select("*")
 		.single();
 	if (error) throw new ValidationError(error.message);
@@ -225,7 +230,11 @@ export async function deleteInventoryItem(
 	id: string,
 ): Promise<void> {
 	await assertNotCashWallet(ctx, id);
-	const { error } = await ctx.db.from("inventory_items").delete().eq("id", id);
+	const { error } = await ctx.db
+		.from("inventory_items")
+		.delete()
+		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx));
 	if (error) {
 		if (error.code === "23503")
 			throw new ConflictError(
@@ -242,6 +251,7 @@ async function assertNotCashWallet(ctx: Context, id: string): Promise<void> {
 		.from("inventory_items")
 		.select("sku")
 		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx))
 		.maybeSingle();
 	if (error) throw new ValidationError(error.message);
 	if (data?.sku === "CASH_WALLET") {

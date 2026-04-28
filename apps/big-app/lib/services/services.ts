@@ -60,6 +60,7 @@ export async function listServices(
 	const { data, error } = await ctx.db
 		.from("services")
 		.select(LIST_SELECT)
+		.eq("brand_id", assertBrandId(ctx))
 		.order("name", { ascending: true });
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []).map((row) => {
@@ -88,6 +89,7 @@ export async function getService(
 		.from("services")
 		.select("*")
 		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx))
 		.single();
 	if (error || !data) throw new NotFoundError(`Service ${id} not found`);
 	const tax_ids = await listTaxIdsForService(ctx, id);
@@ -177,6 +179,7 @@ export async function updateService(
 	input: unknown,
 ): Promise<Service> {
 	const parsed = serviceUpdateSchema.parse(input);
+	const brandId = assertBrandId(ctx);
 	const { data, error } = await ctx.db
 		.from("services")
 		.update({
@@ -197,6 +200,7 @@ export async function updateService(
 			is_active: parsed.is_active,
 		})
 		.eq("id", id)
+		.eq("brand_id", brandId)
 		.select("*")
 		.single();
 	if (error) throw new ValidationError(error.message);
@@ -207,7 +211,11 @@ export async function updateService(
 }
 
 export async function deleteService(ctx: Context, id: string): Promise<void> {
-	const { error } = await ctx.db.from("services").delete().eq("id", id);
+	const { error } = await ctx.db
+		.from("services")
+		.delete()
+		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx));
 	if (error) {
 		if (error.code === "23503")
 			throw new ConflictError(

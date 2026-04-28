@@ -5,6 +5,12 @@ import {
 	followUpReminderDoneSchema,
 	followUpUpdateSchema,
 } from "@/lib/schemas/follow-ups";
+import {
+	assertAppointmentInBrand,
+	assertCustomerInBrand,
+	assertEmployeeInBrand,
+} from "@/lib/supabase/brand-ownership";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type FollowUp = Tables<"appointment_follow_ups">;
@@ -57,6 +63,7 @@ export async function listFollowUpsForCustomer(
 	ctx: Context,
 	customerId: string,
 ): Promise<FollowUpWithRefs[]> {
+	await assertCustomerInBrand(ctx, customerId);
 	const { data, error } = await ctx.db
 		.from("appointment_follow_ups")
 		.select(SELECT_WITH_REFS)
@@ -70,6 +77,7 @@ export async function listFollowUpsForAppointment(
 	ctx: Context,
 	appointmentId: string,
 ): Promise<FollowUpWithRefs[]> {
+	await assertAppointmentInBrand(ctx, appointmentId);
 	const { data, error } = await ctx.db
 		.from("appointment_follow_ups")
 		.select(SELECT_WITH_REFS)
@@ -83,6 +91,7 @@ export async function listRemindersForEmployee(
 	ctx: Context,
 	employeeId: string,
 ): Promise<ReminderFollowUp[]> {
+	await assertEmployeeInBrand(ctx, employeeId);
 	const { data, error } = await ctx.db
 		.from("appointment_follow_ups")
 		.select(SELECT_FOR_REMINDER)
@@ -99,6 +108,8 @@ export async function createFollowUp(
 	input: unknown,
 ): Promise<FollowUp> {
 	const p = followUpInputSchema.parse(input);
+	if (p.customer_id) await assertCustomerInBrand(ctx, p.customer_id);
+	if (p.appointment_id) await assertAppointmentInBrand(ctx, p.appointment_id);
 	const { data, error } = await ctx.db
 		.from("appointment_follow_ups")
 		.insert({
@@ -122,6 +133,7 @@ export async function updateFollowUp(
 	id: string,
 	input: unknown,
 ): Promise<FollowUp> {
+	await assertFollowUpInBrand(ctx, id);
 	const p = followUpUpdateSchema.parse(input);
 	const { data, error } = await ctx.db
 		.from("appointment_follow_ups")
@@ -145,6 +157,7 @@ export async function setFollowUpReminderDone(
 	id: string,
 	input: unknown,
 ): Promise<FollowUp> {
+	await assertFollowUpInBrand(ctx, id);
 	const p = followUpReminderDoneSchema.parse(input);
 	const { data, error } = await ctx.db
 		.from("appointment_follow_ups")
@@ -162,6 +175,7 @@ export async function setFollowUpPin(
 	id: string,
 	pinned: boolean,
 ): Promise<FollowUp> {
+	await assertFollowUpInBrand(ctx, id);
 	const { data, error } = await ctx.db
 		.from("appointment_follow_ups")
 		.update({ is_pinned: pinned })
@@ -174,9 +188,26 @@ export async function setFollowUpPin(
 }
 
 export async function deleteFollowUp(ctx: Context, id: string): Promise<void> {
+	await assertFollowUpInBrand(ctx, id);
 	const { error } = await ctx.db
 		.from("appointment_follow_ups")
 		.delete()
 		.eq("id", id);
 	if (error) throw new ValidationError(error.message);
+}
+
+// follow_ups inherit brand via customers.brand_id.
+async function assertFollowUpInBrand(
+	ctx: Context,
+	followUpId: string,
+): Promise<void> {
+	const brandId = assertBrandId(ctx);
+	const { data, error } = await ctx.db
+		.from("appointment_follow_ups")
+		.select("id, customers!inner(brand_id)")
+		.eq("id", followUpId)
+		.eq("customers.brand_id", brandId)
+		.maybeSingle();
+	if (error) throw error;
+	if (!data) throw new NotFoundError(`Follow-up ${followUpId} not found`);
 }

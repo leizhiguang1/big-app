@@ -136,17 +136,13 @@ describe("collectPaymentInputSchema", () => {
 
 	it("preserves valid sold_at datetime", () => {
 		const dt = "2026-04-15T10:30:00+08:00";
-		const result = collectPaymentInputSchema.parse(
-			validInput({ sold_at: dt }),
-		);
+		const result = collectPaymentInputSchema.parse(validInput({ sold_at: dt }));
 		expect(result.sold_at).toBe(dt);
 	});
 
 	it("rejects invalid sold_at format", () => {
 		expect(() =>
-			collectPaymentInputSchema.parse(
-				validInput({ sold_at: "not-a-date" }),
-			),
+			collectPaymentInputSchema.parse(validInput({ sold_at: "not-a-date" })),
 		).toThrow(ZodError);
 	});
 
@@ -308,6 +304,26 @@ type MockCtx = {
 	dbAdmin: unknown;
 };
 
+// Chainable query builder that resolves any terminal call to a fixed value.
+// Each .select / .eq / .in / .gte / .lte / .order / .limit / .neq returns
+// itself, so chains of arbitrary length work without per-test mocks.
+function makeChain(resolve: { data: unknown; error: unknown }) {
+	const handler: ProxyHandler<object> = {
+		get(_target, prop) {
+			if (prop === "then") {
+				return (onFulfilled: (v: unknown) => unknown) =>
+					Promise.resolve(resolve).then(onFulfilled);
+			}
+			if (prop === "single" || prop === "maybeSingle") {
+				return () => Promise.resolve(resolve);
+			}
+			return () => proxy;
+		},
+	};
+	const proxy: object = new Proxy({}, handler);
+	return proxy;
+}
+
 function makeCtx(opts: {
 	rpc?: (fn: string, params: unknown) => { data: unknown; error: unknown };
 	servicesForCapCheck?: Array<{
@@ -316,24 +332,31 @@ function makeCtx(opts: {
 		discount_cap: number | null;
 	}>;
 	paymentMethodLookup?: Array<Record<string, unknown>>;
+	brandId?: string | null;
 }): MockCtx {
 	const rpc = vi.fn((fn: string, params: unknown) =>
-		Promise.resolve(opts.rpc ? opts.rpc(fn, params) : { data: null, error: null }),
+		Promise.resolve(
+			opts.rpc ? opts.rpc(fn, params) : { data: null, error: null },
+		),
 	);
-	// Minimal chainable builder. Each .from() call returns a new object that
-	// supports .select().in() for the cap-check and .select().eq() for the
-	// payment-method lookup in assertPaymentFields.
+	const ownerOk = { data: { id: "owned" }, error: null };
 	const from = vi.fn((table: string) => {
+		if (
+			table === "appointments" ||
+			table === "sales_orders" ||
+			table === "outlets" ||
+			table === "customers" ||
+			table === "employees"
+		) {
+			// Brand-ownership pre-checks: pretend the row belongs to caller.
+			return makeChain(ownerOk);
+		}
 		if (table === "services") {
-			return {
-				select: () => ({
-					in: () =>
-						Promise.resolve({
-							data: opts.servicesForCapCheck ?? [],
-							error: null,
-						}),
-				}),
-			};
+			const data = opts.servicesForCapCheck ?? [];
+			return makeChain({ data, error: null });
+		}
+		if (table === "inventory_items") {
+			return makeChain({ data: [], error: null });
 		}
 		if (table === "payment_methods") {
 			const defaultRows = opts.paymentMethodLookup ?? [
@@ -350,24 +373,9 @@ function makeCtx(opts: {
 					requires_remarks: false,
 				},
 			];
-			return {
-				select: () => ({
-					in: () => Promise.resolve({ data: defaultRows, error: null }),
-					eq: () => ({
-						maybeSingle: () =>
-							Promise.resolve({ data: defaultRows[0], error: null }),
-					}),
-				}),
-			};
+			return makeChain({ data: defaultRows, error: null });
 		}
-		return {
-			select: () => ({
-				in: () => Promise.resolve({ data: [], error: null }),
-				eq: () => ({
-					maybeSingle: () => Promise.resolve({ data: null, error: null }),
-				}),
-			}),
-		};
+		return makeChain({ data: null, error: null });
 	});
 	return {
 		db: { rpc, from },
@@ -524,7 +532,11 @@ describe("voidSalesOrder", () => {
 				error: null,
 			}),
 		});
-		const result = await voidSalesOrder(ctx as never, salesOrderId, validVoidInput);
+		const result = await voidSalesOrder(
+			ctx as never,
+			salesOrderId,
+			validVoidInput,
+		);
 		expect(result.cn_number).toBe("CN-000001");
 		expect(result.rn_number).toBe("RN-000001");
 		expect(result.refund_amount).toBe(150);
