@@ -26,3 +26,20 @@ export function disposeSocket(): void {
 		_socket = null;
 	}
 }
+
+export function createProjectSocket(
+	url: string,
+	projectId?: string | null,
+	accountId?: string | null,
+): Socket {
+	return io(url || WA_CRM_URL, {
+		autoConnect: true,
+		reconnection: true,
+		reconnectionDelay: 1000,
+		reconnectionAttempts: Number.POSITIVE_INFINITY,
+		auth: {
+			...(projectId ? { projectId } : {}),
+			...(accountId ? { accountId } : {}),
+		},
+	});
+}

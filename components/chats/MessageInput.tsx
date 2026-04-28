@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { getSocket } from "./socket";
+import type { QuickReply } from "./types";
+
 type SendAudioPayload = Blob | { audioBase64: string; mimetype: string };
 type SendImagePayload = {
 	imageBase64: string;
@@ -60,6 +63,9 @@ export function MessageInput({
 }) {
 	const [text, setText] = useState("");
 	const [menuOpen, setMenuOpen] = useState(false);
+	const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
+	const [quickReplyMatches, setQuickReplyMatches] = useState<QuickReply[]>([]);
+	const [highlightIdx, setHighlightIdx] = useState(0);
 	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 	const mediaInputRef = useRef<HTMLInputElement | null>(null);
 	const docInputRef = useRef<HTMLInputElement | null>(null);
@@ -85,6 +91,32 @@ export function MessageInput({
 	}, [text, onSend, resetTextarea]);
 
 	function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+		if (quickReplyMatches.length > 0) {
+			if (e.key === "ArrowDown") {
+				e.preventDefault();
+				setHighlightIdx((i) => (i + 1) % quickReplyMatches.length);
+				return;
+			}
+			if (e.key === "ArrowUp") {
+				e.preventDefault();
+				setHighlightIdx(
+					(i) =>
+						(i - 1 + quickReplyMatches.length) % quickReplyMatches.length,
+				);
+				return;
+			}
+			if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+				e.preventDefault();
+				const pick = quickReplyMatches[highlightIdx];
+				if (pick) applyQuickReply(pick);
+				return;
+			}
+			if (e.key === "Escape") {
+				e.preventDefault();
+				setQuickReplyMatches([]);
+				return;
+			}
+		}
 		if (e.key === "Enter" && !e.shiftKey) {
 			e.preventDefault();
 			handleSend();
@@ -114,6 +146,49 @@ export function MessageInput({
 			document.removeEventListener("keydown", onEsc);
 		};
 	}, [menuOpen]);
+
+	useEffect(() => {
+		const sock = getSocket();
+		const load = () => {
+			sock.emit("get_quick_replies", (list: QuickReply[] | null) => {
+				if (Array.isArray(list)) setQuickReplies(list);
+			});
+		};
+		if (sock.connected) load();
+		else sock.on("connect", load);
+		return () => {
+			sock.off("connect", load);
+		};
+	}, []);
+
+	useEffect(() => {
+		// Match `/shortcut` at the start of an empty-or-only-shortcut buffer.
+		const m = text.match(/^\/(\w*)$/);
+		if (!m || quickReplies.length === 0) {
+			setQuickReplyMatches([]);
+			setHighlightIdx(0);
+			return;
+		}
+		const q = m[1].toLowerCase();
+		const matches = quickReplies.filter((r) =>
+			r.shortcut.toLowerCase().startsWith(q),
+		);
+		setQuickReplyMatches(matches.slice(0, 6));
+		setHighlightIdx(0);
+	}, [text, quickReplies]);
+
+	const applyQuickReply = useCallback(
+		(reply: QuickReply) => {
+			setText(reply.text);
+			setQuickReplyMatches([]);
+			if (textareaRef.current) {
+				textareaRef.current.style.height = "auto";
+				textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+				textareaRef.current.focus();
+			}
+		},
+		[],
+	);
 
 	const handleMediaChange = useCallback(
 		async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -376,15 +451,47 @@ export function MessageInput({
 				)}
 			</div>
 
-			<textarea
-				ref={textareaRef}
-				className="message-input-textarea"
-				placeholder="Type a message"
-				value={text}
-				onChange={handleInput}
-				onKeyDown={handleKeyDown}
-				rows={1}
-			/>
+			<div
+				style={{
+					position: "relative",
+					flex: 1,
+					minWidth: 0,
+					display: "flex",
+				}}
+			>
+				{quickReplyMatches.length > 0 && (
+					<div className="quick-reply-popover">
+						<div className="quick-reply-popover-hint">
+							Quick replies — Tab to insert
+						</div>
+						{quickReplyMatches.map((reply, idx) => (
+							<button
+								type="button"
+								key={reply.id}
+								onMouseDown={(e) => {
+									e.preventDefault();
+									applyQuickReply(reply);
+								}}
+								className={`quick-reply-popover-item${idx === highlightIdx ? " quick-reply-popover-item--active" : ""}`}
+							>
+								<code className="quick-reply-popover-shortcut">
+									/{reply.shortcut}
+								</code>
+								<span className="quick-reply-popover-text">{reply.text}</span>
+							</button>
+						))}
+					</div>
+				)}
+				<textarea
+					ref={textareaRef}
+					className="message-input-textarea"
+					placeholder="Type a message  (try /shortcut)"
+					value={text}
+					onChange={handleInput}
+					onKeyDown={handleKeyDown}
+					rows={1}
+				/>
+			</div>
 
 			{hasText ? (
 				<button

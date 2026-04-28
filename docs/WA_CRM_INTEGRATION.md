@@ -1,7 +1,10 @@
 # WA-CRM Integration
 
-**Status:** v3 — Socket.IO from the browser (2026-04-22). Supersedes all
-earlier revisions of this file.
+**Status:** v4 — Full WhatsApp module ported into big-app's `(app)` shell
+(2026-04-27). Sidebar group "WhatsApp" hosts six pages — Chats, Contacts,
+Automations, AI Bot, Knowledge Base, WA Lines. All UI lives in big-app;
+all state still lives in wa-crm. v3 (Socket.IO from the browser) is the
+underlying transport.
 
 ## Architecture in one picture
 
@@ -80,24 +83,64 @@ rooms manually.
 
 ## big-app code
 
-### Files
+The WhatsApp module is intentionally **decoupled** from big-app's clinic
+core (customers / appointments / sales). It reads/writes wa-crm's tables
+only; it does not import big-app's services or stamp `brand_id` anywhere.
+The seam is "WhatsApp data lives in wa-crm; clinic data lives in big-app".
 
-- [components/chats/socket.ts](../components/chats/socket.ts) — singleton
-  Socket.IO client. `getSocket()` returns a lazily-created `io()` instance
-  pointed at `NEXT_PUBLIC_WA_CRM_URL`.
-- [components/chats/types.ts](../components/chats/types.ts) — shared types
-  mirroring wa-crm's emitted payload shapes.
-- [components/chats/QRScreen.tsx](../components/chats/QRScreen.tsx) — QR
-  pairing card.
-- [components/chats/ChatList.tsx](../components/chats/ChatList.tsx) — left
-  panel with search + chat rows.
-- [components/chats/ChatWindow.tsx](../components/chats/ChatWindow.tsx) —
-  right pane: header + message list + composer.
-- [components/chats/MessageInput.tsx](../components/chats/MessageInput.tsx)
-  — auto-expanding textarea, Enter-to-send.
-- [app/(app)/chats/chats-client.tsx](../app/(app)/chats/chats-client.tsx)
-  — state machine: `connecting | qr | connected | logged_out`.
-- [app/(app)/chats/page.tsx](../app/(app)/chats/page.tsx) — thin RSC shell.
+### Pages (under `app/(app)/`)
+
+| Route | Purpose | Key socket events |
+|---|---|---|
+| `/chats` | Inbox + chat window | `get_chats`, `get_messages`, `send_message`, `mark_read`, `messages_upsert`, `chats_upsert`, `connection_update`, `qr` |
+| `/contacts` | CRM dashboard | `get_crm`, `crm_update`, `update_crm_contact`, `get_duplicate_suggestions`, `merge_crm_contacts`, `rename_crm_tag`, `delete_crm_tag` |
+| `/automations` | Workflow list + folders + node-graph builder | `get_automations`, `save_automation`, `delete_automation`, `toggle_automation`, `automations_update`, `get_automation_folders`, `save_automation_folders`, `get_execution_logs`, `execution_log` |
+| `/ai` | AI bot config + test reply | `get_ai_config`, `save_ai_config`, `test_ai_reply` |
+| `/knowledge-base` | Structured KB editor + quick replies | `get_kb`, `save_kb`, `get_quick_replies`, `save_quick_replies` |
+| `/wa-settings` | Multi-line management + push + tags + stages | `list_peer_tenants`, `set_line_label`, `request_qr`, `logout_wa`, `register_push_subscription` |
+
+### Shared infrastructure
+
+- [components/chats/socket.ts](../components/chats/socket.ts) — `getSocket()`
+  primary singleton + `createProjectSocket(url, projectId, accountId)` for
+  multi-line.
+- [components/chats/useMultiWA.ts](../components/chats/useMultiWA.ts) —
+  per-account socket pool with status debounce, line-label sync, peer
+  auto-discovery.
+- [components/chats/usePushNotifications.ts](../components/chats/usePushNotifications.ts)
+  — VAPID web-push subscribe; service worker at [public/sw.js](../public/sw.js).
+- [components/chats/types.ts](../components/chats/types.ts) — every shape
+  emitted by wa-crm. The trigger/automation types accept arbitrary strings
+  so new wa-crm trigger types flow through without code edits.
+
+### Chat enrichments
+
+- **AI booking suggestion banner** — listens to `ai_booking_suggestion`
+  per-jid, dismiss emits `clear_booking_suggestion`. Showing a suggestion
+  is informational; big-app's appointment service is **never** called from
+  here. Staff manually create the booking in `/appointments` if desired.
+- **Quick replies** — `/shortcut` matches `wa_quick_replies` from
+  `save_quick_replies`. Tab/Enter inserts.
+- **Contact info sheet** — slide-out panel from chat header showing the
+  CRM contact's tags, status, assigned, notes, DND. Edits go through
+  `update_crm_contact`. The same `ContactEditDialog` is reused.
+
+### Automations builder
+
+- [components/automations/builder/WorkflowBuilder.tsx](../components/automations/builder/WorkflowBuilder.tsx)
+  — node-graph editor with trigger + action sequence + if/else branches +
+  undo/redo + settings tab.
+- [automation-constants.ts](../components/automations/automation-constants.ts)
+  catalogues 22 trigger types and 30 action types with icons + groups.
+- [automation-templates.ts](../components/automations/automation-templates.ts)
+  ships 6 generic starter workflows (welcome, opt-out, booking confirm,
+  review request, birthday — service-business agnostic, no dental wording).
+- First-class action editors cover the common 14: `send_message`,
+  `add_tag`, `remove_tag`, `add_note`, `wait`, `if_else`, `assign_user`,
+  `update_field`, `post_webhook`, `send_internal_notification`,
+  `send_email`, `manual_action`, `enable_dnd`, `disable_dnd`. The other
+  ~16 wa-crm action types fall back to a JSON editor — they round-trip
+  through wa-crm exactly as authored.
 
 Media (images, audio, video) is fetched directly from
 `${WA_CRM_URL}/api/media/:jid/:msgId`. No big-app proxy.
@@ -127,8 +170,12 @@ for debugging, override to `http://localhost:3001` in `.env.local`.
   `auth: { projectId: outlet.id }` in the Socket.IO handshake and wa-crm
   spins up a tenant per outlet.
 - ❌ HMAC webhooks — none in this shape.
-- ❌ Automations engine in big-app — deferred (see
-  [modules/14-automations.md](modules/14-automations.md)).
+- ❌ Automations engine in big-app — wa-crm runs the engine. Big-app
+  hosts the **UI only** (workflow builder, list, exec log).
+- ❌ Cross-module bridges from big-app → wa-crm (e.g. emit
+  `appointment_booked` from `lib/services/appointments.ts` after a booking
+  commits) — deliberately not built. Keeps the WhatsApp module self-contained.
+  Wire-up later if the marketing-automation use case warrants it.
 
 ## Security
 

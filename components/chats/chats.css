@@ -1131,3 +1131,57 @@
 .wa-inbox-root .attach-menu-icon--doc {
 	background: #5157ae;
 }
+
+.wa-inbox-root .quick-reply-popover {
+	position: absolute;
+	bottom: calc(100% + 8px);
+	left: 0;
+	right: 0;
+	max-width: 480px;
+	background: #fff;
+	border: 1px solid #e5e7eb;
+	border-radius: 10px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+	overflow: hidden;
+	z-index: 30;
+}
+.wa-inbox-root .quick-reply-popover-hint {
+	padding: 6px 10px;
+	font-size: 11px;
+	color: #6b7280;
+	background: #f9fafb;
+	border-bottom: 1px solid #f0f0f0;
+}
+.wa-inbox-root .quick-reply-popover-item {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	width: 100%;
+	padding: 8px 10px;
+	background: transparent;
+	border: 0;
+	text-align: left;
+	cursor: pointer;
+	color: inherit;
+}
+.wa-inbox-root .quick-reply-popover-item:hover,
+.wa-inbox-root .quick-reply-popover-item--active {
+	background: #eff6ff;
+}
+.wa-inbox-root .quick-reply-popover-shortcut {
+	flex-shrink: 0;
+	background: #f3f4f6;
+	border-radius: 4px;
+	padding: 2px 6px;
+	font-family: ui-monospace, monospace;
+	font-size: 11px;
+	color: #1f2937;
+}
+.wa-inbox-root .quick-reply-popover-text {
+	flex: 1;
+	font-size: 13px;
+	color: #1f2937;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

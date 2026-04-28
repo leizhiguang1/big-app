@@ -1,12 +1,15 @@
 # Module: Automations
 
-> **Status (2026-04-22):** Deferred. Engine location undecided.
+> **Status (2026-04-27):** UI shipped, engine in wa-crm.
 >
-> Big-app does **not** currently have a `lib/services/notifications.ts`, a `notification_templates` table, or any `pg_cron` scans for reminders. Earlier plans that pinned the engine to whatsapp-crm are superseded by the 2026-04-22 pivot — see `docs/ARCHITECTURE.md` §3.
->
-> When we build this, the two paths on the table are (a) enable wa-crm's built-in automation runner and call it via one new endpoint there, or (b) build big-app's own engine using `pg_cron` + HTTP sends to wa-crm. Pick after WhatsApp runs on real traffic.
->
-> **Read first:** [docs/WA_CRM_INTEGRATION.md](../WA_CRM_INTEGRATION.md) — current wa-crm integration shape.
+> The full WhatsApp automation surface is in big-app at `/automations`,
+> `/ai`, and `/knowledge-base`. Workflow builder, folders, templates,
+> execution log, AI config, KB editor, and quick replies all live in big-app
+> (see [docs/WA_CRM_INTEGRATION.md](../WA_CRM_INTEGRATION.md) for the
+> per-page socket-event map). The **engine** — keyword matching, scheduled
+> sends, audit logs, AI replies — runs in wa-crm. Big-app does not own a
+> trigger seam in clinic-core services today; appointments / sales / etc.
+> do not call into wa-crm.
 >
 > The rest of this document is a preserved reference from the archived HTTP-adapter plan. Treat everything below as design notes, not current architecture.
 

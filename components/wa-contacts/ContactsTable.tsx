@@ -1,6 +1,6 @@
 "use client";
 
-import { BellOff, Pencil } from "lucide-react";
+import { ArrowLeftRight, BellOff, Pencil } from "lucide-react";
 import type { CrmContact } from "@/components/chats/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -10,23 +10,33 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { TagChip } from "./TagChip";
 
 type Props = {
 	contacts: CrmContact[];
 	onEdit: (contact: CrmContact) => void;
+	onMerge: (jid: string) => void;
 	isLoading: boolean;
 };
 
 function formatRelativeTime(ts: number): string {
 	if (!ts) return "—";
-	const diff = Date.now() - ts * (ts < 1e12 ? 1000 : 1);
+	const ms = ts < 1e12 ? ts * 1000 : ts;
+	const diff = Date.now() - ms;
 	if (diff < 60_000) return "just now";
 	if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
 	if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-	return `${Math.floor(diff / 86_400_000)}d ago`;
+	if (diff < 7 * 86_400_000)
+		return `${Math.floor(diff / 86_400_000)}d ago`;
+	return new Date(ms).toLocaleDateString();
 }
 
-export function ContactsTable({ contacts, onEdit, isLoading }: Props) {
+export function ContactsTable({
+	contacts,
+	onEdit,
+	onMerge,
+	isLoading,
+}: Props) {
 	const columns: DataTableColumn<CrmContact>[] = [
 		{
 			key: "name",
@@ -75,14 +85,16 @@ export function ContactsTable({ contacts, onEdit, isLoading }: Props) {
 					{c.tags.length === 0 ? (
 						<span className="text-muted-foreground text-xs">—</span>
 					) : (
-						c.tags.map((t) => (
-							<span
-								key={t}
-								className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-[11px] text-sky-800"
-							>
-								{t}
-							</span>
-						))
+						<>
+							{c.tags.slice(0, 3).map((t) => (
+								<TagChip key={t} tag={t} />
+							))}
+							{c.tags.length > 3 && (
+								<span className="rounded-full border bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+									+{c.tags.length - 3}
+								</span>
+							)}
+						</>
 					)}
 				</div>
 			),
@@ -135,19 +147,34 @@ export function ContactsTable({ contacts, onEdit, isLoading }: Props) {
 			header: "",
 			align: "right",
 			cell: (c) => (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							size="icon"
-							variant="ghost"
-							onClick={() => onEdit(c)}
-							aria-label="Edit contact"
-						>
-							<Pencil className="size-4" />
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent>Edit CRM fields</TooltipContent>
-				</Tooltip>
+				<div className="flex items-center justify-end gap-1">
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								size="icon"
+								variant="ghost"
+								onClick={() => onMerge(c.jid)}
+								aria-label="Merge contact"
+							>
+								<ArrowLeftRight className="size-4" />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Merge into another contact</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								size="icon"
+								variant="ghost"
+								onClick={() => onEdit(c)}
+								aria-label="Edit contact"
+							>
+								<Pencil className="size-4" />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Edit CRM fields</TooltipContent>
+					</Tooltip>
+				</div>
 			),
 		},
 	];

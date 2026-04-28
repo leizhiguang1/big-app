@@ -69,19 +69,19 @@ Services / Products / Medical Certs / Cash Wallet / Visuals tabs.
 
 **Services tab.**
 
-> ⚠ **Draft v0 — pending design review (2026-04-27).** UI is wired and
-> compiles, but the model has not been validated against real clinic
-> workflow. The current implementation treats every
-> `appointment_line_item` as a "redemption event" and FIFO-allocates
-> across `sale_items`. That assumption may break if appointments don't
-> decompose 1:1 into per-service redemption rows in practice (e.g. a
-> single appointment line might cover multiple sessions, or sessions
-> might be tracked outside the line-item ledger entirely).
-> **Do not extend this feature, expose it to staff, or build dependent
-> work on top of it until the workflow is reviewed and confirmed.** When
-> reviewing, re-decide: (1) what counts as a redemption event,
-> (2) granularity of the Balance row (per `sale_item` vs per service vs
-> per package), (3) whether a separate redemption table is needed.
+> 🚧 **PARKED — feature NOT done (2026-04-27).** Draft v0 UI is wired
+> but the model is wrong. Work parked by user pending a design discussion
+> + a live test session in the KumoDent prototype.
+>
+> **To resume:**
+> 1. Read [docs/design/services-tab-prototype-investigation.md](../design/services-tab-prototype-investigation.md) — observed behaviour, hypotheses, revised schema.
+> 2. Run [docs/design/services-tab-prototype-test-plan.md](../design/services-tab-prototype-test-plan.md) — a ~45 min live walkthrough using a single test customer + 1 SO, which validates each hypothesis.
+> 3. Then design the migration (one nullable FK: `appointment_line_items.redeems_sale_item_id`, plus a Balance-query fix in `lib/services/customer-services.ts`).
+>
+> **Until then:** do not extend the code, do not expose the Services tab
+> to staff in production, do not build dependents on the current data
+> shapes. The flags the feature needs (`services.allow_redemption_without_payment`
+> + `services.type`) already exist in the schema and on `ServiceForm`.
 
 Two sub-tabs sitting on top of the same normalized
 ledger — no dedicated `redemptions` or `mix_match_sales` table. Both views
@@ -195,7 +195,7 @@ below for historical comparison — most of those tabs are now live.
 | Vaccinations | Vaccination records — Phase 2 |
 | Sales | Linked from sales module — Phase 2 |
 | Payments | Payment history — Phase 2 |
-| Services | **Draft v0 (2026-04-27) — UI wired, design NOT confirmed.** Redemption + Balance sub-tabs are computed read-side from `sale_items` + `appointment_line_items`, but the underlying assumption (one `appointment_line_item` = one redemption event) may not match how clinics actually run an appointment. Re-evaluate before treating the model as final — do not extend it yet. |
+| Services | **🚧 Parked — feature NOT done (2026-04-27).** Draft v0 UI shipped, but model is wrong. Work parked pending design discussion + live test session. To resume: see [docs/design/services-tab-prototype-investigation.md](../design/services-tab-prototype-investigation.md) and [docs/design/services-tab-prototype-test-plan.md](../design/services-tab-prototype-test-plan.md). |
 | Products | Product purchase history — Phase 2 |
 | Cash Wallet | Wallet transactions — Phase 2 |
 

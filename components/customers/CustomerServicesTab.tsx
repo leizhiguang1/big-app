@@ -1,8 +1,12 @@
 "use client";
 
-// ⚠ DRAFT v0 — pending design review (2026-04-27).
-// See docs/modules/03-customers.md "Services tab" + lib/services/customer-services.ts.
-// Don't extend this UI until the underlying model is confirmed.
+// 🚧 PARKED — feature NOT done (2026-04-27).
+// Draft v0 UI wired but model is wrong; work parked pending design
+// discussion + a live test session in the KumoDent prototype.
+// Do NOT extend, do NOT expose to staff in production, do NOT build
+// dependents on the data shapes here.
+// To resume: docs/design/services-tab-prototype-investigation.md +
+//            docs/design/services-tab-prototype-test-plan.md
 
 import { Mail, MessageCircle, Printer } from "lucide-react";
 import Link from "next/link";

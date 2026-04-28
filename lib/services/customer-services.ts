@@ -1,12 +1,21 @@
 import type { Context } from "@/lib/context/types";
 import { ValidationError } from "@/lib/errors";
 
-// ⚠ DRAFT v0 — pending design review (2026-04-27).
-// The model assumed here (one appointment_line_item = one redemption
-// event, FIFO-allocated across sale_items per service) has NOT been
-// validated against real clinic workflow. Don't extend this feature or
-// build dependents on it until the design is reviewed and confirmed.
-// Spec + open questions: docs/modules/03-customers.md "Services tab".
+// 🚧 PARKED — feature NOT done (2026-04-27).
+// Status: Draft v0 wired, model is WRONG, work parked by user pending
+// design discussion + a live test session against the KumoDent prototype.
+// Do NOT extend, do NOT expose to staff in production, do NOT build
+// dependents.
+//
+// Why the model is wrong (in one sentence): big-app has no concept of a
+// "redemption-only" appointment line item that consumes an existing
+// purchase's balance without creating a new sales order at Collect
+// Payment.
+//
+// To resume:
+//   1. Read   docs/design/services-tab-prototype-investigation.md
+//   2. Run    docs/design/services-tab-prototype-test-plan.md (~45 min)
+//   3. Then design the migration + service-layer rewrite from there.
 //
 // Read-side reporting for the Customer Detail → Services tab.
 //

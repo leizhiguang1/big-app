@@ -116,10 +116,21 @@ export type CrmContactPatch = {
 	crmStatus?: string;
 };
 
+export type DuplicateSuggestionContact = {
+	jid: string;
+	name?: string;
+	phone?: string;
+	tags?: string[];
+	crmStatus?: string;
+	hasMessages?: boolean;
+};
+
 export type DuplicateSuggestion = {
-	primaryJid: string;
-	secondaryJid: string;
-	reason: string;
+	reason: "same_name" | "bogus_lid_phone";
+	name?: string;
+	contacts: DuplicateSuggestionContact[];
+	suggestedPrimary?: string;
+	suggestedAction?: "delete";
 };
 
 // ── Automations ─────────────────────────────────────────────────────────
@@ -138,12 +149,22 @@ export type AutomationTriggerType =
 	| "inbound_webhook"
 	| "new_contact";
 
+// `type` is the well-known catalog or an empty string while building.
+// Wa-crm accepts arbitrary strings; future trigger types added there will
+// flow through without changing this file.
 export type AutomationTrigger = {
-	type: AutomationTriggerType;
+	type: AutomationTriggerType | string;
 	keywords?: string[];
 	time?: string;
 	frequency?: "daily" | "weekly" | "monthly";
 	webhookId?: string;
+	[extra: string]: unknown;
+};
+
+export type AutomationSettings = {
+	timezone?: string;
+	allowReEnrollment?: boolean;
+	stopOnResponse?: boolean;
 	[extra: string]: unknown;
 };
 
@@ -170,11 +191,13 @@ export type AutomationRuleGroup = {
 export type Automation = {
 	id: string;
 	name: string;
+	description?: string;
 	enabled: boolean;
 	folderId?: string | null;
 	trigger: AutomationTrigger;
 	conditions?: AutomationRuleGroup[];
 	actions: AutomationAction[];
+	settings?: AutomationSettings;
 	createdAt: number;
 	updatedAt: number;
 };
@@ -182,6 +205,7 @@ export type Automation = {
 export type AutomationFolder = {
 	id: string;
 	name: string;
+	workflowIds: string[];
 	order?: number;
 };
 
@@ -214,4 +238,63 @@ export type QuickReply = {
 	shortcut: string;
 	text: string;
 	updatedAt?: number;
+};
+
+// ── AI booking suggestion ───────────────────────────────────────────────
+
+export type BookingSuggestion = {
+	jid: string;
+	date?: string;
+	time?: string;
+	service?: string;
+	dentist?: string;
+	[extra: string]: unknown;
+};
+
+// ── AI configuration (stored in wa_ai_configs) ──────────────────────────
+
+export type AIMode = "assist" | "auto" | "off";
+
+export type AIConfig = {
+	enabled: boolean;
+	model: string;
+	apiBase?: string;
+	apiKey?: string;
+	mode: AIMode;
+	systemPrompt?: string;
+	knowledgeBase?: string;
+	bookingInstructions?: string;
+	temperature?: number;
+	maxTokens?: number;
+	[extra: string]: unknown;
+};
+
+// ── Knowledge Base ──────────────────────────────────────────────────────
+
+export type KnowledgeBase = {
+	knowledgeBase: string;
+	bookingInstructions?: string;
+	updatedAt?: number;
+};
+
+// ── Multi-line account ──────────────────────────────────────────────────
+
+export type WAAccount = {
+	id: string;
+	label: string;
+	url: string;
+	outlet?: string;
+};
+
+export type LineLabelResult = {
+	ok: boolean;
+	lineLabel?: string;
+	error?: string;
+};
+
+// ── Team members (chat staff) ───────────────────────────────────────────
+
+export type WATeamMember = {
+	id: string;
+	name: string;
 };

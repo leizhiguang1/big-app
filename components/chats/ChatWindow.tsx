@@ -8,9 +8,14 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { Info } from "lucide-react";
+import { BookingSuggestionBanner } from "./BookingSuggestionBanner";
+import { ContactInfoSheet } from "./ContactInfoSheet";
 import { getSocket, WA_CRM_URL } from "./socket";
 import { MessageInput } from "./MessageInput";
 import type {
+	BookingSuggestion,
+	CrmContact,
 	FormattedMsg,
 	GetMessagesResult,
 	MessagesUpsertPayload,
@@ -225,6 +230,10 @@ export function ChatWindow({
 	const [unreadCount, setUnreadCount] = useState(0);
 	const [animKey, setAnimKey] = useState(0);
 	const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_MESSAGES);
+	const [bookingSuggestion, setBookingSuggestion] =
+		useState<BookingSuggestion | null>(null);
+	const [contactInfoOpen, setContactInfoOpen] = useState(false);
+	const [crmContact, setCrmContact] = useState<CrmContact | null>(null);
 	const bottomRef = useRef<HTMLDivElement | null>(null);
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const unreadDividerRef = useRef<HTMLDivElement | null>(null);
@@ -311,6 +320,46 @@ export function ChatWindow({
 		return () => {
 			socket.off("message_transcript", handler);
 		};
+	}, [jid]);
+
+	useEffect(() => {
+		setBookingSuggestion(null);
+		const socket = getSocket();
+		const onSuggestion = (s: BookingSuggestion) => {
+			if (s.jid === jid) setBookingSuggestion(s);
+		};
+		const onCleared = ({ jid: clearedJid }: { jid: string }) => {
+			if (clearedJid === jid) setBookingSuggestion(null);
+		};
+		socket.on("ai_booking_suggestion", onSuggestion);
+		socket.on("booking_suggestion_cleared", onCleared);
+		return () => {
+			socket.off("ai_booking_suggestion", onSuggestion);
+			socket.off("booking_suggestion_cleared", onCleared);
+		};
+	}, [jid]);
+
+	useEffect(() => {
+		const socket = getSocket();
+		const findContact = (list: CrmContact[]) => {
+			const match = list.find((c) => c.jid === jid);
+			setCrmContact(match ?? null);
+		};
+		socket.emit("get_crm", (list: CrmContact[]) => {
+			if (Array.isArray(list)) findContact(list);
+		});
+		const onCrm = (list: CrmContact[]) => {
+			if (Array.isArray(list)) findContact(list);
+		};
+		socket.on("crm_update", onCrm);
+		return () => {
+			socket.off("crm_update", onCrm);
+		};
+	}, [jid]);
+
+	const dismissBooking = useCallback(() => {
+		setBookingSuggestion(null);
+		getSocket().emit("clear_booking_suggestion", { jid });
 	}, [jid]);
 
 	useEffect(() => {
@@ -692,30 +741,37 @@ export function ChatWindow({
 	return (
 		<div className="chat-window">
 			<div className="chat-window-header">
-				<div className="avatar avatar--header">
+				<button
+					type="button"
+					onClick={() => !isGroup && setContactInfoOpen(true)}
+					className="avatar avatar--header"
+					aria-label="Open contact info"
+					disabled={isGroup}
+				>
 					{imgUrl ? <img src={imgUrl} alt="" /> : <DefaultAvatar />}
-				</div>
-				<div className="chat-window-info">
+				</button>
+				<button
+					type="button"
+					onClick={() => !isGroup && setContactInfoOpen(true)}
+					className="chat-window-info"
+					disabled={isGroup}
+				>
 					<span className="chat-window-name">{chatName}</span>
 					<span className="chat-window-status">
-						{isGroup
-							? "tap here for group info"
-							: "click here for contact info"}
+						{isGroup ? "Group chat" : "Click for contact info"}
 					</span>
-				</div>
+				</button>
 				<div className="chat-window-header-actions">
-					<button
-						type="button"
-						className="header-icon-btn"
-						aria-label="Search"
-					>
-						<svg viewBox="0 0 24 24">
-							<path
-								fill="currentColor"
-								d="M15.009 13.805h-.636l-.22-.219a5.184 5.184 0 0 0 1.256-3.386 5.207 5.207 0 1 0-5.207 5.208 5.183 5.183 0 0 0 3.385-1.255l.221.22v.635l4.004 3.999 1.194-1.195-3.997-4.007zm-4.808 0a3.605 3.605 0 1 1 0-7.21 3.605 3.605 0 0 1 0 7.21z"
-							/>
-						</svg>
-					</button>
+					{!isGroup && (
+						<button
+							type="button"
+							className="header-icon-btn"
+							aria-label="Contact info"
+							onClick={() => setContactInfoOpen(true)}
+						>
+							<Info size={18} />
+						</button>
+					)}
 					<button
 						type="button"
 						className="header-icon-btn"
@@ -730,6 +786,14 @@ export function ChatWindow({
 					</button>
 				</div>
 			</div>
+
+			{bookingSuggestion && (
+				<BookingSuggestionBanner
+					suggestion={bookingSuggestion}
+					onAccept={dismissBooking}
+					onDismiss={dismissBooking}
+				/>
+			)}
 
 			<div className="messages-container" ref={containerRef}>
 				{isLoading ? (
@@ -932,6 +996,15 @@ export function ChatWindow({
 				onSendImage={handleSendImage}
 				onSendVideo={handleSendVideo}
 				onSendDocument={handleSendDocument}
+			/>
+
+			<ContactInfoSheet
+				open={contactInfoOpen}
+				onOpenChange={setContactInfoOpen}
+				jid={jid}
+				chatName={chatName}
+				imgUrl={imgUrl}
+				contact={crmContact}
 			/>
 		</div>
 	);

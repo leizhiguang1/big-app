@@ -3,6 +3,8 @@
 import {
 	Archive,
 	BarChart2,
+	BookOpen,
+	Bot,
 	Calendar,
 	CalendarDays,
 	Contact,
@@ -11,6 +13,7 @@ import {
 	MessageCircle,
 	Settings,
 	ShoppingCart,
+	Smartphone,
 	Stethoscope,
 	Store,
 	Ticket,
@@ -60,6 +63,19 @@ const whatsappNavItems: SidebarNavItemData[] = [
 		label: "Automations",
 		href: "/automations",
 		icon: Zap,
+		variant: "whatsapp",
+	},
+	{ label: "AI Bot", href: "/ai", icon: Bot, variant: "whatsapp" },
+	{
+		label: "Knowledge Base",
+		href: "/knowledge-base",
+		icon: BookOpen,
+		variant: "whatsapp",
+	},
+	{
+		label: "WA Lines",
+		href: "/wa-settings",
+		icon: Smartphone,
 		variant: "whatsapp",
 	},
 ];
