@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import Image from "next/image";
-import { redirect } from "next/navigation";
 import { isPlatformAdmin } from "@/lib/auth/platform-admin";
 import { getServerContext } from "@/lib/context/server";
 import { listWorkspacesForUser } from "@/lib/services/platform-admin";
@@ -28,16 +27,11 @@ export default async function SelectBrandPage({
 
 	const ctx = await getServerContext();
 	const isSignedIn = Boolean(ctx.currentUser);
+	const isAdmin = isSignedIn && (await isPlatformAdmin(ctx));
 
-	// Platform admins go straight to the apex admin. /select-brand is a
-	// tenant-membership picker, not their landing page.
-	if (isSignedIn && (await isPlatformAdmin(ctx))) {
-		redirect("/admin/brands");
-	}
-
-	// Signed-in users see only their workspaces (memberships across brands).
-	// Visitors see the public list of all active brands. This matches the
-	// Slack/Linear pattern.
+	// Brand members see only their workspaces. Visitors and platform admins
+	// see all active brands — admins can sign in to any, so the membership
+	// list (likely empty for them) would be misleading.
 	type Workspace = {
 		id: string;
 		name: string;
@@ -46,7 +40,7 @@ export default async function SelectBrandPage({
 		logo_url: string | null;
 	};
 	let list: Workspace[];
-	if (isSignedIn) {
+	if (isSignedIn && !isAdmin) {
 		const ws = await listWorkspacesForUser(ctx);
 		list = ws;
 	} else {
@@ -74,12 +68,18 @@ export default async function SelectBrandPage({
 		<div className="mx-auto flex min-h-svh max-w-3xl flex-col items-center justify-center px-6 py-16">
 			<div className="mb-10 text-center">
 				<h1 className="text-3xl font-semibold tracking-tight">
-					{isSignedIn ? "Your workspaces" : "Choose a workspace"}
+					{isAdmin
+						? "All workspaces"
+						: isSignedIn
+							? "Your workspaces"
+							: "Choose a workspace"}
 				</h1>
 				<p className="mt-2 text-sm text-muted-foreground">
-					{isSignedIn
-						? "Brands you're a member of. Click one to enter."
-						: "Click a brand to open its sign-in page on its own subdomain."}
+					{isAdmin
+						? "Every brand on the platform. Click one to enter."
+						: isSignedIn
+							? "Brands you're a member of. Click one to enter."
+							: "Click a brand to open its sign-in page on its own subdomain."}
 				</p>
 			</div>
 
@@ -98,9 +98,11 @@ export default async function SelectBrandPage({
 
 			{list.length === 0 ? (
 				<div className="rounded-lg border bg-muted/30 px-6 py-10 text-center text-sm text-muted-foreground">
-					{isSignedIn
-						? "You're not a member of any brand yet. Ask a brand admin to add you."
-						: "No active brands yet."}
+					{isAdmin
+						? "No active brands yet."
+						: isSignedIn
+							? "You're not a member of any brand yet. Ask a brand admin to add you."
+							: "No active brands yet."}
 				</div>
 			) : (
 				<ul className="w-full divide-y rounded-lg border bg-card">
@@ -144,7 +146,15 @@ export default async function SelectBrandPage({
 			)}
 
 			<p className="mt-10 text-xs text-muted-foreground">
-				{isSignedIn ? (
+				{isAdmin ? (
+					<>
+						Need to create or rename a brand?{" "}
+						<a href="/admin/brands" className="underline hover:text-foreground">
+							Open platform admin
+						</a>
+						.
+					</>
+				) : isSignedIn ? (
 					<>
 						Looking for a workspace not listed here? Ask its admin to add your
 						account.
