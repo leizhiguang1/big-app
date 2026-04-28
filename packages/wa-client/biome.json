@@ -1,0 +1,44 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.4.11/schema.json",
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab"
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "double"
+		}
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"style": {
+				"noRestrictedImports": {
+					"level": "error",
+					"options": {
+						"paths": {
+							"next": "@aimbig/wa-client must stay framework-pure — no next/* imports.",
+							"next/cache": "@aimbig/wa-client must stay framework-pure — no next/* imports.",
+							"next/headers": "@aimbig/wa-client must stay framework-pure — no next/* imports.",
+							"next/navigation": "@aimbig/wa-client must stay framework-pure — no next/* imports.",
+							"next/server": "@aimbig/wa-client must stay framework-pure — no next/* imports.",
+							"@/lib/services": "@aimbig/wa-client must not depend on consumer apps. Take values via params.",
+							"@/lib/supabase/server": "@aimbig/wa-client must not depend on consumer apps. Take values via params."
+						},
+						"patterns": [
+							{
+								"group": ["@/**"],
+								"message": "@aimbig/wa-client must not import from any consumer app. Take values via params."
+							},
+							{
+								"group": ["next/**"],
+								"message": "@aimbig/wa-client must stay framework-pure — no next/* imports."
+							}
+						]
+					}
+				}
+			}
+		}
+	}
+}

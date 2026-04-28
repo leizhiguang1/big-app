@@ -22,7 +22,7 @@ import {
 	TRIGGER_TYPES,
 	type TriggerCatalog,
 } from "@/components/automations/automation-constants";
-import type { AutomationTrigger } from "@/components/chats/types";
+import type { AutomationTrigger } from "@aimbig/wa-client";
 
 type Props = {
 	trigger: AutomationTrigger | null;

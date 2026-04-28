@@ -19,7 +19,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { ConnectionStatus, WAAccount } from "@/components/chats/types";
+import type { ConnectionStatus, WAAccount } from "@aimbig/wa-client";
 
 const STATUS_LABEL: Record<string, string> = {
 	open: "Connected",

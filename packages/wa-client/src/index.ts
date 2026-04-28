@@ -1,1 +1,9 @@
-export const WA_CLIENT_PLACEHOLDER = "wa-client-package-resolves";
+export * from "./events";
+export {
+	type CreateProjectSocketOptions,
+	createProjectSocket,
+	disposeSocket,
+	type GetSocketOptions,
+	getSocket,
+} from "./socket";
+export * from "./types";

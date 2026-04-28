@@ -1,0 +1,42 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.4.11/schema.json",
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab"
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "double"
+		}
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"style": {
+				"noRestrictedImports": {
+					"level": "error",
+					"options": {
+						"paths": {
+							"next": "@aimbig/chat-ui must stay framework-pure — no next/* imports.",
+							"next/cache": "@aimbig/chat-ui must stay framework-pure — no next/* imports.",
+							"next/headers": "@aimbig/chat-ui must stay framework-pure — no next/* imports.",
+							"next/navigation": "@aimbig/chat-ui must stay framework-pure — no next/* imports.",
+							"next/server": "@aimbig/chat-ui must stay framework-pure — no next/* imports."
+						},
+						"patterns": [
+							{
+								"group": ["@/**"],
+								"message": "@aimbig/chat-ui must not import from any consumer app. Receive data as props or via <ChatUiProvider> context."
+							},
+							{
+								"group": ["next/**"],
+								"message": "@aimbig/chat-ui must stay framework-pure — no next/* imports."
+							}
+						]
+					}
+				}
+			}
+		}
+	}
+}

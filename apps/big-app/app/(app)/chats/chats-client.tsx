@@ -4,14 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { ChatList } from "@/components/chats/ChatList";
 import { ChatWindow } from "@/components/chats/ChatWindow";
 import { QRScreen } from "@/components/chats/QRScreen";
-import { disposeSocket, getSocket } from "@/components/chats/socket";
+import { disposeSocket, getSocket } from "@/lib/wa-client";
 import type {
 	ConnectionStatus,
 	ConnectionUpdate,
 	FormattedChat,
 	PeerTenant,
 	ProfilePicsUpdate,
-} from "@/components/chats/types";
+} from "@aimbig/wa-client";
 import "@/components/chats/chats.css";
 
 type AppState = "connecting" | "qr" | "connected" | "logged_out";

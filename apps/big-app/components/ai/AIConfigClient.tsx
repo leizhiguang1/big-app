@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Bot, ExternalLink, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { getSocket } from "@/components/chats/socket";
+import { getSocket } from "@/lib/wa-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

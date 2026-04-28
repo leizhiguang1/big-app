@@ -48,6 +48,9 @@ importers:
 
   apps/big-app:
     dependencies:
+      '@aimbig/wa-client':
+        specifier: workspace:*
+        version: link:../../packages/wa-client
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.74.0(react@19.2.4))

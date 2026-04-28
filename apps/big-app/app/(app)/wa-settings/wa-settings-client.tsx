@@ -8,8 +8,8 @@ import { StatusManagerPanel } from "@/components/wa-settings/StatusManagerPanel"
 import { TagManagerPanel } from "@/components/wa-settings/TagManagerPanel";
 import { WALinesPanel } from "@/components/wa-settings/WALinesPanel";
 import { useMultiWA } from "@/components/chats/useMultiWA";
-import { getSocket, WA_CRM_URL } from "@/components/chats/socket";
-import type { CrmContact, WATeamMember } from "@/components/chats/types";
+import { getSocket, WA_CRM_URL } from "@/lib/wa-client";
+import type { CrmContact, WATeamMember } from "@aimbig/wa-client";
 
 const TEAM_KEY = "wa_team_members";
 

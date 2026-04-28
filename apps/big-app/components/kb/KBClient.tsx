@@ -2,7 +2,7 @@
 
 import { BookOpen, Loader2, Save } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { getSocket } from "@/components/chats/socket";
+import { getSocket } from "@/lib/wa-client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { KBBusinessInfoSection } from "./KBBusinessInfoSection";

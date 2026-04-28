@@ -8,8 +8,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Switch } from "@/components/ui/switch";
 import { TagChip } from "@/components/wa-contacts/TagChip";
 import { ContactEditDialog } from "@/components/wa-contacts/ContactEditDialog";
-import { getSocket } from "./socket";
-import type { CrmContact, CrmContactPatch } from "./types";
+import { getSocket } from "@/lib/wa-client";
+import type { CrmContact, CrmContactPatch } from "@aimbig/wa-client";
 
 type Props = {
 	open: boolean;

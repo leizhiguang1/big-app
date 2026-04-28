@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getSocket } from "@/components/chats/socket";
+import { getSocket } from "@/lib/wa-client";
 
 const VAPID_PUBLIC_KEY =
 	process.env.NEXT_PUBLIC_WA_VAPID_PUBLIC_KEY ??

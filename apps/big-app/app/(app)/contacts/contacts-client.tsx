@@ -7,12 +7,12 @@ import { DuplicatesBanner } from "@/components/wa-contacts/DuplicatesBanner";
 import { MergeContactsDialog } from "@/components/wa-contacts/MergeContactsDialog";
 import { MergeUndoToast } from "@/components/wa-contacts/MergeUndoToast";
 import { TagFilterBar } from "@/components/wa-contacts/TagFilterBar";
-import { disposeSocket, getSocket } from "@/components/chats/socket";
+import { disposeSocket, getSocket } from "@/lib/wa-client";
 import type {
 	CrmContact,
 	CrmContactPatch,
 	DuplicateSuggestion,
-} from "@/components/chats/types";
+} from "@aimbig/wa-client";
 
 type MergeRequest = {
 	primaryJid: string;

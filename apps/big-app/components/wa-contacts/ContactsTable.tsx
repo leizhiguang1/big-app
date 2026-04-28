@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeftRight, BellOff, Pencil } from "lucide-react";
-import type { CrmContact } from "@/components/chats/types";
+import type { CrmContact } from "@aimbig/wa-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";

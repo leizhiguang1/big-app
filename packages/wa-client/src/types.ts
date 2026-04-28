@@ -1,5 +1,8 @@
 // Shapes emitted by wa-crm over Socket.IO. Mirror the server payloads exactly.
 // Source: wa-crm/backend/src/tenant-formatting.js + socket-handlers.js.
+//
+// This file is the single source of truth for the wire protocol. wa-crm
+// vendors a copy server-side; any change here must land in both repos.
 
 export type ConnectionStatus =
 	| "connecting"

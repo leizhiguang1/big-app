@@ -10,7 +10,7 @@ import {
 import type {
 	AutomationAction,
 	AutomationTrigger,
-} from "@/components/chats/types";
+} from "@aimbig/wa-client";
 import { AddActionMenu } from "./AddActionMenu";
 import {
 	type Path,

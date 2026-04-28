@@ -2,7 +2,7 @@
 
 import { Check, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getSocket } from "@/components/chats/socket";
+import { getSocket } from "@/lib/wa-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { QuickReply } from "@/components/chats/types";
+import type { QuickReply } from "@aimbig/wa-client";
 
 const STORAGE_KEY = "wa_quick_replies";
 

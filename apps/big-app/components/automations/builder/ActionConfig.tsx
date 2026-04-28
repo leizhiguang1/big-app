@@ -18,7 +18,7 @@ import {
 	type ActionCatalog,
 	VAR_TOKENS,
 } from "@/components/automations/automation-constants";
-import type { AutomationAction } from "@/components/chats/types";
+import type { AutomationAction } from "@aimbig/wa-client";
 
 type Props = {
 	action: AutomationAction;

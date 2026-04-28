@@ -1,4 +1,4 @@
-import type { Automation } from "@/components/chats/types";
+import type { Automation } from "@aimbig/wa-client";
 
 export type WorkflowTemplate = {
 	icon: string;

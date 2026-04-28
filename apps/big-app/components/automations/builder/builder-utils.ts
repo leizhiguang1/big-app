@@ -1,7 +1,7 @@
 import type {
 	AutomationAction,
 	AutomationTrigger,
-} from "@/components/chats/types";
+} from "@aimbig/wa-client";
 import {
 	ACTION_TYPES,
 	triggerSummary,

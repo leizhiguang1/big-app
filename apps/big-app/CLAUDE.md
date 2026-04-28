@@ -261,6 +261,19 @@ Write tests only for things that break silently and cost money:
   `aoikumo ↔ whatsapp-crm` pattern). Big-app's **server** never talks to
   wa-crm; only the `/chats` client component does, via `NEXT_PUBLIC_WA_CRM_URL`.
   Full contract + events in `docs/WA_CRM_INTEGRATION.md`.
+  - **Wire protocol lives in `@aimbig/wa-client`** (the workspace package at
+    `packages/wa-client/`). All payload types (`FormattedChat`,
+    `FormattedMsg`, `CrmContact`, `Automation`, `AIConfig`, `WAAccount`, …)
+    and event-name constants (`SERVER_EVENTS`, `CLIENT_EVENTS`) come from
+    there. wa-crm vendors a copy of the same files for server-side typing.
+    **When you change an event or payload, update `packages/wa-client/`
+    AND wa-crm's vendored copy in the same change.**
+  - **Big-app's URL-injection wrapper:** `lib/wa-client.ts` reads
+    `NEXT_PUBLIC_WA_CRM_URL` once and re-exports `getSocket()` /
+    `createProjectSocket()` with the URL pre-filled. Big-app code imports
+    socket helpers from `@/lib/wa-client`, types and event constants from
+    `@aimbig/wa-client` directly. **Never read `NEXT_PUBLIC_WA_CRM_URL`
+    anywhere else — go through the wrapper.**
   - **Chats (live)** — `/chats` opens a Socket.IO connection to wa-crm on
     Railway, listens for `chats_upsert` / `messages_upsert` / `qr`, emits
     `get_chats` / `get_messages` / `send_message` / `mark_read` /

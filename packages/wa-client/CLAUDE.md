@@ -3,32 +3,65 @@
 This package is the **single source of truth** for the wire protocol between
 any chat-ui consumer (big-app, aim-app) and the wa-crm backend service.
 
-## What lives here
+It is also vendored into wa-crm (separate repo) so server-side code is
+type-checked against the same contract. Manual sync until the surface
+stabilizes — then publish or use a git url.
 
-- `src/events.ts` — event names + Zod payload schemas (every Socket.IO and
-  HTTP event in one place)
-- `src/client.ts` — Socket.IO connection wiring, reconnect logic, namespacing
-- `src/hooks/` — React hooks: `useChats`, `useMessages`, `useContacts`,
-  `useWaConnection`, etc.
-- `src/schemas.ts` — Zod schemas for runtime payload validation
+## What lives here today
 
-## Hard import rules
+- [src/types.ts](src/types.ts) — TypeScript types for every wa-crm payload
+  (`FormattedChat`, `FormattedMsg`, `CrmContact`, `Automation`, `AIConfig`,
+  `WAAccount`, …). Mirrors `wa-crm/backend/src/tenant-formatting.js` exactly.
+- [src/events.ts](src/events.ts) — `SERVER_EVENTS` and `CLIENT_EVENTS` const
+  objects naming every Socket.IO event in the contract. Use these instead
+  of string literals so any rename forces a typecheck failure across both
+  this repo and wa-crm.
+- [src/socket.ts](src/socket.ts) — `getSocket({url})`, `disposeSocket()`,
+  `createProjectSocket({url, projectId, accountId})`. The package never
+  reads `process.env`; the caller passes the URL.
 
-- No `next/*`
-- No consumer-app imports
-- No domain-specific types (customers, leads, etc.)
-- Yes: `react` (peer, for hooks), `socket.io-client` (peer), `zod` (peer)
+## What is planned but not here yet
 
-## Vendoring into wa-crm
+- `src/schemas.ts` — Zod runtime validation of incoming payloads. Add when
+  we hit a malformed-payload bug or when wa-crm starts sending
+  user-controllable shapes the UI shouldn't blindly trust.
+- `src/hooks/` — `useChats`, `useMessages`, `useContacts`, `useWaConnection`,
+  `useMultiWA`. Today these hooks live in
+  [apps/big-app/components/chats/useMultiWA.ts](../../apps/big-app/components/chats/useMultiWA.ts)
+  and similar. Move them here when aim-app needs them, not before — moving
+  speculatively means designing the URL/brand/project parameter shape
+  against a hypothetical second consumer.
 
-`wa-crm/` is a separate repo. It vendors a copy of `events.ts` (and any
-schemas it needs) so server-side code is type-checked against the same
-contract. Manual sync until the surface stabilizes — then publish to npm or
-use a git url.
+## Hard import rules (enforced by [biome.json](biome.json))
 
-## When you change events
+- ❌ `next/*` (entire family — headers, cache, navigation, server, …)
+- ❌ Any consumer-app path (`@/*` — that alias only exists in the apps)
+- ❌ Domain-specific types (customers, leads, appointments, sales, …)
+- ✅ `socket.io-client` (peer)
+- ✅ `react` (peer — only when adding hooks)
+- ✅ `zod` (peer — for schemas)
 
-Changing an event name or payload is a contract change. Update both:
-1. `packages/wa-client/src/events.ts` here
-2. The vendored copy inside `wa-crm/`
-And land both before any UI consumer starts using the new shape.
+The biome lint enforces (1) and (2) automatically. Run `pnpm --filter
+@aimbig/wa-client lint` before merging.
+
+## Big-app's URL-injection wrapper
+
+big-app reads `NEXT_PUBLIC_WA_CRM_URL` once in
+[apps/big-app/lib/wa-client.ts](../../apps/big-app/lib/wa-client.ts) and
+re-exports `getSocket()` / `createProjectSocket()` with the URL pre-filled.
+**Big-app code imports from `@/lib/wa-client`, not directly from
+`@aimbig/wa-client` for socket helpers.** Types and event constants are
+imported from `@aimbig/wa-client` directly.
+
+aim-app, when it starts using sockets, will create its own equivalent
+wrapper (probably `apps/aim-app/lib/wa-client.ts`).
+
+## When you change events or payloads
+
+A change here is a contract change. Update in this order:
+
+1. Edit [src/events.ts](src/events.ts) and/or [src/types.ts](src/types.ts).
+2. Re-run `pnpm --filter @aimbig/big-app typecheck` — it will surface every
+   consumer that needs updating.
+3. Sync the change into wa-crm's vendored copy (manual copy until we
+   automate). Land both before any UI consumer starts using the new shape.

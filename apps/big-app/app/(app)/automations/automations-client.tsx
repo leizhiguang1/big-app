@@ -10,12 +10,12 @@ import { TemplatesGallery } from "@/components/automations/TemplatesGallery";
 import { WorkflowBuilder } from "@/components/automations/builder/WorkflowBuilder";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { disposeSocket, getSocket } from "@/components/chats/socket";
+import { disposeSocket, getSocket } from "@/lib/wa-client";
 import type {
 	Automation,
 	AutomationExecutionLog,
 	AutomationFolder,
-} from "@/components/chats/types";
+} from "@aimbig/wa-client";
 
 const FOLDER_KEY = "auto_folders";
 

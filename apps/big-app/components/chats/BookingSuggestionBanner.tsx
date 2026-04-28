@@ -2,7 +2,7 @@
 
 import { Calendar, Check, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { BookingSuggestion } from "@/components/chats/types";
+import type { BookingSuggestion } from "@aimbig/wa-client";
 
 type Props = {
 	suggestion: BookingSuggestion;

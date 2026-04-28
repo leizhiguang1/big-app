@@ -10,7 +10,7 @@ import {
 import type {
 	Automation,
 	AutomationExecutionLog,
-} from "@/components/chats/types";
+} from "@aimbig/wa-client";
 
 type Props = {
 	automation: Automation | null;

@@ -227,7 +227,7 @@ export function CaseNoteRow({
 				!collapsed && (
 					<p
 						className={cn(
-							"mt-1 whitespace-pre-wrap break-words text-[11px] text-muted-foreground leading-snug",
+							"mt-1 whitespace-pre-wrap wrap-break-word text-[11px] text-muted-foreground leading-snug",
 							cancelled && "line-through",
 						)}
 					>

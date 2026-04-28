@@ -5,7 +5,7 @@ import type {
 	ConnectionStatus,
 	FormattedChat,
 	ProfilePicsUpdate,
-} from "./types";
+} from "@aimbig/wa-client";
 
 function formatTime(timestamp: number | null | undefined): string {
 	if (!timestamp) return "";

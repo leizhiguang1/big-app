@@ -8,7 +8,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import type { Automation } from "@/components/chats/types";
+import type { Automation } from "@aimbig/wa-client";
 import {
 	type WorkflowTemplate,
 	WORKFLOW_TEMPLATES,

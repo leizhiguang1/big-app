@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createProjectSocket, WA_CRM_URL } from "@/components/chats/socket";
+import { createProjectSocket, WA_CRM_URL } from "@/lib/wa-client";
 import type {
 	ConnectionStatus,
 	ConnectionUpdate,
 	FormattedChat,
 	ProfilePicsUpdate,
 	WAAccount,
-} from "@/components/chats/types";
+} from "@aimbig/wa-client";
 import type { Socket } from "socket.io-client";
 
 const ACCOUNT_COLORS = [

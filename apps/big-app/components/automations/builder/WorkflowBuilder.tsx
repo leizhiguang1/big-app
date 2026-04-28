@@ -21,7 +21,7 @@ import type {
 	Automation,
 	AutomationAction,
 	AutomationTrigger,
-} from "@/components/chats/types";
+} from "@aimbig/wa-client";
 import { ActionConfig } from "./ActionConfig";
 import { IfElseConfig } from "./IfElseConfig";
 import { SettingsTab } from "./SettingsTab";

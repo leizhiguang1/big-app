@@ -11,7 +11,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import type { AutomationAction } from "@/components/chats/types";
+import type { AutomationAction } from "@aimbig/wa-client";
 
 type Rule = {
 	field: string;

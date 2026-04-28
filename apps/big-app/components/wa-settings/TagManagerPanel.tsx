@@ -11,7 +11,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { CrmContact } from "@/components/chats/types";
+import type { CrmContact } from "@aimbig/wa-client";
 
 type Props = {
 	contacts: CrmContact[];

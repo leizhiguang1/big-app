@@ -1035,7 +1035,7 @@ function BillingRow({
 										itemCancelled && "line-through opacity-50",
 									)}
 								>
-									<div className="min-w-0 break-words">{bi.description}</div>
+									<div className="min-w-0 wrap-break-word">{bi.description}</div>
 									<div className="break-all text-center text-[10px] text-muted-foreground tabular-nums">
 										{bi.service?.sku ?? "—"}
 									</div>
@@ -1047,7 +1047,7 @@ function BillingRow({
 									</div>
 									<div className="text-right tabular-nums">
 										<div>{discount.toFixed(2)}</div>
-										<div className="break-words text-[9px] text-muted-foreground">
+										<div className="wrap-break-word text-[9px] text-muted-foreground">
 											(LOCAL 0%): 0.00
 										</div>
 									</div>

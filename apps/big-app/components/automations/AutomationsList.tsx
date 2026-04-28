@@ -12,7 +12,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { Automation } from "@/components/chats/types";
+import type { Automation } from "@aimbig/wa-client";
 import {
 	TRIGGER_TYPES,
 	triggerSummary,

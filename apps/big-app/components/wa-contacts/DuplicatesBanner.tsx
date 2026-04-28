@@ -3,7 +3,7 @@
 import { AlertTriangle, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { DuplicateSuggestion } from "@/components/chats/types";
+import type { DuplicateSuggestion } from "@aimbig/wa-client";
 
 type Props = {
 	suggestions: DuplicateSuggestion[];

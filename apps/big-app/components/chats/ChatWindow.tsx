@@ -11,7 +11,7 @@ import {
 import { Info } from "lucide-react";
 import { BookingSuggestionBanner } from "./BookingSuggestionBanner";
 import { ContactInfoSheet } from "./ContactInfoSheet";
-import { getSocket, WA_CRM_URL } from "./socket";
+import { getSocket, WA_CRM_URL } from "@/lib/wa-client";
 import { MessageInput } from "./MessageInput";
 import type {
 	BookingSuggestion,
@@ -21,7 +21,7 @@ import type {
 	MessagesUpsertPayload,
 	ProfilePicsUpdate,
 	SendResult,
-} from "./types";
+} from "@aimbig/wa-client";
 
 const INITIAL_VISIBLE_MESSAGES = 100;
 const LOAD_MORE_STEP = 100;

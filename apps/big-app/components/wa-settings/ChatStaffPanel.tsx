@@ -12,7 +12,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { WATeamMember } from "@/components/chats/types";
+import type { WATeamMember } from "@aimbig/wa-client";
 
 type Props = {
 	members: WATeamMember[];

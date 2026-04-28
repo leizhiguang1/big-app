@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { getSocket } from "./socket";
-import type { QuickReply } from "./types";
+import { getSocket } from "@/lib/wa-client";
+import type { QuickReply } from "@aimbig/wa-client";
 
 type SendAudioPayload = Blob | { audioBase64: string; mimetype: string };
 type SendImagePayload = {

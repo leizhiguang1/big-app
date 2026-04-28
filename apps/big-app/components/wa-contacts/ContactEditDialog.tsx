@@ -2,7 +2,7 @@
 
 import { Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { CrmContact, CrmContactPatch } from "@/components/chats/types";
+import type { CrmContact, CrmContactPatch } from "@aimbig/wa-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {

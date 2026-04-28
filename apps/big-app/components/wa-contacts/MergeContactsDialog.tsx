@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { CrmContact } from "@/components/chats/types";
+import type { CrmContact } from "@aimbig/wa-client";
 import { TagChip } from "./TagChip";
 
 type Props = {

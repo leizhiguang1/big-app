@@ -11,7 +11,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import type { Automation, AutomationFolder } from "@/components/chats/types";
+import type { Automation, AutomationFolder } from "@aimbig/wa-client";
 
 type Props = {
 	folders: AutomationFolder[];

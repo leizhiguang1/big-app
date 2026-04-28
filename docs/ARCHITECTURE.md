@@ -45,26 +45,57 @@ aimbig-superapp/
 
 **`apps/big-app`** — clinic/service-business modules (appointments, customers,
 sales, employees, services, inventory, etc.). Has its own Supabase project.
-Mounts chat-ui surfaces under `/(app)/whatsapp/{chats,contacts,workflows,kb,ai,settings}`.
+Today it also owns the chat-shaped surfaces, mounted at flat top-level
+routes: `/(app)/{chats,contacts,knowledge-base,ai,automations,wa-settings}`.
+Those routes will keep working when the underlying components migrate into
+`@aimbig/chat-ui` — only the imports change.
 
 **`apps/aim-app`** — same stack, mostly empty. Will eventually own
 funnels/marketing CRM and its own Supabase project.
 
-**`packages/chat-ui` (@aimbig/chat-ui)** — pure React component library:
-ChatList, ChatWindow, MessageInput, ContactPanel, ContactsTable,
-WorkflowBuilder, KbEditor, AiConfig, WaSettings.
+**`packages/wa-client` (@aimbig/wa-client) — ACTIVE.** Single source of
+truth for the wire format between any chat-ui consumer and wa-crm. Today
+ships:
 
-Hard import boundary: must NOT import from `next/*`, any consumer app's
-`lib/services` / `lib/context`, or domain types (customers, appointments).
-Receives data via props or a small `<ChatUiProvider>` Context that consuming
-apps fill: `{ brandId, currentUserId, linkedRecordResolver }`. Tailwind
-classes work because consuming apps include the package in
-`transpilePackages` and their tailwind `content` glob.
+- `src/types.ts` — every Socket.IO payload type (chats, messages, CRM
+  contacts, automations, AI config, accounts, …)
+- `src/events.ts` — `SERVER_EVENTS` and `CLIENT_EVENTS` const objects
+- `src/socket.ts` — `getSocket({url})`, `disposeSocket()`,
+  `createProjectSocket({url, projectId, accountId})` — package never reads
+  `process.env`; the caller passes the URL
 
-**`packages/wa-client` (@aimbig/wa-client)** — Socket.IO client wiring,
-event-name constants, Zod payload schemas, hooks. Single source of truth for
-the wire format between any chat-ui consumer and wa-crm. Same boundary rule.
-Vendored into wa-crm for server-side typing.
+big-app's URL-injection wrapper at `apps/big-app/lib/wa-client.ts` reads
+`NEXT_PUBLIC_WA_CRM_URL` once and re-exports `getSocket()` /
+`createProjectSocket()` with the URL pre-filled. **Big-app code imports
+socket helpers from `@/lib/wa-client`, types and event constants from
+`@aimbig/wa-client` directly.**
+
+Vendored into wa-crm for server-side typing — manual sync until the surface
+stabilizes. Boundary enforced by biome `noRestrictedImports` in
+`packages/wa-client/biome.json` (no `next/*`, no `@/*`).
+
+Planned but not yet here: Zod runtime schemas (`src/schemas.ts`) and React
+hooks (`src/hooks/`). Add when a real consumer needs them.
+
+**`packages/chat-ui` (@aimbig/chat-ui) — PLACEHOLDER.** Intended to be a
+pure React component library covering ChatList, ChatWindow, MessageInput,
+ContactPanel, ContactsTable, WorkflowBuilder, KbEditor, AiConfig, WaSettings.
+
+Today the components still live in big-app under `components/{chats,
+wa-contacts,kb,wa-settings,automations,ai}/`. They are already
+framework-pure (verified zero `next/*` / `@/lib/*` / `@/hooks/*` imports)
+so the migration to this package will be mechanical. The two blockers are
+(1) vendoring the ~16 shadcn primitives the components use into
+`packages/chat-ui/src/ui/`, and (2) designing the `<ChatUiProvider>` shape
+against a real second consumer instead of inventing it speculatively.
+
+See `packages/chat-ui/CLAUDE.md` for the step-by-step migration plan and
+file pointers. Move incrementally — one surface at a time — when aim-app
+needs each component.
+
+Boundary will still be enforced once components land: biome
+`noRestrictedImports` in `packages/chat-ui/biome.json` already blocks
+`next/*` and `@/*` imports.
 
 **External: `wa-crm`** — Express + Socket.IO + Baileys + automation engine +
 AI reply + schedulers. Owns `wa_*` tables in its consuming app's Supabase
