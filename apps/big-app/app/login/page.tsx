@@ -15,7 +15,7 @@ export default async function LoginPage() {
 				<div className="mb-6">
 					<h1 className="font-semibold text-xl">Sign in to BIG</h1>
 					<p className="text-muted-foreground text-sm">
-						Use the email and password set by your admin.
+						Use the email and password set by your admin. (monorepo deploy check 2026-04-28)
 					</p>
 				</div>
 				<LoginForm />
