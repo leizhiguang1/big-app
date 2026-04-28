@@ -5,6 +5,11 @@ import { redirect } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
+// Two login flows live behind one path (`/login`) and branch on host:
+//   * Apex (no `x-brand-id`)  → platformAdminLoginAction; gates on platform_admins.
+//   * Brand subdomain         → loginAction; gates on employees membership.
+// `app/login/page.tsx` picks which form to render based on the same header.
+
 export type LoginResult =
 	| { error: string; email: string; password: string }
 	| { ok: true };
@@ -69,4 +74,49 @@ export async function loginAction(
 	}
 
 	redirect("/dashboard");
+}
+
+export type PlatformAdminLoginResult =
+	| { error: string; email: string; password: string }
+	| { ok: true };
+
+export async function platformAdminLoginAction(
+	_prev: PlatformAdminLoginResult | null,
+	formData: FormData,
+): Promise<PlatformAdminLoginResult> {
+	const email = String(formData.get("email") ?? "").trim();
+	const password = String(formData.get("password") ?? "");
+
+	if (!email || !password) {
+		return { error: "Email and password are required", email, password };
+	}
+
+	const db = await createClient();
+	const { data: signIn, error: signInError } =
+		await db.auth.signInWithPassword({ email, password });
+	if (signInError || !signIn.user) {
+		return {
+			error: signInError?.message ?? "Invalid credentials",
+			email,
+			password,
+		};
+	}
+
+	const dbAdmin = createSupabaseAdminClient();
+	const { data: admin } = await dbAdmin
+		.from("platform_admins")
+		.select("auth_user_id")
+		.eq("auth_user_id", signIn.user.id)
+		.maybeSingle();
+
+	if (!admin) {
+		await db.auth.signOut();
+		return {
+			error: "This account isn't a platform admin.",
+			email,
+			password,
+		};
+	}
+
+	redirect("/admin/brands");
 }

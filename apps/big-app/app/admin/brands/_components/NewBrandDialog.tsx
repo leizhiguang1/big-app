@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -39,8 +40,10 @@ const EMPTY: CreateBrandInput = {
 	code: "",
 	name: "",
 	currency_code: "MYR",
-	owner_first_name: "",
-	owner_last_name: "",
+	admin_email: "",
+	admin_password: "",
+	admin_first_name: "",
+	admin_last_name: "",
 };
 
 function deriveCodeFromName(name: string): string {
@@ -64,6 +67,7 @@ function deriveSubdomainFromName(name: string): string {
 export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 	const [pending, startTransition] = useTransition();
 	const [submitError, setSubmitError] = useState<string | null>(null);
+	const [showPassword, setShowPassword] = useState(false);
 	const form = useForm<CreateBrandInput>({
 		resolver: zodResolver(createBrandSchema),
 		defaultValues: EMPTY,
@@ -74,6 +78,7 @@ export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 		if (open) {
 			form.reset(EMPTY);
 			setSubmitError(null);
+			setShowPassword(false);
 		}
 	}, [open, form]);
 
@@ -81,10 +86,6 @@ export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 	const watchedCode = form.watch("code");
 	const watchedSubdomain = form.watch("subdomain");
 
-	// Auto-derive code/subdomain from name on first edit, but only if
-	// the corresponding field is still empty (don't clobber user input).
-	// We deliberately depend only on watchedName so editing code/subdomain
-	// later doesn't fight the auto-fill.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: only re-run when name changes
 	useEffect(() => {
 		if (!watchedCode && watchedName) {
@@ -124,9 +125,9 @@ export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 				<DialogHeader className="border-b px-6 py-4">
 					<DialogTitle>New brand</DialogTitle>
 					<DialogDescription>
-						Creates the brand, the bootstrap owner employee, and the subdomain
-						history row in one transaction. The signed-in user becomes the
-						owner.
+						Creates the brand and provisions a brand-admin user. The admin
+						signs in at the new subdomain with the email and password below
+						and can change their password later.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -156,7 +157,7 @@ export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 									className="font-mono uppercase"
 								/>
 								<p className="mt-1 text-xs text-muted-foreground">
-									Short uppercase identifier (e.g. SUN). Used internally.
+									Short uppercase identifier. Used internally.
 								</p>
 								{errors.code && (
 									<p className="mt-1 text-xs text-destructive">
@@ -207,35 +208,83 @@ export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 						</div>
 
 						<div className="border-t pt-4">
-							<p className="text-sm font-medium">Owner (you)</p>
+							<p className="text-sm font-medium">Brand admin</p>
 							<p className="text-xs text-muted-foreground">
-								The first employee row is created with your auth account so you
-								can sign in to the new brand immediately.
+								A new user is created with these credentials. They sign in at
+								the brand subdomain.
 							</p>
 						</div>
 
 						<div className="grid grid-cols-2 gap-4">
 							<div>
-								<Label htmlFor="owner-first">First name</Label>
+								<Label htmlFor="admin-first">First name</Label>
 								<Input
-									id="owner-first"
-									{...form.register("owner_first_name")}
+									id="admin-first"
+									{...form.register("admin_first_name")}
 								/>
-								{errors.owner_first_name && (
+								{errors.admin_first_name && (
 									<p className="mt-1 text-xs text-destructive">
-										{errors.owner_first_name.message}
+										{errors.admin_first_name.message}
 									</p>
 								)}
 							</div>
 							<div>
-								<Label htmlFor="owner-last">Last name</Label>
-								<Input id="owner-last" {...form.register("owner_last_name")} />
-								{errors.owner_last_name && (
+								<Label htmlFor="admin-last">Last name</Label>
+								<Input id="admin-last" {...form.register("admin_last_name")} />
+								{errors.admin_last_name && (
 									<p className="mt-1 text-xs text-destructive">
-										{errors.owner_last_name.message}
+										{errors.admin_last_name.message}
 									</p>
 								)}
 							</div>
+						</div>
+
+						<div>
+							<Label htmlFor="admin-email">Admin email</Label>
+							<Input
+								id="admin-email"
+								type="email"
+								autoComplete="off"
+								{...form.register("admin_email")}
+								placeholder="admin@brand.com"
+							/>
+							{errors.admin_email && (
+								<p className="mt-1 text-xs text-destructive">
+									{errors.admin_email.message}
+								</p>
+							)}
+						</div>
+
+						<div>
+							<Label htmlFor="admin-password">Admin password</Label>
+							<div className="relative">
+								<Input
+									id="admin-password"
+									type={showPassword ? "text" : "password"}
+									autoComplete="new-password"
+									{...form.register("admin_password")}
+									placeholder="At least 8 characters"
+								/>
+								<button
+									type="button"
+									aria-label={
+										showPassword ? "Hide password" : "Show password"
+									}
+									onClick={() => setShowPassword((v) => !v)}
+									className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+								>
+									{showPassword ? (
+										<EyeOff className="h-4 w-4" />
+									) : (
+										<Eye className="h-4 w-4" />
+									)}
+								</button>
+							</div>
+							{errors.admin_password && (
+								<p className="mt-1 text-xs text-destructive">
+									{errors.admin_password.message}
+								</p>
+							)}
 						</div>
 
 						{submitError && (

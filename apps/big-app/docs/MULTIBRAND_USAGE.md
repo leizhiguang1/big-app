@@ -1,214 +1,186 @@
 # BIG — Multi-brand: how to use it
 
-Companion to [MULTIBRAND.md](./MULTIBRAND.md) (the canonical design /
-runtime reference). This doc is the "I just sat down — what URLs do I
-visit and what credentials do I use" cheatsheet.
+Companion to [MULTIBRAND.md](./MULTIBRAND.md) (the canonical design doc).
+This doc is the "I just sat down — what URLs do I visit and what
+credentials do I use" cheatsheet.
 
 ---
 
-## Three URL shapes, three jobs
+## Two worlds
 
-| URL | Who uses it | What lives there |
+| URL | Who lives there | What's there |
 |---|---|---|
-| `localhost:3000` (apex) | Platform owner | Brand picker, platform admin |
-| `localhost:3000/admin` | Platform admin only | Cross-brand admin (create/list brands) |
-| `<brand>.localhost:3000` | Brand staff | The actual app — login, dashboard, customers, sales… |
+| `localhost:3000` (apex) | Platform admin | Brand CRUD, subdomain renames |
+| `<brand>.localhost:3000` | Brand staff | The actual app |
 
 In production swap `localhost:3000` for `bigapp.online`.
 
+The platform admin and brand staff are **different people with different
+auth users**. A platform admin is never a member of a brand.
+
 ---
 
-## Test accounts (dev only)
+## Test accounts (dev)
 
-| Email | Password | Role | Where they can sign in |
+| Email | Password | Role | Where they sign in |
 |---|---|---|---|
-| `superadmin@gmail.com` | `password` | Platform admin | `localhost:3000/admin/login` only |
+| `superadmin@gmail.com` | `password` | Platform admin | `localhost:3000/login` only |
 | `admin@gmail.com` | `password` | Brand admin (Big Dental + Test Dental) | `bigdental.localhost:3000/login`, `testdental.localhost:3000/login` |
 
-**Important:** `superadmin@gmail.com` has NO `employees` rows. They can't
+**Important:** `superadmin@gmail.com` has no `employees` rows. They can't
 sign in to any brand subdomain — by design. The platform admin's only
-job is creating new brands and renaming subdomains.
+job is creating and managing brands.
 
 ---
 
-## Flow 1 — Sign in as a brand user
+## Flow 1 — Sign in as platform admin
 
 1. `pnpm dev:big` (port 3000).
-2. Visit `http://bigdental.localhost:3000` — proxy resolves the
-   subdomain, redirects unauth users to `/login`.
-3. Sign in as `admin@gmail.com` / `password`.
-4. Land on `bigdental.localhost:3000/dashboard`.
+2. Visit `http://localhost:3000` — apex root redirects to `/select-brand`.
+3. Visit `http://localhost:3000/login` directly (or click **"Sign in to manage brands"** if shown).
+4. Sign in as `superadmin@gmail.com` / `password`.
+5. Land on `/admin/brands` — every brand on the platform.
 
-You're now scoped to Big Dental. Every list (customers, employees,
-sales…) shows ONLY Big Dental data. Repeat with
-`testdental.localhost:3000` to see Test Dental data.
+Trying to sign in as `superadmin@gmail.com` at a brand subdomain
+(`bigdental.localhost:3000/login`) → **"Your account doesn't have access
+to this workspace."**
 
-To switch brands without re-logging-in:
-- Visit `http://localhost:3000/select-brand` — signed-in users see only
-  their workspaces. Click another to enter.
+Trying to sign in as `admin@gmail.com` at apex `/login` → **"This account
+isn't a platform admin."**
 
 ---
 
-## Flow 2 — Sign in as the platform admin
+## Flow 2 — Sign in as brand staff
 
-1. Visit `http://localhost:3000/admin` — unauth → redirects to
-   `/admin/login`.
-2. Sign in as `superadmin@gmail.com` / `password`.
-3. Land on `/admin/brands` — DataTable of every brand on the platform.
+1. Visit `http://bigdental.localhost:3000` — proxy resolves the
+   subdomain, redirects unauth users to `/login`.
+2. Sign in as `admin@gmail.com` / `password`.
+3. Land on `/dashboard`. Every list (customers, employees, sales) is
+   scoped to Big Dental.
 
-If you try to sign in as `superadmin@gmail.com` at a brand subdomain
-(`bigdental.localhost:3000/login`), you'll get **"Your account doesn't
-have access to this workspace."** — that's the membership check working
-as intended.
+To switch to Test Dental: in production, just visit
+`testdental.bigapp.online` — same session. In dev (per-subdomain
+cookies), sign in again at `testdental.localhost:3000`.
 
-If you try to sign in as `admin@gmail.com` at `/admin/login`, you'll get
-**"This account isn't a platform admin."** — same idea, opposite gate.
+If you ever need to remember which brands you're a member of:
+`localhost:3000/select-brand` — the picker shows your workspaces.
 
 ---
 
 ## Flow 3 — Create a new brand
 
-Logged in as `superadmin@gmail.com` at `localhost:3000/admin/brands`:
+Logged in as `superadmin@gmail.com` at `/admin/brands`:
 
-1. Click **"New brand"**. A dialog opens.
+1. Click **"New brand"**.
 2. Fill the form:
    - **Brand name** — e.g. "Sunshine Dental"
-   - **Code** — auto-derived (e.g. "SUNSHINE"). Editable. Uppercase
-     letters/digits only, 2–8 chars.
-   - **Subdomain** — auto-derived (e.g. "sunshine-dental"). Editable.
-     Lowercase letters/digits/dashes, 3–63 chars, no leading/trailing
-     dash, no consecutive dashes.
+   - **Code** — auto-derived (e.g. "SUN"). Editable. 2–8 uppercase letters/digits.
+   - **Subdomain** — auto-derived (e.g. "sunshine-dental"). Editable. 3–63 lowercase letters/digits/dashes.
    - **Currency** — defaults to MYR.
-   - **Owner first/last name** — becomes the bootstrap employee row.
-3. Submit. The `create_brand_atomic` Postgres RPC runs:
-   - Validates format + reserved-name list + 30-day cooldown.
-   - Inserts the `brands` row.
-   - Inserts the bootstrap `employees` row (linked to your
-     `superadmin@gmail.com` auth user).
-   - Trigger writes the `subdomain_history` row.
-   - All in one transaction — no orphan brands on failure.
-4. Dialog closes; the DataTable revalidates and shows the new brand.
+   - **Brand admin first / last name**.
+   - **Brand admin email** — becomes the new user's login.
+   - **Brand admin password** — direct password (dev convenience). The admin can rotate it from `/update-password` after first login.
+3. Submit. Behind the scenes:
+   - Supabase admin SDK creates a fresh auth user with the given credentials.
+   - `create_brand_atomic` RPC validates subdomain (format / reserved / 30-day cooldown), inserts `brands` row, inserts the bootstrap `employees` row owned by the new user.
+   - `sync_subdomain_history` trigger writes the history row.
+   - If anything fails, the auth user is deleted to avoid orphans.
+4. Dialog closes; the table revalidates.
 
-You (`superadmin@gmail.com`) are now a member of the new brand and can
-sign in to its subdomain. To populate the brand with real staff,
-sign in to `<newsub>.localhost:3000`, go to `/employees`, and add them.
+You (`superadmin@gmail.com`) are **not** a member of the new brand. The
+person whose email you supplied is.
 
----
-
-## Flow 4 — Rename a brand's subdomain
-
-Logged in as a brand admin (e.g. `admin@gmail.com` on
-`bigdental.localhost:3000`):
-
-1. Go to **Settings → General** (`/config/general`).
-2. The "Sub-Domain" field is read-only. Below it, click
-   **"Rename subdomain…"**.
-3. Type the new subdomain. Type it again to confirm (Slack/Linear
-   pattern — prevents typos).
-4. Submit. The `rename_brand_subdomain` Postgres RPC runs:
-   - Validates format / reserved / 30-day cooldown.
-   - Updates `brands.subdomain`.
-   - Trigger writes a new `subdomain_history` row + closes the old one
-     (`released_at = now()`).
-5. Server action redirects you to `<newsub>.localhost:3000/config/general`.
-
-What happens to the old URL:
-- For 30 days, `<oldsub>.bigapp.online/...` 301-redirects to the new
-  subdomain (proxy handles this via `subdomain_history` lookup).
-- After 30 days, the old subdomain is reusable BY ANOTHER BRAND (the
-  cooldown drops). Until then it's locked.
+To populate the new brand with staff: hand the admin their credentials,
+they sign in at `<newsub>.localhost:3000`, go to `/employees`, and add
+team members.
 
 ---
 
-## What about the `bigdental.localhost:3000/admin` URL?
+## Flow 4 — Edit / activate / deactivate a brand
 
-Doesn't work — the `/admin/layout.tsx` redirects subdomain visitors to
-`/dashboard`. Cross-brand admin only lives at apex. By design.
+Logged in as `superadmin@gmail.com`. On any row in `/admin/brands`,
+click the actions menu (•••):
 
----
+- **Edit** — change name, nickname, currency. Code is immutable.
+- **Rename subdomain…** — type-twice confirm. Same RPC as the tenant-side rename. Old subdomain 301s to the new one for 30 days.
+- **Activate / Deactivate** — toggle `brands.is_active`. Deactivated brands block logins and hide from public pickers. Existing data is preserved; reactivate any time.
 
-## Credentials in production
-
-Migration `0098_swap_platform_admin_to_superadmin` set
-`superadmin@gmail.com`'s password to `password` for dev convenience.
-**Before you point real users at production, rotate it:**
-
-Option 1 — sign in as superadmin once at `/admin/login`, navigate to
-`/update-password`, set a new one.
-
-Option 2 — Supabase dashboard → Authentication → Users → superadmin
-→ "Send password reset" or set directly.
-
-Same goes for `admin@gmail.com`.
+There is **no hard-delete**. Brands accumulate too many FK children
+(customers, sales orders, payments) for a delete to be safe.
 
 ---
 
-## Which user can do what
+## Flow 5 — Rename a subdomain (tenant side)
 
-| Action | superadmin@gmail.com | admin@gmail.com (Big Dental) |
-|---|---|---|
-| Sign in at `bigdental.localhost:3000/login` | ❌ Not a member | ✅ |
-| Sign in at `testdental.localhost:3000/login` | ❌ Not a member | ✅ (also member) |
-| Sign in at `localhost:3000/admin/login` | ✅ Platform admin | ❌ Not a platform admin |
-| See cross-brand list of every brand | ✅ via `/admin/brands` | ❌ |
-| Create a new brand | ✅ via `/admin/brands` → New brand | ❌ |
-| Rename Big Dental's subdomain | ❌ (not a member) | ✅ via `/config/general` |
-| See Big Dental customers | ❌ | ✅ (filter-by-brand isolation) |
-| See Test Dental customers | ❌ | ✅ when signed in to Test Dental |
+Brand admins can also rename their own subdomain without going through apex:
+
+1. Sign in to the brand (e.g. `bigdental.localhost:3000`).
+2. Settings → General (`/config/general`).
+3. Sub-Domain field is read-only; click **"Rename subdomain…"**.
+4. Type the new subdomain. Type it again to confirm.
+5. Submit. Server action redirects to the new subdomain seamlessly.
 
 ---
 
-## Troubleshooting
+## What's NOT a thing
 
-**"Your account doesn't have access to this workspace"** when trying to
-sign in at a brand subdomain → the auth user is valid but has no
-`employees` row in that brand. Either:
-- Sign in to a brand they ARE in, OR
-- Have a brand admin add them via `/employees`, OR
-- Use `superadmin@gmail.com` to sign in at `/admin/login` and create a
-  new brand where they'll be the owner.
+- **`<brand>.localhost:3000/admin`** — 404. The proxy refuses /admin on subdomains.
+- **`localhost:3000/admin/login`** — gone. Apex login is just `/login`.
+- **Adding the platform admin to a brand** — never. Brand admin is a separate user provisioned at brand creation.
 
-**"This account isn't a platform admin"** when trying to sign in at
-`/admin/login` → the auth user has no row in `public.platform_admins`.
-By design only `superadmin@gmail.com` is seeded. To grant another user,
-insert a row directly:
+---
+
+## Production credential notes
+
+The seeded `superadmin@gmail.com` / `admin@gmail.com` passwords are
+`password` for dev convenience. **Before pointing real users at
+production, rotate them.**
+
+- Sign in at `/login`, navigate to `/update-password`, set a new one, OR
+- Supabase dashboard → Authentication → Users → "Send password reset"
+
+To grant another auth user platform-admin access:
 ```sql
 insert into public.platform_admins (auth_user_id, notes)
 values ('<their-auth-uuid>', 'reason');
 ```
 
-**`/admin` shows nothing** → you're at a brand subdomain. Visit
-`localhost:3000/admin` (apex) instead.
+---
 
-**Localhost redirects to `localhost`** → cookie domain in dev is
-unset (per-subdomain), so signing in at one subdomain doesn't share
-session with others. This is intentional for dev test isolation. In
-production the cookie is `.bigapp.online` and the session spans
-subdomains.
+## Troubleshooting
 
-**"Subdomain is reserved"** → 46 names are blocked at create/rename
-(`www`, `app`, `admin`, `api`, `auth`, etc. — see PR 1's
-`reserved_subdomains` table).
+**"Your account doesn't have access to this workspace"** — auth user is valid but has no `employees` row in this brand. Sign in to a brand they ARE in, or have a brand admin add them via `/employees`.
 
-**"Subdomain was released within the last 30 days"** → the rename
-cooldown is active. Pick a different name or wait it out. The cooldown
-only applies to OTHER brands trying to claim a freed subdomain — the
-brand that originally held it can't reclaim until the same window
-elapses.
+**"This account isn't a platform admin"** — the auth user has no row in `public.platform_admins`.
+
+**`/admin` shows 404** — you're at a brand subdomain. Visit `localhost:3000/admin` (apex) instead.
+
+**`localhost:3000/login` keeps showing the platform-admin form even though I want to sign in to a brand** — sign in from the brand's own URL: `<brand>.localhost:3000/login`.
+
+**Localhost session doesn't carry between subdomains** — by design in dev. In production, the cookie domain is `.bigapp.online` and sessions span subdomains.
+
+**"Subdomain is reserved"** — 46 names blocked. See `reserved_subdomains` table.
+
+**"Subdomain was released within the last 30 days"** — cooldown active. Pick another name.
 
 ---
 
-## What happens behind the scenes (one-line summaries)
+## Planned: easier admin assignment for existing brands
 
-- **Brand isolation (PR 3)** — every list/get in `lib/services/*.ts`
-  filters by brand. Tier-A directly via `.eq("brand_id", …)`; Tier-C
-  via ownership-assertion helpers in
-  `lib/supabase/brand-ownership.ts`.
-- **Brand creation (PR 4)** — `create_brand_atomic` SECURITY DEFINER
-  RPC inserts brand + owner employee in one transaction.
-- **Subdomain rename (PR 4)** — `rename_brand_subdomain` RPC updates
-  `brands.subdomain`; trigger handles history; proxy 301s the old
-  subdomain for 30 days.
-- **Apex login (PR 4 follow-up)** — `/admin/login` server action
-  signs in via Supabase + checks `platform_admins`. Sign-out via
-  `/admin/logout` returns to `/admin/login`.
+The new-brand flow creates one admin. To add a second system admin to an
+existing brand today, sign in to the brand's `/employees` and add them
+there. Two ergonomic improvements we'll add when needed:
+
+1. **Apex `/admin/brands/<id>/admins`** — list current SYSTEM ADMINs of a brand, "Add admin" creates an auth user + employees row + assigns SYSTEM ADMIN role from apex (no need to log in as a brand member).
+2. **Promote/demote within `/employees`** — a SYSTEM ADMIN can promote an employee to SYSTEM ADMIN role from the existing employees page; we'll add a role dropdown.
+
+Neither is built yet. Track in `docs/modules/12-config.md` follow-ups.
+
+---
+
+## Behind the scenes (one-line summaries)
+
+- **Brand isolation** — every list/get in `lib/services/*.ts` filters by brand. Tier-A directly via `.eq("brand_id", …)`; Tier-C via ownership-assertion helpers in `lib/supabase/brand-ownership.ts`.
+- **Brand creation** — admin SDK creates auth user → `create_brand_atomic` RPC inserts brand + bootstrap employee → trigger writes history row. Rollback deletes the auth user on RPC failure.
+- **Subdomain rename** — `rename_brand_subdomain` RPC updates `brands.subdomain`; trigger handles history; proxy 301s the old subdomain for 30 days.
+- **Apex `/admin` enforcement** — proxy 404s `/admin` on any subdomain; layout gates on `platform_admins`.

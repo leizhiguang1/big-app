@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import Image from "next/image";
-import Link from "next/link";
+import { redirect } from "next/navigation";
 import { isPlatformAdmin } from "@/lib/auth/platform-admin";
 import { getServerContext } from "@/lib/context/server";
 import { listWorkspacesForUser } from "@/lib/services/platform-admin";
@@ -28,6 +28,12 @@ export default async function SelectBrandPage({
 
 	const ctx = await getServerContext();
 	const isSignedIn = Boolean(ctx.currentUser);
+
+	// Platform admins go straight to the apex admin. /select-brand is a
+	// tenant-membership picker, not their landing page.
+	if (isSignedIn && (await isPlatformAdmin(ctx))) {
+		redirect("/admin/brands");
+	}
 
 	// Signed-in users see only their workspaces (memberships across brands).
 	// Visitors see the public list of all active brands. This matches the
@@ -58,8 +64,6 @@ export default async function SelectBrandPage({
 			logo_url: b.logo_url,
 		}));
 	}
-
-	const platformAdmin = isSignedIn ? await isPlatformAdmin(ctx) : false;
 
 	const brandUrl = (subdomain: string) =>
 		requestHost
@@ -138,25 +142,6 @@ export default async function SelectBrandPage({
 					))}
 				</ul>
 			)}
-
-			{platformAdmin ? (
-				<div className="mt-8 w-full rounded-lg border bg-muted/30 px-5 py-4 text-sm">
-					<div className="flex items-center justify-between">
-						<div>
-							<div className="font-medium">Platform admin</div>
-							<div className="text-xs text-muted-foreground">
-								Create new brands, manage subdomains.
-							</div>
-						</div>
-						<Link
-							href="/admin/brands"
-							className="rounded-md border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted/50"
-						>
-							Open admin →
-						</Link>
-					</div>
-				</div>
-			) : null}
 
 			<p className="mt-10 text-xs text-muted-foreground">
 				{isSignedIn ? (

@@ -55,6 +55,13 @@ export async function proxy(request: NextRequest) {
 
 		brandId = result.brand.id;
 		brandSubdomain = result.brand.subdomain;
+
+		// /admin/* is apex-only. A brand subdomain must never serve it.
+		if (request.nextUrl.pathname.startsWith("/admin")) {
+			const url = request.nextUrl.clone();
+			url.pathname = "/brand-not-found";
+			return NextResponse.rewrite(url, { status: 404 });
+		}
 	}
 
 	// 2. Build response with x-brand-id injected (preserved across cookie refreshes).

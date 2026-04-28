@@ -9,14 +9,9 @@ import { extractSubdomain, ROOT_DOMAIN } from "@/lib/multibrand/host";
 import * as brandsService from "@/lib/services/brands";
 import * as platformAdmin from "@/lib/services/platform-admin";
 
-// /admin/* server actions. Each action:
-//   * Builds Context, then enforces the platform-admin gate. The gate is
-//     re-checked here even though the page guards with the same helper —
-//     defense in depth, since actions are addressable directly.
-//   * Calls the service, then revalidates the affected paths.
-//
-// Every brand-management entry point is platform-admin-only. Brand admins
-// modify their own brand from /config/general (separate action).
+// /admin/* server actions. Each action builds Context, enforces the
+// platform-admin gate (defense in depth — the layout already guards),
+// calls the service, and revalidates the affected paths.
 
 export async function createBrandAction(input: unknown) {
 	const ctx = await getServerContext();
@@ -27,10 +22,35 @@ export async function createBrandAction(input: unknown) {
 	return result;
 }
 
-// Subdomain rename — runs from /config/general inside a brand subdomain.
-// We redirect the caller to the new subdomain after the rename so their
-// session continues seamlessly (cookies are .bigapp.online, so the cookie
-// follows them).
+export async function updateBrandAction(input: unknown) {
+	const ctx = await getServerContext();
+	await assertPlatformAdmin(ctx);
+	const result = await platformAdmin.updateBrandAdmin(ctx, input);
+	revalidatePath("/admin/brands");
+	return result;
+}
+
+export async function setBrandActiveAction(input: unknown) {
+	const ctx = await getServerContext();
+	await assertPlatformAdmin(ctx);
+	const result = await platformAdmin.setBrandActive(ctx, input);
+	revalidatePath("/admin/brands");
+	revalidatePath("/select-brand");
+	return result;
+}
+
+// Apex-side rename. Doesn't redirect — the platform admin stays at apex.
+export async function adminRenameSubdomainAction(input: unknown) {
+	const ctx = await getServerContext();
+	await assertPlatformAdmin(ctx);
+	const result = await platformAdmin.adminRenameSubdomain(ctx, input);
+	revalidatePath("/admin/brands");
+	return result;
+}
+
+// Tenant-side rename. Runs from /config/general inside a brand subdomain.
+// Redirects to the new subdomain so the session continues seamlessly
+// (cookies are .bigapp.online, so the cookie follows them).
 export async function renameSubdomainAction(input: unknown) {
 	const ctx = await getServerContext();
 	if (!ctx.brandId) throw new Error("No brand context");
@@ -43,8 +63,6 @@ export async function renameSubdomainAction(input: unknown) {
 		const proto =
 			h.get("x-forwarded-proto") ??
 			(process.env.NODE_ENV === "production" ? "https" : "http");
-		// Build target URL on the new subdomain. Use the request's host's
-		// root portion (defensive against NEXT_PUBLIC_ROOT_DOMAIN drift).
 		const sub = extractSubdomain(requestHost, ROOT_DOMAIN);
 		let rootHost: string;
 		if (sub) {

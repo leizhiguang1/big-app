@@ -1,15 +1,18 @@
 "use client";
 
 import { useActionState } from "react";
+import {
+	type PlatformAdminLoginResult,
+	platformAdminLoginAction,
+} from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { type AdminLoginResult, adminLoginAction } from "./actions";
 
-export function AdminLoginForm() {
+export function PlatformAdminLoginForm() {
 	const [state, formAction, pending] = useActionState<
-		AdminLoginResult | null,
+		PlatformAdminLoginResult | null,
 		FormData
-	>(adminLoginAction, null);
+	>(platformAdminLoginAction, null);
 
 	const error = state && "error" in state ? state.error : null;
 	const prevEmail = state && "email" in state ? state.email : "";

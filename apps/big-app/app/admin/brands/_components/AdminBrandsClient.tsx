@@ -1,11 +1,22 @@
 "use client";
 
-import { Plus } from "lucide-react";
-import { useState } from "react";
+import { MoreHorizontal, Plus } from "lucide-react";
+import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { setBrandActiveAction } from "@/lib/actions/admin-brands";
 import type { AdminBrandRow } from "@/lib/services/platform-admin";
+import { AdminRenameSubdomainDialog } from "./AdminRenameSubdomainDialog";
+import { EditBrandDialog } from "./EditBrandDialog";
 import { NewBrandDialog } from "./NewBrandDialog";
 
 type Props = {
@@ -21,6 +32,25 @@ function brandUrl(protocol: string, rootHost: string, sub: string): string {
 
 export function AdminBrandsClient({ brands, rootHost, protocol }: Props) {
 	const [newOpen, setNewOpen] = useState(false);
+	const [editing, setEditing] = useState<AdminBrandRow | null>(null);
+	const [renaming, setRenaming] = useState<AdminBrandRow | null>(null);
+	const [activating, setActivating] = useState<AdminBrandRow | null>(null);
+	const [pending, startTransition] = useTransition();
+
+	const handleToggleActive = () => {
+		if (!activating) return;
+		startTransition(async () => {
+			try {
+				await setBrandActiveAction({
+					brand_id: activating.id,
+					is_active: !activating.is_active,
+				});
+				setActivating(null);
+			} catch (e) {
+				alert(e instanceof Error ? e.message : "Failed");
+			}
+		});
+	};
 
 	const columns: DataTableColumn<AdminBrandRow>[] = [
 		{
@@ -100,6 +130,32 @@ export function AdminBrandsClient({ brands, rootHost, protocol }: Props) {
 			sortable: true,
 			sortValue: (r) => r.created_at,
 		},
+		{
+			key: "actions",
+			header: "",
+			align: "right",
+			cell: (r) => (
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button variant="ghost" size="icon" aria-label="Actions">
+							<MoreHorizontal className="h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem onSelect={() => setEditing(r)}>
+							Edit
+						</DropdownMenuItem>
+						<DropdownMenuItem onSelect={() => setRenaming(r)}>
+							Rename subdomain…
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem onSelect={() => setActivating(r)}>
+							{r.is_active ? "Deactivate" : "Activate"}
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			),
+		},
 	];
 
 	return (
@@ -131,6 +187,38 @@ export function AdminBrandsClient({ brands, rootHost, protocol }: Props) {
 				open={newOpen}
 				onClose={() => setNewOpen(false)}
 				rootHost={rootHost}
+			/>
+
+			<EditBrandDialog
+				open={editing !== null}
+				onClose={() => setEditing(null)}
+				brand={editing}
+			/>
+
+			<AdminRenameSubdomainDialog
+				open={renaming !== null}
+				onClose={() => setRenaming(null)}
+				brand={renaming}
+				rootHost={rootHost}
+			/>
+
+			<ConfirmDialog
+				open={activating !== null}
+				onOpenChange={(o) => !o && setActivating(null)}
+				title={
+					activating?.is_active
+						? `Deactivate ${activating.name}?`
+						: `Activate ${activating?.name ?? ""}?`
+				}
+				description={
+					activating?.is_active
+						? "Brand staff won't be able to sign in while deactivated. Existing data is preserved. You can reactivate later."
+						: "Brand staff will be able to sign in again."
+				}
+				confirmLabel={activating?.is_active ? "Deactivate" : "Activate"}
+				variant={activating?.is_active ? "destructive" : "default"}
+				pending={pending}
+				onConfirm={handleToggleActive}
 			/>
 		</div>
 	);
