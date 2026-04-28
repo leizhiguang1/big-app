@@ -4,6 +4,12 @@ import {
 	medicalCertificateCreateSchema,
 	medicalCertificateUpdateSchema,
 } from "@/lib/schemas/medical-certificates";
+import {
+	assertAppointmentInBrand,
+	assertCustomerInBrand,
+	assertOutletInBrand,
+} from "@/lib/supabase/brand-ownership";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type MedicalCertificate = Tables<"medical_certificates">;
@@ -87,6 +93,7 @@ export async function listMedicalCertificatesForAppointment(
 	ctx: Context,
 	appointmentId: string,
 ): Promise<MedicalCertificateWithRefs[]> {
+	await assertAppointmentInBrand(ctx, appointmentId);
 	const { data, error } = await ctx.db
 		.from("medical_certificates")
 		.select(SELECT_WITH_REFS)
@@ -100,6 +107,7 @@ export async function listMedicalCertificatesForCustomer(
 	ctx: Context,
 	customerId: string,
 ): Promise<MedicalCertificateWithRefs[]> {
+	await assertCustomerInBrand(ctx, customerId);
 	const { data, error } = await ctx.db
 		.from("medical_certificates")
 		.select(SELECT_WITH_REFS)
@@ -113,10 +121,12 @@ export async function getMedicalCertificate(
 	ctx: Context,
 	id: string,
 ): Promise<MedicalCertificateWithRefs> {
+	const brandId = assertBrandId(ctx);
 	const { data, error } = await ctx.db
 		.from("medical_certificates")
-		.select(SELECT_WITH_REFS)
+		.select(`${SELECT_WITH_REFS}, _brand_outlet:outlets!inner(brand_id)`)
 		.eq("id", id)
+		.eq("_brand_outlet.brand_id", brandId)
 		.single();
 	if (error) throw new ValidationError(error.message);
 	if (!data) throw new NotFoundError(`Medical certificate ${id} not found`);
@@ -128,6 +138,9 @@ export async function createMedicalCertificate(
 	input: unknown,
 ): Promise<MedicalCertificate> {
 	const p = medicalCertificateCreateSchema.parse(input);
+	await assertCustomerInBrand(ctx, p.customer_id);
+	await assertOutletInBrand(ctx, p.outlet_id);
+	if (p.appointment_id) await assertAppointmentInBrand(ctx, p.appointment_id);
 	const shared = {
 		appointment_id: p.appointment_id,
 		customer_id: p.customer_id,

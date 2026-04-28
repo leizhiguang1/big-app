@@ -2,8 +2,8 @@ import type { Context } from "@/lib/context/types";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import {
 	type NewPaymentMethodInput,
-	type PaymentMethodInput,
 	newPaymentMethodInputSchema,
+	type PaymentMethodInput,
 	paymentMethodInputSchema,
 } from "@/lib/schemas/payment-methods";
 import type { PaymentEntry } from "@/lib/schemas/sales";
@@ -18,6 +18,7 @@ export async function listPaymentMethods(
 	const { data, error } = await ctx.db
 		.from("payment_methods")
 		.select("*")
+		.eq("brand_id", assertBrandId(ctx))
 		.order("sort_order", { ascending: true })
 		.order("name", { ascending: true });
 	if (error) throw new ValidationError(error.message);
@@ -30,6 +31,7 @@ export async function listActivePaymentMethods(
 	const { data, error } = await ctx.db
 		.from("payment_methods")
 		.select("*")
+		.eq("brand_id", assertBrandId(ctx))
 		.eq("is_active", true)
 		.order("sort_order", { ascending: true })
 		.order("name", { ascending: true });
@@ -39,10 +41,7 @@ export async function listActivePaymentMethods(
 
 // Derive a unique snake_case code from the display name. Appends -2, -3… if
 // the base code collides with an existing row.
-async function deriveUniqueCode(
-	ctx: Context,
-	name: string,
-): Promise<string> {
+async function deriveUniqueCode(ctx: Context, name: string): Promise<string> {
 	const base =
 		name
 			.toLowerCase()
@@ -52,6 +51,7 @@ async function deriveUniqueCode(
 	const { data, error } = await ctx.db
 		.from("payment_methods")
 		.select("code")
+		.eq("brand_id", assertBrandId(ctx))
 		.like("code", `${base}%`);
 	if (error) throw new ValidationError(error.message);
 	const taken = new Set((data ?? []).map((r) => r.code));
@@ -67,10 +67,12 @@ export async function createPaymentMethod(
 ): Promise<PaymentMethod> {
 	const parsed: NewPaymentMethodInput =
 		newPaymentMethodInputSchema.parse(input);
+	const brandId = assertBrandId(ctx);
 	const code = await deriveUniqueCode(ctx, parsed.name);
 	const { data: maxRow } = await ctx.db
 		.from("payment_methods")
 		.select("sort_order")
+		.eq("brand_id", brandId)
 		.order("sort_order", { ascending: false })
 		.limit(1)
 		.maybeSingle();
@@ -79,7 +81,7 @@ export async function createPaymentMethod(
 	const { data, error } = await ctx.db
 		.from("payment_methods")
 		.insert({
-			brand_id: assertBrandId(ctx),
+			brand_id: brandId,
 			code,
 			name: parsed.name,
 			is_builtin: false,
@@ -117,6 +119,7 @@ export async function updatePaymentMethod(
 			sort_order: parsed.sort_order,
 		})
 		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx))
 		.select("*")
 		.single();
 	if (error) throw new ValidationError(error.message);
@@ -128,17 +131,23 @@ export async function deletePaymentMethod(
 	ctx: Context,
 	id: string,
 ): Promise<void> {
+	const brandId = assertBrandId(ctx);
 	const { data: row, error: fetchErr } = await ctx.db
 		.from("payment_methods")
 		.select("is_builtin")
 		.eq("id", id)
+		.eq("brand_id", brandId)
 		.maybeSingle();
 	if (fetchErr) throw new ValidationError(fetchErr.message);
 	if (!row) throw new NotFoundError(`Payment method ${id} not found`);
 	if (row.is_builtin)
 		throw new ConflictError("Built-in payment methods cannot be deleted");
 
-	const { error } = await ctx.db.from("payment_methods").delete().eq("id", id);
+	const { error } = await ctx.db
+		.from("payment_methods")
+		.delete()
+		.eq("id", id)
+		.eq("brand_id", brandId);
 	if (error) {
 		if (error.code === "23503")
 			throw new ConflictError(
@@ -162,6 +171,7 @@ export async function assertPaymentFields(
 		.select(
 			"code, name, is_active, requires_remarks, requires_bank, requires_card_type, requires_trace_no, requires_approval_code, requires_reference_no, requires_months",
 		)
+		.eq("brand_id", assertBrandId(ctx))
 		.in("code", codes);
 	if (error) throw new ValidationError(error.message);
 	const byCode = new Map<string, (typeof data)[number]>();

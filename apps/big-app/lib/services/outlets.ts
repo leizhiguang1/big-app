@@ -5,6 +5,7 @@ import {
 	outletUpdateSchema,
 	roomInputSchema,
 } from "@/lib/schemas/outlets";
+import { assertOutletInBrand } from "@/lib/supabase/brand-ownership";
 import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
@@ -25,6 +26,7 @@ export async function listOutlets(
 	const { data, error } = await ctx.db
 		.from("outlets")
 		.select("*, rooms(count)")
+		.eq("brand_id", assertBrandId(ctx))
 		.order("name", { ascending: true });
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []).map((row) => {
@@ -43,6 +45,7 @@ export async function getOutlet(ctx: Context, id: string): Promise<Outlet> {
 		.from("outlets")
 		.select("*")
 		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx))
 		.single();
 	if (error || !data) throw new NotFoundError(`Outlet ${id} not found`);
 	return data;
@@ -105,6 +108,7 @@ export async function updateOutlet(
 	input: unknown,
 ): Promise<Outlet> {
 	const parsed = outletUpdateSchema.parse(input);
+	const brandId = assertBrandId(ctx);
 	const { data, error } = await ctx.db
 		.from("outlets")
 		.update({
@@ -133,6 +137,7 @@ export async function updateOutlet(
 			is_active: parsed.is_active,
 		})
 		.eq("id", id)
+		.eq("brand_id", brandId)
 		.select("*")
 		.single();
 	if (error) throw new ValidationError(error.message);
@@ -141,7 +146,11 @@ export async function updateOutlet(
 }
 
 export async function deleteOutlet(ctx: Context, id: string): Promise<void> {
-	const { error } = await ctx.db.from("outlets").delete().eq("id", id);
+	const { error } = await ctx.db
+		.from("outlets")
+		.delete()
+		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx));
 	if (error) {
 		if (error.code === "23503")
 			throw new ConflictError(
@@ -151,10 +160,25 @@ export async function deleteOutlet(ctx: Context, id: string): Promise<void> {
 	}
 }
 
+// rooms inherit brand via outlets.brand_id. Verify the room belongs to the
+// caller's brand before any read/update/delete.
+async function assertRoomInBrand(ctx: Context, roomId: string): Promise<void> {
+	const brandId = assertBrandId(ctx);
+	const { data, error } = await ctx.db
+		.from("rooms")
+		.select("id, outlets!inner(brand_id)")
+		.eq("id", roomId)
+		.eq("outlets.brand_id", brandId)
+		.maybeSingle();
+	if (error) throw error;
+	if (!data) throw new NotFoundError(`Room ${roomId} not found`);
+}
+
 export async function listRooms(
 	ctx: Context,
 	outletId: string,
 ): Promise<Room[]> {
+	await assertOutletInBrand(ctx, outletId);
 	const { data, error } = await ctx.db
 		.from("rooms")
 		.select("*")
@@ -170,6 +194,7 @@ export async function createRoom(
 	outletId: string,
 	input: unknown,
 ): Promise<Room> {
+	await assertOutletInBrand(ctx, outletId);
 	const parsed = roomInputSchema.parse(input);
 	const { data, error } = await ctx.db
 		.from("rooms")
@@ -196,6 +221,7 @@ export async function updateRoom(
 	id: string,
 	input: unknown,
 ): Promise<Room> {
+	await assertRoomInBrand(ctx, id);
 	const parsed = roomInputSchema.parse(input);
 	const { data, error } = await ctx.db
 		.from("rooms")
@@ -219,6 +245,7 @@ export async function updateRoom(
 }
 
 export async function deleteRoom(ctx: Context, id: string): Promise<void> {
+	await assertRoomInBrand(ctx, id);
 	const { data: room, error: lookupError } = await ctx.db
 		.from("rooms")
 		.select("outlet_id")

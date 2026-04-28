@@ -1,5 +1,6 @@
 import type { Context } from "@/lib/context/types";
 import { ValidationError } from "@/lib/errors";
+import { assertCustomerInBrand } from "@/lib/supabase/brand-ownership";
 
 // 🚧 PARKED — feature NOT done (2026-04-27).
 // Status: Draft v0 wired, model is WRONG, work parked by user pending
@@ -140,6 +141,7 @@ export async function listCustomerServiceRedemptions(
 	ctx: Context,
 	customerId: string,
 ): Promise<CustomerServiceRedemption[]> {
+	await assertCustomerInBrand(ctx, customerId);
 	const { data: appointments, error: aerr } = await ctx.db
 		.from("appointments")
 		.select(
@@ -196,6 +198,7 @@ export async function listCustomerServiceBalances(
 	ctx: Context,
 	customerId: string,
 ): Promise<CustomerServiceBalance[]> {
+	await assertCustomerInBrand(ctx, customerId);
 	const { data: items, error: serr } = await ctx.db
 		.from("sale_items")
 		.select(

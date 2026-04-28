@@ -83,6 +83,7 @@ export async function listCustomers(
 	const { data, error } = await ctx.db
 		.from("customers")
 		.select(SELECT_WITH_RELATIONS)
+		.eq("brand_id", assertBrandId(ctx))
 		.order("code", { ascending: false });
 	if (error) throw new ValidationError(error.message);
 	return (data ?? []) as unknown as CustomerWithRelations[];
@@ -96,6 +97,7 @@ export async function getCustomer(
 		.from("customers")
 		.select(SELECT_WITH_RELATIONS)
 		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx))
 		.single();
 	if (error || !data) throw new NotFoundError(`Customer ${id} not found`);
 	return data as unknown as CustomerWithRelations;
@@ -141,6 +143,7 @@ export async function updateCustomer(
 		.from("customers")
 		.update(update)
 		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx))
 		.select("*")
 		.single();
 	if (error) {
@@ -153,7 +156,11 @@ export async function updateCustomer(
 }
 
 export async function deleteCustomer(ctx: Context, id: string): Promise<void> {
-	const { error } = await ctx.db.from("customers").delete().eq("id", id);
+	const { error } = await ctx.db
+		.from("customers")
+		.delete()
+		.eq("id", id)
+		.eq("brand_id", assertBrandId(ctx));
 	if (error) {
 		if (error.code === "23503")
 			throw new ConflictError(

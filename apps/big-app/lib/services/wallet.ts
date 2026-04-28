@@ -1,5 +1,6 @@
 import type { Context } from "@/lib/context/types";
 import { ValidationError } from "@/lib/errors";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type CustomerWallet = Tables<"customer_wallets">;
@@ -22,6 +23,7 @@ export async function getWalletByCustomer(
 	const { data, error } = await ctx.db
 		.from("customer_wallets")
 		.select("*")
+		.eq("brand_id", assertBrandId(ctx))
 		.eq("customer_id", customerId)
 		.maybeSingle();
 	if (error) throw new ValidationError(error.message);

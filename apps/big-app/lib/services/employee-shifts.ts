@@ -5,6 +5,11 @@ import {
 	employeeShiftInputSchema,
 	type ShiftBreak,
 } from "@/lib/schemas/employee-shifts";
+import {
+	assertEmployeeInBrand,
+	assertOutletInBrand,
+} from "@/lib/supabase/brand-ownership";
+import { assertBrandId } from "@/lib/supabase/query";
 import type { Tables } from "@/lib/supabase/types";
 
 export type EmployeeShift = Tables<"employee_shifts">;
@@ -62,12 +67,14 @@ export async function listBookableEmployeesForOutlet(
 	ctx: Context,
 	outletId: string,
 ): Promise<RosterEmployee[]> {
+	await assertOutletInBrand(ctx, outletId);
 	const { data, error } = await ctx.db
 		.from("employee_outlets")
 		.select(
-			"employee:employees!inner(id, code, first_name, last_name, salutation, profile_image_path, is_bookable, is_active, position:positions(id, name), role:roles(id, name))",
+			"employee:employees!inner(id, code, first_name, last_name, salutation, profile_image_path, is_bookable, is_active, brand_id, position:positions(id, name), role:roles(id, name))",
 		)
 		.eq("outlet_id", outletId)
+		.eq("employee.brand_id", assertBrandId(ctx))
 		.eq("employee.is_bookable", true)
 		.eq("employee.is_active", true);
 	if (error) throw new ValidationError(error.message);
@@ -86,12 +93,14 @@ export async function listEmployeesForOutlet(
 	ctx: Context,
 	outletId: string,
 ): Promise<RosterEmployee[]> {
+	await assertOutletInBrand(ctx, outletId);
 	const { data, error } = await ctx.db
 		.from("employee_outlets")
 		.select(
-			"employee:employees!inner(id, code, first_name, last_name, salutation, profile_image_path, is_bookable, is_active, position:positions(id, name), role:roles(id, name))",
+			"employee:employees!inner(id, code, first_name, last_name, salutation, profile_image_path, is_bookable, is_active, brand_id, position:positions(id, name), role:roles(id, name))",
 		)
 		.eq("outlet_id", outletId)
+		.eq("employee.brand_id", assertBrandId(ctx))
 		.eq("employee.is_active", true);
 	if (error) throw new ValidationError(error.message);
 
@@ -109,6 +118,7 @@ export async function listShiftsForWeek(
 	ctx: Context,
 	args: { outletId: string; weekStart: string; weekEnd: string },
 ): Promise<EmployeeShift[]> {
+	await assertOutletInBrand(ctx, args.outletId);
 	const { data, error } = await ctx.db
 		.from("employee_shifts")
 		.select("*")
@@ -135,6 +145,8 @@ export async function createShift(
 	input: unknown,
 ): Promise<EmployeeShift> {
 	const row = normalize(input);
+	await assertEmployeeInBrand(ctx, row.employee_id);
+	await assertOutletInBrand(ctx, row.outlet_id);
 	await assertNoConflict(ctx, row, null);
 	const { data, error } = await ctx.db
 		.from("employee_shifts")
@@ -150,7 +162,10 @@ export async function updateShift(
 	id: string,
 	input: unknown,
 ): Promise<EmployeeShift> {
+	await assertShiftInBrand(ctx, id);
 	const row = normalize(input);
+	await assertEmployeeInBrand(ctx, row.employee_id);
+	await assertOutletInBrand(ctx, row.outlet_id);
 	await assertNoConflict(ctx, row, id);
 	const { data, error } = await ctx.db
 		.from("employee_shifts")
@@ -164,6 +179,23 @@ export async function updateShift(
 }
 
 export async function deleteShift(ctx: Context, id: string): Promise<void> {
+	await assertShiftInBrand(ctx, id);
 	const { error } = await ctx.db.from("employee_shifts").delete().eq("id", id);
 	if (error) throw new ValidationError(error.message);
+}
+
+// employee_shifts inherit brand via employees.brand_id.
+async function assertShiftInBrand(
+	ctx: Context,
+	shiftId: string,
+): Promise<void> {
+	const brandId = assertBrandId(ctx);
+	const { data, error } = await ctx.db
+		.from("employee_shifts")
+		.select("id, employees!inner(brand_id)")
+		.eq("id", shiftId)
+		.eq("employees.brand_id", brandId)
+		.maybeSingle();
+	if (error) throw error;
+	if (!data) throw new NotFoundError(`Shift ${shiftId} not found`);
 }
