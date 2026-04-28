@@ -70,6 +70,10 @@ export async function renameSubdomainAction(input: unknown) {
 		} else {
 			rootHost = requestHost || ROOT_DOMAIN;
 		}
+		// Strip leading `www.` so the redirect target stays on the canonical
+		// brand subdomain (e.g. `bigdental.bigapp.online`), not
+		// `bigdental.www.bigapp.online`.
+		rootHost = rootHost.replace(/^www\./, "");
 		redirect(`${proto}://${result.subdomain}.${rootHost}/config/general`);
 	}
 	return result;

@@ -18,9 +18,12 @@ export default async function SelectBrandPage({
 
 	// Read the actual request host so brand links work correctly even when
 	// NEXT_PUBLIC_ROOT_DOMAIN is misconfigured at build time. We're at the
-	// apex here, so the request's host IS the root domain.
+	// apex here, so the request's host IS the root domain. Strip a leading
+	// `www.` so brand links never become `<sub>.www.<root>` (which the
+	// brand resolver would 404).
 	const h = await headers();
-	const requestHost = h.get("host") ?? "";
+	const rawHost = h.get("host") ?? "";
+	const requestHost = rawHost.replace(/^www\./, "");
 	const requestProto =
 		h.get("x-forwarded-proto") ??
 		(process.env.NODE_ENV === "production" ? "https" : "http");

@@ -15,7 +15,10 @@ export default async function AdminBrandsPage() {
 	const brands: AdminBrandRow[] = await listAllBrandsAdmin(ctx);
 
 	const h = await headers();
-	const requestHost = h.get("host") ?? "";
+	const rawHost = h.get("host") ?? "";
+	// Strip leading `www.` so brand links never become `<sub>.www.<root>`
+	// (which the brand resolver would 404 as an unknown subdomain).
+	const requestHost = rawHost.replace(/^www\./, "");
 	const proto =
 		h.get("x-forwarded-proto") ??
 		(process.env.NODE_ENV === "production" ? "https" : "http");

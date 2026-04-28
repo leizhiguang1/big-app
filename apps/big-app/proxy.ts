@@ -20,31 +20,6 @@ const COOKIE_DOMAIN =
 
 export async function proxy(request: NextRequest) {
 	const host = request.headers.get("host");
-
-	// 0. Canonicalize away the `www.` infix. Two cases:
-	//      www.<root>          → <root>            (apex)
-	//      <sub>.www.<root>    → <sub>.<root>      (brand subdomain)
-	//    Without this, /select-brand and /admin/brands build links from the
-	//    request host and produce `https://bigdental.www.bigapp.online/login`,
-	//    which the brand resolver then 404s as the unknown subdomain
-	//    "bigdental.www".
-	const hostname = host?.split(":")[0]?.toLowerCase() ?? "";
-	if (
-		ROOT_DOMAIN &&
-		ROOT_DOMAIN !== "localhost" &&
-		(hostname === `www.${ROOT_DOMAIN}` ||
-			hostname.endsWith(`.www.${ROOT_DOMAIN}`))
-	) {
-		const url = request.nextUrl.clone();
-		const port = url.port;
-		url.host =
-			hostname === `www.${ROOT_DOMAIN}`
-				? ROOT_DOMAIN
-				: hostname.replace(`.www.${ROOT_DOMAIN}`, `.${ROOT_DOMAIN}`);
-		if (port) url.port = port;
-		return NextResponse.redirect(url, 301);
-	}
-
 	const subdomain = extractSubdomain(host, ROOT_DOMAIN);
 
 	let brandId: string | null = null;
