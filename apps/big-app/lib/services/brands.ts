@@ -41,7 +41,9 @@ export async function updateBrand(
 			logo_url: nullable(parsed.logo_url),
 			contact_phone: nullable(parsed.contact_phone),
 			currency_code: parsed.currency_code,
-			subdomain: nullable(parsed.subdomain),
+			// subdomain is intentionally NOT updated here. Renames go through the
+			// dedicated rename flow in PR 4 (cooldown + history checks). The brand
+			// settings form shows it as read-only until then.
 			registered_name: nullable(parsed.registered_name),
 			registration_number: nullable(parsed.registration_number),
 			tax_id: nullable(parsed.tax_id),

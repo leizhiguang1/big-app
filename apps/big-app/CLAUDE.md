@@ -209,11 +209,14 @@ a Next import, that move breaks. Fix it before merging.
     from their first migration; children/junctions inherit via parent
     FK (no column); lookups are global. Services stamp `brand_id:
     assertBrandId(ctx)` on insert (from `@/lib/supabase/query`); reads
-    are unfiltered today (Phase 4 tightens). `ctx.brandId` comes from
-    `employees.brand_id`, never a hardcoded constant. **Full rules,
-    tier classification, migration template, common mistakes:
-    [docs/BRAND_SCOPING.md](docs/BRAND_SCOPING.md).** Read that before
-    adding a new table or module.
+    filter by `brand_id` once PR 3 of the multi-brand rollout lands.
+    `ctx.brandId` comes from middleware (subdomain → brand → membership
+    check), never from `employees.brand_id` directly and never a
+    hardcoded constant. **Two canonical docs:
+    [docs/BRAND_SCOPING.md](docs/BRAND_SCOPING.md)** (schema half — which
+    tables, how to stamp) **and [docs/MULTIBRAND.md](docs/MULTIBRAND.md)**
+    (runtime half — subdomain routing, auth, membership, rename rules).
+    Read both before adding a new table, module, or auth-adjacent surface.
 
 12. **Don't install TanStack Query in Phase 1 at all.** Every Phase 1
     interaction — lists, details, creates, updates, drag-and-drop on the

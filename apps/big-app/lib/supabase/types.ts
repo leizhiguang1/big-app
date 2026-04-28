@@ -582,7 +582,7 @@ export type Database = {
           nickname: string | null
           registered_name: string | null
           registration_number: string | null
-          subdomain: string | null
+          subdomain: string
           tagline: string | null
           tax_id: string | null
           updated_at: string
@@ -602,7 +602,7 @@ export type Database = {
           nickname?: string | null
           registered_name?: string | null
           registration_number?: string | null
-          subdomain?: string | null
+          subdomain: string
           tagline?: string | null
           tax_id?: string | null
           updated_at?: string
@@ -622,7 +622,7 @@ export type Database = {
           nickname?: string | null
           registered_name?: string | null
           registration_number?: string | null
-          subdomain?: string | null
+          subdomain?: string
           tagline?: string | null
           tax_id?: string | null
           updated_at?: string
@@ -2134,6 +2134,27 @@ export type Database = {
           },
         ]
       }
+      platform_admins: {
+        Row: {
+          auth_user_id: string
+          granted_at: string
+          granted_by: string | null
+          notes: string | null
+        }
+        Insert: {
+          auth_user_id: string
+          granted_at?: string
+          granted_by?: string | null
+          notes?: string | null
+        }
+        Update: {
+          auth_user_id?: string
+          granted_at?: string
+          granted_by?: string | null
+          notes?: string | null
+        }
+        Relationships: []
+      }
       positions: {
         Row: {
           created_at: string
@@ -2347,6 +2368,18 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      reserved_subdomains: {
+        Row: {
+          name: string
+        }
+        Insert: {
+          name: string
+        }
+        Update: {
+          name?: string
+        }
+        Relationships: []
       }
       roles: {
         Row: {
@@ -2838,6 +2871,44 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "service_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subdomain_history: {
+        Row: {
+          brand_id: string
+          changed_by: string | null
+          claimed_at: string
+          id: string
+          notes: string | null
+          released_at: string | null
+          subdomain: string
+        }
+        Insert: {
+          brand_id: string
+          changed_by?: string | null
+          claimed_at?: string
+          id?: string
+          notes?: string | null
+          released_at?: string | null
+          subdomain: string
+        }
+        Update: {
+          brand_id?: string
+          changed_by?: string | null
+          claimed_at?: string
+          id?: string
+          notes?: string | null
+          released_at?: string | null
+          subdomain?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subdomain_history_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
             referencedColumns: ["id"]
           },
         ]
@@ -4204,3 +4275,4 @@ export const Constants = {
     },
   },
 } as const
+

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { headers } from "next/headers";
 import { cache } from "react";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -8,31 +9,41 @@ export const getServerContext = cache(async (): Promise<Context> => {
 	const db = await createClient();
 	const dbAdmin = createSupabaseAdminClient();
 
+	const reqHeaders = await headers();
+	const brandIdFromHost = reqHeaders.get("x-brand-id");
+
 	let currentUser: CurrentUser | null = null;
-	let brandId: string | null = null;
 	const {
 		data: { user: authUser },
 	} = await db.auth.getUser();
 
 	if (authUser) {
-		const { data: employee } = await dbAdmin
-			.from("employees")
-			.select("id, email, brand_id")
-			.eq("auth_user_id", authUser.id)
-			.maybeSingle();
-		currentUser = {
-			id: authUser.id,
-			employeeId: employee?.id ?? null,
-			email: authUser.email ?? employee?.email ?? "",
-		};
-		brandId = employee?.brand_id ?? null;
+		if (brandIdFromHost) {
+			const { data: employee } = await dbAdmin
+				.from("employees")
+				.select("id, email")
+				.eq("auth_user_id", authUser.id)
+				.eq("brand_id", brandIdFromHost)
+				.maybeSingle();
+			currentUser = {
+				id: authUser.id,
+				employeeId: employee?.id ?? null,
+				email: authUser.email ?? employee?.email ?? "",
+			};
+		} else {
+			currentUser = {
+				id: authUser.id,
+				employeeId: null,
+				email: authUser.email ?? "",
+			};
+		}
 	}
 
 	return {
 		db,
 		dbAdmin,
 		currentUser,
-		brandId,
+		brandId: brandIdFromHost,
 		outletIds: [],
 		requestId: randomUUID(),
 	};

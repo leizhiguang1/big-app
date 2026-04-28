@@ -3,7 +3,15 @@
 > **Read this before adding a new table or building a new module.**
 >
 > Every top-level business entity in this repo carries a `brand_id`
-> pointing at `public.brands`. This doc is the one-stop checklist.
+> pointing at `public.brands`. This doc is the one-stop checklist for
+> the **schema half**.
+>
+> For the **runtime half** — subdomain routing, auth, membership,
+> brand creation, rename rules — see
+> [MULTIBRAND.md](./MULTIBRAND.md). The two docs compose: this one
+> tells you which tables carry `brand_id`; that one tells you where
+> `ctx.brandId` actually comes from at request time.
+>
 > Decision history: [ARCHITECTURE.md §4](./ARCHITECTURE.md#4-multi-tenant--schema-in-place-now-enforcement-deferred).
 
 ## TL;DR
@@ -154,10 +162,17 @@ export async function createThing(ctx: Context, input: unknown) {
 
 ### `ctx.brandId` resolution
 
-`getServerContext` reads it from `employees.brand_id` after the
-`auth_user_id` lookup. Unauthenticated sessions have
-`ctx.brandId === null`. That's why `assertBrandId` throws — Tier-A
-operations must be authenticated.
+**Pre-multi-brand rollout (today):** `getServerContext` reads it from
+`employees.brand_id` after the `auth_user_id` lookup. Single brand,
+single employee row per user — works because there's nothing to
+disambiguate.
+
+**Post-multi-brand rollout (PR 2 of [MULTIBRAND.md](./MULTIBRAND.md)):**
+middleware resolves brand from the subdomain, sets an `x-brand-id`
+header, and `getServerContext` reads it from there — then *verifies*
+the user has an `employees` row in that brand (membership check).
+Unauthenticated sessions still have `ctx.brandId === null`; that's why
+`assertBrandId` throws — Tier-A operations must be authenticated.
 
 ---
 

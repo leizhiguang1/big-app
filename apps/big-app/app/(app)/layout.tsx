@@ -10,7 +10,9 @@ import { mediaPublicUrl } from "@/lib/storage/urls";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
 	const ctx = await getServerContext();
+	if (!ctx.brandId) redirect("/select-brand");
 	if (!ctx.currentUser) redirect("/login");
+	if (!ctx.currentUser.employeeId) redirect("/select-brand?no_access=1");
 
 	let initialOutletId: string | null = null;
 	try {
