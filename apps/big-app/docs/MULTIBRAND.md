@@ -345,13 +345,75 @@ follow-up should add SQL `assert_caller_owns_brand(p_brand_id)` checks
 inside each SECURITY DEFINER body once we decide whether `brand_id`
 flows in via JWT custom claim or as an explicit RPC parameter.
 
-### PR 4 — Brand creation + apex flows — _not started_
-- `createBrand` server action (admin-passcode-gated, atomic with bootstrap employees row)
-- `renameSubdomain` server action (cooldown + history)
-- `app/select-brand/page.tsx` — brand picker
-- `app/brand-not-found/page.tsx` — friendly 404
-- `app/admin/brands/*` — platform-admin brand list / create UI
-- Brand settings page gains a Subdomain field with rename UI
+### PR 4 — Brand creation + apex flows — _done (2026-04-28)_
+- ✅ Migration `0097_brand_management_rpcs_and_admin_seed`:
+  - Seeds `admin@gmail.com` (auth user `a1000000-…001`) into
+    `platform_admins`. The table started empty by design (PR 1) — PR 4
+    bootstraps the first row so `/admin/*` becomes reachable.
+  - `create_brand_atomic(p_subdomain, p_code, p_name, p_currency_code,
+    p_owner_*)` SECURITY DEFINER RPC: validates subdomain format, rejects
+    reserved names, rejects 30-day cooldown reuse, then inserts the brand
+    + bootstrap owner employee in one transaction. The existing
+    `sync_subdomain_history` trigger writes the history row.
+  - `rename_brand_subdomain(p_brand_id, p_new_subdomain, p_changed_by)`
+    SECURITY DEFINER RPC: same validation set, then UPDATE
+    `brands.subdomain`. Trigger handles `released_at` on the old
+    history row + `claimed_at` on the new one. Patches `changed_by` for
+    audit.
+  - Both RPCs grant EXECUTE to `authenticated` only.
+- ✅ `lib/auth/platform-admin.ts` — `isPlatformAdmin(ctx)` and
+  `assertPlatformAdmin(ctx)`. Reads via `dbAdmin` so the gate works at
+  apex before a brand subdomain is resolved.
+- ✅ Services + actions:
+  - `lib/services/platform-admin.ts` — `listAllBrandsAdmin`,
+    `createBrand`, `listWorkspacesForUser`. Cross-brand reads via
+    `dbAdmin`; the platform-admin gate is enforced at the action layer
+    (defense in depth at both call sites).
+  - `lib/services/brands.ts` — `renameBrandSubdomain` calls the RPC and
+    maps DB error messages (reserved/cooldown/unique) to
+    `ConflictError`/`ValidationError`.
+  - `lib/actions/admin-brands.ts` — `createBrandAction` (platform-admin
+    only) and `renameSubdomainAction`. The latter `redirect()`s to the
+    new subdomain after a successful rename so the session continues
+    seamlessly (cookies are `.bigapp.online` and follow the user).
+  - `lib/schemas/admin-brands.ts` — `createBrandSchema` and
+    `renameSubdomainSchema` (requires confirmation field to match).
+- ✅ Apex UI:
+  - `app/admin/layout.tsx` — apex-only wrapper. Redirects subdomain
+    visitors to `/dashboard`, unauthenticated to `/select-brand?next=`,
+    non-admins to `/select-brand?no_admin=1`.
+  - `app/admin/brands/page.tsx` + client `AdminBrandsClient` — DataTable
+    of every brand. "New brand" button opens `NewBrandDialog`.
+  - `NewBrandDialog` — auto-derives code/subdomain from brand name,
+    currency selector, owner first/last name (the signed-in user becomes
+    the owner).
+  - `app/select-brand/page.tsx` rewritten: signed-in users see only
+    their workspaces (via `listWorkspacesForUser`); visitors see the
+    public list. Platform admins get an "Open admin →" link.
+    `?no_access=1` and `?no_admin=1` banners.
+- ✅ Tenant-side rename UI:
+  - `components/config/general/SubdomainRenameDialog.tsx` — type-twice
+    confirmation dialog. Calls `renameSubdomainAction` which redirects
+    to the new subdomain.
+  - `GeneralTab` subdomain field is now read-only with a "Rename
+    subdomain…" trigger. The general page passes `rootDomainLabel`
+    derived from the request host (defensive against env var drift).
+- ✅ Tests: `lib/services/__tests__/platform-admin.test.ts` covers
+  schema (subdomain format, dash rules, code length, currency, owner
+  names; rename confirmation match) and service-layer error mapping
+  (reserved → Conflict, cooldown → Conflict, 23505 on subdomain/code
+  → tailored Conflict message). 23 cases; 54 tests total pass; tsc
+  clean; build clean.
+
+**Known gaps (later PRs):**
+- Rename grace-redirect UX is server-side only (proxy handles 301);
+  in-app banner "your URL changed" not surfaced.
+- No "deactivate brand" flow — admins can't archive yet. Not blocking.
+- Brand owner is hard-coded to current user. Follow-up: invite an
+  owner by email separate from the platform admin who created the
+  brand.
+- SECURITY DEFINER RPC bodies still don't read `brand_id` themselves
+  (carried forward from PR 3 known gap).
 
 ### PR 5 — Auth UX polish — _not started_
 - Branded login (logo, brand name on `<brand>.bigapp.online/login`)

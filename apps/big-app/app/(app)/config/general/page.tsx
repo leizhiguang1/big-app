@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { ComingSoonCard } from "@/components/config/ComingSoonCard";
 import { ConfigSectionHeader } from "@/components/config/ConfigSectionHeader";
 import {
@@ -10,6 +11,7 @@ import { SalutationTab } from "@/components/config/general/SalutationTab";
 import { SecurityTab } from "@/components/config/general/SecurityTab";
 import { TimezoneTab } from "@/components/config/general/TimezoneTab";
 import { getServerContext } from "@/lib/context/server";
+import { extractSubdomain, ROOT_DOMAIN } from "@/lib/multibrand/host";
 import { getBrand } from "@/lib/services/brands";
 
 type PageProps = {
@@ -26,13 +28,28 @@ export default async function GeneralPage({ searchParams }: PageProps) {
 	const brand =
 		active.key === "general" ? await getBrand(await getServerContext()) : null;
 
+	// Compute the root-domain label shown in the subdomain rename UI.
+	// Prefer the request host (defensive against NEXT_PUBLIC_ROOT_DOMAIN drift).
+	let rootDomainLabel = ROOT_DOMAIN;
+	if (active.key === "general" && brand) {
+		const h = await headers();
+		const requestHost = h.get("host") ?? "";
+		const sub = extractSubdomain(requestHost, ROOT_DOMAIN);
+		if (sub && requestHost) {
+			const cleaned = requestHost.split(":")[0] ?? "";
+			rootDomainLabel = cleaned.replace(`${sub}.`, "");
+		}
+	}
+
 	return (
 		<>
 			<ConfigSectionHeader
 				categoryTitle={category.title}
 				sectionLabel={active.label}
 			/>
-			{active.key === "general" && brand && <GeneralTab brand={brand} />}
+			{active.key === "general" && brand && (
+				<GeneralTab brand={brand} rootDomainLabel={rootDomainLabel} />
+			)}
 			{active.key === "timezone" && <TimezoneTab />}
 			{active.key === "remarks" && <RemarksTab />}
 			{active.key === "salutation" && <SalutationTab />}
