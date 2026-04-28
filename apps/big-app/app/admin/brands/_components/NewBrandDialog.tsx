@@ -134,7 +134,10 @@ export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 				<form onSubmit={onSubmit} className="flex flex-1 flex-col">
 					<div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
 						<div>
-							<Label htmlFor="brand-name">Brand name</Label>
+							<Label htmlFor="brand-name">
+								Brand name
+								<span className="ml-0.5 text-destructive">*</span>
+							</Label>
 							<Input
 								id="brand-name"
 								{...form.register("name")}
@@ -149,7 +152,10 @@ export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 
 						<div className="grid grid-cols-2 gap-4">
 							<div>
-								<Label htmlFor="brand-code">Code</Label>
+								<Label htmlFor="brand-code">
+									Code
+									<span className="ml-0.5 text-destructive">*</span>
+								</Label>
 								<Input
 									id="brand-code"
 									{...form.register("code")}
@@ -166,7 +172,10 @@ export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 								)}
 							</div>
 							<div>
-								<Label htmlFor="brand-currency">Currency</Label>
+								<Label htmlFor="brand-currency">
+									Currency
+									<span className="ml-0.5 text-destructive">*</span>
+								</Label>
 								<Select
 									value={form.watch("currency_code")}
 									onValueChange={(v) =>
@@ -190,7 +199,10 @@ export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 						</div>
 
 						<div>
-							<Label htmlFor="brand-subdomain">Subdomain</Label>
+							<Label htmlFor="brand-subdomain">
+								Subdomain
+								<span className="ml-0.5 text-destructive">*</span>
+							</Label>
 							<Input
 								id="brand-subdomain"
 								{...form.register("subdomain")}
@@ -217,7 +229,10 @@ export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 
 						<div className="grid grid-cols-2 gap-4">
 							<div>
-								<Label htmlFor="admin-first">First name</Label>
+								<Label htmlFor="admin-first">
+									First name
+									<span className="ml-0.5 text-destructive">*</span>
+								</Label>
 								<Input
 									id="admin-first"
 									{...form.register("admin_first_name")}
@@ -229,7 +244,10 @@ export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 								)}
 							</div>
 							<div>
-								<Label htmlFor="admin-last">Last name</Label>
+								<Label htmlFor="admin-last">
+									Last name
+									<span className="ml-0.5 text-destructive">*</span>
+								</Label>
 								<Input id="admin-last" {...form.register("admin_last_name")} />
 								{errors.admin_last_name && (
 									<p className="mt-1 text-xs text-destructive">
@@ -240,7 +258,10 @@ export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 						</div>
 
 						<div>
-							<Label htmlFor="admin-email">Admin email</Label>
+							<Label htmlFor="admin-email">
+								Admin email
+								<span className="ml-0.5 text-destructive">*</span>
+							</Label>
 							<Input
 								id="admin-email"
 								type="email"
@@ -256,7 +277,10 @@ export function NewBrandDialog({ open, onClose, rootHost }: Props) {
 						</div>
 
 						<div>
-							<Label htmlFor="admin-password">Admin password</Label>
+							<Label htmlFor="admin-password">
+								Admin password
+								<span className="ml-0.5 text-destructive">*</span>
+							</Label>
 							<div className="relative">
 								<Input
 									id="admin-password"

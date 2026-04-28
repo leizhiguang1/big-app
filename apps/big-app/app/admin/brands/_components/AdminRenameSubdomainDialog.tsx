@@ -97,7 +97,10 @@ export function AdminRenameSubdomainDialog({
 				<form onSubmit={onSubmit} className="flex flex-1 flex-col">
 					<div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
 						<div>
-							<Label htmlFor="rename-sub">New subdomain</Label>
+							<Label htmlFor="rename-sub">
+								New subdomain
+								<span className="ml-0.5 text-destructive">*</span>
+							</Label>
 							<Input
 								id="rename-sub"
 								{...form.register("subdomain")}
@@ -115,7 +118,10 @@ export function AdminRenameSubdomainDialog({
 						</div>
 
 						<div>
-							<Label htmlFor="rename-sub-confirm">Type it again to confirm</Label>
+							<Label htmlFor="rename-sub-confirm">
+								Type it again to confirm
+								<span className="ml-0.5 text-destructive">*</span>
+							</Label>
 							<Input
 								id="rename-sub-confirm"
 								{...form.register("confirm_subdomain")}

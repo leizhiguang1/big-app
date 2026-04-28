@@ -84,7 +84,10 @@ export function EditBrandDialog({ open, onClose, brand }: Props) {
 				<form onSubmit={onSubmit} className="flex flex-1 flex-col">
 					<div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
 						<div>
-							<Label htmlFor="edit-name">Name</Label>
+							<Label htmlFor="edit-name">
+								Name
+								<span className="ml-0.5 text-destructive">*</span>
+							</Label>
 							<Input id="edit-name" {...form.register("name")} />
 							{errors.name && (
 								<p className="mt-1 text-xs text-destructive">
@@ -106,7 +109,10 @@ export function EditBrandDialog({ open, onClose, brand }: Props) {
 						</div>
 
 						<div>
-							<Label htmlFor="edit-currency">Currency</Label>
+							<Label htmlFor="edit-currency">
+								Currency
+								<span className="ml-0.5 text-destructive">*</span>
+							</Label>
 							<Select
 								value={form.watch("currency_code")}
 								onValueChange={(v) =>
