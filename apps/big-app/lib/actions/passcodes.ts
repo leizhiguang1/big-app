@@ -7,12 +7,12 @@ import * as passcodesService from "@/lib/services/passcodes";
 export async function createPasscodeAction(input: unknown) {
 	const ctx = await getServerContext();
 	const passcode = await passcodesService.createPasscode(ctx, input);
-	revalidatePath("/passcode");
+	revalidatePath("/o/[outlet]/passcode", "page");
 	return passcode;
 }
 
 export async function deletePasscodeAction(id: string) {
 	const ctx = await getServerContext();
 	await passcodesService.deletePasscode(ctx, id);
-	revalidatePath("/passcode");
+	revalidatePath("/o/[outlet]/passcode", "page");
 }

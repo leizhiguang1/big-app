@@ -6,10 +6,10 @@ import { getServerContext } from "@/lib/context/server";
 import * as brandSettingsService from "@/lib/services/brand-settings";
 
 function revalidate() {
-	revalidatePath("/config/appointments");
-	revalidatePath("/config/customers");
-	revalidatePath("/config/sales");
-	revalidatePath("/appointments");
+	revalidatePath("/o/[outlet]/config/appointments", "page");
+	revalidatePath("/o/[outlet]/config/customers", "page");
+	revalidatePath("/o/[outlet]/config/sales", "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
 }
 
 export async function setBrandSettingAction(key: string, value: unknown) {

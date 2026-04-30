@@ -1,13 +1,5 @@
 "use client";
 
-// 🚧 PARKED — feature NOT done (2026-04-27).
-// Draft v0 UI wired but model is wrong; work parked pending design
-// discussion + a live test session in the KumoDent prototype.
-// Do NOT extend, do NOT expose to staff in production, do NOT build
-// dependents on the data shapes here.
-// To resume: docs/design/services-tab-prototype-investigation.md +
-//            docs/design/services-tab-prototype-test-plan.md
-
 import { Mail, MessageCircle, Printer } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -20,6 +12,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import type {
 	CustomerServiceBalance,
 	CustomerServiceRedemption,
@@ -86,8 +79,6 @@ function employeeName(
 function paymentBadge(
 	status: CustomerServiceBalance["payment_status"],
 ): string {
-	if (status === "paid")
-		return "border-emerald-300 bg-emerald-50 text-emerald-700";
 	if (status === "partial")
 		return "border-amber-300 bg-amber-50 text-amber-700";
 	return "border-rose-300 bg-rose-50 text-rose-700";
@@ -96,12 +87,12 @@ function paymentBadge(
 function paymentLabel(
 	status: CustomerServiceBalance["payment_status"],
 ): string {
-	if (status === "paid") return "Paid";
 	if (status === "partial") return "Partial Paid";
 	return "Unpaid";
 }
 
 export function CustomerServicesTab({ redemptions, balances }: Props) {
+	const path = useOutletPath();
 	const [subTab, setSubTab] = useState<SubTab>("redemption");
 	const [openSoId, setOpenSoId] = useState<string | null>(null);
 
@@ -243,7 +234,7 @@ export function CustomerServicesTab({ redemptions, balances }: Props) {
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button asChild size="sm" className="rounded-full">
-								<Link href={`/appointments/${r.booking_ref}`}>Go</Link>
+								<Link href={path(`/appointments/${r.booking_ref}`)}>Go</Link>
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>Open appointment</TooltipContent>
@@ -291,42 +282,10 @@ export function CustomerServicesTab({ redemptions, balances }: Props) {
 						)}
 						{b.service?.name ?? b.item_name}
 					</span>
+					<span className="text-[11px] text-muted-foreground tabular-nums">
+						× {b.quantity}
+					</span>
 				</div>
-			),
-		},
-		{
-			key: "purchased",
-			header: "Purchased",
-			align: "right",
-			sortable: true,
-			sortValue: (b) => b.purchased,
-			cell: (b) => <span className="tabular-nums">{b.purchased}</span>,
-		},
-		{
-			key: "redeemed",
-			header: "Redeemed",
-			align: "right",
-			sortable: true,
-			sortValue: (b) => b.redeemed,
-			cell: (b) => (
-				<span className="tabular-nums text-muted-foreground">{b.redeemed}</span>
-			),
-		},
-		{
-			key: "balance",
-			header: "Balance",
-			align: "right",
-			sortable: true,
-			sortValue: (b) => b.balance,
-			cell: (b) => (
-				<span
-					className={cn(
-						"font-semibold tabular-nums",
-						b.balance > 0 ? "text-sky-600" : "text-muted-foreground",
-					)}
-				>
-					{b.balance}
-				</span>
 			),
 		},
 		{
@@ -393,9 +352,9 @@ export function CustomerServicesTab({ redemptions, balances }: Props) {
 					getRowKey={(b) => b.sale_item_id}
 					searchKeys={["item_name"]}
 					searchPlaceholder="Search service…"
-					emptyMessage="No service purchases yet."
+					emptyMessage="No outstanding service balances."
 					defaultPageSize={10}
-					minWidth={780}
+					minWidth={640}
 				/>
 			)}
 			<SalesOrderDetailDialog

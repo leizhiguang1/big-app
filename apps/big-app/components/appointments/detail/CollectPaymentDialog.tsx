@@ -75,6 +75,7 @@ import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
 import type { PaymentMethod } from "@/lib/services/payment-methods";
 import type { ServiceWithCategory } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import { cn } from "@/lib/utils";
 import { resolveDefaultTaxId } from "@/lib/utils/resolve-default-tax";
 
@@ -130,6 +131,7 @@ export function CollectPaymentDialog({
 	onError,
 }: Props) {
 	const router = useRouter();
+	const path = useOutletPath();
 	const [isPending, startTransition] = useTransition();
 	const [isLoadingRepeat, startRepeatTransition] = useTransition();
 
@@ -259,8 +261,8 @@ export function CollectPaymentDialog({
 	// Warm the calendar route while the user is on the success step so the
 	// Done click feels instant.
 	useEffect(() => {
-		if (successData) router.prefetch("/appointments");
-	}, [successData, router]);
+		if (successData) router.prefetch(path("/appointments"));
+	}, [successData, router, path]);
 
 	// Reset the success step whenever the dialog is reopened after being closed.
 	useEffect(() => {
@@ -273,7 +275,7 @@ export function CollectPaymentDialog({
 			// successData is cleared by the reset-on-close effect, so the
 			// success panel stays rendered through the dialog's exit animation.
 			onOpenChange(false);
-			router.push("/appointments");
+			router.push(path("/appointments"));
 			return;
 		}
 		onOpenChange(nextOpen);
@@ -283,12 +285,12 @@ export function CollectPaymentDialog({
 		if (!successData) return;
 		window.open(`/invoices/${successData.salesOrderId}`, "_blank", "noopener");
 		onOpenChange(false);
-		router.push("/appointments");
+		router.push(path("/appointments"));
 	};
 
 	const handleDone = () => {
 		onOpenChange(false);
-		router.push("/appointments");
+		router.push(path("/appointments"));
 	};
 
 	const handleItemizedChange = useCallback(

@@ -41,6 +41,7 @@ import type { OutletWithRoomCount, Room } from "@/lib/services/outlets";
 import type { PaymentMethod } from "@/lib/services/payment-methods";
 import type { ServiceWithCategory } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 
 type Props = {
 	appointment: AppointmentWithRelations;
@@ -136,6 +137,7 @@ export function AppointmentActionBar({
 	onToast,
 }: Props) {
 	const router = useRouter();
+	const outletHref = useOutletPath();
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [collectOpen, setCollectOpen] = useState(false);
 	const [revertOpen, setRevertOpen] = useState(false);
@@ -374,7 +376,7 @@ export function AppointmentActionBar({
 				bookingRef={appointment.booking_ref ?? undefined}
 				onSuccess={() => {
 					onToast?.("Appointment cancelled", "success");
-					router.push("/appointments");
+					router.push(outletHref("/appointments"));
 				}}
 				onError={(message) => onToast?.(message, "error")}
 				onReschedule={onEdit}

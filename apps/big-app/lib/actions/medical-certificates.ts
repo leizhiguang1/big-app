@@ -8,9 +8,9 @@ export async function createMedicalCertificateAction(input: unknown) {
 	const ctx = await getServerContext();
 	const mc = await mcService.createMedicalCertificate(ctx, input);
 	if (mc.appointment_id) {
-		revalidatePath("/appointments/[ref]", "page");
+		revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	}
-	revalidatePath("/customers/[id]", "page");
+	revalidatePath("/o/[outlet]/customers/[id]", "page");
 	return { id: mc.id, code: mc.code };
 }
 
@@ -21,9 +21,9 @@ export async function updateMedicalCertificateAction(
 	const ctx = await getServerContext();
 	const mc = await mcService.updateMedicalCertificate(ctx, id, input);
 	if (mc.appointment_id) {
-		revalidatePath("/appointments/[ref]", "page");
+		revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	}
-	revalidatePath("/customers/[id]", "page");
+	revalidatePath("/o/[outlet]/customers/[id]", "page");
 	return { id: mc.id, code: mc.code };
 }
 
@@ -31,8 +31,8 @@ export async function cancelMedicalCertificateAction(id: string) {
 	const ctx = await getServerContext();
 	const mc = await mcService.cancelMedicalCertificate(ctx, id);
 	if (mc.appointment_id) {
-		revalidatePath("/appointments/[ref]", "page");
+		revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	}
-	revalidatePath("/customers/[id]", "page");
+	revalidatePath("/o/[outlet]/customers/[id]", "page");
 	return { id: mc.id, code: mc.code };
 }

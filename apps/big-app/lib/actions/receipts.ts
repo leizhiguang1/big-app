@@ -23,7 +23,7 @@ export async function saveReceiptAction(receiptId: string, input: unknown) {
 		receiptsService.listReceiptEdits(ctx, receiptId),
 		getBrand(ctx).catch(() => null),
 	]);
-	revalidatePath("/customers/[id]", "page");
+	revalidatePath("/o/[outlet]/customers/[id]", "page");
 	revalidatePath("/receipts/[id]", "page");
 	return { receipt, edits, brand };
 }

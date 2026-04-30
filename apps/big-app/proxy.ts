@@ -13,6 +13,31 @@ const PUBLIC_PATHS = [
 	"/brand-not-found",
 ];
 
+// First-segment names of routes that live under /o/<code>/. If a logged-in
+// user hits one of these without the /o/<code>/ prefix (stale bookmark, hand-
+// typed URL), redirect them to their primary outlet's version of the path.
+const OUTLET_SCOPED_FIRST_SEG = new Set([
+	"appointments",
+	"customers",
+	"sales",
+	"dashboard",
+	"services",
+	"employees",
+	"inventory",
+	"chats",
+	"contacts",
+	"automations",
+	"ai",
+	"knowledge-base",
+	"passcode",
+	"reports",
+	"roster",
+	"voucher",
+	"wa-settings",
+	"webstore",
+	"config",
+]);
+
 const COOKIE_DOMAIN =
 	process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_ROOT_DOMAIN
 		? `.${process.env.NEXT_PUBLIC_ROOT_DOMAIN}`
@@ -126,12 +151,77 @@ export async function proxy(request: NextRequest) {
 
 	if (user && pathname === "/login") {
 		const url = request.nextUrl.clone();
-		url.pathname = "/dashboard";
+		url.pathname = "/";
 		url.search = "";
 		return NextResponse.redirect(url);
 	}
 
+	// Auto-prefix a missing /o/<code>/ on stale bookmarks. e.g. /customers/abc
+	// → /o/<primary>/customers/abc. Only fires when the first segment matches
+	// an outlet-scoped route AND we're not already under /o/.
+	if (user && brandId) {
+		const firstSeg = pathname.split("/")[1] ?? "";
+		if (firstSeg !== "o" && OUTLET_SCOPED_FIRST_SEG.has(firstSeg)) {
+			const code = await resolveLandingOutletCode(supabase, user.id, brandId);
+			if (code) {
+				const url = request.nextUrl.clone();
+				url.pathname = `/o/${code}${pathname}`;
+				return NextResponse.redirect(url);
+			}
+		}
+	}
+
 	return response;
+}
+
+// Pick the outlet to land a user on when they hit a stale URL. Order:
+//   1. Their primary outlet (employee_outlets.is_primary = true), if active.
+//   2. Any other active outlet they're a member of, name-sorted.
+//   3. Fallback: first active outlet in the brand (covers admins without any
+//      employee_outlets rows yet).
+async function resolveLandingOutletCode(
+	supabase: ReturnType<typeof createServerClient<Database>>,
+	authUserId: string,
+	brandId: string,
+): Promise<string | null> {
+	const { data: emp } = await supabase
+		.from("employees")
+		.select("id")
+		.eq("auth_user_id", authUserId)
+		.eq("brand_id", brandId)
+		.maybeSingle();
+
+	if (emp?.id) {
+		const { data: links } = await supabase
+			.from("employee_outlets")
+			.select("is_primary, outlets!inner(code, name, is_active)")
+			.eq("employee_id", emp.id);
+		const usable = (links ?? [])
+			.map((l) => ({
+				is_primary: l.is_primary,
+				outlet: l.outlets as unknown as {
+					code: string;
+					name: string;
+					is_active: boolean;
+				},
+			}))
+			.filter((l) => l.outlet?.is_active)
+			.sort((a, b) => {
+				if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+				return a.outlet.name.localeCompare(b.outlet.name);
+			});
+		if (usable[0]) return usable[0].outlet.code;
+	}
+
+	const { data: fallback } = await supabase
+		.from("outlets")
+		.select("code")
+		.eq("brand_id", brandId)
+		.eq("is_active", true)
+		.order("name", { ascending: true })
+		.limit(1)
+		.maybeSingle();
+	return fallback?.code ?? null;
 }
 
 export const config = {

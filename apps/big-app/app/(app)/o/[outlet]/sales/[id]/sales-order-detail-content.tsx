@@ -15,12 +15,15 @@ import {
 	listRefundNotesForOrder,
 	listSaleItems,
 } from "@/lib/services/sales";
+import { outletPath } from "@/lib/outlet-path";
 
 export async function SalesOrderDetailContent({
 	id,
+	outletCode,
 	autoPrint,
 }: {
 	id: string;
+	outletCode: string;
 	autoPrint?: boolean;
 }) {
 	const ctx = await getServerContext();
@@ -69,13 +72,13 @@ export async function SalesOrderDetailContent({
 		);
 	} catch (err) {
 		if (err instanceof NotFoundError) {
-			return <NotFoundPanel />;
+			return <NotFoundPanel outletCode={outletCode} />;
 		}
 		throw err;
 	}
 }
 
-function NotFoundPanel() {
+function NotFoundPanel({ outletCode }: { outletCode: string }) {
 	return (
 		<div className="flex flex-col items-center gap-4 rounded-md border bg-muted/30 p-12 text-center">
 			<div className="font-medium text-base">Sales order not found</div>
@@ -84,7 +87,7 @@ function NotFoundPanel() {
 				no longer valid.
 			</div>
 			<Button asChild size="sm">
-				<Link href="/sales">Back to sales</Link>
+				<Link href={outletPath(outletCode, "/sales")}>Back to sales</Link>
 			</Button>
 		</div>
 	);

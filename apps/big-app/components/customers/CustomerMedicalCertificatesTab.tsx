@@ -16,6 +16,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import { cancelMedicalCertificateAction } from "@/lib/actions/medical-certificates";
 import type { MedicalCertificateWithRefs } from "@/lib/services/medical-certificates";
 import { cn } from "@/lib/utils";
@@ -97,6 +98,7 @@ export function CustomerMedicalCertificatesTab({
 	medicalCertificates,
 }: Props) {
 	const router = useRouter();
+	const path = useOutletPath();
 	const [pending, startTransition] = useTransition();
 	const [addOpen, setAddOpen] = useState(false);
 	const [editing, setEditing] = useState<MedicalCertificateWithRefs | null>(
@@ -206,7 +208,7 @@ export function CustomerMedicalCertificatesTab({
 			cell: (mc) =>
 				mc.appointment ? (
 					<Link
-						href={`/appointments/${mc.appointment.booking_ref}`}
+						href={path(`/appointments/${mc.appointment.booking_ref}`)}
 						target="_blank"
 						rel="noopener"
 						className="inline-flex items-center gap-1 font-mono font-semibold text-sky-600 text-xs hover:underline"

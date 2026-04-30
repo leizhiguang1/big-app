@@ -10,6 +10,6 @@ export async function updateBillingSettingsAction(input: unknown) {
 		ctx,
 		input,
 	);
-	revalidatePath("/config/sales");
+	revalidatePath("/o/[outlet]/config/sales", "page");
 	return settings;
 }

@@ -8,7 +8,7 @@ import * as appointmentsService from "@/lib/services/appointments";
 export async function createAppointmentAction(input: unknown) {
 	const ctx = await getServerContext();
 	const appointment = await appointmentsService.createAppointment(ctx, input);
-	revalidatePath("/appointments");
+	revalidatePath("/o/[outlet]/appointments", "page");
 	return appointment;
 }
 
@@ -19,8 +19,8 @@ export async function updateAppointmentAction(id: string, input: unknown) {
 		id,
 		input,
 	);
-	revalidatePath("/appointments");
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return appointment;
 }
 
@@ -31,7 +31,7 @@ export async function rescheduleAppointmentAction(id: string, input: unknown) {
 		id,
 		input,
 	);
-	revalidatePath("/appointments");
+	revalidatePath("/o/[outlet]/appointments", "page");
 	return appointment;
 }
 
@@ -42,8 +42,8 @@ export async function setAppointmentStatusAction(id: string, input: unknown) {
 		id,
 		input,
 	);
-	revalidatePath("/appointments");
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return appointment;
 }
 
@@ -53,8 +53,8 @@ export async function markAppointmentCompletedAction(id: string) {
 		ctx,
 		id,
 	);
-	revalidatePath("/appointments");
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return appointment;
 }
 
@@ -64,8 +64,8 @@ export async function revertCompletedAppointmentAction(id: string) {
 		ctx,
 		id,
 	);
-	revalidatePath("/appointments");
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return appointment;
 }
 
@@ -76,8 +76,8 @@ export async function setAppointmentTagsAction(id: string, input: unknown) {
 		id,
 		input,
 	);
-	revalidatePath("/appointments");
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return appointment;
 }
 
@@ -90,8 +90,8 @@ export async function collectAppointmentPaymentAction(
 		payment_status: "paid",
 		paid_via: paidVia,
 	});
-	revalidatePath("/appointments");
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return appointment;
 }
 
@@ -101,8 +101,8 @@ export async function undoAppointmentPaymentAction(id: string) {
 		payment_status: "unpaid",
 		paid_via: null,
 	});
-	revalidatePath("/appointments");
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return appointment;
 }
 
@@ -116,7 +116,7 @@ export async function setAppointmentPaymentRemarkAction(
 		id,
 		{ payment_remark: remark },
 	);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return appointment;
 }
 
@@ -130,7 +130,7 @@ export async function setAppointmentFollowUpAction(
 		id,
 		{ follow_up: followUp },
 	);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return appointment;
 }
 
@@ -139,10 +139,10 @@ export async function cancelAppointmentAction(id: string, reason: string) {
 	const appointment = await appointmentsService.cancelAppointment(ctx, id, {
 		reason,
 	});
-	revalidatePath("/appointments");
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	if (appointment.customer_id)
-		revalidatePath(`/customers/${appointment.customer_id}`);
+		revalidatePath(`/o/[outlet]/customers/${appointment.customer_id}`, "page");
 	return appointment;
 }
 
@@ -156,8 +156,8 @@ export async function convertLeadToCustomerAction(
 		leadAppointmentId,
 		input,
 	);
-	revalidatePath("/appointments");
-	revalidatePath("/customers");
+	revalidatePath("/o/[outlet]/appointments", "page");
+	revalidatePath("/o/[outlet]/customers", "page");
 	return result;
 }
 
@@ -175,7 +175,7 @@ export async function saveFrontdeskMessageAction(
 		.update({ frontdesk_message: message })
 		.eq("id", id);
 	if (error) throw new Error(error.message);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 }
 
 // ─── Appointment line items ─────────────────────────────────────────────────
@@ -191,7 +191,7 @@ export async function createLineItemAction(
 ) {
 	const ctx = await getServerContext();
 	const entry = await lineItemsService.createLineItem(ctx, input);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return entry;
 }
 
@@ -201,7 +201,7 @@ export async function createLineItemsBulkAction(
 ) {
 	const ctx = await getServerContext();
 	const entries = await lineItemsService.createLineItemsBulk(ctx, inputs);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return entries;
 }
 
@@ -212,14 +212,14 @@ export async function updateLineItemAction(
 ) {
 	const ctx = await getServerContext();
 	const entry = await lineItemsService.updateLineItem(ctx, id, input);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return entry;
 }
 
 export async function deleteLineItemAction(appointmentId: string, id: string) {
 	const ctx = await getServerContext();
 	await lineItemsService.deleteLineItem(ctx, id);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 }
 
 export async function cancelBillingForAppointmentAction(
@@ -231,7 +231,7 @@ export async function cancelBillingForAppointmentAction(
 		ctx,
 		targetAppointmentId,
 	);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 }
 
 export async function revertBillingForAppointmentAction(
@@ -243,7 +243,7 @@ export async function revertBillingForAppointmentAction(
 		ctx,
 		targetAppointmentId,
 	);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 }
 
 export async function cancelBillingForCustomerAction(
@@ -255,7 +255,7 @@ export async function cancelBillingForCustomerAction(
 		ctx,
 		targetAppointmentId,
 	);
-	revalidatePath(`/customers/${customerId}`);
+	revalidatePath(`/o/[outlet]/customers/${customerId}`, "page");
 }
 
 export async function revertBillingForCustomerAction(
@@ -267,7 +267,7 @@ export async function revertBillingForCustomerAction(
 		ctx,
 		targetAppointmentId,
 	);
-	revalidatePath(`/customers/${customerId}`);
+	revalidatePath(`/o/[outlet]/customers/${customerId}`, "page");
 }
 
 export async function listPastLineItemsForCustomerAction(customerId: string) {
@@ -283,7 +283,7 @@ export async function createLineItemIncentiveAction(
 ) {
 	const ctx = await getServerContext();
 	const row = await lineItemsService.createIncentive(ctx, input);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return row;
 }
 
@@ -293,7 +293,7 @@ export async function deleteLineItemIncentiveAction(
 ) {
 	const ctx = await getServerContext();
 	await lineItemsService.deleteIncentive(ctx, id);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 }
 
 export async function saveAllocationsForAppointmentAction(
@@ -311,5 +311,5 @@ export async function saveAllocationsForAppointmentAction(
 			a.employees,
 		);
 	}
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 }

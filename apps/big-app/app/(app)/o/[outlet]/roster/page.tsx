@@ -3,9 +3,11 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { RosterContent } from "./roster-content";
 
 export default function RosterPage({
+	params,
 	searchParams,
 }: {
-	searchParams: Promise<{ outlet?: string; week?: string }>;
+	params: Promise<{ outlet: string }>;
+	searchParams: Promise<{ week?: string }>;
 }) {
 	return (
 		<div className="flex flex-col gap-4">
@@ -18,7 +20,7 @@ export default function RosterPage({
 			<Suspense
 				fallback={<TableSkeleton columns={8} rows={6} showHeader={false} />}
 			>
-				<RosterContent searchParams={searchParams} />
+				<RosterContent params={params} searchParams={searchParams} />
 			</Suspense>
 		</div>
 	);

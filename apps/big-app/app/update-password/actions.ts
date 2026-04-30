@@ -26,5 +26,5 @@ export async function updatePasswordAction(
 		return { error: error.message };
 	}
 
-	redirect("/dashboard");
+	redirect("/");
 }

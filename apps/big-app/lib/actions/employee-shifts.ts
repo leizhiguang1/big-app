@@ -7,19 +7,19 @@ import * as service from "@/lib/services/employee-shifts";
 export async function createShiftAction(input: unknown) {
 	const ctx = await getServerContext();
 	const shift = await service.createShift(ctx, input);
-	revalidatePath("/roster");
+	revalidatePath("/o/[outlet]/roster", "page");
 	return shift;
 }
 
 export async function updateShiftAction(id: string, input: unknown) {
 	const ctx = await getServerContext();
 	const shift = await service.updateShift(ctx, id, input);
-	revalidatePath("/roster");
+	revalidatePath("/o/[outlet]/roster", "page");
 	return shift;
 }
 
 export async function deleteShiftAction(id: string) {
 	const ctx = await getServerContext();
 	await service.deleteShift(ctx, id);
-	revalidatePath("/roster");
+	revalidatePath("/o/[outlet]/roster", "page");
 }

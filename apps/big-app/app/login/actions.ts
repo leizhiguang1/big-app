@@ -41,7 +41,7 @@ export async function loginAction(
 	);
 	if (signInError || !signIn.user) {
 		return {
-			error: signInError?.message ?? "Invalid credentials",
+			error: "Invalid credentials",
 			email,
 			password,
 		};
@@ -58,7 +58,7 @@ export async function loginAction(
 	if (!employee) {
 		await db.auth.signOut();
 		return {
-			error: "Your account doesn't have access to this workspace.",
+			error: "Invalid credentials",
 			email,
 			password,
 		};
@@ -67,13 +67,13 @@ export async function loginAction(
 	if (!employee.is_active || !employee.web_login_enabled) {
 		await db.auth.signOut();
 		return {
-			error: "Your account is not allowed to sign in",
+			error: "Invalid credentials",
 			email,
 			password,
 		};
 	}
 
-	redirect("/dashboard");
+	redirect("/");
 }
 
 export type PlatformAdminLoginResult =
@@ -96,7 +96,7 @@ export async function platformAdminLoginAction(
 		await db.auth.signInWithPassword({ email, password });
 	if (signInError || !signIn.user) {
 		return {
-			error: signInError?.message ?? "Invalid credentials",
+			error: "Invalid credentials",
 			email,
 			password,
 		};
@@ -112,7 +112,7 @@ export async function platformAdminLoginAction(
 	if (!admin) {
 		await db.auth.signOut();
 		return {
-			error: "This account isn't a platform admin.",
+			error: "Invalid credentials",
 			email,
 			password,
 		};

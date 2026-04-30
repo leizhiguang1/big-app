@@ -12,6 +12,7 @@ import {
 	useState,
 	useTransition,
 } from "react";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import { cn } from "@/lib/utils";
 import { ConfigSearch } from "./ConfigSearch";
 import {
@@ -32,6 +33,7 @@ export function ConfigRail() {
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
 	const router = useRouter();
+	const outletHref = useOutletPath();
 	const [isPending, startTransition] = useTransition();
 	const [pendingHref, setPendingHref] = useState<string | null>(null);
 	const [searchOpen, setSearchOpen] = useState(false);
@@ -49,7 +51,7 @@ export function ConfigRail() {
 	}, []);
 
 	const activeSlug = useMemo(() => {
-		const match = pathname.match(/^\/config\/([^/?]+)/);
+		const match = pathname.match(/^\/o\/[^/]+\/config\/([^/?]+)/);
 		return match?.[1] ?? null;
 	}, [pathname]);
 
@@ -97,6 +99,7 @@ export function ConfigRail() {
 						pathname={pathname}
 						pendingHref={pendingHref}
 						onNavigate={navigate}
+						outletHref={outletHref}
 					/>
 				))}
 			</ul>
@@ -118,6 +121,7 @@ function CategoryRailItem({
 	pathname,
 	pendingHref,
 	onNavigate,
+	outletHref,
 }: {
 	category: ConfigCategory;
 	isActive: boolean;
@@ -125,10 +129,11 @@ function CategoryRailItem({
 	pathname: string;
 	pendingHref: string | null;
 	onNavigate: (href: string) => void;
+	outletHref: (sub: string) => string;
 }) {
 	const Icon = category.icon;
 	const hasMultipleSections = category.sections.length > 1;
-	const categoryHref = `/config/${category.slug}`;
+	const categoryHref = outletHref(`/config/${category.slug}`);
 	const isCategoryPending = pendingHref === categoryHref;
 	const showActive = isActive || isCategoryPending;
 
@@ -200,9 +205,10 @@ function CategoryRailItem({
 							</div>
 							<ul className="flex flex-col gap-0.5">
 								{category.sections.map((section) => {
-									const href =
+									const href = outletHref(
 										section.href ??
-										`/config/${category.slug}?section=${section.key}`;
+											`/config/${category.slug}?section=${section.key}`,
+									);
 									return (
 										<li key={section.key}>
 											<Link
@@ -232,11 +238,13 @@ function CategoryRailItem({
 			{isActive && hasMultipleSections ? (
 				<ul className="mt-1 mb-1 ml-[1.375rem] flex flex-col gap-0.5 border-border border-l pl-2">
 					{category.sections.map((section, index) => {
-						const href =
-							section.href ?? `/config/${category.slug}?section=${section.key}`;
+						const href = outletHref(
+							section.href ??
+								`/config/${category.slug}?section=${section.key}`,
+						);
 						const isFirst = index === 0;
 						const isSectionActive = section.href
-							? pathname === section.href
+							? pathname === outletHref(section.href)
 							: activeSectionKey === section.key ||
 								(activeSectionKey === null && isFirst);
 						const isSectionPending = pendingHref === href;

@@ -33,8 +33,15 @@ import {
 	getWalletByCustomer,
 	listWalletTransactions,
 } from "@/lib/services/wallet";
+import { outletPath } from "@/lib/outlet-path";
 
-export async function CustomerDetailContent({ id }: { id: string }) {
+export async function CustomerDetailContent({
+	id,
+	outletCode,
+}: {
+	id: string;
+	outletCode: string;
+}) {
 	const ctx = await getServerContext();
 
 	try {
@@ -126,13 +133,13 @@ export async function CustomerDetailContent({ id }: { id: string }) {
 		);
 	} catch (err) {
 		if (err instanceof NotFoundError) {
-			return <NotFoundPanel />;
+			return <NotFoundPanel outletCode={outletCode} />;
 		}
 		throw err;
 	}
 }
 
-function NotFoundPanel() {
+function NotFoundPanel({ outletCode }: { outletCode: string }) {
 	return (
 		<div className="flex flex-col items-center gap-4 rounded-md border bg-muted/30 p-12 text-center">
 			<div className="font-medium text-base">Customer not found</div>
@@ -141,7 +148,7 @@ function NotFoundPanel() {
 				longer valid.
 			</div>
 			<Button asChild size="sm">
-				<Link href="/customers">Back to customers</Link>
+				<Link href={outletPath(outletCode, "/customers")}>Back to customers</Link>
 			</Button>
 		</div>
 	);

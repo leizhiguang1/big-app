@@ -31,6 +31,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import { buildLeadPrefill } from "@/lib/appointments/lead-prefill";
 import { SMOKER_LABELS } from "@/lib/constants/medical";
 import type { LeadSource } from "@/lib/schemas/appointments";
@@ -144,6 +145,7 @@ export function CustomerCard({
 	allEmployees,
 	collapsed = false,
 }: Props) {
+	const path = useOutletPath();
 	const [convertOpen, setConvertOpen] = useState(false);
 	const [editOpen, setEditOpen] = useState(false);
 	const isBlock = appointment.is_time_block;
@@ -194,7 +196,7 @@ export function CustomerCard({
 		<div className="flex items-center gap-1.5">
 			{customer ? (
 				<Link
-					href={`/customers/${customer.id}`}
+					href={path(`/customers/${customer.id}`)}
 					className="min-w-0 truncate font-semibold text-[15px] text-sky-800 leading-tight hover:underline"
 				>
 					{displayName}

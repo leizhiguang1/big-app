@@ -14,6 +14,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import type { BillingSettings } from "@/lib/services/billing-settings";
 import type { Tax } from "@/lib/services/taxes";
 
@@ -23,6 +24,7 @@ type Props = {
 };
 
 export function BillingTab({ billingSettings, taxes }: Props) {
+	const path = useOutletPath();
 	return (
 		<div className="space-y-4">
 			<PlaceholderBanner />
@@ -90,7 +92,7 @@ export function BillingTab({ billingSettings, taxes }: Props) {
 						<CardHeader className="flex flex-row items-center justify-between pb-3">
 							<CardTitle className="text-base">Tax Details</CardTitle>
 							<Button asChild variant="outline" size="sm">
-								<a href="/config/taxes">Manage</a>
+								<a href={path("/config/taxes")}>Manage</a>
 							</Button>
 						</CardHeader>
 						<CardContent className="p-0">

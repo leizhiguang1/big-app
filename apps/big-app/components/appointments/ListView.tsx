@@ -16,6 +16,8 @@ type Props = {
 	appointments: AppointmentWithRelations[];
 	columnOrder: ColumnKey[];
 	visibleColumns: ColumnKey[];
+	filterEmployeeName?: string | null;
+	onClearFilter?: () => void;
 	onAppointmentClick: (a: AppointmentWithRelations) => void;
 	onAppointmentContextMenu?: (
 		e: React.MouseEvent,
@@ -55,6 +57,8 @@ export function ListView({
 	appointments,
 	columnOrder,
 	visibleColumns,
+	filterEmployeeName,
+	onClearFilter,
 	onAppointmentClick,
 	onAppointmentContextMenu,
 }: Props) {
@@ -95,8 +99,23 @@ export function ListView({
 
 	if (appointments.length === 0) {
 		return (
-			<div className="rounded-md border bg-muted/30 p-12 text-center text-muted-foreground text-sm">
-				No appointments found
+			<div className="flex flex-col items-center justify-center gap-2 rounded-md border bg-muted/30 p-12 text-center text-muted-foreground text-sm">
+				{filterEmployeeName ? (
+					<>
+						<p>No appointments for {filterEmployeeName} in this view.</p>
+						{onClearFilter && (
+							<button
+								type="button"
+								onClick={onClearFilter}
+								className="rounded-md border bg-background px-2 py-1 font-medium text-foreground text-xs hover:bg-muted"
+							>
+								Clear staff filter
+							</button>
+						)}
+					</>
+				) : (
+					<p>No appointments found</p>
+				)}
 			</div>
 		);
 	}

@@ -69,6 +69,7 @@ import type { OutletWithRoomCount } from "@/lib/services/outlets";
 import type { PaymentMethod } from "@/lib/services/payment-methods";
 import type { ServiceWithCategory } from "@/lib/services/services";
 import type { Tax } from "@/lib/services/taxes";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import { cn } from "@/lib/utils";
 import { resolveDefaultTaxId } from "@/lib/utils/resolve-default-tax";
 
@@ -156,6 +157,7 @@ function NewSaleBody({
 	onOpenChange: (open: boolean) => void;
 }) {
 	const router = useRouter();
+	const path = useOutletPath();
 	const [isPending, startTransition] = useTransition();
 
 	const [customerId, setCustomerId] = useState<string | null>(null);
@@ -590,12 +592,12 @@ function NewSaleBody({
 		if (!successData) return;
 		window.open(`/invoices/${successData.salesOrderId}`, "_blank", "noopener");
 		onOpenChange(false);
-		router.push(`/sales/${successData.salesOrderId}`);
+		router.push(path(`/sales/${successData.salesOrderId}`));
 	};
 
 	const handleDone = () => {
 		onOpenChange(false);
-		if (successData) router.push(`/sales/${successData.salesOrderId}`);
+		if (successData) router.push(path(`/sales/${successData.salesOrderId}`));
 	};
 
 	if (successData) {

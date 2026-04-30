@@ -10,7 +10,7 @@ export async function createFollowUpAction(
 ) {
 	const ctx = await getServerContext();
 	const followUp = await followUpsService.createFollowUp(ctx, input);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return followUp;
 }
 
@@ -21,7 +21,7 @@ export async function updateFollowUpAction(
 ) {
 	const ctx = await getServerContext();
 	const followUp = await followUpsService.updateFollowUp(ctx, id, input);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return followUp;
 }
 
@@ -34,7 +34,7 @@ export async function setFollowUpReminderDoneAction(
 	const followUp = await followUpsService.setFollowUpReminderDone(ctx, id, {
 		reminder_done: reminderDone,
 	});
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return followUp;
 }
 
@@ -45,13 +45,13 @@ export async function setFollowUpPinAction(
 ) {
 	const ctx = await getServerContext();
 	await followUpsService.setFollowUpPin(ctx, id, pinned);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 }
 
 export async function deleteFollowUpAction(appointmentId: string, id: string) {
 	const ctx = await getServerContext();
 	await followUpsService.deleteFollowUp(ctx, id);
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 }
 
 // Customer-scoped variants — same service calls, revalidate customer path
@@ -62,7 +62,7 @@ export async function createCustomerFollowUpAction(
 ) {
 	const ctx = await getServerContext();
 	const followUp = await followUpsService.createFollowUp(ctx, input);
-	revalidatePath(`/customers/${customerId}`);
+	revalidatePath(`/o/[outlet]/customers/${customerId}`, "page");
 	return followUp;
 }
 
@@ -73,7 +73,7 @@ export async function updateCustomerFollowUpAction(
 ) {
 	const ctx = await getServerContext();
 	const followUp = await followUpsService.updateFollowUp(ctx, id, input);
-	revalidatePath(`/customers/${customerId}`);
+	revalidatePath(`/o/[outlet]/customers/${customerId}`, "page");
 	return followUp;
 }
 
@@ -86,7 +86,7 @@ export async function setCustomerFollowUpReminderDoneAction(
 	const followUp = await followUpsService.setFollowUpReminderDone(ctx, id, {
 		reminder_done: reminderDone,
 	});
-	revalidatePath(`/customers/${customerId}`);
+	revalidatePath(`/o/[outlet]/customers/${customerId}`, "page");
 	return followUp;
 }
 
@@ -97,7 +97,7 @@ export async function setCustomerFollowUpPinAction(
 ) {
 	const ctx = await getServerContext();
 	await followUpsService.setFollowUpPin(ctx, id, pinned);
-	revalidatePath(`/customers/${customerId}`);
+	revalidatePath(`/o/[outlet]/customers/${customerId}`, "page");
 }
 
 export async function deleteCustomerFollowUpAction(
@@ -106,7 +106,7 @@ export async function deleteCustomerFollowUpAction(
 ) {
 	const ctx = await getServerContext();
 	await followUpsService.deleteFollowUp(ctx, id);
-	revalidatePath(`/customers/${customerId}`);
+	revalidatePath(`/o/[outlet]/customers/${customerId}`, "page");
 }
 
 export async function setDashboardFollowUpReminderDoneAction(
@@ -117,6 +117,6 @@ export async function setDashboardFollowUpReminderDoneAction(
 	const followUp = await followUpsService.setFollowUpReminderDone(ctx, id, {
 		reminder_done: reminderDone,
 	});
-	revalidatePath("/dashboard");
+	revalidatePath("/o/[outlet]/dashboard", "page");
 	return followUp;
 }

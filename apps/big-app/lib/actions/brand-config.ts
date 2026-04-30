@@ -12,12 +12,12 @@ import * as brandConfigService from "@/lib/services/brand-config";
 // Categories are referenced from many surfaces — revalidate the admin page
 // and the primary consumers so rename/reorder shows up everywhere.
 function revalidate() {
-	revalidatePath("/config/appointments");
-	revalidatePath("/config/sales");
-	revalidatePath("/config/customers");
-	revalidatePath("/appointments");
-	revalidatePath("/customers");
-	revalidatePath("/sales");
+	revalidatePath("/o/[outlet]/config/appointments", "page");
+	revalidatePath("/o/[outlet]/config/sales", "page");
+	revalidatePath("/o/[outlet]/config/customers", "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
+	revalidatePath("/o/[outlet]/customers", "page");
+	revalidatePath("/o/[outlet]/sales", "page");
 }
 
 export async function createBrandConfigItemAction(input: unknown) {

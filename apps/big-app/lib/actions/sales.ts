@@ -30,16 +30,16 @@ export async function collectAppointmentPaymentAction(
 		appointmentId,
 		input,
 	);
-	revalidatePath("/appointments");
-	revalidatePath("/appointments/[ref]", "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
+	revalidatePath("/o/[outlet]/appointments/[ref]", "page");
 	return result;
 }
 
 export async function collectWalkInSaleAction(input: unknown) {
 	const ctx = await getServerContext();
 	const result = await salesService.collectWalkInSale(ctx, input);
-	revalidatePath("/sales");
-	revalidatePath("/inventory");
+	revalidatePath("/o/[outlet]/sales", "page");
+	revalidatePath("/o/[outlet]/inventory", "page");
 	return result;
 }
 
@@ -121,11 +121,11 @@ export async function voidSalesOrderAction(
 ) {
 	const ctx = await getServerContext();
 	const result = await salesService.voidSalesOrder(ctx, salesOrderId, input);
-	revalidatePath("/sales");
-	revalidatePath(`/sales/${salesOrderId}`);
-	revalidatePath("/appointments");
-	revalidatePath("/inventory");
-	revalidatePath("/passcode");
+	revalidatePath("/o/[outlet]/sales", "page");
+	revalidatePath(`/o/[outlet]/sales/${salesOrderId}`, "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
+	revalidatePath("/o/[outlet]/inventory", "page");
+	revalidatePath("/o/[outlet]/passcode", "page");
 	return {
 		cnNumber: result.cn_number,
 		rnNumber: result.rn_number,
@@ -136,9 +136,9 @@ export async function voidSalesOrderAction(
 export async function issueRefundAction(salesOrderId: string, input: unknown) {
 	const ctx = await getServerContext();
 	const result = await salesService.issueRefund(ctx, salesOrderId, input);
-	revalidatePath("/sales");
-	revalidatePath(`/sales/${salesOrderId}`);
-	revalidatePath("/appointments");
+	revalidatePath("/o/[outlet]/sales", "page");
+	revalidatePath(`/o/[outlet]/sales/${salesOrderId}`, "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
 	return {
 		rnNumber: result.rn_number,
 		amount: result.amount,
@@ -149,10 +149,10 @@ function revalidateSalesOrder(
 	salesOrderId: string,
 	appointmentRef?: string | null,
 ) {
-	revalidatePath("/sales");
-	revalidatePath(`/sales/${salesOrderId}`);
-	revalidatePath("/appointments");
-	if (appointmentRef) revalidatePath(`/appointments/${appointmentRef}`);
+	revalidatePath("/o/[outlet]/sales", "page");
+	revalidatePath(`/o/[outlet]/sales/${salesOrderId}`, "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
+	if (appointmentRef) revalidatePath(`/o/[outlet]/appointments/${appointmentRef}`, "page");
 }
 
 export async function revertLastPaymentAction(

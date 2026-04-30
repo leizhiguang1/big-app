@@ -20,14 +20,15 @@ import { DayView } from "@/components/appointments/DayView";
 import { GridView } from "@/components/appointments/GridView";
 import { ListView } from "@/components/appointments/ListView";
 import { MonthView } from "@/components/appointments/MonthView";
+import { ResourceFilterNotice } from "@/components/appointments/ResourceFilterNotice";
 import { WeekView } from "@/components/appointments/WeekView";
 import { useAppointmentNotifications } from "@/components/notifications/AppointmentNotificationsProvider";
 import { CreateButton } from "@/components/ui/create-button";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import {
 	rescheduleAppointmentAction,
 	setAppointmentStatusAction,
 } from "@/lib/actions/appointments";
-import { writeActiveOutletId } from "@/lib/appointments/active-outlet";
 import type { ColumnKey } from "@/lib/appointments/columns";
 import {
 	buildLocalIso,
@@ -41,10 +42,12 @@ import {
 } from "@/lib/constants/appointment-status";
 import {
 	addDays,
+	findNextRosteredDate,
 	fmtDate,
 	getWeekStart,
 	isWindowCoveredByShifts,
 	parseDate,
+	shiftCoversDate,
 } from "@/lib/roster/week";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 import type { CustomerWithRelations } from "@/lib/services/customers";
@@ -121,12 +124,9 @@ export function AppointmentsCalendar({
 	const [cancelTarget, setCancelTarget] =
 		useState<AppointmentWithRelations | null>(null);
 	const router = useRouter();
+	const path = useOutletPath();
 	const { showStatusToast, suppressNextRealtime } =
 		useAppointmentNotifications();
-
-	useEffect(() => {
-		writeActiveOutletId(outletId);
-	}, [outletId]);
 
 	useEffect(() => {
 		document.body.classList.remove("dragging-appt");
@@ -265,8 +265,69 @@ export function AppointmentsCalendar({
 		onDrillInToDay(next);
 		const params = new URLSearchParams(searchParams.toString());
 		params.set("date", next);
-		startTransition(() => router.push(`/appointments?${params.toString()}`));
+		startTransition(() =>
+			router.push(path(`/appointments?${params.toString()}`)),
+		);
 	};
+
+	const jumpToDate = (next: string) => {
+		const params = new URLSearchParams(searchParams.toString());
+		params.set("date", next);
+		startTransition(() =>
+			router.push(path(`/appointments?${params.toString()}`)),
+		);
+	};
+
+	const clearResourceFilter = () => {
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("resource");
+		params.delete("eid");
+		params.delete("rid");
+		const qs = params.toString();
+		startTransition(() =>
+			router.push(qs ? path(`/appointments?${qs}`) : path("/appointments")),
+		);
+	};
+
+	const filterEmployeeName = useMemo(() => {
+		if (resource.mode !== "employee" || !resource.value) return null;
+		const e = employees.find((emp) => emp.id === resource.value);
+		return e ? `${e.first_name} ${e.last_name}` : null;
+	}, [resource, employees]);
+
+	const offRosterFilter = useMemo(() => {
+		if (resource.mode !== "employee" || !resource.value) return null;
+		const emp = employees.find((e) => e.id === resource.value);
+		if (!emp) return null;
+		const empShifts = shifts.filter((s) => s.employee_id === resource.value);
+		const date = parseDate(dateStr);
+		const scopeDates: string[] = [];
+		if (scope === "day") {
+			scopeDates.push(dateStr);
+		} else if (scope === "week") {
+			const start = getWeekStart(date);
+			for (let i = 0; i < 7; i++) {
+				scopeDates.push(fmtDate(addDays(start, i)));
+			}
+		} else {
+			const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+			const gridStart = getWeekStart(firstOfMonth);
+			for (let i = 0; i < 42; i++) {
+				scopeDates.push(fmtDate(addDays(gridStart, i)));
+			}
+		}
+		const rostered = scopeDates.some((d) =>
+			empShifts.some((s) => shiftCoversDate(s, d)),
+		);
+		if (rostered) return null;
+		const lastInScope = scopeDates[scopeDates.length - 1];
+		const searchFrom = fmtDate(addDays(parseDate(lastInScope), 1));
+		const next = findNextRosteredDate(empShifts, searchFrom);
+		return {
+			employeeName: `${emp.first_name} ${emp.last_name}`,
+			nextRosteredDate: next,
+		};
+	}, [resource, employees, shifts, scope, dateStr]);
 
 	const handleContextMenu = useCallback(
 		(e: React.MouseEvent, a: AppointmentWithRelations) => {
@@ -424,8 +485,10 @@ export function AppointmentsCalendar({
 					appointments={filteredAppointments}
 					columnOrder={columnOrder}
 					visibleColumns={visibleColumns}
+					filterEmployeeName={filterEmployeeName}
+					onClearFilter={clearResourceFilter}
 					onAppointmentClick={(a) =>
-						router.push(`/appointments/${a.booking_ref}`)
+						router.push(path(`/appointments/${a.booking_ref}`))
 					}
 					onAppointmentContextMenu={handleContextMenu}
 				/>
@@ -439,7 +502,7 @@ export function AppointmentsCalendar({
 					weekStart={weekStart}
 					appointments={filteredAppointments}
 					onAppointmentClick={(a) =>
-						router.push(`/appointments/${a.booking_ref}`)
+						router.push(path(`/appointments/${a.booking_ref}`))
 					}
 					onAppointmentContextMenu={handleContextMenu}
 					onDayClick={navigateToDay}
@@ -454,7 +517,7 @@ export function AppointmentsCalendar({
 					appointments={filteredAppointments}
 					onDayClick={navigateToDay}
 					onAppointmentClick={(a) =>
-						router.push(`/appointments/${a.booking_ref}`)
+						router.push(path(`/appointments/${a.booking_ref}`))
 					}
 				/>
 			);
@@ -466,7 +529,7 @@ export function AppointmentsCalendar({
 					appointments={filteredAppointments}
 					onCellClick={openCreateAt}
 					onAppointmentClick={(a) =>
-						router.push(`/appointments/${a.booking_ref}`)
+						router.push(path(`/appointments/${a.booking_ref}`))
 					}
 					onAppointmentContextMenu={handleContextMenu}
 					onReschedule={handleReschedule}
@@ -482,9 +545,11 @@ export function AppointmentsCalendar({
 				employees={employees}
 				rooms={rooms}
 				shifts={shifts}
+				filterEmployeeName={filterEmployeeName}
+				onClearFilter={clearResourceFilter}
 				onCellClick={openCreateAt}
 				onAppointmentClick={(a) =>
-					router.push(`/appointments/${a.booking_ref}`)
+					router.push(path(`/appointments/${a.booking_ref}`))
 				}
 				onAppointmentContextMenu={handleContextMenu}
 				onReschedule={handleReschedule}
@@ -516,6 +581,16 @@ export function AppointmentsCalendar({
 					New appointment
 				</CreateButton>
 			</div>
+
+			{offRosterFilter && (
+				<ResourceFilterNotice
+					employeeName={offRosterFilter.employeeName}
+					scopeLabel={scope}
+					nextRosteredDate={offRosterFilter.nextRosteredDate}
+					onClearFilter={clearResourceFilter}
+					onJumpToDate={jumpToDate}
+				/>
+			)}
 
 			{renderView()}
 

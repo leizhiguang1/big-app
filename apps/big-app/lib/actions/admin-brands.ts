@@ -55,7 +55,7 @@ export async function renameSubdomainAction(input: unknown) {
 	const ctx = await getServerContext();
 	if (!ctx.brandId) throw new Error("No brand context");
 	const result = await brandsService.renameBrandSubdomain(ctx, input);
-	revalidatePath("/config/general");
+	revalidatePath("/o/[outlet]/config/general", "page");
 
 	if (result.changed) {
 		const h = await headers();

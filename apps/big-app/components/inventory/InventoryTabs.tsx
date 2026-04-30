@@ -2,28 +2,26 @@
 
 import { usePathname } from "next/navigation";
 import { SegmentedTabs } from "@/components/ui/segmented-tabs";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 
-const TABS = [
-	{ key: "/inventory", label: "Products", href: "/inventory" },
-	{
-		key: "/inventory/options",
-		label: "Inventory options",
-		href: "/inventory/options",
-	},
-	{
-		key: "/inventory/uom",
-		label: "Unit of measurement",
-		href: "/inventory/uom",
-	},
+const BASE_TABS = [
+	{ base: "/inventory", label: "Products" },
+	{ base: "/inventory/options", label: "Inventory options" },
+	{ base: "/inventory/uom", label: "Unit of measurement" },
 ] as const;
 
 export function InventoryTabs() {
 	const pathname = usePathname();
+	const path = useOutletPath();
+	const tabs = BASE_TABS.map((t) => {
+		const href = path(t.base);
+		return { key: href, label: t.label, href };
+	});
 	return (
 		<SegmentedTabs
 			aria-label="Inventory sections"
 			active={pathname}
-			tabs={TABS.map((t) => ({ key: t.key, label: t.label, href: t.href }))}
+			tabs={tabs}
 		/>
 	);
 }

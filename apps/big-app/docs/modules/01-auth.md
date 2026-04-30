@@ -248,7 +248,7 @@ A staff member with access to multiple outlets picks one; most screens
 - Stored in `localStorage` under `big.activeOutletId`
 - Broadcasts changes via a `big:active-outlet-change` custom event and
   cross-tab via the `storage` event
-- Implementation: [lib/appointments/active-outlet.ts](../../lib/appointments/active-outlet.ts)
+- Implementation: [lib/active-outlet.ts](../../lib/active-outlet.ts)
   — despite the path it is app-wide, not appointments-specific. Will be
   moved to `lib/active-outlet/` in a future cleanup.
 - Server bootstrap: [app/(app)/layout.tsx](../../app/(app)/layout.tsx) picks

@@ -215,6 +215,8 @@ export async function listWorkspacesForUser(
 	ctx: Context,
 ): Promise<UserWorkspace[]> {
 	if (!ctx.currentUser) return [];
+	// brand-filter:exempt — workspace picker enumerates every brand the
+	// signed-in auth user belongs to, by definition cross-brand.
 	const { data, error } = await ctx.dbAdmin
 		.from("employees")
 		.select(

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest",
-    "lint": "biome check .",
+    "lint": "biome check . && ./scripts/check-brand-filter.sh",
+    "lint:brand-filter": "./scripts/check-brand-filter.sh",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

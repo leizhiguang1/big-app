@@ -233,6 +233,22 @@ export function getNonRosteredBands(
 	return bands;
 }
 
+// First date on or after `fromDateStr` where any of `shifts` has an
+// occurrence. Returns null if none found within `maxDays` of search.
+export function findNextRosteredDate(
+	shifts: ShiftLike[],
+	fromDateStr: string,
+	maxDays = 90,
+): string | null {
+	if (shifts.length === 0) return null;
+	const start = parseDate(fromDateStr);
+	for (let i = 0; i < maxDays; i++) {
+		const candidate = fmtDate(addDays(start, i));
+		if (shifts.some((s) => shiftCoversDate(s, candidate))) return candidate;
+	}
+	return null;
+}
+
 // Do two shifts ever land on the same date?
 export function shiftsConflict(a: ShiftLike, b: ShiftLike): boolean {
 	const aWeekly = a.repeat_type === "weekly";

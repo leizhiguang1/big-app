@@ -14,10 +14,6 @@ import {
 	AppointmentStatusToastStack,
 	type StatusToast,
 } from "@/components/appointments/AppointmentStatusToastStack";
-import {
-	readActiveOutletId,
-	subscribeActiveOutletId,
-} from "@/lib/appointments/active-outlet";
 import { playStatusSound } from "@/lib/appointments/play-status-sound";
 import {
 	APPOINTMENT_STATUS_NOTIFICATIONS,
@@ -58,7 +54,7 @@ export function useAppointmentNotifications(): ContextValue {
 }
 
 type Props = {
-	initialOutletId: string | null;
+	outletId: string | null;
 	children: ReactNode;
 };
 
@@ -66,22 +62,12 @@ const APPOINTMENT_REALTIME_SELECT =
 	"id, status, outlet_id, lead_name, customer:customers!appointments_customer_id_fkey(first_name, last_name), employee:employees!appointments_employee_id_fkey(first_name, last_name), room:rooms!appointments_room_id_fkey(name)";
 
 export function AppointmentNotificationsProvider({
-	initialOutletId,
+	outletId,
 	children,
 }: Props) {
 	const router = useRouter();
-	const [outletId, setOutletId] = useState<string | null>(initialOutletId);
 	const [toasts, setToasts] = useState<StatusToast[]>([]);
 	const suppressedRef = useRef<Map<string, SuppressEntry>>(new Map());
-
-	useEffect(() => {
-		const stored = readActiveOutletId();
-		if (stored) setOutletId(stored);
-		const unsub = subscribeActiveOutletId((next) => {
-			if (next) setOutletId(next);
-		});
-		return unsub;
-	}, []);
 
 	const dismiss = useCallback((id: string) => {
 		setToasts((prev) => prev.filter((t) => t.id !== id));

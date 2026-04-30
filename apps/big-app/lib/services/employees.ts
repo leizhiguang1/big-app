@@ -425,7 +425,8 @@ export async function changeOwnEmail(
 	const { error } = await ctx.db
 		.from("employees")
 		.update({ email: newEmail })
-		.eq("id", ctx.currentUser.employeeId);
+		.eq("id", ctx.currentUser.employeeId)
+		.eq("brand_id", assertBrandId(ctx));
 	if (error) throw new ValidationError(error.message);
 }
 

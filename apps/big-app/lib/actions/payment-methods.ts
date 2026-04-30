@@ -5,8 +5,8 @@ import { getServerContext } from "@/lib/context/server";
 import * as paymentMethodsService from "@/lib/services/payment-methods";
 
 function revalidate() {
-	revalidatePath("/config/sales/payment");
-	revalidatePath("/appointments");
+	revalidatePath("/o/[outlet]/config/sales/payment", "page");
+	revalidatePath("/o/[outlet]/appointments", "page");
 }
 
 export async function createPaymentMethodAction(input: unknown) {

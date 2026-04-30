@@ -11,6 +11,7 @@ import {
 	useState,
 } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import { cn } from "@/lib/utils";
 import { CATEGORY_COLOR_CLASSES } from "./categories-data";
 import {
@@ -27,6 +28,7 @@ export function ConfigSearch({
 	onOpenChange: (open: boolean) => void;
 }) {
 	const router = useRouter();
+	const path = useOutletPath();
 	const [query, setQuery] = useState("");
 	const [activeIndex, setActiveIndex] = useState(0);
 	const listRef = useRef<HTMLDivElement>(null);
@@ -54,9 +56,9 @@ export function ConfigSearch({
 	const select = useCallback(
 		(entry: ConfigSearchEntry) => {
 			onOpenChange(false);
-			router.push(entry.href);
+			router.push(path(entry.href));
 		},
-		[onOpenChange, router],
+		[onOpenChange, router, path],
 	);
 
 	const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {

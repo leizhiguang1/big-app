@@ -46,6 +46,8 @@ type Props = {
 	appointments: AppointmentWithRelations[];
 	employees: RosterEmployee[];
 	rooms: Room[];
+	filterEmployeeName?: string | null;
+	onClearFilter?: () => void;
 	onCellClick: (args: {
 		dateStr: string;
 		hour: number;
@@ -88,6 +90,8 @@ export function DayView({
 	employees,
 	rooms,
 	shifts,
+	filterEmployeeName,
+	onClearFilter,
 	onCellClick,
 	onAppointmentClick,
 	onAppointmentContextMenu,
@@ -236,14 +240,36 @@ export function DayView({
 						>
 							<div className="flex flex-col items-center gap-2 px-6 text-center text-muted-foreground">
 								<CalendarX2 className="size-8 opacity-60" aria-hidden />
-								<p className="font-medium text-sm">
-									No staff rostered for this day
-								</p>
-								<p className="max-w-sm text-xs">
-									{resourceMode === "employee"
-										? "Assign a roster for this day to see staff columns here."
-										: "No resources available for this day."}
-								</p>
+								{filterEmployeeName ? (
+									<>
+										<p className="font-medium text-sm">
+											{filterEmployeeName} has nothing on this day
+										</p>
+										<p className="max-w-sm text-xs">
+											They aren&apos;t rostered and have no appointments today.
+										</p>
+										{onClearFilter && (
+											<button
+												type="button"
+												onClick={onClearFilter}
+												className="mt-1 rounded-md border bg-background px-2 py-1 font-medium text-xs hover:bg-muted"
+											>
+												Clear staff filter
+											</button>
+										)}
+									</>
+								) : (
+									<>
+										<p className="font-medium text-sm">
+											No staff rostered for this day
+										</p>
+										<p className="max-w-sm text-xs">
+											{resourceMode === "employee"
+												? "Assign a roster for this day to see staff columns here."
+												: "No resources available for this day."}
+										</p>
+									</>
+								)}
 							</div>
 						</div>
 					)}

@@ -10,7 +10,7 @@ export default async function ForgotPasswordPage({
 	const {
 		data: { user },
 	} = await db.auth.getUser();
-	if (user) redirect("/dashboard");
+	if (user) redirect("/");
 
 	return (
 		<main className="flex min-h-svh items-center justify-center bg-muted/30 p-4">

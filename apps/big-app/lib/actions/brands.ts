@@ -7,6 +7,6 @@ import * as brandsService from "@/lib/services/brands";
 export async function updateBrandAction(input: unknown) {
 	const ctx = await getServerContext();
 	const brand = await brandsService.updateBrand(ctx, input);
-	revalidatePath("/config/general");
+	revalidatePath("/o/[outlet]/config/general", "page");
 	return brand;
 }

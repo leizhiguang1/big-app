@@ -5,12 +5,12 @@ import { CustomerDetailContent } from "./customer-detail-content";
 export default async function CustomerDetailPage({
 	params,
 }: {
-	params: Promise<{ id: string }>;
+	params: Promise<{ outlet: string; id: string }>;
 }) {
-	const { id } = await params;
+	const { outlet, id } = await params;
 	return (
 		<Suspense fallback={<Skeleton className="h-[600px] w-full rounded-md" />}>
-			<CustomerDetailContent id={id} />
+			<CustomerDetailContent id={id} outletCode={outlet} />
 		</Suspense>
 	);
 }

@@ -8,6 +8,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import type { AppointmentWithRelations } from "@/lib/services/appointments";
 
 type Props = {
@@ -29,10 +30,11 @@ export function DetailHeader({
 	onToggleSummaryCollapse,
 }: Props) {
 	const router = useRouter();
+	const path = useOutletPath();
 
 	const handleBack = () => {
 		if (window.history.length > 1) router.back();
-		else router.push("/appointments");
+		else router.push(path("/appointments"));
 	};
 
 	const label = appointmentLabel(appointment);

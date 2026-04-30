@@ -2,8 +2,8 @@
 
 import {
 	AlignJustify,
-	Building2,
 	CalendarDays,
+	CalendarOff,
 	Check,
 	ChevronDown,
 	ChevronLeft,
@@ -12,7 +12,7 @@ import {
 	Search,
 	X,
 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { AppointmentsAdvancedFilter } from "@/components/appointments/AppointmentsAdvancedFilter";
 import { ColumnSettingsPopover } from "@/components/appointments/ColumnSettingsPopover";
@@ -141,6 +141,7 @@ export function AppointmentsFilterBar({
 	onColumnChange,
 }: Props) {
 	const router = useRouter();
+	const pathname = usePathname();
 	const searchParams = useSearchParams();
 	const [pending, startTransition] = useTransition();
 	const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -152,7 +153,6 @@ export function AppointmentsFilterBar({
 	const date = parseDate(dateStr);
 	const today = fmtDate(new Date());
 	const isToday = dateStr === today;
-	const selectedOutlet = outlets.find((o) => o.id === outletId);
 
 	const navigate = (next: Partial<Record<string, string | null>>) => {
 		const params = new URLSearchParams(searchParams.toString());
@@ -160,7 +160,8 @@ export function AppointmentsFilterBar({
 			if (v === null || v === undefined || v === "") params.delete(k);
 			else params.set(k, v);
 		}
-		startTransition(() => router.push(`/appointments?${params.toString()}`));
+		const qs = params.toString();
+		startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname));
 	};
 
 	const handleSearch = (value: string) => {
@@ -251,6 +252,11 @@ export function AppointmentsFilterBar({
 		return e ? `${e.first_name} ${e.last_name}` : "Staff";
 	})();
 	const resourceActive = resource.value !== null;
+	const filterEmployeeOffRoster =
+		resource.mode === "employee" &&
+		resource.value !== null &&
+		!rosteredEmployeeIds.has(resource.value);
+	const offRosterTooltip = `Not rostered this ${scope}`;
 
 	return (
 		<div
@@ -259,41 +265,6 @@ export function AppointmentsFilterBar({
 				pending && "opacity-70",
 			)}
 		>
-			{/* Outlet selector */}
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<button
-						type="button"
-						className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-background px-2 text-xs font-medium hover:bg-muted"
-					>
-						<Building2 className="size-3.5 text-muted-foreground" />
-						<span>
-							{selectedOutlet
-								? `(${selectedOutlet.code}) ${selectedOutlet.name}`
-								: "Select outlet"}
-						</span>
-						<ChevronDown className="size-3.5 text-muted-foreground" />
-					</button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="start" className="min-w-56">
-					{outlets.map((o) => (
-						<DropdownMenuItem
-							key={o.id}
-							onSelect={() => navigate({ outlet: o.code })}
-							className="flex items-center justify-between gap-2"
-						>
-							<span className="flex items-center gap-2">
-								<span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-semibold">
-									{o.code}
-								</span>
-								<span>{o.name}</span>
-							</span>
-							{o.id === outletId && <Check className="size-3.5" />}
-						</DropdownMenuItem>
-					))}
-				</DropdownMenuContent>
-			</DropdownMenu>
-
 			{/* Resource filter */}
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
@@ -302,13 +273,26 @@ export function AppointmentsFilterBar({
 						className={cn(
 							"inline-flex h-8 items-center gap-1.5 rounded-md border bg-background px-2 text-xs font-medium hover:bg-muted",
 							resourceActive && "border-primary/40 bg-primary/5",
+							filterEmployeeOffRoster &&
+								"border-amber-400/60 bg-amber-50 dark:bg-amber-900/15",
 						)}
 					>
 						<span className="capitalize">{resourceLabel}</span>
-						{resourceActive && (
-							<span className="inline-flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-								1
+						{filterEmployeeOffRoster ? (
+							<span
+								role="img"
+								aria-label={offRosterTooltip}
+								title={offRosterTooltip}
+								className="inline-flex size-4 items-center justify-center rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300"
+							>
+								<CalendarOff className="size-3" aria-hidden />
 							</span>
+						) : (
+							resourceActive && (
+								<span className="inline-flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+									1
+								</span>
+							)
 						)}
 						<ChevronDown className="size-3.5 text-muted-foreground" />
 					</button>
@@ -576,4 +560,3 @@ export function AppointmentsFilterBar({
 		</div>
 	);
 }
-

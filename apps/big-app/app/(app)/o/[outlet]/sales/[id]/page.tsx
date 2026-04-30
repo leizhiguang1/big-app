@@ -6,14 +6,18 @@ export default async function SalesOrderDetailPage({
 	params,
 	searchParams,
 }: {
-	params: Promise<{ id: string }>;
+	params: Promise<{ outlet: string; id: string }>;
 	searchParams: Promise<{ print?: string }>;
 }) {
-	const { id } = await params;
+	const { outlet, id } = await params;
 	const { print } = await searchParams;
 	return (
 		<Suspense fallback={<Skeleton className="h-[600px] w-full rounded-md" />}>
-			<SalesOrderDetailContent id={id} autoPrint={print === "1"} />
+			<SalesOrderDetailContent
+				id={id}
+				outletCode={outlet}
+				autoPrint={print === "1"}
+			/>
 		</Suspense>
 	);
 }

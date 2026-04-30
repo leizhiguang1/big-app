@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { outletPath } from "@/lib/outlet-path";
 import { AppointmentDetailView } from "@/components/appointments/AppointmentDetailView";
 import { AppointmentConfigProvider } from "@/components/brand-config/AppointmentConfigProvider";
 import { Button } from "@/components/ui/button";
@@ -55,8 +56,10 @@ import { getWalletByCustomer } from "@/lib/services/wallet";
 
 export async function AppointmentDetailContent({
 	bookingRef,
+	outletCode,
 }: {
 	bookingRef: string;
+	outletCode: string;
 }) {
 	const ctx = await getServerContext();
 
@@ -65,7 +68,7 @@ export async function AppointmentDetailContent({
 		appointment = await getAppointmentByBookingRef(ctx, bookingRef);
 	} catch (err) {
 		if (err instanceof NotFoundError) {
-			return <NotFoundPanel />;
+			return <NotFoundPanel outletCode={outletCode} />;
 		}
 		throw err;
 	}
@@ -210,7 +213,7 @@ export async function AppointmentDetailContent({
 	);
 }
 
-function NotFoundPanel() {
+function NotFoundPanel({ outletCode }: { outletCode: string }) {
 	return (
 		<div className="flex flex-col items-center gap-4 rounded-md border bg-muted/30 p-12 text-center">
 			<div className="font-medium text-base">Appointment not found</div>
@@ -219,7 +222,7 @@ function NotFoundPanel() {
 				longer valid.
 			</div>
 			<Button asChild size="sm">
-				<Link href="/appointments">Back to calendar</Link>
+				<Link href={outletPath(outletCode, "/appointments")}>Back to calendar</Link>
 			</Button>
 		</div>
 	);

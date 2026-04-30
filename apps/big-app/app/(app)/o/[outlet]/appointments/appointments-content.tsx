@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import type { ResourceFilter } from "@/components/appointments/AppointmentsFilterBar";
 import { AppointmentsView } from "@/components/appointments/AppointmentsView";
 import { AppointmentConfigProvider } from "@/components/brand-config/AppointmentConfigProvider";
@@ -55,10 +55,11 @@ function applyResourceFilter(
 }
 
 export async function AppointmentsContent({
+	params: paramsPromise,
 	searchParams,
 }: {
+	params: Promise<{ outlet: string }>;
 	searchParams: Promise<{
-		outlet?: string;
 		date?: string;
 		resource?: string;
 		rid?: string;
@@ -68,7 +69,10 @@ export async function AppointmentsContent({
 		pstatus?: string;
 	}>;
 }) {
-	const params = await searchParams;
+	const [{ outlet: outletCode }, params] = await Promise.all([
+		paramsPromise,
+		searchParams,
+	]);
 	const ctx = await getServerContext();
 	const outlets = await listOutlets(ctx);
 	const activeOutlets = outlets.filter((o) => o.is_active);
@@ -81,30 +85,9 @@ export async function AppointmentsContent({
 		);
 	}
 
-	const requestedOutletCode = params.outlet;
-	const resolvedOutlet =
-		(requestedOutletCode &&
-			activeOutlets.find((o) => o.code === requestedOutletCode)) ||
-		activeOutlets[0];
+	const resolvedOutlet = activeOutlets.find((o) => o.code === outletCode);
+	if (!resolvedOutlet) notFound();
 	const outletId = resolvedOutlet.id;
-	const outletCode = resolvedOutlet.code;
-
-	if (outletCode !== requestedOutletCode) {
-		const next = new URLSearchParams();
-		next.set("outlet", outletCode);
-		for (const k of [
-			"date",
-			"resource",
-			"rid",
-			"eid",
-			"status",
-			"atype",
-		] as const) {
-			const v = params[k];
-			if (v) next.set(k, v);
-		}
-		redirect(`/appointments?${next.toString()}`);
-	}
 
 	const dateStr = params.date ?? fmtDate(new Date());
 	const date = parseDate(dateStr);

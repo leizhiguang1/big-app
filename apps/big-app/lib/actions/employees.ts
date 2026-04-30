@@ -17,7 +17,7 @@ export async function createEmployeeAction(
 		password,
 		pin,
 	);
-	revalidatePath("/employees");
+	revalidatePath("/o/[outlet]/employees", "page");
 	return employee;
 }
 
@@ -35,14 +35,14 @@ export async function updateEmployeeAction(
 		password,
 		pin,
 	);
-	revalidatePath("/employees");
+	revalidatePath("/o/[outlet]/employees", "page");
 	return employee;
 }
 
 export async function deleteEmployeeAction(id: string) {
 	const ctx = await getServerContext();
 	await employeesService.deleteEmployee(ctx, id);
-	revalidatePath("/employees");
+	revalidatePath("/o/[outlet]/employees", "page");
 }
 
 /** Returns a password-reset link the admin can copy and share. */

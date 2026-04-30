@@ -83,6 +83,7 @@ import type {
 	CustomerWallet,
 	WalletTransactionWithRefs,
 } from "@/lib/services/wallet";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import { mediaPublicUrl } from "@/lib/storage/urls";
 import { cn } from "@/lib/utils";
 import { CustomerFormDialog } from "./CustomerForm";
@@ -221,6 +222,7 @@ export function CustomerDetailView({
 	allOutlets,
 	allEmployees,
 }: Props) {
+	const path = useOutletPath();
 	const [activeTab, setActiveTab] = useState<TabKey>("timeline");
 	const [paymentsSubTab, setPaymentsSubTab] = useState<
 		"history" | "outstanding"
@@ -335,7 +337,7 @@ export function CustomerDetailView({
 				<aside className="flex w-full shrink-0 flex-col gap-3 lg:w-[320px]">
 					<div className="flex items-center gap-2">
 						<Link
-							href="/customers"
+							href={path("/customers")}
 							className="flex size-8 shrink-0 items-center justify-center rounded-full border bg-background text-muted-foreground transition hover:bg-muted"
 							aria-label="Back to customers"
 						>
@@ -936,6 +938,7 @@ function AppointmentTimelineCard({
 	appointment: CustomerTimelineAppointment;
 	lineItems: CustomerLineItem[];
 }) {
+	const path = useOutletPath();
 	const d = new Date(appointment.start_at);
 	const day = d.getDate();
 	const weekday = d.toLocaleDateString("en-GB", { weekday: "long" });
@@ -1006,7 +1009,7 @@ function AppointmentTimelineCard({
 				</div>
 				<div className="flex items-center gap-2">
 					<Link
-						href={`/appointments/${appointment.booking_ref}`}
+						href={path(`/appointments/${appointment.booking_ref}`)}
 						className="flex size-9 items-center justify-center rounded-full bg-sky-600 font-semibold text-[11px] text-white shadow-sm transition hover:bg-sky-700"
 					>
 						Go

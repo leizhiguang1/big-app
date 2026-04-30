@@ -42,7 +42,7 @@ export default async function LoginPage() {
 	}
 
 	// Brand subdomain /login = brand staff login.
-	if (ctx.currentUser) redirect("/dashboard");
+	if (ctx.currentUser) redirect("/");
 
 	const dbAdmin = createSupabaseAdminClient();
 	const { data: brand } = await dbAdmin

@@ -27,6 +27,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import { deleteCustomerAction } from "@/lib/actions/customers";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
@@ -270,6 +271,7 @@ export function CustomersTable({
 }
 
 function NameCell({ customer: c }: { customer: CustomerWithRelations }) {
+	const path = useOutletPath();
 	const displayName = `${c.first_name} ${c.last_name ?? ""}`.trim();
 	const imageUrl = mediaPublicUrl(c.profile_image_path ?? null);
 	const age = computeAgeShort(c.date_of_birth);
@@ -297,7 +299,7 @@ function NameCell({ customer: c }: { customer: CustomerWithRelations }) {
 						</IconBadge>
 					)}
 					<Link
-						href={`/customers/${c.id}`}
+						href={path(`/customers/${c.id}`)}
 						className="truncate font-semibold text-[15px] text-sky-800 uppercase leading-tight hover:underline"
 					>
 						{displayName}

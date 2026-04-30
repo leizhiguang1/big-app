@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { RosterFilters } from "@/components/roster/RosterFilters";
 import { RosterGrid } from "@/components/roster/RosterGrid";
 import { getServerContext } from "@/lib/context/server";
@@ -10,11 +10,16 @@ import {
 import { listOutlets } from "@/lib/services/outlets";
 
 export async function RosterContent({
+	params: paramsPromise,
 	searchParams,
 }: {
-	searchParams: Promise<{ outlet?: string; week?: string }>;
+	params: Promise<{ outlet: string }>;
+	searchParams: Promise<{ week?: string }>;
 }) {
-	const params = await searchParams;
+	const [{ outlet: outletCode }, params] = await Promise.all([
+		paramsPromise,
+		searchParams,
+	]);
 	const ctx = await getServerContext();
 	const outlets = await listOutlets(ctx);
 	const activeOutlets = outlets.filter((o) => o.is_active);
@@ -27,16 +32,9 @@ export async function RosterContent({
 		);
 	}
 
-	const requestedOutlet = params.outlet;
-	const outletId =
-		requestedOutlet && activeOutlets.some((o) => o.id === requestedOutlet)
-			? requestedOutlet
-			: activeOutlets[0].id;
-
-	if (outletId !== requestedOutlet) {
-		const week = params.week ? `&week=${params.week}` : "";
-		redirect(`/roster?outlet=${outletId}${week}`);
-	}
+	const resolved = activeOutlets.find((o) => o.code === outletCode);
+	if (!resolved) notFound();
+	const outletId = resolved.id;
 
 	const weekStartDate = params.week
 		? getWeekStart(parseDate(params.week))
@@ -51,11 +49,7 @@ export async function RosterContent({
 
 	return (
 		<div className="flex flex-col gap-4">
-			<RosterFilters
-				outlets={activeOutlets}
-				outletId={outletId}
-				weekStart={weekStart}
-			/>
+			<RosterFilters weekStart={weekStart} />
 			<RosterGrid
 				outletId={outletId}
 				weekStart={weekStart}

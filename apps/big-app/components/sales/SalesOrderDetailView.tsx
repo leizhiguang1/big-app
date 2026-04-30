@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import type { Brand } from "@/lib/services/brands";
 import type { CustomerWithRelations } from "@/lib/services/customers";
 import type { EmployeeWithRelations } from "@/lib/services/employees";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import type { Outlet } from "@/lib/services/outlets";
 import type {
 	PaymentAllocationForOrder,
@@ -154,6 +155,7 @@ export function SalesOrderDetailView({
 	brand,
 	autoPrint,
 }: Props) {
+	const path = useOutletPath();
 	const [voidOpen, setVoidOpen] = useState(false);
 	const [refundOpen, setRefundOpen] = useState(false);
 	const [invoiceOpen, setInvoiceOpen] = useState(Boolean(autoPrint));
@@ -241,7 +243,7 @@ export function SalesOrderDetailView({
 			<div className="flex flex-wrap items-center justify-between gap-y-3">
 				<div className="flex items-center gap-3">
 					<Button variant="ghost" size="icon" asChild>
-						<Link href="/sales">
+						<Link href={path("/sales")}>
 							<ArrowLeft className="size-4" />
 						</Link>
 					</Button>
@@ -682,7 +684,7 @@ export function SalesOrderDetailView({
 			{order.appointment_id && (
 				<div className="text-sm">
 					<Link
-						href={`/appointments/${order.appointment?.booking_ref ?? order.appointment_id}`}
+						href={path(`/appointments/${order.appointment?.booking_ref ?? order.appointment_id}`)}
 						className="text-blue-600 hover:underline"
 					>
 						View linked appointment

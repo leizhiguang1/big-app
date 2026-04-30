@@ -22,7 +22,7 @@ import {
 	Zap,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	SidebarNavItem,
 	type SidebarNavItemData,
@@ -39,8 +39,9 @@ import {
 	SidebarRail,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { outletPath } from "@/lib/outlet-path";
 
-const navItems: SidebarNavItemData[] = [
+const baseNavItems: SidebarNavItemData[] = [
 	{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
 	{ label: "Appointments", href: "/appointments", icon: Calendar },
 	{ label: "Customers", href: "/customers", icon: Users },
@@ -56,7 +57,7 @@ const navItems: SidebarNavItemData[] = [
 	{ label: "Config", href: "/config", icon: Settings },
 ];
 
-const whatsappNavItems: SidebarNavItemData[] = [
+const baseWhatsappNavItems: SidebarNavItemData[] = [
 	{ label: "Chats", href: "/chats", icon: MessageCircle, variant: "whatsapp" },
 	{ label: "Contacts", href: "/contacts", icon: Contact, variant: "whatsapp" },
 	{
@@ -80,7 +81,14 @@ const whatsappNavItems: SidebarNavItemData[] = [
 	},
 ];
 
-export function AppSidebar() {
+function withOutlet(
+	items: SidebarNavItemData[],
+	outletCode: string,
+): SidebarNavItemData[] {
+	return items.map((it) => ({ ...it, href: outletPath(outletCode, it.href) }));
+}
+
+export function AppSidebar({ outletCode }: { outletCode: string }) {
 	const pathname = usePathname();
 	const [pendingHref, setPendingHref] = useState<string | null>(null);
 
@@ -91,6 +99,15 @@ export function AppSidebar() {
 	const handlePending = useCallback((href: string) => {
 		setPendingHref(href);
 	}, []);
+
+	const navItems = useMemo(
+		() => withOutlet(baseNavItems, outletCode),
+		[outletCode],
+	);
+	const whatsappNavItems = useMemo(
+		() => withOutlet(baseWhatsappNavItems, outletCode),
+		[outletCode],
+	);
 
 	return (
 		<Sidebar collapsible="icon">

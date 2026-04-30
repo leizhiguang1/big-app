@@ -1,3 +1,5 @@
+"use client";
+
 import {
 	Crown,
 	IdCard,
@@ -8,6 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useOutletPath } from "@/hooks/use-outlet-path";
 import type { CustomerIdentity } from "@/lib/services/customers";
 import { mediaPublicUrl } from "@/lib/storage/urls";
 import { cn } from "@/lib/utils";
@@ -68,6 +71,7 @@ export function CustomerIdentityCard({
 	link = true,
 	className,
 }: Props) {
+	const path = useOutletPath();
 	const name = displayName(customer, fallbackLabel);
 	const imageUrl = mediaPublicUrl(customer?.profile_image_path ?? null);
 	const phone = customer?.phone ?? null;
@@ -80,7 +84,7 @@ export function CustomerIdentityCard({
 	const NameEl =
 		customer && link ? (
 			<Link
-				href={`/customers/${customer.id}`}
+				href={path(`/customers/${customer.id}`)}
 				className={cn(
 					"truncate font-semibold text-sky-800 leading-tight hover:underline",
 					NAME_CLS[size],
