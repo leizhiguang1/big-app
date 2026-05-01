@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { AppointmentNotificationsProvider } from "@/components/notifications/AppointmentNotificationsProvider";
 import { AppSidebar } from "@/components/shell/app-sidebar";
 import { AppTopbar } from "@/components/shell/app-topbar";
+import { NavProgress } from "@/components/shell/nav-progress";
 import type { OutletNavItem } from "@/components/shell/outlet-selector";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getServerContext } from "@/lib/context/server";
@@ -62,6 +63,7 @@ export default async function OutletScopedLayout({
 
 	return (
 		<AppointmentNotificationsProvider outletId={current.id}>
+			<NavProgress />
 			<SidebarProvider className="h-svh">
 				<AppSidebar outletCode={current.code} />
 				<SidebarInset className="min-w-0">

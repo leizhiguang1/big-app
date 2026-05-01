@@ -22,6 +22,9 @@ export const SERVER_EVENTS = {
 	accountStatus: "account_status",
 	automationRunStarted: "automation_run_started",
 	automationRunFinished: "automation_run_finished",
+	// Unified inbox (multi-channel) — wa-crm broadcasts this when any inbox
+	// row changed; clients debounce + refetch inbox_list / inbox_thread.
+	inboxMessageUpsert: "inbox_message_upsert",
 } as const;
 
 // consumer → wa-crm
@@ -43,6 +46,13 @@ export const CLIENT_EVENTS = {
 	addAccount: "add_account",
 	saveWorkflow: "save_workflow",
 	getWorkflowRuns: "get_workflow_runs",
+	// Unified inbox (multi-channel)
+	inboxList: "inbox_list",
+	inboxThread: "inbox_thread",
+	inboxSend: "inbox_send",
+	inboxSearchContacts: "inbox_search_contacts",
+	inboxCreateContact: "inbox_create_contact",
+	inboxResync: "inbox_resync",
 } as const;
 
 export type ServerEvent = (typeof SERVER_EVENTS)[keyof typeof SERVER_EVENTS];

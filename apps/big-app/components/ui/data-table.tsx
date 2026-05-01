@@ -54,13 +54,15 @@ type Props<T> = {
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 function matchesSearch<T>(row: T, keys: (keyof T)[], needle: string): boolean {
-	const n = needle.toLowerCase();
+	const terms = needle.toLowerCase().split(/\s+/).filter(Boolean);
+	if (terms.length === 0) return true;
+	let haystack = "";
 	for (const k of keys) {
 		const v = row[k];
 		if (v == null) continue;
-		if (String(v).toLowerCase().includes(n)) return true;
+		haystack += `${String(v).toLowerCase()} `;
 	}
-	return false;
+	return terms.every((t) => haystack.includes(t));
 }
 
 function compare(a: unknown, b: unknown): number {

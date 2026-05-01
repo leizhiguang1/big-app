@@ -228,3 +228,29 @@ body.dragging-appt [data-appt-card]:not([data-dragging="true"]) {
 		transform: translateX(-100%);
 	}
 }
+
+@keyframes nav-progress-grow {
+	0% {
+		width: 0%;
+	}
+	30% {
+		width: 45%;
+	}
+	70% {
+		width: 80%;
+	}
+	100% {
+		width: 92%;
+	}
+}
+
+@keyframes nav-progress-finish {
+	0% {
+		width: var(--nav-progress-width, 92%);
+		opacity: 1;
+	}
+	100% {
+		width: 100%;
+		opacity: 0;
+	}
+}

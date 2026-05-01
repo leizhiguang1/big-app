@@ -12,6 +12,7 @@ import {
 	Store,
 	Undo2,
 	Users,
+	Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -19,6 +20,7 @@ import { CustomerIdentityCard } from "@/components/customers/CustomerIdentityCar
 import { ChangePaymentMethodDialog } from "@/components/sales/ChangePaymentMethodDialog";
 import { IssueRefundDialog } from "@/components/sales/IssueRefundDialog";
 import { ReallocatePaymentsEditor } from "@/components/sales/ReallocatePaymentsEditor";
+import { PayOutstandingDialog } from "@/components/sales/PayOutstandingDialog";
 import { RevertLastPaymentDialog } from "@/components/sales/RevertLastPaymentDialog";
 import { SaleItemEmployeeAllocationDialog } from "@/components/sales/SaleItemEmployeeAllocationDialog";
 import { ViewInvoiceDialog } from "@/components/sales/ViewInvoiceDialog";
@@ -158,6 +160,7 @@ export function SalesOrderDetailView({
 	const path = useOutletPath();
 	const [voidOpen, setVoidOpen] = useState(false);
 	const [refundOpen, setRefundOpen] = useState(false);
+	const [recordPayOpen, setRecordPayOpen] = useState(false);
 	const [invoiceOpen, setInvoiceOpen] = useState(Boolean(autoPrint));
 	const [reallocMode, setReallocMode] = useState(false);
 	const [changeMethodPayment, setChangeMethodPayment] =
@@ -176,6 +179,8 @@ export function SalesOrderDetailView({
 		order.status === "completed" || order.status === "draft";
 	const canRefund = order.status === "completed";
 	const isCancelled = order.status === "cancelled";
+	const outstanding = Number(order.outstanding ?? 0);
+	const canRecordPayment = !isCancelled && outstanding > 0.005;
 
 	// Index incentives and allocations by sale_item_id / payment_id for cheap lookup.
 	const incentivesByLine = useMemo(() => {
@@ -268,6 +273,16 @@ export function SalesOrderDetailView({
 					</div>
 				</div>
 				<div className="flex items-center gap-2">
+					{canRecordPayment && (
+						<Button
+							size="sm"
+							className="bg-green-600 text-white hover:bg-green-700"
+							onClick={() => setRecordPayOpen(true)}
+						>
+							<Wallet className="mr-2 size-4" />
+							Record payment
+						</Button>
+					)}
 					{canReallocate && !reallocMode && (
 						<Button
 							variant="outline"
@@ -726,6 +741,23 @@ export function SalesOrderDetailView({
 						message: `Voided. CN ${cnNumber} · RN ${rnNumber} · Refund MYR ${refundAmount.toFixed(2)}`,
 					})
 				}
+				onError={(msg) => setFeedback({ type: "error", message: msg })}
+			/>
+
+			<PayOutstandingDialog
+				open={recordPayOpen}
+				onOpenChange={setRecordPayOpen}
+				salesOrderId={order.id}
+				soNumber={order.so_number}
+				outstanding={outstanding}
+				total={Number(order.total ?? 0)}
+				amountPaid={Number(order.amount_paid ?? 0)}
+				items={items}
+				existingPayments={payments}
+				incentives={incentives}
+				outletName={outlet?.name ?? null}
+				appointmentRef={appointmentRef}
+				onSuccess={(msg) => setFeedback({ type: "success", message: msg })}
 				onError={(msg) => setFeedback({ type: "error", message: msg })}
 			/>
 

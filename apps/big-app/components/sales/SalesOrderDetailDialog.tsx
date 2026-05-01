@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, Loader2, Pencil, Receipt, Undo2 } from "lucide-react";
+import { Ban, CreditCard, Loader2, Pencil, Receipt, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { redistribute } from "@/components/appointments/detail/collect-payment/helpers";
@@ -9,6 +9,7 @@ import { EmployeePicker } from "@/components/employees/EmployeePicker";
 import { ChangePaymentMethodDialog } from "@/components/sales/ChangePaymentMethodDialog";
 import { CustomerIdentityCard } from "@/components/customers/CustomerIdentityCard";
 import { IssueRefundDialog } from "@/components/sales/IssueRefundDialog";
+import { PayOutstandingDialog } from "@/components/sales/PayOutstandingDialog";
 import { VoidSalesOrderDialog } from "@/components/sales/VoidSalesOrderDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -125,6 +126,7 @@ export function SalesOrderDetailDialog({
 	const [state, setState] = useState<LoadState>({ status: "idle" });
 	const [voidOpen, setVoidOpen] = useState(false);
 	const [refundOpen, setRefundOpen] = useState(false);
+	const [recordPayOpen, setRecordPayOpen] = useState(false);
 	const [changeMethodPayment, setChangeMethodPayment] =
 		useState<PaymentWithProcessedBy | null>(null);
 	const [editAllocMode, setEditAllocMode] = useState(false);
@@ -286,6 +288,8 @@ export function SalesOrderDetailDialog({
 	const canRefund = order !== null && order.status === "completed";
 	const isCancelled = order?.status === "cancelled";
 	const appointmentRef = order?.appointment?.booking_ref ?? null;
+	const outstanding = Number(order?.outstanding ?? 0);
+	const canRecordPayment = order !== null && !isCancelled && outstanding > 0.005;
 
 	const startEditAlloc = () => {
 		if (state.status !== "ready") return;
@@ -426,6 +430,10 @@ export function SalesOrderDetailDialog({
 									refundNotes={state.refundNotes}
 									isCancelled={isCancelled}
 									onChangeMethod={setChangeMethodPayment}
+									onPayNow={() => {
+										setFeedback(null);
+										setRecordPayOpen(true);
+									}}
 								/>
 							</TooltipProvider>
 						)}
@@ -451,6 +459,19 @@ export function SalesOrderDetailDialog({
 								)}
 							</div>
 							<div className="flex items-center gap-2 self-end sm:self-auto">
+								{canRecordPayment && (
+									<Button
+										size="sm"
+										className="bg-green-600 text-white hover:bg-green-700"
+										onClick={() => {
+											setFeedback(null);
+											setRecordPayOpen(true);
+										}}
+									>
+										<CreditCard className="mr-2 size-4" />
+										Pay Now
+									</Button>
+								)}
 								{canRefund && (
 									<Button
 										variant="outline"
@@ -545,6 +566,25 @@ export function SalesOrderDetailDialog({
 						salesOrderId={state.order.id}
 						appointmentRef={appointmentRef}
 						payment={changeMethodPayment}
+						onSuccess={(msg) => {
+							setFeedback({ type: "success", message: msg });
+							reload();
+						}}
+						onError={(msg) => setFeedback({ type: "error", message: msg })}
+					/>
+					<PayOutstandingDialog
+						open={recordPayOpen}
+						onOpenChange={setRecordPayOpen}
+						salesOrderId={state.order.id}
+						soNumber={state.order.so_number}
+						outstanding={outstanding}
+						total={Number(state.order.total ?? 0)}
+						amountPaid={Number(state.order.amount_paid ?? 0)}
+						items={state.items}
+						existingPayments={state.payments}
+						incentives={state.incentives}
+						outletName={state.order.outlet?.name ?? null}
+						appointmentRef={appointmentRef}
 						onSuccess={(msg) => {
 							setFeedback({ type: "success", message: msg });
 							reload();
@@ -917,12 +957,14 @@ function RightPanel({
 	refundNotes,
 	isCancelled,
 	onChangeMethod,
+	onPayNow,
 }: {
 	order: SalesOrderWithRelations;
 	payments: PaymentWithProcessedBy[];
 	refundNotes: RefundNoteWithRefs[];
 	isCancelled: boolean;
 	onChangeMethod: (payment: PaymentWithProcessedBy) => void;
+	onPayNow: () => void;
 }) {
 	const subtotal = Number(order.subtotal ?? 0);
 	const total = Number(order.total ?? 0);
@@ -985,13 +1027,15 @@ function RightPanel({
 								MYR {money(outstanding)}
 							</span>
 						</div>
-						<div className="mt-2 flex flex-col gap-1">
-							<PlaceholderLink tooltip="Pay Now — Phase 2">
-								Pay Now ?
-							</PlaceholderLink>
-							<PlaceholderLink tooltip="Write Off Outstanding — Phase 2">
-								Write Off Outstanding Payment?
-							</PlaceholderLink>
+						<div className="mt-2">
+							<button
+								type="button"
+								onClick={onPayNow}
+								className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+							>
+								<CreditCard className="size-3.5" />
+								Pay Now
+							</button>
 						</div>
 					</div>
 				)}

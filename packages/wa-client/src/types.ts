@@ -301,3 +301,148 @@ export type WATeamMember = {
 	id: string;
 	name: string;
 };
+
+// ── Unified inbox (multi-channel) ───────────────────────────────────────
+// Mirrors wa-crm/frontend/components/inbox/inboxTypes.ts. wa-crm emits
+// these via the `inbox_list` / `inbox_thread` / `inbox_send` events; the
+// realtime nudge is `inbox_message_upsert` (no payload of interest —
+// clients debounce + refetch).
+
+export type InboxChannel =
+	| "whatsapp"
+	| "email"
+	| "sms"
+	| "messenger"
+	| "instagram"
+	| "telegram";
+
+export const ALL_INBOX_CHANNELS: InboxChannel[] = [
+	"whatsapp",
+	"email",
+	"sms",
+	"messenger",
+	"instagram",
+	"telegram",
+];
+
+export const IMPLEMENTED_INBOX_CHANNELS: InboxChannel[] = ["whatsapp", "email"];
+
+export const INBOX_CHANNEL_LABELS: Record<InboxChannel, string> = {
+	whatsapp: "WhatsApp",
+	email: "Email",
+	sms: "SMS",
+	messenger: "Messenger",
+	instagram: "Instagram",
+	telegram: "Telegram",
+};
+
+export type InboxRow = {
+	contactId: string;
+	name: string;
+	phone: string | null;
+	email: string | null;
+	avatarUrl: string | null;
+	tags: string[];
+	lastMessageAt: string | null;
+	lastMessageText: string;
+	lastMessageChannel: InboxChannel | null;
+	lastMessageFromMe: boolean;
+	unreadCount: number;
+	channels: InboxChannel[];
+};
+
+export type InboxMessage = {
+	id: string;
+	conversationId: string;
+	channel: InboxChannel;
+	externalId: string | null;
+	fromMe: boolean;
+	senderExternalId: string | null;
+	senderName: string | null;
+	messageType: string;
+	text: string | null;
+	mediaUrl: string | null;
+	mediaMimeType: string | null;
+	mediaFileName: string | null;
+	mediaFileSize: number | null;
+	subject: string | null;
+	cc: string[] | null;
+	bcc: string[] | null;
+	threadExternalId: string | null;
+	status: string;
+	sentAt: string;
+	platformTimestamp: number | null;
+	isAiGenerated: boolean;
+	isAutomation: boolean;
+	automationName: string | null;
+};
+
+export type InboxContact = {
+	id: string;
+	name: string;
+	phone: string | null;
+	email: string | null;
+	avatarUrl: string | null;
+	tags: string[];
+	notes: string;
+	dnd: boolean;
+	crmStatus: string | null;
+	birthday: string | null;
+	customFields: Record<string, unknown>;
+	assignedUser: string | null;
+	createdAt: string;
+};
+
+export type InboxContactHandles = Partial<Record<InboxChannel, string>>;
+
+export type InboxListResponse = {
+	rows?: InboxRow[];
+	error?: string;
+};
+
+export type InboxThreadResponse = {
+	messages?: InboxMessage[];
+	contact?: InboxContact | null;
+	handles?: InboxContactHandles;
+	error?: string;
+};
+
+export type InboxSendPayload = {
+	contactId: string;
+	channel: InboxChannel;
+	text: string;
+	subject?: string;
+	cc?: string[];
+	bcc?: string[];
+	replyToExternalId?: string;
+};
+
+export type InboxSendResponse = {
+	success?: boolean;
+	message?: InboxMessage;
+	syncError?: string;
+	error?: string;
+};
+
+export type InboxSearchRow = {
+	contactId: string;
+	name: string;
+	phone: string | null;
+	email: string | null;
+	avatarUrl: string | null;
+	hasEmail: boolean;
+	hasPhone: boolean;
+};
+
+export type InboxCreateContactPayload = {
+	email?: string;
+	phone?: string;
+	name?: string;
+};
+
+export type InboxCreateContactResponse = {
+	ok?: boolean;
+	contactId?: string;
+	existed?: boolean;
+	error?: string;
+};

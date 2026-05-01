@@ -224,8 +224,15 @@ export function CustomersTable({
 				data={customers}
 				columns={columns}
 				getRowKey={(c) => c.id}
-				searchKeys={["first_name", "last_name", "code", "phone", "id_number"]}
-				searchPlaceholder="Search by name, phone, IC/passport…"
+				searchKeys={[
+					"first_name",
+					"last_name",
+					"code",
+					"phone",
+					"id_number",
+					"email",
+				]}
+				searchPlaceholder="Search by name, phone, email, IC/passport…"
 				emptyMessage="No customers yet. Click “New customer” to create one."
 				minWidth={1000}
 			/>

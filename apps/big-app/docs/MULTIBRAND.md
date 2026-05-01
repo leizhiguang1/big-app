@@ -50,7 +50,11 @@ the other.
 | `/logout` | POST → sign out → redirect to `<brand>/login` |
 
 Outlets / branches do **not** get their own subdomain. The active outlet
-is a setting inside the app.
+lives in the URL path as `/o/<outletCode>/...` (e.g.
+`bigdental.bigapp.online/o/BDK/customers`). See
+[modules/12.9-outlets.md § Identifiers](modules/12.9-outlets.md#identifiers-id-vs-code)
+for the id-vs-code distinction and the per-brand uniqueness rule on
+`outlets.code`.
 
 ## Per-request flow
 

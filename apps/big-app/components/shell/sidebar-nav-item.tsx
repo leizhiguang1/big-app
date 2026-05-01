@@ -3,6 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { startNavProgress } from "@/components/shell/nav-progress";
 import {
 	SidebarMenuButton,
 	SidebarMenuItem,
@@ -52,6 +53,7 @@ export function SidebarNavItem({
 						if (routeMatches || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
 							return;
 						onPending(item.href);
+						startNavProgress();
 					}}
 				>
 					<Icon />

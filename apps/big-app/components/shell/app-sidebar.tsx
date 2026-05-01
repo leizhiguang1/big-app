@@ -11,6 +11,7 @@ import {
 	KeyRound,
 	LayoutDashboard,
 	MessageCircle,
+	MessageSquare,
 	Settings,
 	ShoppingCart,
 	Smartphone,
@@ -45,6 +46,7 @@ const baseNavItems: SidebarNavItemData[] = [
 	{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
 	{ label: "Appointments", href: "/appointments", icon: Calendar },
 	{ label: "Customers", href: "/customers", icon: Users },
+	{ label: "Chats", href: "/chats", icon: MessageSquare },
 	{ label: "Sales", href: "/sales", icon: ShoppingCart },
 	{ label: "Roster", href: "/roster", icon: CalendarDays },
 	{ label: "Services", href: "/services", icon: Stethoscope },
@@ -58,7 +60,12 @@ const baseNavItems: SidebarNavItemData[] = [
 ];
 
 const baseWhatsappNavItems: SidebarNavItemData[] = [
-	{ label: "Chats", href: "/chats", icon: MessageCircle, variant: "whatsapp" },
+	{
+		label: "Inbox",
+		href: "/whatsapp",
+		icon: MessageCircle,
+		variant: "whatsapp",
+	},
 	{ label: "Contacts", href: "/contacts", icon: Contact, variant: "whatsapp" },
 	{
 		label: "Automations",

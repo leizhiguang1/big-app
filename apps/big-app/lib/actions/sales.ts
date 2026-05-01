@@ -169,6 +169,26 @@ export async function revertLastPaymentAction(
 	};
 }
 
+export async function recordAdditionalPaymentAction(
+	salesOrderId: string,
+	input: unknown,
+	appointmentRef?: string | null,
+) {
+	const ctx = await getServerContext();
+	const result = await salesService.recordAdditionalPayment(
+		ctx,
+		salesOrderId,
+		input,
+	);
+	revalidateSalesOrder(salesOrderId, appointmentRef);
+	return {
+		invoiceNo: result.invoice_no,
+		amount: Number(result.amount),
+		newAmountPaid: Number(result.new_amount_paid),
+		newOutstanding: Number(result.new_outstanding),
+	};
+}
+
 export async function updatePaymentMethodAction(
 	paymentId: string,
 	salesOrderId: string,

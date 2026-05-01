@@ -9,14 +9,20 @@ import { SalesSummaryContent } from "./summary-content";
 
 const VALID_TABS = new Set(SALES_TABS.map((t) => t.key));
 
-const DEFERRED_TABS = new Set<SalesTabKey>(["payor", "petty-cash", "self-bill"]);
+const DEFERRED_TABS = new Set<SalesTabKey>([
+	"payor",
+	"petty-cash",
+	"self-bill",
+]);
 
 type PageProps = {
-	searchParams: Promise<{ tab?: string }>;
+	params: Promise<{ outlet: string }>;
+	searchParams: Promise<{ tab?: string; o?: string }>;
 };
 
-export default async function SalesPage({ searchParams }: PageProps) {
-	const { tab } = await searchParams;
+export default async function SalesPage({ params, searchParams }: PageProps) {
+	const { outlet: outletCode } = await params;
+	const { tab, o } = await searchParams;
 	const active: SalesTabKey =
 		tab && VALID_TABS.has(tab as SalesTabKey) ? (tab as SalesTabKey) : "sales";
 
@@ -27,7 +33,7 @@ export default async function SalesPage({ searchParams }: PageProps) {
 
 			{active === "summary" && (
 				<Suspense fallback={<SummarySkeleton />}>
-					<SalesSummaryContent />
+					<SalesSummaryContent outletCode={outletCode} scope={o} />
 				</Suspense>
 			)}
 
@@ -66,16 +72,15 @@ export default async function SalesPage({ searchParams }: PageProps) {
 
 function SummarySkeleton() {
 	return (
-		<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-			{Array.from({ length: 4 }).map((_, i) => (
-				<div
-					key={`skel-${
-						// biome-ignore lint: static list
-						i
-					}`}
-					className="h-24 animate-pulse rounded-lg border bg-muted/30"
-				/>
-			))}
+		<div className="flex flex-col gap-4">
+			<div className="flex items-center justify-between">
+				<div className="h-4 w-48 animate-pulse rounded bg-muted/30" />
+				<div className="h-8 w-40 animate-pulse rounded-md bg-muted/30" />
+			</div>
+			<div className="grid gap-4 lg:grid-cols-2">
+				<div className="h-[400px] animate-pulse rounded-xl border bg-muted/20" />
+				<div className="h-[400px] animate-pulse rounded-xl border bg-muted/20" />
+			</div>
 		</div>
 	);
 }

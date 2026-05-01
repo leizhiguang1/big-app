@@ -161,6 +161,34 @@ export type UpdatePaymentMethodInput = z.infer<
 	typeof updatePaymentMethodInputSchema
 >;
 
+export const recordAdditionalPaymentInputSchema = z.object({
+	amount: z.coerce.number().positive("Payment amount must be greater than 0"),
+	payment_mode: z.string().trim().min(1, "Payment method is required"),
+	bank: nullishTrimmed(80),
+	card_type: nullishTrimmed(40),
+	trace_no: nullishTrimmed(40),
+	approval_code: nullishTrimmed(40),
+	reference_no: nullishTrimmed(100),
+	months: z.coerce
+		.number()
+		.int()
+		.positive()
+		.nullish()
+		.transform((v) => (v && v > 0 ? v : null)),
+	remarks: nullishTrimmed(500),
+	allocations: z
+		.array(
+			z.object({
+				sale_item_id: z.string().uuid(),
+				amount: z.coerce.number().min(0),
+			}),
+		)
+		.nullish(),
+});
+export type RecordAdditionalPaymentInput = z.infer<
+	typeof recordAdditionalPaymentInputSchema
+>;
+
 export const paymentAllocationRowSchema = z.object({
 	payment_id: z.string().uuid(),
 	sale_item_id: z.string().uuid(),

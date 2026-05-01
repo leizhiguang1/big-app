@@ -3,6 +3,7 @@
 import { Check, ChevronsUpDown } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { startNavProgress } from "@/components/shell/nav-progress";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -107,6 +108,7 @@ export function OutletSelector({
 	const handleSelect = (code: string) => {
 		if (code === activeOutletCode) return;
 		const next = swapOutletInPath(pathname, code);
+		startNavProgress();
 		startTransition(() => router.replace(next));
 	};
 

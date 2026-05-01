@@ -25,6 +25,7 @@ const OUTLET_SCOPED_FIRST_SEG = new Set([
 	"employees",
 	"inventory",
 	"chats",
+	"whatsapp",
 	"contacts",
 	"automations",
 	"ai",
